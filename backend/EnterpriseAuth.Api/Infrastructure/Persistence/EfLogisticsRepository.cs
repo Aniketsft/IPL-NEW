@@ -53,6 +53,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     c.ZFULLBUSNAM_0 as CustomerName,
                     f0.REP_0 as Rep0,
                     f0.REP_1 as Rep1,
+                    f0.SALFCY_0 as Site,
                     f0.ORDSTA_0 as Status
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
@@ -221,6 +222,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE T1.STOFCY_0 = @Site";
 
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
+        }
+
+        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT DISTINCT
+                    LTRIM(RTRIM(LOT_0)) as LotNumber,
+                    LTRIM(RTRIM(SLO_0)) as LotDescription, -- SLO usually holds sub-lot or description
+                    SUM(QTYPCU_0) as StockQuantity
+                FROM InnodisTestDB.INLPROD.STOCK
+                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ProductCode
+                GROUP BY LOT_0, SLO_0
+                HAVING SUM(QTYPCU_0) > 0";
+
+            return await db.QueryAsync<LotLookupDto>(sql, new { Site = site, ProductCode = productCode });
         }
     }
 }

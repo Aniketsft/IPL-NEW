@@ -29,26 +29,40 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   String _selectedLocation = 'N/A';
   String _selectedLot = 'N/A';
   List<Map<String, String>> _locations = [];
+  List<Map<String, String>> _lots = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _selectedLocation = widget.product.location ?? 'Select Location';
-    _selectedLot = widget.product.lotNumber ?? 'LOT20240811A';
-    _fetchLocations();
+    _selectedLot = widget.product.lotNumber ?? 'Select Lot';
+    _fetchInitialData();
   }
 
-  Future<void> _fetchLocations() async {
-    if (widget.product.site == null) return;
+  Future<void> _fetchInitialData() async {
+    setState(() => _isLoading = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      final results = await repository.getLocations(widget.product.site!);
-      setState(() {
-        _locations = results;
-      });
+
+      // Fetch Locations if site is available
+      if (widget.product.site != null) {
+        final locs = await repository.getLocations(widget.product.site!);
+        setState(() => _locations = locs);
+      }
+
+      // Fetch Lots if product code and site are available
+      if (widget.product.site != null) {
+        final lots = await repository.fetchLots(
+          widget.product.site!,
+          widget.product.productCode,
+        );
+        setState(() => _lots = lots);
+      }
     } catch (e) {
-      debugPrint('Error fetching locations: $e');
+      debugPrint('Error fetching tracking data: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -77,37 +91,39 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         actions: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(
               child: Text(
-                'Main Plant',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                widget.product.site ?? 'Main Plant',
+                style: const TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ),
           ),
           IconButton(onPressed: () {}, icon: const Icon(Icons.logout)),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildHeaderCard(dark800),
-                  const SizedBox(height: 16),
-                  _buildTrackingParamsCard(dark800, orange),
-                  const SizedBox(height: 16),
-                  _buildScanningCard(dark800, orange),
-                ],
-              ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: orange))
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildHeaderCard(dark800),
+                        const SizedBox(height: 16),
+                        _buildTrackingParamsCard(dark800, orange),
+                        const SizedBox(height: 16),
+                        _buildScanningCard(dark800, orange),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildFooter(dark800, orange),
+              ],
             ),
-          ),
-          _buildFooter(dark800, orange),
-        ],
-      ),
     );
   }
 
@@ -186,7 +202,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             onTap: _showLocationPicker,
           ),
           const SizedBox(height: 12),
-          _buildActionTile('Lot', _selectedLot, onTap: () {}),
+          _buildActionTile('Lot', _selectedLot, onTap: _showLotPicker),
           const SizedBox(height: 16),
           _buildLotDetailsField(),
           const SizedBox(height: 16),
@@ -414,25 +430,93 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => ListView.builder(
-        itemCount: _locations.length,
-        itemBuilder: (context, index) {
-          final loc = _locations[index];
-          return ListTile(
-            title: Text(
-              loc['location'] ?? '',
-              style: const TextStyle(color: Colors.white),
+      builder: (context) => Container(
+        height: 400,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            const Text(
+              'Select Location',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            subtitle: Text(
-              loc['warehouse'] ?? '',
-              style: const TextStyle(color: Colors.grey),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _locations.length,
+                itemBuilder: (context, index) {
+                  final loc = _locations[index];
+                  return ListTile(
+                    title: Text(
+                      loc['location'] ?? '',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      loc['warehouse'] ?? '',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    onTap: () {
+                      setState(() => _selectedLocation = loc['location']!);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
             ),
-            onTap: () {
-              setState(() => _selectedLocation = loc['location']!);
-              Navigator.pop(context);
-            },
-          );
-        },
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLotPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        height: 400,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            const Text(
+              'Select Lot',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _lots.length,
+                itemBuilder: (context, index) {
+                  final lot = _lots[index];
+                  return ListTile(
+                    title: Text(
+                      lot['lot'] ?? '',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      '${lot['description'] ?? ""} (Qty: ${lot['quantity'] ?? "0"})',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    onTap: () {
+                      setState(() => _selectedLot = lot['lot']!);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

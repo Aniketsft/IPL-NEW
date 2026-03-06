@@ -121,5 +121,18 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 return Result<IEnumerable<LocationLookupDto>>.Failure($"Failed to fetch locations: {ex.Message}");
             }
         }
+
+        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string productCode)
+        {
+            try
+            {
+                var lots = await _logisticsRepository.GetLotLookupsAsync(site, productCode);
+                return Result<IEnumerable<LotLookupDto>>.Success(lots);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<LotLookupDto>>.Failure($"Failed to fetch lots: {ex.Message}");
+            }
+        }
     }
 }

@@ -229,6 +229,27 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  Future<List<Map<String, String>>> fetchLots(
+    String site,
+    String productCode,
+  ) async {
+    try {
+      final response = await _dio.get('Logistics/lots/$site/$productCode');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => {
+              'lot': (json['lotNumber'] ?? '').toString(),
+              'description': (json['lotDescription'] ?? '').toString(),
+              'quantity': (json['stockQuantity'] ?? 0.0).toString(),
+            },
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch lots: $e';
+    }
+  }
+
   SalesOrder _mapHeaderJsonToEntity(Map<String, dynamic> json) {
     return SalesOrder(
       id: json['sohNum'] ?? '',
@@ -245,6 +266,7 @@ class DeliveryRepository implements ILogisticsRepository {
       purchaseOrderNumber: json['poNo'],
       salesManCode1: json['rep0'] ?? '',
       salesManCode2: json['rep1'] ?? '',
+      site: json['site'],
       isClosed: json['status'] == 2,
       isEditable: true,
     );

@@ -12,6 +12,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string CustomerName { get; set; } = string.Empty;
         public string Rep0 { get; set; } = string.Empty;
         public string Rep1 { get; set; } = string.Empty;
+        public string Site { get; set; } = string.Empty;
         public int Status { get; set; }
         public string StatusLabel => Status == 2 ? "Closed" : "Open";
     }
