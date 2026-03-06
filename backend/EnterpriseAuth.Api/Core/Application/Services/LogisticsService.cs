@@ -94,5 +94,32 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 return Result<int>.Failure($"Failed to sync scans: {ex.Message}");
             }
         }
+
+        public async Task<Result<ProductionTrackingDto>> GetProductionTrackingInfoAsync(string soNumber, string productCode)
+        {
+            try
+            {
+                var info = await _logisticsRepository.GetProductionTrackingInfoAsync(soNumber, productCode);
+                if (info == null) return Result<ProductionTrackingDto>.Failure("Product info not found.");
+                return Result<ProductionTrackingDto>.Success(info);
+            }
+            catch (Exception ex)
+            {
+                return Result<ProductionTrackingDto>.Failure($"Failed to fetch production tracking info: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site)
+        {
+            try
+            {
+                var locations = await _logisticsRepository.GetLocationLookupsAsync(site);
+                return Result<IEnumerable<LocationLookupDto>>.Success(locations);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<LocationLookupDto>>.Failure($"Failed to fetch locations: {ex.Message}");
+            }
+        }
     }
 }

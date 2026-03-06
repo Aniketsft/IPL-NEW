@@ -71,6 +71,20 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpGet("production-tracking-info")]
+        public async Task<IActionResult> GetProductionTrackingInfo([FromQuery] string soNumber, [FromQuery] string productCode)
+        {
+            var result = await _logisticsService.GetProductionTrackingInfoAsync(soNumber, productCode);
+            return ToActionResult(result);
+        }
+
+        [HttpGet("locations/{site}")]
+        public async Task<IActionResult> GetLocations(string site)
+        {
+            var result = await _logisticsService.GetLocationLookupsAsync(site);
+            return ToActionResult(result);
+        }
+
         private IActionResult ToActionResult<T>(Result<T> result)
         {
             return result.IsSuccess

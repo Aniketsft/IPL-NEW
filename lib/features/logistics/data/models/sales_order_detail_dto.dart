@@ -12,6 +12,9 @@ class SalesOrderDetailDto {
   final double manufactured;
   final String? salesMan1;
   final String? salesMan2;
+  final String? site;
+  final String? location;
+  final String? lotNumber;
 
   SalesOrderDetailDto({
     required this.soNumber,
@@ -27,6 +30,9 @@ class SalesOrderDetailDto {
     required this.manufactured,
     this.salesMan1,
     this.salesMan2,
+    this.site,
+    this.location,
+    this.lotNumber,
   });
 
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
@@ -44,6 +50,9 @@ class SalesOrderDetailDto {
       manufactured: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
       salesMan1: json['salesMan1']?.toString(),
       salesMan2: json['salesMan2']?.toString(),
+      site: json['site']?.toString(),
+      location: json['location']?.toString(),
+      lotNumber: json['lotNumber']?.toString(),
     );
   }
 }

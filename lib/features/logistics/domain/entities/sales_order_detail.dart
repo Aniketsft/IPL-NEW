@@ -7,6 +7,10 @@ class SalesOrderDetail {
   final String? salesMan1;
   final String? salesMan2;
 
+  final String? site;
+  final String? location;
+  final String? lotNumber;
+
   final String productCode;
   final String productDescription;
   final String barcodeType;
@@ -22,6 +26,9 @@ class SalesOrderDetail {
     this.deliveryDate,
     this.salesMan1,
     this.salesMan2,
+    this.site,
+    this.location,
+    this.lotNumber,
     required this.productCode,
     required this.productDescription,
     required this.barcodeType,

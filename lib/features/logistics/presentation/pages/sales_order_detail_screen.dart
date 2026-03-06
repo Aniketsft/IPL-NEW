@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
+import 'production_tracking_screen.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
   final SalesOrder order;
@@ -73,6 +73,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         title: Text(widget.order.orderNumber),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           const Padding(
             padding: EdgeInsets.only(right: 16),
@@ -83,10 +87,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               ),
             ),
           ),
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.logout),
-          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.logout)),
         ],
       ),
       body: Column(
@@ -218,120 +219,131 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ProductionTrackingScreen(order: widget.order, product: item),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          border: Border(
+            bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+          ),
         ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.productCode,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.productDescription,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              item.barcodeType,
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.productCode,
+                      item.orderedQuantity.toStringAsFixed(2),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 16,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            item.productDescription,
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 13,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.orange.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            item.barcodeType,
-                            style: const TextStyle(
-                              color: Colors.orange,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item.orderedQuantity.toStringAsFixed(2),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                const SizedBox(width: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      item.remainingQuantity.toStringAsFixed(2),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.red,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item.remainingQuantity.toStringAsFixed(2),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Manufactured: ${item.manufacturedQuantity.toStringAsFixed(2)}',
-                style: const TextStyle(color: Colors.grey, fontSize: 11),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: item.progress,
-              backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(orange),
-              minHeight: 4,
+                  ],
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Manufactured: ${item.manufacturedQuantity.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: item.progress,
+                backgroundColor: Colors.white10,
+                valueColor: AlwaysStoppedAnimation<Color>(orange),
+                minHeight: 4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -342,9 +354,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: () {
-            // Optional: Close order logic
-          },
+          onPressed: () {},
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2C2C2E),
             foregroundColor: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
+import '../../data/repositories/delivery_repository.dart';
 
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
@@ -21,45 +23,38 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   final TextEditingController _lotDetailsController = TextEditingController(
     text: 'test',
   );
-
-  // Q = Quarantine, A = Approved, R = Rejected
   String _status = 'A';
   double _currentScan = 0.0;
   double _cumulativeQty = 0.0;
-
-  String _selectedLocation = 'Warehouse A-2';
-  String _selectedLot = 'LOT20240811A';
-
-  final List<String> _locations = [
-    'Warehouse A-2',
-    'Main Floor',
-    'Cold Storage',
-    'Sector B-4',
-    'Loading Dock',
-  ];
-
-  final List<String> _lots = [
-    'LOT20240811A',
-    'LOT20240811B',
-    'LOT20240812A',
-    'LOT20240901X',
-    'LOT20240905Y',
-  ];
-
-  void _saveAndUpdate() {
-    if (_cumulativeQty > 0) {
-      // TODO: Replace with new Production Tracking feature
-      // context.read<OrderBloc>().add(
-      //   UpdateProductQty(...)
-      // );
-    }
-    Navigator.pop(context);
-  }
+  String _selectedLocation = 'N/A';
+  String _selectedLot = 'N/A';
+  List<Map<String, String>> _locations = [];
+  bool _isLoading = false;
 
   @override
-  void dispose() {
-    _lotDetailsController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _selectedLocation = widget.product.location ?? 'Select Location';
+    _selectedLot = widget.product.lotNumber ?? 'LOT20240811A';
+    _fetchLocations();
+  }
+
+  Future<void> _fetchLocations() async {
+    if (widget.product.site == null) return;
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final results = await repository.getLocations(widget.product.site!);
+      setState(() {
+        _locations = results;
+      });
+    } catch (e) {
+      debugPrint('Error fetching locations: $e');
+    }
+  }
+
+  void _saveAndUpdate() {
+    // Implement save logic here
+    Navigator.pop(context);
   }
 
   @override
@@ -82,13 +77,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              'Main Plant',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: Text(
+                'Main Plant',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
             ),
           ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.logout)),
         ],
       ),
       body: Column(
@@ -98,7 +96,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _buildOrderInfoCard(dark800, orange),
+                  _buildHeaderCard(dark800),
                   const SizedBox(height: 16),
                   _buildTrackingParamsCard(dark800, orange),
                   const SizedBox(height: 16),
@@ -113,15 +111,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  // ────────────────────────────────── Cards ──────────────────────────────────
-
-  Widget _buildOrderInfoCard(Color dark800, Color orange) {
+  Widget _buildHeaderCard(Color dark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: dark800,
+        color: dark,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
       ),
       child: Column(
         children: [
@@ -147,7 +142,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ),
         Expanded(
@@ -155,7 +150,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             value,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 14,
+              fontSize: 13,
               color: Colors.white,
             ),
           ),
@@ -164,107 +159,42 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  Widget _buildTrackingParamsCard(Color dark800, Color orange) {
-    const dark700 = Color(0xFF2C2C2E);
+  Widget _buildTrackingParamsCard(Color dark, Color orange) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: dark800,
+        color: dark,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Order Qty
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Order Qty:', style: TextStyle(color: Colors.grey[500])),
-              Text(
-                widget.product.orderedQuantity.toStringAsFixed(2),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
+          _buildFieldRow(
+            'Order Qty:',
+            widget.product.orderedQuantity.toStringAsFixed(2),
+          ),
+          const SizedBox(height: 12),
+          _buildFieldRow(
+            'Manufactured Qty:',
+            widget.product.manufacturedQuantity.toStringAsFixed(2),
           ),
           const SizedBox(height: 16),
-          const Divider(height: 1, color: Colors.white10),
+          const Divider(color: Colors.white10, height: 1),
           const SizedBox(height: 16),
-          // Manufactured Qty
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Manufactured Qty:',
-                style: TextStyle(color: Colors.grey[500]),
-              ),
-              Text(
-                widget.product.manufacturedQuantity.toStringAsFixed(2),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Location picker
           _buildActionTile(
             'Location',
             _selectedLocation,
-            onTap: () => _showSelectionSheet(
-              context,
-              'Select Location',
-              _locations,
-              _selectedLocation,
-              (val) => setState(() => _selectedLocation = val),
-              orange,
-            ),
+            onTap: _showLocationPicker,
           ),
+          const SizedBox(height: 12),
+          _buildActionTile('Lot', _selectedLot, onTap: () {}),
           const SizedBox(height: 16),
-          // Lot picker
-          _buildActionTile(
-            'Lot',
-            _selectedLot,
-            onTap: () => _showSelectionSheet(
-              context,
-              'Select Lot',
-              _lots,
-              _selectedLot,
-              (val) => setState(() => _selectedLot = val),
-              orange,
-            ),
-          ),
+          _buildLotDetailsField(),
           const SizedBox(height: 16),
-          // Lot details text input
-          Text(
-            'Lot Details',
-            style: TextStyle(color: Colors.grey[500], fontSize: 13),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: dark700,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: TextField(
-              controller: _lotDetailsController,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: const InputDecoration(border: InputBorder.none),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Status toggle Q / A / R
           Row(
             children: [
-              Text(
+              const Text(
                 'Status',
-                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               const Spacer(),
               _buildStatusToggle(orange),
@@ -272,6 +202,23 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFieldRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 15)),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 
@@ -283,29 +230,24 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 4),
         InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
                 Text(
                   value,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 15,
                     color: Colors.white,
                   ),
                 ),
                 const Spacer(),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
+                const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
           ),
@@ -314,27 +256,54 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
+  Widget _buildLotDetailsField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Lot Details',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _lotDetailsController,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF2C2C2E),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStatusToggle(Color orange) {
-    const dark700 = Color(0xFF2C2C2E);
     return Container(
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: dark700,
+        color: const Color(0xFF2C2C2E),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: ['Q', 'A', 'R'].map((s) {
           final isSelected = _status == s;
           return GestureDetector(
             onTap: () => setState(() => _status = s),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF1E1E1E)
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: isSelected ? Border.all(color: Colors.white10) : null,
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 s,
@@ -350,19 +319,19 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  Widget _buildScanningCard(Color dark800, Color orange) {
+  Widget _buildScanningCard(Color dark, Color orange) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: dark800,
+        color: dark,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Current Scan',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 8),
           Text(
@@ -376,9 +345,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 16),
           const Divider(color: Colors.white10),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Cumulative Scanned Quantity',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 12),
           Text(
@@ -390,27 +359,22 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _currentScan = 10;
-                  _cumulativeQty += 10;
-                });
-              },
-              icon: const Icon(Icons.grid_view_rounded),
-              label: const Text(
-                'Scan Quantity',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
+          ElevatedButton.icon(
+            onPressed: () => setState(() {
+              _currentScan = 10.0;
+              _cumulativeQty += 10.0;
+            }),
+            icon: const Icon(Icons.grid_view_rounded),
+            label: const Text(
+              'Scan Quantity',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: orange,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
           ),
@@ -419,17 +383,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  Widget _buildFooter(Color dark800, Color orange) {
+  Widget _buildFooter(Color dark, Color orange) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-        color: Color(0xFF0D0D0D),
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
       child: ElevatedButton(
         onPressed: _saveAndUpdate,
         style: ElevatedButton.styleFrom(
-          backgroundColor: dark800,
+          backgroundColor: const Color(0xFF2C2C2E),
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 54),
           shape: RoundedRectangleBorder(
@@ -444,121 +407,30 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  // ─────────────────────────── Bottom Sheet Picker ──────────────────────────
-
-  void _showSelectionSheet(
-    BuildContext context,
-    String title,
-    List<String> options,
-    String currentValue,
-    Function(String) onSelect,
-    Color orange,
-  ) {
-    String searchQuery = '';
-
+  void _showLocationPicker() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final filteredOptions = options
-              .where((o) => o.toLowerCase().contains(searchQuery.toLowerCase()))
-              .toList();
-
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.7,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => ListView.builder(
+        itemCount: _locations.length,
+        itemBuilder: (context, index) {
+          final loc = _locations[index];
+          return ListTile(
+            title: Text(
+              loc['location'] ?? '',
+              style: const TextStyle(color: Colors.white),
             ),
-            child: Column(
-              children: [
-                // Drag handle
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[600],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // Title row
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                // Search
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: TextField(
-                    onChanged: (val) => setSheetState(() => searchQuery = val),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search...',
-                      hintStyle: const TextStyle(color: Colors.white38),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Colors.white38,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF2C2C2E),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // List
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: filteredOptions.length,
-                    itemBuilder: (context, index) {
-                      final option = filteredOptions[index];
-                      final isSelected = option == currentValue;
-                      return ListTile(
-                        onTap: () {
-                          onSelect(option);
-                          Navigator.pop(ctx);
-                        },
-                        title: Text(
-                          option,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected ? orange : Colors.white,
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? Icon(Icons.check, color: orange)
-                            : null,
-                      );
-                    },
-                  ),
-                ),
-              ],
+            subtitle: Text(
+              loc['warehouse'] ?? '',
+              style: const TextStyle(color: Colors.grey),
             ),
+            onTap: () {
+              setState(() => _selectedLocation = loc['location']!);
+              Navigator.pop(context);
+            },
           );
         },
       ),

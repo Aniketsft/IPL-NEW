@@ -196,6 +196,39 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  Future<SalesOrderDetail?> fetchProductionTrackingInfo(
+    String soNumber,
+    String productCode,
+  ) async {
+    try {
+      final response = await _dio.get(
+        'Logistics/production-tracking-info',
+        queryParameters: {'soNumber': soNumber, 'productCode': productCode},
+      );
+      if (response.data == null) return null;
+      return _mapDetailJsonToEntity(response.data);
+    } catch (e) {
+      throw 'Failed to fetch tracking info: $e';
+    }
+  }
+
+  Future<List<Map<String, String>>> getLocations(String site) async {
+    try {
+      final response = await _dio.get('Logistics/locations/$site');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => {
+              'location': (json['location'] ?? '').toString(),
+              'warehouse': (json['warehouseName'] ?? '').toString(),
+            },
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch locations: $e';
+    }
+  }
+
   SalesOrder _mapHeaderJsonToEntity(Map<String, dynamic> json) {
     return SalesOrder(
       id: json['sohNum'] ?? '',
@@ -228,6 +261,9 @@ class DeliveryRepository implements ILogisticsRepository {
           : null,
       salesMan1: json['salesMan1'],
       salesMan2: json['salesMan2'],
+      site: json['site'],
+      location: json['location'],
+      lotNumber: json['lotNumber'],
       productCode: json['productCode'] ?? '',
       productDescription: json['productDescription'] ?? '',
       barcodeType: json['barcodeType'] ?? 'Variable Weight',
@@ -274,6 +310,9 @@ class DeliveryRepository implements ILogisticsRepository {
           : null,
       salesMan1: dto.salesMan1,
       salesMan2: dto.salesMan2,
+      site: dto.site,
+      location: dto.location,
+      lotNumber: dto.lotNumber,
       productCode: dto.productCode ?? '',
       productDescription: dto.productDescription ?? '',
       barcodeType: dto.barcodeType ?? 'Variable Weight',

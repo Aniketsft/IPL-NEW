@@ -166,5 +166,61 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
             return totalRows;
         }
+
+        public async Task<ProductionTrackingDto> GetProductionTrackingInfoAsync(string soNumber, string productCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT 
+                    f0.SOHNUM_0 as SoNumber,
+                    f1.STOFCY_0 as Site,
+                    f2.ITMREF_0 as ProductCode,
+                    f2.ITMDES1_0 as ProductDescription,
+                    'Variable Weight' as BarcodeType,
+                    f1.QTY_0 as OrderedQuantity,
+                    786.0 as RemainingQuantity,
+                    786.0 as Manufactured,
+                    f1.LOC_0 as Location,
+                    f1.LOT_0 as LotNumber
+                FROM InnodisTestDB.INLPROD.SORDER f0
+                JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
+                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ProductCode";
+
+            return await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ProductCode = productCode });
+        }
+
+        public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT 
+                    T1.STOFCY_0 as Site,
+                    T1.LOC_0 as Location,
+                    T1.WRH_0 as Warehouse,
+                    T1.WRHNAM_0 as WarehouseName,
+                    T1.LOCTYP_0 as LocationType,
+                    T1.TEXTE_0 as LocationTypeName
+                FROM (
+                    SELECT
+                        STOL.STOFCY_0,
+                        STOL.LOC_0,
+                        STOL.WRH_0,
+                        WRH.WRHNAM_0,
+                        STOL.LOCTYP_0,
+                        ATRA.TEXTE_0
+                    FROM InnodisTestDB.INLPROD.STOLOC STOL 
+                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0
+                    LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on STOL.STOFCY_0 = ATRA.IDENT1_0 
+                        AND STOL.LOCTYP_0 = ATRA.IDENT2_0 
+                        AND ATRA.CODFIC_0 = 'TABLOCTYP' 
+                        AND ATRA.LANGUE_0 = 'BRI' 
+                        AND ATRA.ZONE_0 = 'TYPDESAXX'
+                ) AS T1 
+                WHERE T1.STOFCY_0 = @Site";
+
+            return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
+        }
     }
 }

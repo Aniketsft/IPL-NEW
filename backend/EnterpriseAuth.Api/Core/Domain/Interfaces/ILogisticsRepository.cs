@@ -13,5 +13,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync();
         Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync();
         Task<int> SyncScansAsync(IEnumerable<ScanDto> scans);
+
+        // Production Tracking
+        Task<ProductionTrackingDto> GetProductionTrackingInfoAsync(string soNumber, string productCode);
+        Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site);
     }
 }
