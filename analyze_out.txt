@@ -1,0 +1,79 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 93.0.0 (97.0.0 available)
+  analyzer 10.0.1 (11.0.0 available)
+  build_config 1.2.0 (1.3.0 available)
+  build_runner 2.11.1 (2.12.2 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  flutter_secure_storage 9.2.4 (10.0.0 available)
+  flutter_secure_storage_linux 1.2.3 (3.0.0 available)
+  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
+  flutter_secure_storage_platform_interface 1.1.2 (2.0.1 available)
+  flutter_secure_storage_web 1.2.1 (2.1.0 available)
+  flutter_secure_storage_windows 3.1.2 (4.1.0 available)
+  google_fonts 6.3.3 (8.0.2 available)
+  js 0.6.7 (0.7.2 available)
+  lints 5.1.1 (6.1.0 available)
+  matcher 0.12.18 (0.12.19 available)
+  meta 1.17.0 (1.18.1 available)
+  test_api 0.7.9 (0.7.10 available)
+  win32 5.15.0 (6.0.0 available)
+Got dependencies!
+18 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing enterprise_auth_system...                             
+
+   info - Statements in an if should be enclosed in a block - lib\features\administration\data\repositories\user_management_repository.dart:237:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\administration\data\repositories\user_management_repository.dart:240:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\administration\data\repositories\user_management_repository.dart:242:9 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\administration\ui\screens\user_management_screen.dart:309:57 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\administration\ui\screens\user_management_screen.dart:631:17 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\administration\ui\screens\user_management_screen.dart:633:17 - deprecated_member_use
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\administration\ui\screens\user_management_screen.dart:743:19 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\administration\ui\screens\user_management_screen.dart:971:60 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\features\auth\data\repositories\auth_repository.dart:104:83 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\features\auth\data\repositories\auth_repository.dart:107:57 - unnecessary_brace_in_string_interps
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\bloc\auth_bloc.dart:41:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\bloc\auth_bloc.dart:42:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\pages\home_screen.dart:34:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\pages\home_screen.dart:35:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\pages\home_screen.dart:37:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\auth\presentation\pages\home_screen.dart:39:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\login_screen.dart:69:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\login_screen.dart:106:48 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\features\auth\presentation\pages\login_screen.dart:119:19 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\auth\presentation\pages\login_screen.dart:131:19 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\register_screen.dart:121:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\register_screen.dart:124:33 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\features\auth\presentation\pages\register_screen.dart:173:19 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\auth\presentation\pages\register_screen.dart:175:19 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\auth\presentation\pages\register_screen.dart:192:19 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\register_screen.dart:271:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\register_screen.dart:294:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\pages\register_screen.dart:298:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\by_identifier_screen.dart:94:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\by_identifier_screen.dart:153:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\picking_screen.dart:121:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\picking_screen.dart:213:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\stock_control_screen.dart:179:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\stock_control_screen.dart:180:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\stock_control_screen.dart:183:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\inventory\ui\screens\stock_control_screen.dart:201:41 - deprecated_member_use
+   info - The imported package 'path' isn't a dependency of the importing package - lib\features\logistics\data\local\local_database_helper.dart:1:8 - depend_on_referenced_packages
+warning - Unused import: '../../domain/entities/sales_order.dart' - lib\features\logistics\presentation\bloc\order_event.dart:2:8 - unused_import
+warning - Unused import: 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order.dart' - lib\features\logistics\presentation\pages\delivery_screen.dart:4:8 - unused_import
+  error - Target of URI doesn't exist: 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_details_screen.dart' - lib\features\logistics\presentation\pages\delivery_screen.dart:5:8 - uri_does_not_exist
+   info - The member 'initState' overrides an inherited member but isn't annotated with '@override' - lib\features\logistics\presentation\pages\delivery_screen.dart:18:8 - annotate_overrides
+warning - Unused import: 'package:flutter_bloc/flutter_bloc.dart' - lib\features\logistics\presentation\pages\production_tracking_screen.dart:2:8 - unused_import
+warning - Unused import: '../bloc/order_bloc.dart' - lib\features\logistics\presentation\pages\production_tracking_screen.dart:3:8 - unused_import
+warning - Unused import: 'package:intl/intl.dart' - lib\features\logistics\presentation\pages\receipt_screen.dart:2:8 - unused_import
+warning - Unused import: 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order.dart' - lib\features\logistics\presentation\pages\receipt_screen.dart:4:8 - unused_import
+   info - The member 'initState' overrides an inherited member but isn't annotated with '@override' - lib\features\logistics\presentation\pages\receipt_screen.dart:25:8 - annotate_overrides
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\logistics\presentation\pages\receipt_screen.dart:147:13 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\manufacturing\ui\screens\manufacturing_screen.dart:88:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\other\ui\screens\other_modules_screen.dart:61:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\ui\screens\settings_modules_screen.dart:231:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\ui\screens\settings_modules_screen.dart:264:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\ui\screens\settings_modules_screen.dart:316:39 - deprecated_member_use
+
+52 issues found. (ran in 5.6s)

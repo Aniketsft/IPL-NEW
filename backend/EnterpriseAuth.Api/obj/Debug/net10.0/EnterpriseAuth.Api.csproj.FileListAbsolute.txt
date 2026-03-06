@@ -1,0 +1,8 @@
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.csproj.AssemblyReference.cache
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\rpswa.dswa.cache.json
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.AssemblyInfoInputs.cache
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.AssemblyInfo.cs
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.csproj.CoreCompileInputs.cache
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.MvcApplicationPartsAssemblyInfo.cs
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\obj\Debug\net10.0\EnterpriseAuth.Api.MvcApplicationPartsAssemblyInfo.cache

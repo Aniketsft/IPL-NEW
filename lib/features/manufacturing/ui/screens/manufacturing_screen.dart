@@ -1,0 +1,115 @@
+import 'package:flutter/material.dart';
+import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
+
+class ManufacturingScreen extends StatelessWidget {
+  final List<String> permissions;
+
+  const ManufacturingScreen({super.key, required this.permissions});
+
+  bool _hasAccess(String module, String submodule) {
+    if (permissions.contains('administration.user_management.delete')) {
+      return true;
+    }
+    return permissions.contains('$module.$submodule.read');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IndustrialModuleLayout(
+      title: 'Manufacturing',
+      body: GridView.count(
+        padding: const EdgeInsets.all(24),
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.85,
+        children: [
+          if (_hasAccess('manufacturing', 'work_order'))
+            _buildMenuCard(
+              context,
+              'Work order',
+              Icons.timer_outlined,
+              null, // Placeholder
+            ),
+          if (_hasAccess('manufacturing', 'view_sales_order'))
+            _buildMenuCard(
+              context,
+              'View sales order',
+              Icons.show_chart_rounded,
+              null,
+            ),
+          if (_hasAccess('manufacturing', 'tracking'))
+            _buildMenuCard(
+              context,
+              'Production order tracking',
+              Icons.description_outlined,
+              null,
+            ),
+          if (_hasAccess('manufacturing', 'components'))
+            _buildMenuCard(
+              context,
+              'Component products',
+              Icons.account_tree_rounded,
+              null, // Placeholder
+            ),
+          if (_hasAccess('manufacturing', 'products'))
+            _buildMenuCard(
+              context,
+              'Parent product',
+              Icons.view_in_ar_rounded,
+              null, // Placeholder
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Widget? targetScreen,
+  ) {
+    return Material(
+      color: const Color(0xFF1E1E1E),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: targetScreen != null
+            ? () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => targetScreen),
+              )
+            : () => ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$title module is coming soon')),
+              ),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 36, color: const Color(0xFFFF9800)),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
