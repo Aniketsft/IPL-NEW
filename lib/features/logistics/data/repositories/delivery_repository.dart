@@ -116,9 +116,9 @@ class DeliveryRepository implements ILogisticsRepository {
       final queryParams = <String, dynamic>{};
 
       if (status == 'open') {
-        queryParams['status'] = 2; // Assuming 2 is open/ordered
+        queryParams['status'] = 1; // 1 = Open
       } else if (status == 'closed') {
-        queryParams['status'] = 4;
+        queryParams['status'] = 2; // 2 = Closed
       }
 
       if (date != null) {
@@ -156,7 +156,7 @@ class DeliveryRepository implements ILogisticsRepository {
       purchaseOrderNumber: json['poNo'],
       salesManCode1: json['rep0'] ?? '',
       salesManCode2: json['rep1'] ?? '',
-      isClosed: json['status'] == 4,
+      isClosed: json['status'] == 2,
       isEditable: true,
     );
   }

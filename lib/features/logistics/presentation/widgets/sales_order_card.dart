@@ -29,67 +29,110 @@ class SalesOrderCard extends StatelessWidget {
                   color: Colors.orange,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
+                  letterSpacing: 1.1,
                 ),
               ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: order.isClosed ? Colors.grey : Colors.orange,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      order.isClosed ? 'Closed' : 'Open',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: order.isClosed
+                      ? Colors.grey.withOpacity(0.2)
+                      : Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: order.isClosed ? Colors.grey : Colors.orange,
+                    width: 1,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    DateFormat('yyyy-MM-dd').format(order.date),
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                child: Text(
+                  order.isClosed ? 'CLOSED' : 'OPEN',
+                  style: TextStyle(
+                    color: order.isClosed ? Colors.grey : Colors.orange,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
                   ),
-                ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             '${order.customerCode} - ${order.customerName}',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontSize: 17,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'PO: ${order.purchaseOrderNumber ?? 'N/A'}',
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
+          const SizedBox(height: 12),
+          if (order.soDate != null) ...[
+            _buildInfoRow(
+              Icons.history_outlined,
+              'SO Date',
+              DateFormat('dd/MM/yyyy').format(order.soDate!),
+            ),
+            const SizedBox(height: 8),
+          ],
+          _buildInfoRow(
+            Icons.description_outlined,
+            'PO',
+            order.purchaseOrderNumber ?? 'N/A',
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            Icons.calendar_month_outlined,
+            'Del. Date',
+            DateFormat('dd/MM/yyyy').format(order.date),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Text(
-                'SM1: ${order.salesManCode1}',
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+              Expanded(
+                child: _buildInfoRow(
+                  Icons.person_outline,
+                  'SM1',
+                  order.salesManCode1,
+                ),
               ),
-              const SizedBox(width: 16),
-              Text(
-                'SM2: ${order.salesManCode2}',
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+              Expanded(
+                child: _buildInfoRow(
+                  Icons.person_outline,
+                  'SM2',
+                  order.salesManCode2,
+                ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.white38),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(color: Colors.white38, fontSize: 13),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
