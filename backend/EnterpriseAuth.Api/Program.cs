@@ -103,7 +103,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection(); // Causes issues with Android Emulator on HTTP port 5150
+// app.UseHttpsRedirection(); // Causes issues with Android Emulator on HTTP port 5004
 
 app.UseCors("AllowAll");
 

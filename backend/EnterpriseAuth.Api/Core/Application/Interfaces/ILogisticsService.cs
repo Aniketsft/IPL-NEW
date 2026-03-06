@@ -9,6 +9,7 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
     public interface ILogisticsService
     {
         Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync();
+        Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode);
         Task<Result<int>> SyncScansAsync(IEnumerable<ScanDto> scans);
     }
 }

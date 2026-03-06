@@ -39,6 +39,51 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<ProductionTrackingDto>(sql);
         }
 
+        public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+
+            var sql = @"
+                SELECT 
+                    f0.SOHNUM_0 as SohNum,
+                    f2.PONO_0 as PoNo,
+                    f0.ORDDAT_0 as OrderDate,
+                    f0.SHIDAT_0 as DeliveryDate,
+                    f0.BPCORD_0 as CustomerCode,
+                    c.ZFULLBUSNAM_0 as CustomerName,
+                    f0.REP_0 as Rep0,
+                    f0.REP_1 as Rep1,
+                    f0.ORDSTA_0 as Status
+                FROM InnodisTestDB.INLPROD.SORDER f0
+                JOIN InnodisTestDB.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
+                JOIN InnodisTestDB.INLPROD.BPCUSTOMER c ON f0.BPCORD_0 = c.BPCNUM_0
+                WHERE 1=1";
+
+            var parameters = new DynamicParameters();
+
+            if (status.HasValue)
+            {
+                sql += " AND f0.ORDSTA_0 = @Status";
+                parameters.Add("Status", status.Value);
+            }
+
+            if (date.HasValue)
+            {
+                sql += " AND f0.SHIDAT_0 = @Date";
+                parameters.Add("Date", date.Value.Date);
+            }
+
+            if (!string.IsNullOrEmpty(customerCode))
+            {
+                sql += " AND f0.BPCORD_0 = @CustomerCode";
+                parameters.Add("CustomerCode", customerCode);
+            }
+
+            sql += " ORDER BY f0.ORDDAT_0 DESC";
+
+            return await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters);
+        }
+
         public async Task<int> SyncScansAsync(IEnumerable<ScanDto> scans)
         {
             if (scans == null || !scans.Any()) return 0;

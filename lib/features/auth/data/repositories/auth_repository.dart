@@ -14,7 +14,7 @@ class AuthRepository implements IAuthRepository {
   // Use 10.0.2.2 for Android Emulator; localhost otherwise
   static String get _baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:5150/api/Auth/';
+      return 'http://192.168.1.107:5004/api/Auth/';
     }
     return 'https://localhost:7176/api/Auth/';
   }
@@ -104,7 +104,7 @@ class AuthRepository implements IAuthRepository {
       return '$operation failed: Server timed out. Check if backend is running on ${_baseUrl}.';
     }
     if (e.type == DioExceptionType.connectionError) {
-      return '$operation failed: Cannot reach server at ${_baseUrl}. Ensure backend is running and firewall allows port 5150.';
+      return '$operation failed: Cannot reach server at ${_baseUrl}. Ensure backend is running and firewall allows port 5004.';
     }
     if (e.response != null) {
       final data = e.response?.data;

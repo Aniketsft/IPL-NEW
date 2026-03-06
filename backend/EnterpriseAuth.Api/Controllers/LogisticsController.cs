@@ -26,6 +26,16 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpGet("sales-order-headers")]
+        public async Task<IActionResult> GetSalesOrderHeaders(
+            [FromQuery] int? status, 
+            [FromQuery] DateTime? date, 
+            [FromQuery] string? customerCode)
+        {
+            var result = await _logisticsService.GetSalesOrderHeadersAsync(status, date, customerCode);
+            return ToActionResult(result);
+        }
+
         [HttpPost("sync-scans")]
         public async Task<IActionResult> SyncScans([FromBody] List<ScanDto> scans)
         {

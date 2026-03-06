@@ -10,6 +10,7 @@ import 'package:enterprise_auth_mobile/features/inventory/ui/screens/by_identifi
 import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufacturing_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_modules_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
 import 'package:enterprise_auth_mobile/features/other/ui/screens/other_modules_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -99,6 +100,12 @@ class HomeScreen extends StatelessWidget {
           Icons.receipt_long_rounded,
           const ReceiptScreen(),
         ),
+      _buildMenuButton(
+        context,
+        'View Sales Order',
+        Icons.view_list_rounded,
+        const ViewSalesOrderScreen(),
+      ),
       if (_hasAccess('manufacturing', 'dashboard'))
         _buildMenuButton(
           context,

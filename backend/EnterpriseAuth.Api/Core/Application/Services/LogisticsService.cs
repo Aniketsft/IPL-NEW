@@ -30,6 +30,19 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
+        public async Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode)
+        {
+            try
+            {
+                var headers = await _logisticsRepository.GetSalesOrderHeadersAsync(status, date, customerCode);
+                return Result<IEnumerable<SalesOrderHeaderDto>>.Success(headers);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<SalesOrderHeaderDto>>.Failure($"Failed to fetch sales order headers: {ex.Message}");
+            }
+        }
+
         public async Task<Result<int>> SyncScansAsync(IEnumerable<ScanDto> scans)
         {
             try

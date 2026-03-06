@@ -14,7 +14,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
   static String get _baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:5150/api/';
+      return 'http://192.168.1.107:5004/api/';
     }
     return 'https://localhost:7176/api/';
   }
@@ -110,12 +110,23 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrderHeaders({
     String status = 'all',
     DateTime? date,
+    String? customerCode,
   }) async {
     try {
       final queryParams = <String, dynamic>{};
-      if (status != 'all') queryParams['status'] = status;
+
+      if (status == 'open') {
+        queryParams['status'] = 2; // Assuming 2 is open/ordered
+      } else if (status == 'closed') {
+        queryParams['status'] = 4;
+      }
+
       if (date != null) {
-        queryParams['deliveryDate'] = DateFormat('yyyy-MM-dd').format(date);
+        queryParams['date'] = date.toIso8601String().split('T').first;
+      }
+
+      if (customerCode != null && customerCode.isNotEmpty) {
+        queryParams['customerCode'] = customerCode;
       }
 
       final response = await _dio.get(
@@ -131,20 +142,22 @@ class DeliveryRepository implements ILogisticsRepository {
 
   SalesOrder _mapHeaderJsonToEntity(Map<String, dynamic> json) {
     return SalesOrder(
-      id: json['soNumber'] ?? '',
-      orderNumber: json['soNumber'] ?? '',
+      id: json['sohNum'] ?? '',
+      orderNumber: json['sohNum'] ?? '',
       customerCode: json['customerCode'] ?? '',
       customerName: json['customerName'] ?? '',
       deliveryDate: json['deliveryDate'] ?? '',
       date: json['deliveryDate'] != null
           ? DateTime.tryParse(json['deliveryDate']) ?? DateTime.now()
           : DateTime.now(),
-      soDate: json['soDate'] != null ? DateTime.tryParse(json['soDate']) : null,
-      purchaseOrderNumber: json['poNumber'],
-      salesManCode1: json['salesManCode1'] ?? '',
-      salesManCode2: json['salesManCode2'] ?? '',
-      isClosed: json['isClosed'] ?? false,
-      isEditable: json['isEditable'] ?? true,
+      soDate: json['orderDate'] != null
+          ? DateTime.tryParse(json['orderDate'])
+          : null,
+      purchaseOrderNumber: json['poNo'],
+      salesManCode1: json['rep0'] ?? '',
+      salesManCode2: json['rep1'] ?? '',
+      isClosed: json['status'] == 4,
+      isEditable: true,
     );
   }
 
