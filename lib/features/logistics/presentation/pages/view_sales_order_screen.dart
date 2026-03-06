@@ -16,18 +16,41 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   DateTime? _selectedDate;
   String _status = 'all';
   List<SalesOrder> _orders = [];
+  List<Map<String, String>> _customersList = [];
+  List<Map<String, String>> _salesRepsList = [];
+
+  String? _selectedCustomerCode;
+  String? _selectedSM1Code;
+  String? _selectedSM2Code;
+
   bool _isLoading = false;
+  bool _isLoadingLookups = false;
   String? _errorMessage;
   bool _isFilterExpanded = true;
-
-  final TextEditingController _customerController = TextEditingController();
-  final TextEditingController _sm1Controller = TextEditingController();
-  final TextEditingController _sm2Controller = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _loadLookups();
     _fetchOrders();
+  }
+
+  Future<void> _loadLookups() async {
+    setState(() => _isLoadingLookups = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final customers = await repository.getCustomers();
+      final reps = await repository.getSalesReps();
+
+      setState(() {
+        _customersList = customers;
+        _salesRepsList = reps;
+        _isLoadingLookups = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingLookups = false);
+      debugPrint('Error loading lookups: $e');
+    }
   }
 
   Future<void> _fetchOrders() async {
@@ -40,11 +63,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       final repository = context.read<DeliveryRepository>();
 
       // Note: The backend currently supports customerCode filter.
-      // sm1 and sm2 can be implemented if needed, but for now we filter by customer.
       final results = await repository.fetchSalesOrderHeaders(
         status: _status,
         date: _selectedDate,
-        customerCode: _customerController.text,
+        customerCode: _selectedCustomerCode,
+        rep0: _selectedSM1Code,
+        rep1: _selectedSM2Code,
       );
 
       setState(() {
@@ -128,30 +152,116 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       color: Colors.white.withOpacity(0.05),
       child: Column(
         children: [
+          if (_isLoadingLookups)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
           Row(
             children: [
               Expanded(child: _buildDatePicker()),
               const SizedBox(width: 16),
-              Expanded(child: _buildTextField('Customer', _customerController)),
+              Expanded(
+                child: _buildDropdownFilter(
+                  'Customer',
+                  _selectedCustomerCode,
+                  _customersList,
+                  (val) => setState(() => _selectedCustomerCode = val),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _buildTextField('Sales Man 1', _sm1Controller)),
+              Expanded(
+                child: _buildDropdownFilter(
+                  'Sales Man 1',
+                  _selectedSM1Code,
+                  _salesRepsList,
+                  (val) => setState(() => _selectedSM1Code = val),
+                ),
+              ),
               const SizedBox(width: 16),
-              Expanded(child: _buildTextField('Sales Man 2', _sm2Controller)),
+              Expanded(
+                child: _buildDropdownFilter(
+                  'Sales Man 2',
+                  _selectedSM2Code,
+                  _salesRepsList,
+                  (val) => setState(() => _selectedSM2Code = val),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           _buildStatusToggle(),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _fetchOrders,
-            child: const Text('Apply Filters'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _fetchOrders,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('Apply Filters'),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDropdownFilter(
+    String label,
+    String? currentValue,
+    List<Map<String, String>> items,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: currentValue,
+          hint: const Text(
+            'Select...',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          dropdownColor: const Color(0xFF1E1E1E),
+          isExpanded: true,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.white10),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.orange, width: 1),
+            ),
+          ),
+          items: [
+            const DropdownMenuItem<String>(value: null, child: Text('All')),
+            ...items.map((item) {
+              return DropdownMenuItem<String>(
+                value: item['code'],
+                child: Text(
+                  '${item['code']} - ${item['name']}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -160,7 +270,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Delivery Date',
+          'Del. Date',
           style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
         const SizedBox(height: 8),
@@ -179,7 +289,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.white10),
             ),
@@ -192,32 +302,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                       : DateFormat('dd/MM/yyyy').format(_selectedDate!),
                   style: TextStyle(
                     color: _selectedDate == null ? Colors.grey : Colors.white,
+                    fontSize: 13,
                   ),
                 ),
-                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
               ],
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField(String label, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: 'Select...',
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
           ),
         ),
       ],
@@ -233,23 +323,34 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
           style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
         const SizedBox(height: 8),
-        ToggleButtons(
-          isSelected: [
-            _status == 'open',
-            _status == 'closed',
-            _status == 'all',
-          ],
-          onPressed: (index) {
-            setState(() {
-              _status = ['open', 'closed', 'all'][index];
-            });
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return ToggleButtons(
+              isSelected: [
+                _status == 'open',
+                _status == 'closed',
+                _status == 'all',
+              ],
+              onPressed: (index) {
+                setState(() {
+                  _status = ['open', 'closed', 'all'][index];
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              fillColor: Colors.orange.withOpacity(0.2),
+              selectedColor: Colors.orange,
+              color: Colors.grey,
+              constraints: BoxConstraints(
+                minHeight: 36,
+                minWidth: (constraints.maxWidth - 4) / 3,
+              ),
+              children: const [
+                Text('Open', style: TextStyle(fontSize: 13)),
+                Text('Closed', style: TextStyle(fontSize: 13)),
+                Text('All', style: TextStyle(fontSize: 13)),
+              ],
+            );
           },
-          borderRadius: BorderRadius.circular(8),
-          fillColor: Colors.orange.withOpacity(0.2),
-          selectedColor: Colors.orange,
-          color: Colors.grey,
-          constraints: const BoxConstraints(minHeight: 40, minWidth: 100),
-          children: const [Text('Open'), Text('Closed'), Text('All')],
         ),
       ],
     );

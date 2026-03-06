@@ -39,7 +39,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<ProductionTrackingDto>(sql);
         }
 
-        public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode)
+        public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
 
@@ -79,9 +79,68 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 parameters.Add("CustomerCode", customerCode);
             }
 
+            if (!string.IsNullOrEmpty(rep0))
+            {
+                sql += " AND f0.REP_0 = @Rep0";
+                parameters.Add("Rep0", rep0);
+            }
+
+            if (!string.IsNullOrEmpty(rep1))
+            {
+                sql += " AND f0.REP_1 = @Rep1";
+                parameters.Add("Rep1", rep1);
+            }
+
             sql += " ORDER BY f0.ORDDAT_0 DESC";
 
             return await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters);
+        }
+
+        public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT 
+                    f0.SOHNUM_0 as SoNumber,
+                    f2.ITMREF_0 as ProductCode,
+                    f2.ITMDES1_0 as ProductDescription,
+                    'Variable Weight' as BarcodeType,
+                    f1.QTY_0 as OrderedQuantity,
+                    786.0 as RemainingQuantity, -- Updated placeholder per user SQL
+                    786.0 as Manufactured       -- Updated placeholder per user SQL
+                FROM InnodisTestDB.INLPROD.SORDER f0
+                JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
+                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                WHERE f0.SOHNUM_0 = @SoNumber";
+
+            return await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber });
+        }
+
+        public async Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT DISTINCT 
+                    LTRIM(RTRIM(BPCNUM_0)) as Code, 
+                    LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name 
+                FROM InnodisTestDB.INLPROD.BPCUSTOMER
+                WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''
+                ORDER BY Name";
+            return await db.QueryAsync<CustomerLookupDto>(sql);
+        }
+
+        public async Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT DISTINCT 
+                    LTRIM(RTRIM(REPNUM_0)) as Code, 
+                    LTRIM(RTRIM(REPNAM_0)) as Name 
+                FROM InnodisTestDB.INLPROD.SALESREP
+                WHERE REPNAM_0 IS NOT NULL AND REPNAM_0 <> ''
+                ORDER BY Name";
+            return await db.QueryAsync<SalesRepLookupDto>(sql);
         }
 
         public async Task<int> SyncScansAsync(IEnumerable<ScanDto> scans)

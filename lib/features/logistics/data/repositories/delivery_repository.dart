@@ -111,6 +111,8 @@ class DeliveryRepository implements ILogisticsRepository {
     String status = 'all',
     DateTime? date,
     String? customerCode,
+    String? rep0,
+    String? rep1,
   }) async {
     try {
       final queryParams = <String, dynamic>{};
@@ -129,6 +131,14 @@ class DeliveryRepository implements ILogisticsRepository {
         queryParams['customerCode'] = customerCode;
       }
 
+      if (rep0 != null && rep0.isNotEmpty) {
+        queryParams['rep0'] = rep0;
+      }
+
+      if (rep1 != null && rep1.isNotEmpty) {
+        queryParams['rep1'] = rep1;
+      }
+
       final response = await _dio.get(
         'Logistics/sales-order-headers',
         queryParameters: queryParams,
@@ -137,6 +147,52 @@ class DeliveryRepository implements ILogisticsRepository {
       return data.map((json) => _mapHeaderJsonToEntity(json)).toList();
     } catch (e) {
       throw 'Failed to fetch sales order headers: $e';
+    }
+  }
+
+  Future<List<Map<String, String>>> getCustomers() async {
+    try {
+      final response = await _dio.get('Logistics/customers');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => {
+              'code': (json['code'] ?? '').toString(),
+              'name': (json['name'] ?? '').toString(),
+            },
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch customers: $e';
+    }
+  }
+
+  Future<List<Map<String, String>>> getSalesReps() async {
+    try {
+      final response = await _dio.get('Logistics/sales-reps');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => {
+              'code': (json['code'] ?? '').toString(),
+              'name': (json['name'] ?? '').toString(),
+            },
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch sales representatives: $e';
+    }
+  }
+
+  Future<List<SalesOrderDetail>> fetchSalesOrderDetails(String soNumber) async {
+    try {
+      final response = await _dio.get(
+        'Logistics/sales-order-details/$soNumber',
+      );
+      final data = response.data as List;
+      return data.map((json) => _mapDetailJsonToEntity(json)).toList();
+    } catch (e) {
+      throw 'Failed to fetch order details: $e';
     }
   }
 
@@ -158,6 +214,26 @@ class DeliveryRepository implements ILogisticsRepository {
       salesManCode2: json['rep1'] ?? '',
       isClosed: json['status'] == 2,
       isEditable: true,
+    );
+  }
+
+  SalesOrderDetail _mapDetailJsonToEntity(Map<String, dynamic> json) {
+    return SalesOrderDetail(
+      soNumber: json['soNumber'] ?? '',
+      poNumber: json['poNumber'],
+      customerCode: json['customerCode'],
+      customerName: json['customerName'],
+      deliveryDate: json['deliveryDate'] != null
+          ? DateTime.tryParse(json['deliveryDate'])
+          : null,
+      salesMan1: json['salesMan1'],
+      salesMan2: json['salesMan2'],
+      productCode: json['productCode'] ?? '',
+      productDescription: json['productDescription'] ?? '',
+      barcodeType: json['barcodeType'] ?? 'Variable Weight',
+      orderedQuantity: (json['orderedQuantity'] ?? 0.0).toDouble(),
+      remainingQuantity: (json['remainingQuantity'] ?? 0.0).toDouble(),
+      manufacturedQuantity: (json['manufactured'] ?? 0.0).toDouble(),
     );
   }
 
@@ -194,16 +270,16 @@ class DeliveryRepository implements ILogisticsRepository {
       customerCode: dto.customerCode,
       customerName: dto.customerName,
       deliveryDate: dto.deliveryDate != null
-          ? DateTime.parse(dto.deliveryDate!)
+          ? DateTime.tryParse(dto.deliveryDate!)
           : null,
-      productCode: dto.productCode,
-      productDescription: dto.productDescription,
-      barcodeType: dto.barcodeType,
-      orderedQuantity: dto.orderedQuantity,
-      remainingQuantity: dto.remainingQuantity,
-      manufactured: dto.manufactured,
       salesMan1: dto.salesMan1,
       salesMan2: dto.salesMan2,
+      productCode: dto.productCode ?? '',
+      productDescription: dto.productDescription ?? '',
+      barcodeType: dto.barcodeType ?? 'Variable Weight',
+      orderedQuantity: dto.orderedQuantity,
+      remainingQuantity: dto.remainingQuantity,
+      manufacturedQuantity: dto.manufactured,
     );
   }
 }

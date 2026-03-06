@@ -1,50 +1,35 @@
-import 'package:equatable/equatable.dart';
-
-class SalesOrderDetail extends Equatable {
+class SalesOrderDetail {
   final String soNumber;
   final String? poNumber;
   final String? customerCode;
   final String? customerName;
   final DateTime? deliveryDate;
-  final String? productCode;
-  final String? productDescription;
-  final String? barcodeType;
-  final double orderedQuantity;
-  final String? remainingQuantity;
-  final String? manufactured;
   final String? salesMan1;
   final String? salesMan2;
 
-  const SalesOrderDetail({
+  final String productCode;
+  final String productDescription;
+  final String barcodeType;
+  final double orderedQuantity;
+  final double remainingQuantity;
+  final double manufacturedQuantity;
+
+  SalesOrderDetail({
     required this.soNumber,
     this.poNumber,
     this.customerCode,
     this.customerName,
     this.deliveryDate,
-    this.productCode,
-    this.productDescription,
-    this.barcodeType,
-    required this.orderedQuantity,
-    this.remainingQuantity,
-    this.manufactured,
     this.salesMan1,
     this.salesMan2,
+    required this.productCode,
+    required this.productDescription,
+    required this.barcodeType,
+    required this.orderedQuantity,
+    required this.remainingQuantity,
+    required this.manufacturedQuantity,
   });
 
-  @override
-  List<Object?> get props => [
-    soNumber,
-    poNumber,
-    customerCode,
-    customerName,
-    deliveryDate,
-    productCode,
-    productDescription,
-    barcodeType,
-    orderedQuantity,
-    remainingQuantity,
-    manufactured,
-    salesMan1,
-    salesMan2,
-  ];
+  double get progress =>
+      orderedQuantity > 0 ? manufacturedQuantity / orderedQuantity : 0.0;
 }

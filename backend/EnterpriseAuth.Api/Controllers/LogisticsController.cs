@@ -30,9 +30,32 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<IActionResult> GetSalesOrderHeaders(
             [FromQuery] int? status, 
             [FromQuery] DateTime? date, 
-            [FromQuery] string? customerCode)
+            [FromQuery] string? customerCode,
+            [FromQuery] string? rep0,
+            [FromQuery] string? rep1)
         {
-            var result = await _logisticsService.GetSalesOrderHeadersAsync(status, date, customerCode);
+            var result = await _logisticsService.GetSalesOrderHeadersAsync(status, date, customerCode, rep0, rep1);
+            return ToActionResult(result);
+        }
+
+        [HttpGet("sales-order-details/{soNumber}")]
+        public async Task<IActionResult> GetSalesOrderDetails(string soNumber)
+        {
+            var result = await _logisticsService.GetSalesOrderDetailsAsync(soNumber);
+            return ToActionResult(result);
+        }
+
+        [HttpGet("customers")]
+        public async Task<IActionResult> GetCustomers()
+        {
+            var result = await _logisticsService.GetCustomerLookupAsync();
+            return ToActionResult(result);
+        }
+
+        [HttpGet("sales-reps")]
+        public async Task<IActionResult> GetSalesReps()
+        {
+            var result = await _logisticsService.GetSalesRepLookupAsync();
             return ToActionResult(result);
         }
 

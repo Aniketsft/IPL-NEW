@@ -8,8 +8,8 @@ class SalesOrderDetailDto {
   final String? productDescription;
   final String? barcodeType;
   final double orderedQuantity;
-  final String? remainingQuantity;
-  final String? manufactured;
+  final double remainingQuantity;
+  final double manufactured;
   final String? salesMan1;
   final String? salesMan2;
 
@@ -23,8 +23,8 @@ class SalesOrderDetailDto {
     this.productDescription,
     this.barcodeType,
     required this.orderedQuantity,
-    this.remainingQuantity,
-    this.manufactured,
+    required this.remainingQuantity,
+    required this.manufactured,
     this.salesMan1,
     this.salesMan2,
   });
@@ -32,16 +32,16 @@ class SalesOrderDetailDto {
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
     return SalesOrderDetailDto(
       soNumber: json['soNumber'] ?? '',
-      poNumber: json['poNumber'],
-      customerCode: json['customerCode'],
-      customerName: json['customerName'],
-      deliveryDate: json['deliveryDate'],
-      productCode: json['productCode'],
-      productDescription: json['productDescription'],
-      barcodeType: json['barcodeType'],
+      poNumber: json['poNumber']?.toString(),
+      customerCode: json['customerCode']?.toString(),
+      customerName: json['customerName']?.toString(),
+      deliveryDate: json['deliveryDate']?.toString(),
+      productCode: json['productCode']?.toString(),
+      productDescription: json['productDescription']?.toString(),
+      barcodeType: json['barcodeType']?.toString(),
       orderedQuantity: (json['orderedQuantity'] as num?)?.toDouble() ?? 0.0,
-      remainingQuantity: json['remainingQuantity']?.toString(),
-      manufactured: json['manufactured']?.toString(),
+      remainingQuantity: (json['remainingQuantity'] as num?)?.toDouble() ?? 0.0,
+      manufactured: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
       salesMan1: json['salesMan1']?.toString(),
       salesMan2: json['salesMan2']?.toString(),
     );

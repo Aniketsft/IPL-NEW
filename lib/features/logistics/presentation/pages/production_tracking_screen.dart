@@ -202,7 +202,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 style: TextStyle(color: Colors.grey[500]),
               ),
               Text(
-                widget.product.manufactured ?? '0.00',
+                widget.product.manufacturedQuantity.toStringAsFixed(2),
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,

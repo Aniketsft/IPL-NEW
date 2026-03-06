@@ -8,7 +8,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
     public interface ILogisticsRepository
     {
         Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync();
-        Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode);
+        Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1);
+        Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber);
+        Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync();
+        Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync();
         Task<int> SyncScansAsync(IEnumerable<ScanDto> scans);
     }
 }

@@ -30,16 +30,55 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        public async Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode)
+        public async Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
         {
             try
             {
-                var headers = await _logisticsRepository.GetSalesOrderHeadersAsync(status, date, customerCode);
+                var headers = await _logisticsRepository.GetSalesOrderHeadersAsync(status, date, customerCode, rep0, rep1);
                 return Result<IEnumerable<SalesOrderHeaderDto>>.Success(headers);
             }
             catch (Exception ex)
             {
                 return Result<IEnumerable<SalesOrderHeaderDto>>.Failure($"Failed to fetch sales order headers: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<IEnumerable<SalesOrderDetailDto>>> GetSalesOrderDetailsAsync(string soNumber)
+        {
+            try
+            {
+                var details = await _logisticsRepository.GetSalesOrderDetailsAsync(soNumber);
+                return Result<IEnumerable<SalesOrderDetailDto>>.Success(details);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<SalesOrderDetailDto>>.Failure($"Failed to fetch sales order details: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<IEnumerable<CustomerLookupDto>>> GetCustomerLookupAsync()
+        {
+            try
+            {
+                var customers = await _logisticsRepository.GetCustomerLookupAsync();
+                return Result<IEnumerable<CustomerLookupDto>>.Success(customers);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<CustomerLookupDto>>.Failure($"Failed to fetch customers: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<IEnumerable<SalesRepLookupDto>>> GetSalesRepLookupAsync()
+        {
+            try
+            {
+                var salesreps = await _logisticsRepository.GetSalesRepLookupAsync();
+                return Result<IEnumerable<SalesRepLookupDto>>.Success(salesreps);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<SalesRepLookupDto>>.Failure($"Failed to fetch sales representatives: {ex.Message}");
             }
         }
 
