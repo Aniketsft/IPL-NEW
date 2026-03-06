@@ -20,9 +20,9 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("production-tracking")]
-        public async Task<IActionResult> GetProductionTracking()
+        public async Task<IActionResult> GetProductionTracking([FromQuery] string? location)
         {
-            var result = await _logisticsService.GetProductionTrackingAsync();
+            var result = await _logisticsService.GetProductionTrackingAsync(location);
             return ToActionResult(result);
         }
 

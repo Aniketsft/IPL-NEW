@@ -21,11 +21,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
         }
 
-        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync()
+        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? location = null)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             
-            string sql = @"
+            var sql = @"
                 SELECT TOP 100
                     LTRIM(RTRIM(f2.ITMREF_0)) as ItemCode,
                     LTRIM(RTRIM(f2.ITMDES1_0)) as Description,
@@ -33,10 +33,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                GROUP BY f2.ITMREF_0, f2.ITMDES1_0
-                ORDER BY Quantity DESC";
+                WHERE 1=1";
 
-            return await db.QueryAsync<ProductionTrackingDto>(sql);
+            var parameters = new DynamicParameters();
+            if (!string.IsNullOrEmpty(location))
+            {
+                sql += " AND f1.LOC_0 = @Location";
+                parameters.Add("Location", location);
+            }
+
+            sql += " GROUP BY f2.ITMREF_0, f2.ITMDES1_0 ORDER BY Quantity DESC";
+
+            return await db.QueryAsync<ProductionTrackingDto>(sql, parameters);
         }
 
         public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
@@ -202,24 +210,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     T1.WRH_0 as Warehouse,
                     T1.WRHNAM_0 as WarehouseName,
                     T1.LOCTYP_0 as LocationType,
-                    T1.TEXTE_0 as LocationTypeName
+                    ATRA.TEXTE_0 as LocationTypeName
                 FROM (
                     SELECT
                         STOL.STOFCY_0,
                         STOL.LOC_0,
                         STOL.WRH_0,
                         WRH.WRHNAM_0,
-                        STOL.LOCTYP_0,
-                        ATRA.TEXTE_0
+                        STOL.LOCTYP_0
                     FROM InnodisTestDB.INLPROD.STOLOC STOL 
-                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0
-                    LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on STOL.STOFCY_0 = ATRA.IDENT1_0 
-                        AND STOL.LOCTYP_0 = ATRA.IDENT2_0 
-                        AND ATRA.CODFIC_0 = 'TABLOCTYP' 
-                        AND ATRA.LANGUE_0 = 'BRI' 
-                        AND ATRA.ZONE_0 = 'TYPDESAXX'
+                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0 
+                    WHERE STOL.STOFCY_0 = @Site
                 ) AS T1 
-                WHERE T1.STOFCY_0 = @Site";
+                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on T1.STOFCY_0 = ATRA.IDENT1_0 
+                    and T1.LOCTYP_0 = ATRA.IDENT2_0 
+                    and ATRA.CODFIC_0 = 'TABLOCTYP' 
+                    and ATRA.LANGUE_0 = 'BRI' 
+                    and ATRA.ZONE_0 = 'TYPDESAXX'";
 
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
         }

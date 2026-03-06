@@ -19,7 +19,9 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   ) async {
     emit(ManufacturingLoadInProgress());
     try {
-      final items = await _getProductionTracking.execute();
+      final items = await _getProductionTracking.execute(
+        location: event.location,
+      );
       emit(ProductionTrackingLoaded(items));
     } catch (e) {
       emit(ManufacturingFailure(e.toString()));

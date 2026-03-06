@@ -8,7 +8,7 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
 {
     public interface ILogisticsService
     {
-        Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync();
+        Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync(string? location = null);
         Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1);
         Task<Result<IEnumerable<SalesOrderDetailDto>>> GetSalesOrderDetailsAsync(string soNumber);
         Task<Result<IEnumerable<CustomerLookupDto>>> GetCustomerLookupAsync();

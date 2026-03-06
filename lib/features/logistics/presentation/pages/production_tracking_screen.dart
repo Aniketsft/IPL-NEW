@@ -426,48 +426,24 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void _showLocationPicker() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        height: 400,
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          children: [
-            const Text(
-              'Select Location',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _locations.length,
-                itemBuilder: (context, index) {
-                  final loc = _locations[index];
-                  return ListTile(
-                    title: Text(
-                      loc['location'] ?? '',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      loc['warehouse'] ?? '',
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    onTap: () {
-                      setState(() => _selectedLocation = loc['location']!);
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+      builder: (context) => _SearchPickerSheet(
+        title: 'Location',
+        items: _locations
+            .map(
+              (l) => {
+                'code': l['location'] ?? '',
+                'name': '${l['warehouse'] ?? ""} - ${l['type'] ?? ""}',
+              },
+            )
+            .toList(),
+        onSelected: (code) {
+          if (code != null) setState(() => _selectedLocation = code);
+        },
       ),
     );
   }
@@ -475,48 +451,146 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void _showLotPicker() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        height: 400,
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          children: [
-            const Text(
-              'Select Lot',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+      builder: (context) => _SearchPickerSheet(
+        title: 'Lot',
+        items: _lots
+            .map(
+              (l) => {
+                'code': l['lot'] ?? '',
+                'name':
+                    '${l['description'] ?? ""} (Qty: ${l['quantity'] ?? "0"})',
+              },
+            )
+            .toList(),
+        onSelected: (code) {
+          if (code != null) setState(() => _selectedLot = code);
+        },
+      ),
+    );
+  }
+}
+
+class _SearchPickerSheet extends StatefulWidget {
+  final String title;
+  final List<Map<String, String>> items;
+  final Function(String?) onSelected;
+
+  const _SearchPickerSheet({
+    required this.title,
+    required this.items,
+    required this.onSelected,
+  });
+
+  @override
+  State<_SearchPickerSheet> createState() => _SearchPickerSheetState();
+}
+
+class _SearchPickerSheetState extends State<_SearchPickerSheet> {
+  late List<Map<String, String>> _filteredItems;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredItems = widget.items;
+  }
+
+  void _filter(String query) {
+    setState(() {
+      _filteredItems = widget.items.where((it) {
+        final code = (it['code'] ?? '').toLowerCase();
+        final name = (it['name'] ?? '').toLowerCase();
+        return code.contains(query.toLowerCase()) ||
+            name.contains(query.toLowerCase());
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _lots.length,
-                itemBuilder: (context, index) {
-                  final lot = _lots[index];
-                  return ListTile(
-                    title: Text(
-                      lot['lot'] ?? '',
-                      style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Select ${widget.title}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            onChanged: _filter,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Search...',
+              hintStyle: const TextStyle(color: Colors.white24),
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: const Color(0xFF2C2C2E),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _filteredItems.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No results found',
+                      style: TextStyle(color: Colors.grey),
                     ),
-                    subtitle: Text(
-                      '${lot['description'] ?? ""} (Qty: ${lot['quantity'] ?? "0"})',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                    onTap: () {
-                      setState(() => _selectedLot = lot['lot']!);
-                      Navigator.pop(context);
+                  )
+                : ListView.builder(
+                    itemCount: _filteredItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _filteredItems[index];
+                      return ListTile(
+                        title: Text(
+                          item['code'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          item['name'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onTap: () {
+                          widget.onSelected(item['code']);
+                          Navigator.pop(context);
+                        },
+                      );
                     },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
     );
   }

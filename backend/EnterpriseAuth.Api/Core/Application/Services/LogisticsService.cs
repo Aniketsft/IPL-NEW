@@ -17,11 +17,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             _logisticsRepository = logisticsRepository;
         }
 
-        public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync()
+        public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync(string? location = null)
         {
             try
             {
-                var tracking = await _logisticsRepository.GetProductionTrackingAsync();
+                var tracking = await _logisticsRepository.GetProductionTrackingAsync(location);
                 return Result<IEnumerable<ProductionTrackingDto>>.Success(tracking);
             }
             catch (Exception ex)

@@ -54,9 +54,18 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<SalesOrderDetail>> getProductionTracking() async {
+  Future<List<SalesOrderDetail>> getProductionTracking({
+    String? location,
+  }) async {
     try {
-      final response = await _dio.get('Logistics/production-tracking');
+      final queryParams = <String, dynamic>{};
+      if (location != null && location.isNotEmpty) {
+        queryParams['location'] = location;
+      }
+      final response = await _dio.get(
+        'Logistics/production-tracking',
+        queryParameters: queryParams,
+      );
       final data = response.data as List;
       return data.map((json) {
         final dto = SalesOrderDetailDto.fromJson(json);
@@ -221,6 +230,7 @@ class DeliveryRepository implements ILogisticsRepository {
             (json) => {
               'location': (json['location'] ?? '').toString(),
               'warehouse': (json['warehouseName'] ?? '').toString(),
+              'type': (json['locationTypeName'] ?? '').toString(),
             },
           )
           .toList();
