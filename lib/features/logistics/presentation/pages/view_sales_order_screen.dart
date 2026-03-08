@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
+import 'new_cuts_bulk_screen.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
   const ViewSalesOrderScreen({super.key});
@@ -145,6 +146,16 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NewCutsBulkScreen()),
+          );
+        },
+        backgroundColor: orange,
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
     );
   }

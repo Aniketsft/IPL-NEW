@@ -19,7 +19,6 @@ class _ProductionTrackingListScreenState
     extends State<ProductionTrackingListScreen> {
   String? _selectedLocation;
   List<Map<String, String>> _locations = [];
-  bool _isLoadingLocations = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -33,7 +32,6 @@ class _ProductionTrackingListScreenState
   }
 
   Future<void> _fetchLocations() async {
-    setState(() => _isLoadingLocations = true);
     try {
       final repository = context.read<DeliveryRepository>();
       // Using 'IPL' as default site for lookup if not provided
@@ -41,8 +39,6 @@ class _ProductionTrackingListScreenState
       setState(() => _locations = locs);
     } catch (e) {
       debugPrint('Error fetching locations: $e');
-    } finally {
-      setState(() => _isLoadingLocations = false);
     }
   }
 
