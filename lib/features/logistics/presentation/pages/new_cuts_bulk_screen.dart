@@ -13,8 +13,9 @@ class NewCutsBulkScreen extends StatefulWidget {
 
 class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts' or 'bulks'
-  DateTime? _deliveryDate;
+  DateTime? _date = DateTime.now();
   final TextEditingController _poController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
 
   String? _selectedCustomerCode;
   String? _selectedSM1Code;
@@ -51,14 +52,65 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   @override
   void dispose() {
     _poController.dispose();
+    _amountController.dispose();
     super.dispose();
   }
 
-  void _handleSave() {
-    // Placeholder for save logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Save functionality coming soon')),
+  Future<void> _handleSave() async {
+    if (_selectedCustomerCode == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a customer')));
+      return;
+    }
+
+    if (_amountController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter amount')));
+      return;
+    }
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid positive amount')),
+      );
+      return;
+    }
+
+    final customer = _customersList.firstWhere(
+      (c) => c['code'] == _selectedCustomerCode,
     );
+
+    final entry = {
+      'type': _mode == 'cuts' ? 'Cuts' : 'Bulks',
+      'customerCode': _selectedCustomerCode,
+      'customerName': customer['name'],
+      'date': _date?.toIso8601String(),
+      'poNumber': _poController.text,
+      'salesman1Code': _selectedSM1Code,
+      'salesman2Code': _selectedSM2Code,
+      'amountKg': amount,
+    };
+
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final entryNo = await repository.saveCutBulkEntry(entry);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved successfully! Entry No: $entryNo')),
+        );
+        Navigator.pop(context, true); // Return true to trigger refresh
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
+      }
+    }
   }
 
   @override
@@ -78,7 +130,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                 const SizedBox(height: 24),
                 _buildSectionHeader('Details', Icons.keyboard_arrow_up),
                 const SizedBox(height: 16),
-                _buildLabel('Customer'),
+                _buildLabel('Customer *'),
                 _buildPickerTile(
                   'Customer',
                   _selectedCustomerCode,
@@ -86,8 +138,15 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                   (val) => setState(() => _selectedCustomerCode = val),
                 ),
                 const SizedBox(height: 16),
-                _buildLabel('Delivery Date'),
+                _buildLabel('Date'),
                 _buildDatePicker(orange),
+                const SizedBox(height: 16),
+                _buildLabel('Amount (kg) *'),
+                _buildTextField(
+                  _amountController,
+                  'Enter Amount',
+                  isNumeric: true,
+                ),
                 const SizedBox(height: 16),
                 _buildLabel('PO Number'),
                 _buildTextField(_poController, 'Enter PO Number'),
@@ -185,7 +244,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String hint, {
+    bool isNumeric = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
@@ -194,6 +257,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       ),
       child: TextField(
         controller: controller,
+        keyboardType: isNumeric
+            ? const TextInputType.numberWithOptions(decimal: true)
+            : TextInputType.text,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: hint,
@@ -213,7 +279,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate: _deliveryDate ?? DateTime.now(),
+          initialDate: _date ?? DateTime.now(),
           firstDate: DateTime(2000),
           lastDate: DateTime(2101),
           builder: (context, child) => Theme(
@@ -226,7 +292,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             child: child!,
           ),
         );
-        if (picked != null) setState(() => _deliveryDate = picked);
+        if (picked != null) setState(() => _date = picked);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -239,11 +305,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _deliveryDate == null
+              _date == null
                   ? 'dd/mm/yyyy'
-                  : DateFormat('dd/MM/yyyy').format(_deliveryDate!),
+                  : DateFormat('dd/MM/yyyy').format(_date!),
               style: TextStyle(
-                color: _deliveryDate == null ? Colors.white24 : Colors.white,
+                color: _date == null ? Colors.white24 : Colors.white,
                 fontSize: 14,
               ),
             ),

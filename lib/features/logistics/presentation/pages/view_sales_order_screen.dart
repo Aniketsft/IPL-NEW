@@ -148,11 +148,14 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const NewCutsBulkScreen()),
           );
+          if (result == true) {
+            _fetchOrders();
+          }
         },
         backgroundColor: orange,
         child: const Icon(Icons.add, color: Colors.white, size: 30),

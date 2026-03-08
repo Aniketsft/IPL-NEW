@@ -16,7 +16,7 @@ try {
     using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
     conn.Open();
     Console.WriteLine("--- SCHEMA DUMP ---");
-    var tables = new[] { "UserRoles", "RolePermissions" };
+    var tables = new[] { "UserRoles", "RolePermissions", "CutBulkEntries" };
     foreach (var table in tables) {
         var schema = conn.GetSchema("Columns", new[] { null, null, table });
         foreach (System.Data.DataRow row in schema.Rows) {

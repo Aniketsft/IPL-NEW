@@ -92,6 +92,14 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpPost("cut-bulk")]
+        public async Task<IActionResult> SaveCutBulk([FromBody] CutBulkEntryDto entry)
+        {
+            if (entry == null) return BadRequest("Entry data is required.");
+            var result = await _logisticsService.SaveCutBulkAsync(entry);
+            return ToActionResult(result);
+        }
+
         private IActionResult ToActionResult<T>(Result<T> result)
         {
             return result.IsSuccess

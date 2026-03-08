@@ -264,6 +264,15 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  Future<String> saveCutBulkEntry(Map<String, dynamic> entry) async {
+    try {
+      final response = await _dio.post('Logistics/cut-bulk', data: entry);
+      return response.data.toString();
+    } catch (e) {
+      throw 'Failed to save Cut/Bulk entry: $e';
+    }
+  }
+
   SalesOrder _mapHeaderJsonToEntity(Map<String, dynamic> json) {
     return SalesOrder(
       id: json['sohNum'] ?? '',

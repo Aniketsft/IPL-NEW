@@ -134,5 +134,18 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 return Result<IEnumerable<LotLookupDto>>.Failure($"Failed to fetch lots: {ex.Message}");
             }
         }
+
+        public async Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto entry)
+        {
+            try
+            {
+                var entryNumber = await _logisticsRepository.SaveCutBulkEntryAsync(entry);
+                return Result<string>.Success(entryNumber);
+            }
+            catch (Exception ex)
+            {
+                return Result<string>.Failure($"Failed to save Cut/Bulk entry: {ex.Message}");
+            }
+        }
     }
 }

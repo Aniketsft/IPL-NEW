@@ -14,11 +14,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
     public class EfLogisticsRepository : ILogisticsRepository
     {
         private readonly string _connectionString;
+        private readonly ApplicationDbContext _context;
 
-        public EfLogisticsRepository(IConfiguration configuration)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
+            _context = context;
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? location = null)
@@ -53,16 +55,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             var sql = @"
                 SELECT 
-                    f0.SOHNUM_0 as SohNum,
-                    f2.PONO_0 as PoNo,
-                    f0.ORDDAT_0 as OrderDate,
-                    f0.SHIDAT_0 as DeliveryDate,
-                    f0.BPCORD_0 as CustomerCode,
-                    c.ZFULLBUSNAM_0 as CustomerName,
-                    f0.REP_0 as Rep0,
-                    f0.REP_1 as Rep1,
-                    f0.SALFCY_0 as Site,
-                    f0.ORDSTA_0 as Status
+                    f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
+                    f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
+                    f0.ORDDAT_0 as [OrderDate],
+                    f0.SHIDAT_0 as [DeliveryDate],
+                    f0.BPCORD_0 COLLATE DATABASE_DEFAULT as [CustomerCode],
+                    c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as [CustomerName],
+                    f0.REP_0 COLLATE DATABASE_DEFAULT as [Rep0],
+                    f0.REP_1 COLLATE DATABASE_DEFAULT as [Rep1],
+                    f0.SALFCY_0 COLLATE DATABASE_DEFAULT as [Site],
+                    f0.ORDSTA_0 as [Status],
+                    CAST('External' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
                 JOIN InnodisTestDB.INLPROD.BPCUSTOMER c ON f0.BPCORD_0 = c.BPCNUM_0
@@ -100,7 +103,44 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 parameters.Add("Rep1", rep1);
             }
 
-            sql += " ORDER BY f0.ORDDAT_0 DESC";
+            sql += @"
+                UNION ALL
+                SELECT 
+                    EntryNumber COLLATE DATABASE_DEFAULT as [SohNum],
+                    ISNULL(PoNumber, '') COLLATE DATABASE_DEFAULT as [PoNo],
+                    Date as [OrderDate],
+                    Date as [DeliveryDate],
+                    CustomerCode COLLATE DATABASE_DEFAULT as [CustomerCode],
+                    CustomerName COLLATE DATABASE_DEFAULT as [CustomerName],
+                    ISNULL(Salesman1Code, '') COLLATE DATABASE_DEFAULT as [Rep0],
+                    ISNULL(Salesman2Code, '') COLLATE DATABASE_DEFAULT as [Rep1],
+                    CAST('INTERNAL' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Site],
+                    1 as [Status],
+                    CAST('Internal' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
+                FROM [EnterpriseAuthDb].[dbo].[CutBulkEntries]
+                WHERE 1=1";
+
+            if (date.HasValue)
+            {
+                sql += " AND CAST(Date as DATE) = @Date";
+            }
+
+            if (!string.IsNullOrEmpty(customerCode))
+            {
+                sql += " AND CustomerCode = @CustomerCode";
+            }
+
+            if (!string.IsNullOrEmpty(rep0))
+            {
+                sql += " AND Salesman1Code = @Rep0";
+            }
+
+            if (!string.IsNullOrEmpty(rep1))
+            {
+                sql += " AND Salesman2Code = @Rep1";
+            }
+
+            sql += " ORDER BY [OrderDate] DESC";
 
             return await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters);
         }
@@ -255,6 +295,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             sql += " GROUP BY LOT_0, SLO_0 HAVING SUM(QTYPCU_0) > 0";
 
             return await db.QueryAsync<LotLookupDto>(sql, parameters);
+        }
+
+        public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
+        {
+            var today = DateTime.Now;
+            var dateStr = today.ToString("yyyyMMdd");
+            
+            // Simple unique ID logic: count today's entries
+            int count = _context.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
+            string entryNumber = $"CB-{dateStr}-{(count + 1):D4}";
+
+            var entity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
+            {
+                EntryNumber = entryNumber,
+                Type = dto.Type,
+                CustomerCode = dto.CustomerCode,
+                CustomerName = dto.CustomerName,
+                Date = dto.Date,
+                PoNumber = dto.PoNumber,
+                Salesman1Code = dto.Salesman1Code,
+                Salesman2Code = dto.Salesman2Code,
+                AmountKg = dto.AmountKg
+            };
+
+            _context.CutBulkEntries.Add(entity);
+            await _context.SaveChangesAsync();
+
+            return entryNumber;
         }
     }
 }
