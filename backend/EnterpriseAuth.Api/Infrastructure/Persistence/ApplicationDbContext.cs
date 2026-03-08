@@ -57,6 +57,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             modelBuilder.Entity<CutBulkEntry>()
                 .HasIndex(e => e.EntryNumber).IsUnique();
+
+            modelBuilder.Entity<CutBulkEntry>()
+                .Property(e => e.AmountKg)
+                .HasPrecision(18, 2);
         }
     }
 }

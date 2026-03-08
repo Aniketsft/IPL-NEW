@@ -178,8 +178,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMDES1_0 as ProductDescription,
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as OrderedQuantity,
-                    786.0 as RemainingQuantity, -- Updated placeholder per user SQL
-                    786.0 as Manufactured       -- Updated placeholder per user SQL
+                    0.0 as RemainingQuantity, 
+                    0.0 as Manufactured       
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
@@ -250,8 +250,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMDES1_0 as ProductDescription,
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as OrderedQuantity,
-                    786.0 as RemainingQuantity,
-                    786.0 as Manufactured,
+                    0.0 as RemainingQuantity,
+                    0.0 as Manufactured,
                     f1.LOC_0 as Location,
                     f1.LOT_0 as LotNumber
                 FROM InnodisTestDB.INLPROD.SORDER f0

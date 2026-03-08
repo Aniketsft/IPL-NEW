@@ -11,16 +11,20 @@ using EnterpriseAuth.Api.Core.Application.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // SCHEMA DUMP DEBUG
+// SCHEMA DUMP DEBUG
 try {
-    string connStr = builder.Configuration.GetConnectionString("SqlServer")!;
+    string connStr = builder.Configuration.GetConnectionString("Innodis")!;
     using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
     conn.Open();
-    Console.WriteLine("--- SCHEMA DUMP ---");
-    var tables = new[] { "UserRoles", "RolePermissions", "CutBulkEntries" };
-    foreach (var table in tables) {
-        var schema = conn.GetSchema("Columns", new[] { null, null, table });
-        foreach (System.Data.DataRow row in schema.Rows) {
-            Console.WriteLine($"TABLE: {table}, COLUMN: {row["COLUMN_NAME"]}");
+    using var writer = new System.IO.StreamWriter("schema_dump.txt");
+    writer.WriteLine("--- SCHEMA DUMP (Innodis SORDER) ---");
+    var command = conn.CreateCommand();
+    command.CommandText = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SORDER' AND COLUMN_NAME LIKE '%QTY%'";
+    using (var reader = command.ExecuteReader())
+    {
+        while (reader.Read())
+        {
+            writer.WriteLine($"COLUMN: {reader.GetString(0)}");
         }
     }
 } catch (Exception ex) { Console.WriteLine("DEBUG SCHEMA ERROR: " + ex.Message); }

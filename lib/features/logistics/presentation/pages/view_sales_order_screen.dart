@@ -27,7 +27,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   bool _isLoading = false;
   bool _isLoadingLookups = false;
   String? _errorMessage;
-  bool _isFilterExpanded = true;
+  bool _isFilterExpanded = false;
 
   @override
   void initState() {

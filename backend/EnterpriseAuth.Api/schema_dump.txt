@@ -1,0 +1,2 @@
+--- SCHEMA DUMP (Innodis SORDER) ---
+COLUMN: DSPTOTQTY_0
