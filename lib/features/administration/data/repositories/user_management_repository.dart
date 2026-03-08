@@ -3,6 +3,7 @@ import 'package:dio/io.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/user_management.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class UserManagementRepository {
   final Dio _dio;
@@ -15,12 +16,7 @@ class UserManagementRepository {
   //   return 'https://localhost:7176/api';
   // }
 
-  static String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://192.168.1.107:5004/api/';
-    }
-    return 'https://localhost:7176/api/';
-  }
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   UserManagementRepository()
     : _dio = Dio(

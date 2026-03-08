@@ -86,9 +86,9 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("lots/{site}/{productCode}")]
-        public async Task<IActionResult> GetLots(string site, string productCode)
+        public async Task<IActionResult> GetLots(string site, string productCode, [FromQuery] string? location)
         {
-            var result = await _logisticsService.GetLotLookupsAsync(site, productCode);
+            var result = await _logisticsService.GetLotLookupsAsync(site, productCode, location);
             return ToActionResult(result);
         }
 

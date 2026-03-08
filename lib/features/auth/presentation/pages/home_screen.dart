@@ -10,8 +10,8 @@ import 'package:enterprise_auth_mobile/features/inventory/ui/screens/by_identifi
 import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufacturing_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_modules_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
-import 'package:enterprise_auth_mobile/features/other/ui/screens/other_modules_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
+import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   final String username;
@@ -100,12 +100,13 @@ class HomeScreen extends StatelessWidget {
           Icons.receipt_long_rounded,
           const ReceiptScreen(),
         ),
-      _buildMenuButton(
-        context,
-        'View Sales Order',
-        Icons.view_list_rounded,
-        const ViewSalesOrderScreen(),
-      ),
+      if (_hasAccess('logistics', 'delivery'))
+        _buildMenuButton(
+          context,
+          'Delivery',
+          Icons.local_shipping_rounded,
+          const DeliveryScreen(),
+        ),
       if (_hasAccess('manufacturing', 'dashboard'))
         _buildMenuButton(
           context,
@@ -146,7 +147,7 @@ class HomeScreen extends StatelessWidget {
           context,
           'Administration',
           Icons.admin_panel_settings_rounded,
-          const OtherModulesScreen(),
+          const UserManagementScreen(),
         ),
       if (_hasAccess('inventory', 'by_identifier'))
         _buildMenuButton(

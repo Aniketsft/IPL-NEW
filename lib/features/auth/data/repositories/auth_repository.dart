@@ -6,18 +6,13 @@ import 'package:enterprise_auth_mobile/features/auth/domain/entities/user.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
 import 'package:enterprise_auth_mobile/features/auth/data/models/user_dto.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class AuthRepository implements IAuthRepository {
   final Dio _dio;
   final SecureStorageService _storageService;
 
-  // Use 10.0.2.2 for Android Emulator; localhost otherwise
-  static String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://192.168.1.107:5004/api/Auth/';
-    }
-    return 'https://localhost:7176/api/Auth/';
-  }
+  static String get _baseUrl => '${ApiConfig.baseUrl}Auth/';
 
   AuthRepository({required SecureStorageService storageService})
     : _storageService = storageService,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/production_tracking_list_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
 
 class ManufacturingScreen extends StatelessWidget {
   final List<String> permissions;
@@ -37,7 +38,7 @@ class ManufacturingScreen extends StatelessWidget {
               context,
               'View sales order',
               Icons.show_chart_rounded,
-              null,
+              const ViewSalesOrderScreen(),
             ),
           if (_hasAccess('manufacturing', 'tracking'))
             _buildMenuCard(

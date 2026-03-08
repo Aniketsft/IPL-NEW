@@ -122,11 +122,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string productCode)
+        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string productCode, string? location = null)
         {
             try
             {
-                var lots = await _logisticsRepository.GetLotLookupsAsync(site, productCode);
+                var lots = await _logisticsRepository.GetLotLookupsAsync(site, productCode, location);
                 return Result<IEnumerable<LotLookupDto>>.Success(lots);
             }
             catch (Exception ex)

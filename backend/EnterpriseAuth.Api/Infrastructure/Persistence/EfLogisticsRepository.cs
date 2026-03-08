@@ -231,20 +231,30 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
         }
 
-        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode)
+        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode, string? location = null)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            var sql = @"
                 SELECT DISTINCT
                     LTRIM(RTRIM(LOT_0)) as LotNumber,
-                    LTRIM(RTRIM(SLO_0)) as LotDescription, -- SLO usually holds sub-lot or description
+                    LTRIM(RTRIM(SLO_0)) as LotDescription,
                     SUM(QTYPCU_0) as StockQuantity
                 FROM InnodisTestDB.INLPROD.STOCK
-                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ProductCode
-                GROUP BY LOT_0, SLO_0
-                HAVING SUM(QTYPCU_0) > 0";
+                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ProductCode";
 
-            return await db.QueryAsync<LotLookupDto>(sql, new { Site = site, ProductCode = productCode });
+            var parameters = new DynamicParameters();
+            parameters.Add("Site", site);
+            parameters.Add("ProductCode", productCode);
+
+            if (!string.IsNullOrEmpty(location))
+            {
+                sql += " AND LOC_0 = @Location";
+                parameters.Add("Location", location);
+            }
+
+            sql += " GROUP BY LOT_0, SLO_0 HAVING SUM(QTYPCU_0) > 0";
+
+            return await db.QueryAsync<LotLookupDto>(sql, parameters);
         }
     }
 }

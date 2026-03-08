@@ -53,16 +53,28 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
       // Fetch Lots if product code and site are available
       if (widget.product.site != null) {
-        final lots = await repository.fetchLots(
-          widget.product.site!,
-          widget.product.productCode,
-        );
-        setState(() => _lots = lots);
+        await _fetchLots();
       }
     } catch (e) {
       debugPrint('Error fetching tracking data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchLots() async {
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final filteredLots = await repository.fetchLots(
+        widget.product.site!,
+        widget.product.productCode,
+        location: _selectedLocation == 'Select Location'
+            ? null
+            : _selectedLocation,
+      );
+      setState(() => _lots = filteredLots);
+    } catch (e) {
+      debugPrint('Error fetching lots: $e');
     }
   }
 
@@ -442,7 +454,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             )
             .toList(),
         onSelected: (code) {
-          if (code != null) setState(() => _selectedLocation = code);
+          if (code != null) {
+            setState(() {
+              _selectedLocation = code;
+              _selectedLot = 'Select Lot'; // Reset lot when location changes
+            });
+            _fetchLots();
+          }
         },
       ),
     );

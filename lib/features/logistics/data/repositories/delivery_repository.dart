@@ -8,16 +8,12 @@ import '../../domain/entities/sales_order_detail.dart';
 import '../../domain/repositories/ilogistics_repository.dart';
 import '../models/sales_order_dto.dart';
 import '../models/sales_order_detail_dto.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
   final Dio _dio;
 
-  static String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://192.168.1.107:5004/api/';
-    }
-    return 'https://localhost:7176/api/';
-  }
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   DeliveryRepository()
     : _dio = Dio(
@@ -241,10 +237,18 @@ class DeliveryRepository implements ILogisticsRepository {
 
   Future<List<Map<String, String>>> fetchLots(
     String site,
-    String productCode,
-  ) async {
+    String productCode, {
+    String? location,
+  }) async {
     try {
-      final response = await _dio.get('Logistics/lots/$site/$productCode');
+      final queryParams = <String, dynamic>{};
+      if (location != null && location.isNotEmpty) {
+        queryParams['location'] = location;
+      }
+      final response = await _dio.get(
+        'Logistics/lots/$site/$productCode',
+        queryParameters: queryParams,
+      );
       final data = response.data as List;
       return data
           .map(
