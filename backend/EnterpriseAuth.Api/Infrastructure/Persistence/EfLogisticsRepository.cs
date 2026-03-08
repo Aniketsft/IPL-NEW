@@ -8,6 +8,7 @@ using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -147,6 +148,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
         {
+            if (soNumber.StartsWith("CB-"))
+            {
+                var entry = await _context.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
+                if (entry != null)
+                {
+                    return new List<SalesOrderDetailDto>
+                    {
+                        new SalesOrderDetailDto
+                        {
+                            SoNumber = entry.EntryNumber,
+                            ProductCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                            ProductDescription = entry.Type == "Cuts" ? "Cuts" : "Bulk",
+                            BarcodeType = "Variable Weight",
+                            OrderedQuantity = 0m,
+                            RemainingQuantity = entry.AmountKg,
+                            Manufactured = 0m
+                        }
+                    };
+                }
+                return new List<SalesOrderDetailDto>();
+            }
+
             using IDbConnection db = new SqlConnection(_connectionString);
             const string sql = @"
                 SELECT 
