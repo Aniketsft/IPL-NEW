@@ -308,12 +308,12 @@ class DeliveryRepository implements ILogisticsRepository {
       salesMan2: json['salesMan2'],
       site: json['site'],
       location: json['location'],
-      lotNumber: json['lotNumber'],
-      productCode: json['productCode'] ?? '',
-      productDescription: json['productDescription'] ?? '',
+      lot: json['lot'],
+      itemCode: json['itemCode'] ?? '',
+      description: json['description'] ?? '',
       barcodeType: json['barcodeType'] ?? 'Variable Weight',
-      orderedQuantity: (json['orderedQuantity'] ?? 0.0).toDouble(),
-      remainingQuantity: (json['remainingQuantity'] ?? 0.0).toDouble(),
+      quantity: (json['quantity'] ?? 0.0).toDouble(),
+      remaining: (json['remaining'] ?? 0.0).toDouble(),
       manufacturedQuantity: (json['manufactured'] ?? 0.0).toDouble(),
     );
   }
@@ -331,7 +331,7 @@ class DeliveryRepository implements ILogisticsRepository {
           .map(
             (s) => {
               'soNumber': s['soNumber'],
-              'productCode': s['productCode'],
+              'itemCode': s['itemCode'],
               'quantity': s['quantity'],
               'scanTimestamp': s['timestamp'],
             },
@@ -366,12 +366,12 @@ class DeliveryRepository implements ILogisticsRepository {
       salesMan2: dto.salesMan2,
       site: dto.site,
       location: dto.location,
-      lotNumber: dto.lotNumber,
-      productCode: dto.productCode ?? '',
-      productDescription: dto.productDescription ?? '',
+      lot: dto.lot,
+      itemCode: dto.itemCode ?? '',
+      description: dto.description ?? '',
       barcodeType: dto.barcodeType ?? 'Variable Weight',
-      orderedQuantity: dto.orderedQuantity,
-      remainingQuantity: dto.remainingQuantity,
+      quantity: dto.quantity,
+      remaining: dto.remaining,
       manufacturedQuantity: dto.manufactured,
     );
   }

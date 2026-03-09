@@ -52,10 +52,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   List<SalesOrderDetail> get _filteredDetails {
     return _details.where((d) {
-      final matchCode = d.productCode.toLowerCase().contains(
+      final matchCode = d.itemCode.toLowerCase().contains(
         _codeFilter.text.toLowerCase(),
       );
-      final matchDesc = d.productDescription.toLowerCase().contains(
+      final matchDesc = d.description.toLowerCase().contains(
         _descFilter.text.toLowerCase(),
       );
       return matchCode && matchDesc;
@@ -251,7 +251,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.productCode,
+                        item.itemCode,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -262,7 +262,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              item.productDescription,
+                              item.description,
                               style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 13,
@@ -301,7 +301,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.orderedQuantity.toStringAsFixed(2),
+                      item.quantity.toStringAsFixed(2),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -314,7 +314,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.remainingQuantity.toStringAsFixed(2),
+                      item.remaining.toStringAsFixed(2),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

@@ -95,11 +95,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        public async Task<Result<ProductionTrackingDto>> GetProductionTrackingInfoAsync(string soNumber, string productCode)
+        public async Task<Result<ProductionTrackingDto>> GetProductionTrackingInfoAsync(string soNumber, string itemCode)
         {
             try
             {
-                var info = await _logisticsRepository.GetProductionTrackingInfoAsync(soNumber, productCode);
+                var info = await _logisticsRepository.GetProductionTrackingInfoAsync(soNumber, itemCode);
                 if (info == null) return Result<ProductionTrackingDto>.Failure("Product info not found.");
                 return Result<ProductionTrackingDto>.Success(info);
             }
@@ -122,11 +122,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string productCode, string? location = null)
+        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string itemCode, string? location = null)
         {
             try
             {
-                var lots = await _logisticsRepository.GetLotLookupsAsync(site, productCode, location);
+                var lots = await _logisticsRepository.GetLotLookupsAsync(site, itemCode, location);
                 return Result<IEnumerable<LotLookupDto>>.Success(lots);
             }
             catch (Exception ex)

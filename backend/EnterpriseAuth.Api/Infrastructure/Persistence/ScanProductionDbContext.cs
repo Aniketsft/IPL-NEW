@@ -8,6 +8,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public ScanProductionDbContext(DbContextOptions<ScanProductionDbContext> options) : base(options) { }
 
         public DbSet<ProductionScan> ProductionScans { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

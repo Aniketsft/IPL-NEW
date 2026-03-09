@@ -37,7 +37,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void initState() {
     super.initState();
     _selectedLocation = widget.product.location ?? 'Select Location';
-    _selectedLot = widget.product.lotNumber ?? 'Select Lot';
+    _selectedLot = widget.product.lot ?? 'Select Lot';
     _fetchInitialData();
   }
 
@@ -68,7 +68,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       final repository = context.read<DeliveryRepository>();
       final filteredLots = await repository.fetchLots(
         widget.product.site!,
-        widget.product.productCode,
+        widget.product.itemCode,
         location: _selectedLocation == 'Select Location'
             ? null
             : _selectedLocation,
@@ -92,8 +92,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       final repository = context.read<DeliveryRepository>();
 
       final payload = {
-        'productId': widget.product.productCode,
-        'productDescription': widget.product.productDescription,
+        'itemCode': widget.product.itemCode,
+        'description': widget.product.description,
         'scanAmountKg': _cumulativeQty,
         'soNumber': widget.order.orderNumber,
         'customerId': widget.order.customerCode,
@@ -192,7 +192,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 12),
           _buildInfoRow(
             'Product:',
-            '${widget.product.productCode} - ${widget.product.productDescription}',
+            '${widget.product.itemCode} - ${widget.product.description}',
           ),
         ],
       ),
@@ -235,7 +235,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         children: [
           _buildFieldRow(
             'Order Qty:',
-            widget.product.orderedQuantity.toStringAsFixed(2),
+            widget.product.quantity.toStringAsFixed(2),
           ),
           const SizedBox(height: 12),
           _buildFieldRow(

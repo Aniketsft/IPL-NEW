@@ -9,13 +9,13 @@ class SalesOrderDetail {
 
   final String? site;
   final String? location;
-  final String? lotNumber;
+  final String? lot;
 
-  final String productCode;
-  final String productDescription;
+  final String itemCode;
+  final String description;
   final String barcodeType;
-  final double orderedQuantity;
-  final double remainingQuantity;
+  final double quantity;
+  final double remaining;
   final double manufacturedQuantity;
 
   SalesOrderDetail({
@@ -28,15 +28,14 @@ class SalesOrderDetail {
     this.salesMan2,
     this.site,
     this.location,
-    this.lotNumber,
-    required this.productCode,
-    required this.productDescription,
+    this.lot,
+    required this.itemCode,
+    required this.description,
     required this.barcodeType,
-    required this.orderedQuantity,
-    required this.remainingQuantity,
+    required this.quantity,
+    required this.remaining,
     required this.manufacturedQuantity,
   });
 
-  double get progress =>
-      orderedQuantity > 0 ? manufacturedQuantity / orderedQuantity : 0.0;
+  double get progress => quantity > 0 ? manufacturedQuantity / quantity : 0.0;
 }

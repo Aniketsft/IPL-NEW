@@ -8,10 +8,10 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public int? ScanId { get; set; }
         
         [Required]
-        public string ProductId { get; set; } = string.Empty;
+        public string ItemCode { get; set; } = string.Empty;
         
         [Required]
-        public string ProductDescription { get; set; } = string.Empty;
+        public int LineNo { get; set; }
         
         [Required]
         public decimal ScanAmountKg { get; set; }
@@ -19,15 +19,15 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         [Required]
         public string SoNumber { get; set; } = string.Empty;
         
-        [Required]
-        public string CustomerId { get; set; } = string.Empty;
+        public string? OrderStatus { get; set; }
         
-        [Required]
-        public string CustomerDescription { get; set; } = string.Empty;
+        public string? ItemStatus { get; set; }
         
-        [Required]
-        [MaxLength(1)]
-        public string Status { get; set; } = "Q"; // Q, A, or R
+        public string? Location { get; set; }
+        
+        public string? Lot { get; set; }
+
+        public string? CreatedBy { get; set; }
         
         public DateTime? CreatedAt { get; set; }
     }

@@ -72,9 +72,9 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("production-tracking-info")]
-        public async Task<IActionResult> GetProductionTrackingInfo([FromQuery] string soNumber, [FromQuery] string productCode)
+        public async Task<IActionResult> GetProductionTrackingInfo([FromQuery] string soNumber, [FromQuery] string itemCode)
         {
-            var result = await _logisticsService.GetProductionTrackingInfoAsync(soNumber, productCode);
+            var result = await _logisticsService.GetProductionTrackingInfoAsync(soNumber, itemCode);
             return ToActionResult(result);
         }
 
@@ -85,10 +85,10 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
-        [HttpGet("lots/{site}/{productCode}")]
-        public async Task<IActionResult> GetLots(string site, string productCode, [FromQuery] string? location)
+        [HttpGet("lots/{site}/{itemCode}")]
+        public async Task<IActionResult> GetLots(string site, string itemCode, [FromQuery] string? location)
         {
-            var result = await _logisticsService.GetLotLookupsAsync(site, productCode, location);
+            var result = await _logisticsService.GetLotLookupsAsync(site, itemCode, location);
             return ToActionResult(result);
         }
 

@@ -96,8 +96,8 @@ class _ProductionTrackingListScreenState
                 }
                 if (state is ProductionTrackingLoaded) {
                   final filteredItems = state.items.where((it) {
-                    final code = it.productCode.toLowerCase();
-                    final desc = it.productDescription.toLowerCase();
+                    final code = it.itemCode.toLowerCase();
+                    final desc = it.description.toLowerCase();
                     return code.contains(_searchQuery.toLowerCase()) ||
                         desc.contains(_searchQuery.toLowerCase());
                   }).toList();
@@ -284,7 +284,7 @@ class _ProductionTrackingListScreenState
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         title: Text(
-          item.productCode,
+          item.itemCode,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -296,18 +296,15 @@ class _ProductionTrackingListScreenState
           children: [
             const SizedBox(height: 4),
             Text(
-              item.productDescription,
+              item.description,
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStat('Ordered', item.orderedQuantity.toStringAsFixed(0)),
-                _buildStat(
-                  'Remaining',
-                  item.remainingQuantity.toStringAsFixed(0),
-                ),
+                _buildStat('Ordered', item.quantity.toStringAsFixed(0)),
+                _buildStat('Remaining', item.remaining.toStringAsFixed(0)),
                 _buildStat(
                   'Produced',
                   item.manufacturedQuantity.toStringAsFixed(0),

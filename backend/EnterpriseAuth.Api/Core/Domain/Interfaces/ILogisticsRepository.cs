@@ -15,9 +15,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<int> SyncScansAsync(IEnumerable<ScanDto> scans);
 
         // Production Tracking
-        Task<ProductionTrackingDto> GetProductionTrackingInfoAsync(string soNumber, string productCode);
+        Task<ProductionTrackingDto?> GetProductionTrackingInfoAsync(string soNumber, string itemCode);
         Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site);
-        Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode, string? location = null);
+        Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string itemCode, string? location = null);
 
         Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto entry);
         Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan);

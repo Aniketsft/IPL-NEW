@@ -50,7 +50,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             sql += " GROUP BY f2.ITMREF_0, f2.ITMDES1_0 ORDER BY Quantity DESC";
 
-            return await db.QueryAsync<ProductionTrackingDto>(sql, parameters);
+            var sageItems = (await db.QueryAsync<ProductionTrackingDto>(sql, parameters)).ToList();
+
+            // Fetch Local Bulk/Cuts and group them
+            var localEntries = await _context.CutBulkEntries.ToListAsync();
+            var localGrouped = localEntries
+                .GroupBy(e => e.Type)
+                .Select(g => new ProductionTrackingDto
+                {
+                    ItemCode = g.Key == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                    Description = g.Key == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
+                    Quantity = g.Sum(x => x.AmountKg),
+                    Site = "IPL",
+                    Location = "PROD"
+                });
+
+            // Calculate Manufactured for Sage Items
+            foreach (var item in sageItems)
+            {
+                var manufactured = await _scanContext.ProductionScans
+                    .Where(s => s.ItemCode == item.ItemCode && !s.IsDeleted)
+                    .SumAsync(s => s.ScanAmountKg);
+                item.Manufactured = manufactured;
+                item.Remaining = item.Quantity - manufactured;
+                item.Site = "IPL"; // Default
+            }
+
+            // Combine
+            return localGrouped.Concat(sageItems).OrderByDescending(x => x.Quantity);
         }
 
         public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
@@ -161,11 +188,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         new SalesOrderDetailDto
                         {
                             SoNumber = entry.EntryNumber,
-                            ProductCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                            ProductDescription = entry.Type == "Cuts" ? "Cuts" : "Bulk",
+                            ItemCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                            Description = entry.Type == "Cuts" ? "Cuts" : "Bulk",
                             BarcodeType = "Variable Weight",
-                            OrderedQuantity = 0m,
-                            RemainingQuantity = entry.AmountKg,
+                            Quantity = 0m,
+                            Remaining = entry.AmountKg,
                             Manufactured = 0m
                         }
                     };
@@ -177,11 +204,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             const string sql = @"
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
-                    f2.ITMREF_0 as ProductCode,
-                    f2.ITMDES1_0 as ProductDescription,
+                    f2.ITMREF_0 as ItemCode,
+                    f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
-                    f1.QTY_0 as OrderedQuantity,
-                    0.0 as RemainingQuantity, 
+                    f1.QTY_0 as Quantity,
+                    0.0 as Remaining, 
                     0.0 as Manufactured       
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
@@ -193,15 +220,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Fetch Scans from separate context and join in memory to avoid cross-DB permission issues
             var scans = await _scanContext.ProductionScans
-                .Where(s => s.SoNumber == soNumber && s.Status == "A")
-                .GroupBy(s => s.ProductId)
-                .Select(g => new { ProductId = g.Key, TotalAmount = g.Sum(x => x.ScanAmountKg) })
+                .Where(s => s.SoNumber == soNumber && !s.IsDeleted)
+                .GroupBy(s => s.ItemCode)
+                .Select(g => new { ItemCode = g.Key, TotalAmount = g.Sum(x => x.ScanAmountKg) })
                 .ToListAsync();
 
             foreach (var detail in details)
             {
-                var scanSum = scans.FirstOrDefault(s => s.ProductId == detail.ProductCode)?.TotalAmount ?? 0m;
-                detail.RemainingQuantity = detail.OrderedQuantity - scanSum;
+                var scanSum = scans.FirstOrDefault(s => s.ItemCode == detail.ItemCode)?.TotalAmount ?? 0m;
+                detail.Remaining = detail.Quantity - scanSum;
+                detail.Manufactured = scanSum;
             }
 
             return details;
@@ -257,36 +285,61 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return totalRows;
         }
 
-        public async Task<ProductionTrackingDto> GetProductionTrackingInfoAsync(string soNumber, string productCode)
+        public async Task<ProductionTrackingDto?> GetProductionTrackingInfoAsync(string soNumber, string itemCode)
         {
+            if (soNumber.StartsWith("CB-"))
+            {
+                var entry = await _context.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
+                if (entry != null)
+                {
+                    var scanSum = await _scanContext.ProductionScans
+                        .Where(s => s.SoNumber == soNumber && !s.IsDeleted)
+                        .SumAsync(s => s.ScanAmountKg);
+
+                    return new ProductionTrackingDto
+                    {
+                        SoNumber = entry.EntryNumber,
+                        Site = "IPL",
+                        ItemCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                        Description = entry.Type == "Cuts" ? "Cuts" : "Bulk",
+                        BarcodeType = "Variable Weight",
+                        Quantity = entry.AmountKg,
+                        Manufactured = scanSum,
+                        Remaining = entry.AmountKg - scanSum,
+                        Location = "PROD",
+                        Lot = entry.PoNumber ?? string.Empty
+                    };
+                }
+                return null;
+            }
+
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            var sql = @"
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
                     f1.STOFCY_0 as Site,
-                    f2.ITMREF_0 as ProductCode,
-                    f2.ITMDES1_0 as ProductDescription,
+                    f2.ITMREF_0 as ItemCode,
+                    f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
-                    f1.QTY_0 as OrderedQuantity,
-                    0.0 as RemainingQuantity,
-                    0.0 as Manufactured,
+                    f1.QTY_0 as Quantity,
                     f1.LOC_0 as Location,
-                    f1.LOT_0 as LotNumber
+                    f1.LOT_0 as Lot
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ProductCode";
+                WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ItemCode";
 
-            var info = await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ProductCode = productCode });
+            var info = await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ItemCode = itemCode });
             
             if (info != null)
             {
                 var scanSum = await _scanContext.ProductionScans
-                    .Where(s => s.SoNumber == soNumber && s.ProductId == productCode && s.Status == "A")
+                    .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted)
                     .SumAsync(s => s.ScanAmountKg);
                 
-                info.RemainingQuantity = info.OrderedQuantity - scanSum;
+                info.Manufactured = scanSum;
+                info.Remaining = info.Quantity - scanSum;
             }
 
             return info;
@@ -323,7 +376,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
         }
 
-        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode, string? location = null)
+        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string itemCode, string? location = null)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var sql = @"
@@ -332,11 +385,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(SLO_0)) as LotDescription,
                     SUM(QTYPCU_0) as StockQuantity
                 FROM InnodisTestDB.INLPROD.STOCK
-                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ProductCode";
+                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ItemCode";
 
             var parameters = new DynamicParameters();
             parameters.Add("Site", site);
-            parameters.Add("ProductCode", productCode);
+            parameters.Add("ItemCode", itemCode);
 
             if (!string.IsNullOrEmpty(location))
             {
@@ -377,26 +430,52 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return entryNumber;
         }
 
-        public async Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan)
+        public async Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scanDto)
         {
-            var entity = new ProductionScan
+            using var transaction = await _scanContext.Database.BeginTransactionAsync();
+            try
             {
-                ProductId = scan.ProductId ?? string.Empty,
-                ProductDescription = scan.ProductDescription ?? string.Empty,
-                ScanAmountKg = scan.ScanAmountKg,
-                SoNumber = scan.SoNumber ?? string.Empty,
-                CustomerId = scan.CustomerId ?? string.Empty,
-                CustomerDescription = scan.CustomerDescription ?? string.Empty,
-                Status = scan.Status ?? "Q",
-                CreatedAt = DateTime.UtcNow
-            };
+                var entity = new ProductionScan
+                {
+                    ItemCode = scanDto.ItemCode ?? string.Empty,
+                    LineNo = scanDto.LineNo,
+                    ScanAmountKg = scanDto.ScanAmountKg,
+                    SoNumber = scanDto.SoNumber ?? string.Empty,
+                    OrderStatus = scanDto.OrderStatus,
+                    ItemStatus = scanDto.ItemStatus ?? "Q",
+                    Location = scanDto.Location,
+                    Lot = scanDto.Lot,
+                    CreatedBy = scanDto.CreatedBy ?? "system",
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _scanContext.ProductionScans.Add(entity);
-            await _scanContext.SaveChangesAsync();
+                _scanContext.ProductionScans.Add(entity);
+                await _scanContext.SaveChangesAsync();
 
-            scan.ScanId = entity.ScanId;
-            scan.CreatedAt = entity.CreatedAt;
-            return scan;
+                // Generate Audit Log
+                var audit = new AuditLog
+                {
+                    EntityName = "production_scan",
+                    EntityId = entity.ScanId,
+                    ActionType = "INSERT",
+                    Payload = System.Text.Json.JsonSerializer.Serialize(entity),
+                    PerformedBy = entity.CreatedBy,
+                    PerformedAt = DateTime.UtcNow
+                };
+                _scanContext.AuditLogs.Add(audit);
+                await _scanContext.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                scanDto.ScanId = entity.ScanId;
+                scanDto.CreatedAt = entity.CreatedAt;
+                return scanDto;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }
