@@ -17,5 +17,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string LocationType { get; set; } = string.Empty;
         public string LocationTypeName { get; set; } = string.Empty;
         public string Lot { get; set; } = string.Empty;
+        public string? CustomerCode { get; set; }
+        public string? CustomerName { get; set; }
     }
 }

@@ -33,12 +33,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             
             var sql = @"
                 SELECT TOP 100
-                    LTRIM(RTRIM(f2.ITMREF_0)) as ItemCode,
-                    LTRIM(RTRIM(f2.ITMDES1_0)) as Description,
-                    SUM(f1.QTY_0) as Quantity
+                    f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as SoNumber,
+                    f1.STOFCY_0 COLLATE DATABASE_DEFAULT as Site,
+                    LTRIM(RTRIM(f2.ITMREF_0)) COLLATE DATABASE_DEFAULT as ItemCode,
+                    LTRIM(RTRIM(f2.ITMDES1_0)) COLLATE DATABASE_DEFAULT as Description,
+                    'Variable Weight' COLLATE DATABASE_DEFAULT as BarcodeType,
+                    f1.QTY_0 as Quantity,
+                    f1.LOC_0 COLLATE DATABASE_DEFAULT as Location,
+                    f0.BPCORD_0 COLLATE DATABASE_DEFAULT as CustomerCode,
+                    c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as CustomerName
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                LEFT JOIN InnodisTestDB.INLPROD.BPCUSTOMER c on f0.BPCORD_0 = c.BPCNUM_0
                 WHERE 1=1";
 
             var parameters = new DynamicParameters();
@@ -48,36 +56,51 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 parameters.Add("Location", location);
             }
 
-            sql += " GROUP BY f2.ITMREF_0, f2.ITMDES1_0 ORDER BY Quantity DESC";
+            sql += " ORDER BY f0.ORDDAT_0 DESC";
 
             var sageItems = (await db.QueryAsync<ProductionTrackingDto>(sql, parameters)).ToList();
 
-            // Fetch Local Bulk/Cuts and group them
+            // Fetch Local Bulk/Cuts and map them individually
             var localEntries = await _context.CutBulkEntries.ToListAsync();
-            var localGrouped = localEntries
-                .GroupBy(e => e.Type)
-                .Select(g => new ProductionTrackingDto
+            var localItems = localEntries
+                .Select(e => new ProductionTrackingDto
                 {
-                    ItemCode = g.Key == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                    Description = g.Key == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
-                    Quantity = g.Sum(x => x.AmountKg),
+                    SoNumber = e.EntryNumber,
+                    ItemCode = e.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                    Description = e.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
+                    Quantity = e.AmountKg,
                     Site = "IPL",
-                    Location = "PROD"
-                });
+                    Location = "PROD",
+                    CustomerCode = e.CustomerCode,
+                    CustomerName = e.CustomerName
+                }).ToList();
 
-            // Calculate Manufactured for Sage Items
-            foreach (var item in sageItems)
+            var combinedItems = localItems.Concat(sageItems).ToList();
+
+            // Calculate Manufactured for each item
+            var soNumbers = combinedItems.Select(x => x.SoNumber).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+            var itemCodes = combinedItems.Select(x => x.ItemCode).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+
+            var scans = new List<ProductionScan>();
+            if (soNumbers.Any() && itemCodes.Any())
             {
-                var manufactured = await _scanContext.ProductionScans
-                    .Where(s => s.ItemCode == item.ItemCode && !s.IsDeleted && s.ItemStatus == "A")
-                    .SumAsync(s => s.ScanAmountKg);
-                item.Manufactured = manufactured;
-                item.Remaining = item.Quantity - manufactured;
-                item.Site = "IPL"; // Default
+                scans = await _scanContext.ProductionScans
+                    .Where(s => soNumbers.Contains(s.SoNumber) && itemCodes.Contains(s.ItemCode) && !s.IsDeleted && s.ItemStatus == "A")
+                    .ToListAsync();
             }
 
-            // Combine
-            return localGrouped.Concat(sageItems).OrderByDescending(x => x.Quantity);
+            foreach (var item in combinedItems)
+            {
+                var manufactured = scans
+                    .Where(s => s.SoNumber == item.SoNumber && s.ItemCode == item.ItemCode)
+                    .Sum(s => s.ScanAmountKg);
+
+                item.Manufactured = manufactured;
+                item.Remaining = item.Quantity - manufactured;
+                if (string.IsNullOrEmpty(item.Site)) item.Site = "IPL"; // Default
+            }
+
+            return combinedItems.OrderByDescending(x => x.Quantity);
         }
 
         public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
