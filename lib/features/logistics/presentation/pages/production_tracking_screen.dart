@@ -31,6 +31,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   List<Map<String, String>> _locations = [];
   List<Map<String, String>> _lots = [];
   bool _isLoading = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -78,9 +79,45 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     }
   }
 
-  void _saveAndUpdate() {
-    // Implement save logic here
-    Navigator.pop(context);
+  Future<void> _saveAndUpdate() async {
+    if (_cumulativeQty <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please scan items first')));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+
+      final payload = {
+        'productId': widget.product.productCode,
+        'productDescription': widget.product.productDescription,
+        'scanAmountKg': _cumulativeQty,
+        'soNumber': widget.order.orderNumber,
+        'customerId': widget.order.customerCode,
+        'customerDescription': widget.order.customerName,
+        'status': _status, // A, Q, or R
+      };
+
+      await repository.saveProductionScan(payload);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Production data saved successfully')),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving production data: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -418,7 +455,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
       child: ElevatedButton(
-        onPressed: _saveAndUpdate,
+        onPressed: _isSaving ? null : _saveAndUpdate,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2C2C2E),
           foregroundColor: Colors.white,
@@ -427,10 +464,19 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             borderRadius: BorderRadius.circular(28),
           ),
         ),
-        child: const Text(
-          'Save & Update',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        child: _isSaving
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : const Text(
+                'Save & Update',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
       ),
     );
   }

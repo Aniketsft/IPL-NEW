@@ -63,6 +63,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
+// Dedicated context for new ScanProduction database
+builder.Services.AddDbContext<ScanProductionDbContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ScanProduction"));
+});
+
 // Dependency Injection
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();
@@ -92,12 +98,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var app = builder.Build();
 
-// Seed Database
+// Seed Primary Database and Create ScanProduction database
 using (var scope = app.Services.CreateScope())
 {
+    // Primary auth & user management seed
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
     await DbInitializer.SeedAsync(context, hasher);
+    
+    // Automatically create ScanProduction database if it doesn't exist
+    var scanContext = scope.ServiceProvider.GetRequiredService<ScanProductionDbContext>();
+    scanContext.Database.EnsureCreated();
 }
 
 // Configure the HTTP request pipeline.

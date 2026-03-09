@@ -344,6 +344,15 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  @override
+  Future<void> saveProductionScan(Map<String, dynamic> scan) async {
+    try {
+      await _dio.post('Logistics/production-scan', data: scan);
+    } catch (e) {
+      throw 'Failed to save production scan: $e';
+    }
+  }
+
   SalesOrderDetail _mapDetailDtoToEntity(SalesOrderDetailDto dto) {
     return SalesOrderDetail(
       soNumber: dto.soNumber,

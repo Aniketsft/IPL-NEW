@@ -9,6 +9,7 @@ using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using EnterpriseAuth.Api.Core.Domain.Entities;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -16,12 +17,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
     {
         private readonly string _connectionString;
         private readonly ApplicationDbContext _context;
+        private readonly ScanProductionDbContext _scanContext;
 
-        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
             _context = context;
+            _scanContext = scanContext;
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? location = null)
@@ -186,7 +189,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 = @SoNumber";
 
-            return await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber });
+            var details = (await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber })).ToList();
+
+            // Fetch Scans from separate context and join in memory to avoid cross-DB permission issues
+            var scans = await _scanContext.ProductionScans
+                .Where(s => s.SoNumber == soNumber && s.Status == "A")
+                .GroupBy(s => s.ProductId)
+                .Select(g => new { ProductId = g.Key, TotalAmount = g.Sum(x => x.ScanAmountKg) })
+                .ToListAsync();
+
+            foreach (var detail in details)
+            {
+                var scanSum = scans.FirstOrDefault(s => s.ProductId == detail.ProductCode)?.TotalAmount ?? 0m;
+                detail.RemainingQuantity = detail.OrderedQuantity - scanSum;
+            }
+
+            return details;
         }
 
         public async Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync()
@@ -260,7 +278,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ProductCode";
 
-            return await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ProductCode = productCode });
+            var info = await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ProductCode = productCode });
+            
+            if (info != null)
+            {
+                var scanSum = await _scanContext.ProductionScans
+                    .Where(s => s.SoNumber == soNumber && s.ProductId == productCode && s.Status == "A")
+                    .SumAsync(s => s.ScanAmountKg);
+                
+                info.RemainingQuantity = info.OrderedQuantity - scanSum;
+            }
+
+            return info;
         }
 
         public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
@@ -346,6 +375,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             await _context.SaveChangesAsync();
 
             return entryNumber;
+        }
+
+        public async Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan)
+        {
+            var entity = new ProductionScan
+            {
+                ProductId = scan.ProductId ?? string.Empty,
+                ProductDescription = scan.ProductDescription ?? string.Empty,
+                ScanAmountKg = scan.ScanAmountKg,
+                SoNumber = scan.SoNumber ?? string.Empty,
+                CustomerId = scan.CustomerId ?? string.Empty,
+                CustomerDescription = scan.CustomerDescription ?? string.Empty,
+                Status = scan.Status ?? "Q",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _scanContext.ProductionScans.Add(entity);
+            await _scanContext.SaveChangesAsync();
+
+            scan.ScanId = entity.ScanId;
+            scan.CreatedAt = entity.CreatedAt;
+            return scan;
         }
     }
 }

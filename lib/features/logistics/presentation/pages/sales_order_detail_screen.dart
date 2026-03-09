@@ -220,14 +220,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
     return InkWell(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) =>
                 ProductionTrackingScreen(order: widget.order, product: item),
           ),
         );
+        if (result == true) {
+          _fetchDetails();
+        }
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

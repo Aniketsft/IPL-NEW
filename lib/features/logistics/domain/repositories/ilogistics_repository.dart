@@ -7,4 +7,5 @@ abstract class ILogisticsRepository {
   Future<List<SalesOrderDetail>> getProductionTracking({String? location});
   Future<void> updateSalesOrder(SalesOrder order);
   Future<void> syncScans(List<Map<String, dynamic>> scans);
+  Future<void> saveProductionScan(Map<String, dynamic> scan);
 }

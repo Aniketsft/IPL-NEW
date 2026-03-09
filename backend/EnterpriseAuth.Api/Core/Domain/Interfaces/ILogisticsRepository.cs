@@ -20,5 +20,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string productCode, string? location = null);
 
         Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto entry);
+        Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan);
     }
 }

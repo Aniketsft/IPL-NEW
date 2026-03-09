@@ -100,6 +100,13 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpPost("production-scan")]
+        public async Task<IActionResult> SaveProductionScan([FromBody] ProductionScanDto scan)
+        {
+            var result = await _logisticsService.SaveProductionScanAsync(scan);
+            return ToActionResult(result);
+        }
+
         private IActionResult ToActionResult<T>(Result<T> result)
         {
             return result.IsSuccess

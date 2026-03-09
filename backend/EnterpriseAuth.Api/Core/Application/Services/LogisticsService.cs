@@ -144,7 +144,20 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
             catch (Exception ex)
             {
-                return Result<string>.Failure($"Failed to save Cut/Bulk entry: {ex.Message}");
+                return Result<string>.Failure($"Failed to save Cuts / Bulk entry: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scan)
+        {
+            try
+            {
+                var result = await _logisticsRepository.SaveProductionScanAsync(scan);
+                return Result<ProductionScanDto>.Success(result);
+            }
+            catch (Exception ex)
+            {
+                return Result<ProductionScanDto>.Failure($"Failed to save production scan: {ex.Message}");
             }
         }
     }

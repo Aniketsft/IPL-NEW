@@ -318,11 +318,11 @@ class _ProductionTrackingListScreenState
           ],
         ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: () {
+        onTap: () async {
           // Since we don't have the full SalesOrder object here easily without joining,
           // we'll pass a dummy header or handle it appropriately.
           // For now, navigating to detail is fine if we can reconstruct the entity.
-          Navigator.push(
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ProductionTrackingScreen(
@@ -341,6 +341,9 @@ class _ProductionTrackingListScreenState
               ),
             ),
           );
+          if (result == true) {
+            _applyFilters();
+          }
         },
       ),
     );
