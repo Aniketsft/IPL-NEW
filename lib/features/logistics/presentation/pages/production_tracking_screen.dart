@@ -4,6 +4,11 @@ import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 
+const Color orange = Color(0xFFFF9800);
+const Color dark800 = Color(0xFF1E1E1E);
+const Color dark900 = Color(0xFF0D0D0D);
+const Color darkBorder = Color(0xFF2C2C2E);
+
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
   final SalesOrderDetail product;
@@ -27,6 +32,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   double _currentScan = 0.0;
   double _cumulativeQty = 0.0;
   String _selectedLocation = 'N/A';
+  Map<String, String>? _selectedLocationData;
   String _selectedLot = 'N/A';
   List<Map<String, String>> _locations = [];
   List<Map<String, String>> _lots = [];
@@ -37,6 +43,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void initState() {
     super.initState();
     _selectedLocation = widget.product.location ?? 'Select Location';
+    _selectedLocationData = {
+      'location': widget.product.location ?? '',
+      'warehouse': widget.product.warehouse ?? '',
+      'warehouseName': widget.product.warehouseName ?? '',
+      'locationType': widget.product.locationType ?? '',
+      'locationTypeName': widget.product.locationTypeName ?? '',
+    };
     _selectedLot = widget.product.lot ?? 'Select Lot';
     _fetchInitialData();
   }
@@ -49,7 +62,21 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       // Fetch Locations if site is available
       if (widget.product.site != null) {
         final locs = await repository.getLocations(widget.product.site!);
-        setState(() => _locations = locs);
+        setState(() {
+          _locations = locs;
+          // Synchronize _selectedLocationData with full metadata if available
+          if (_selectedLocation != 'Select Location') {
+            final fullData = _locations.firstWhere(
+              (l) => l['location'] == _selectedLocation,
+              orElse: () => {
+                'location': _selectedLocation,
+                'warehouseName': 'External',
+                'locationTypeName': 'Sage Default',
+              },
+            );
+            _selectedLocationData = fullData;
+          }
+        });
       }
 
       // Fetch Lots if product code and site are available
@@ -66,12 +93,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   Future<void> _fetchLots() async {
     try {
       final repository = context.read<DeliveryRepository>();
+      final locationFilter =
+          (_selectedLocation == 'Select Location' || _selectedLocation == 'N/A')
+          ? null
+          : _selectedLocation;
+
       final filteredLots = await repository.fetchLots(
         widget.product.site!,
         widget.product.itemCode,
-        location: _selectedLocation == 'Select Location'
-            ? null
-            : _selectedLocation,
+        location: locationFilter,
       );
       setState(() => _lots = filteredLots);
     } catch (e) {
@@ -98,7 +128,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         'soNumber': widget.order.orderNumber,
         'customerId': widget.order.customerCode,
         'customerDescription': widget.order.customerName,
-        'status': _status, // A, Q, or R
+        'itemStatus': _status, // A, Q, or R
       };
 
       await repository.saveProductionScan(payload);
@@ -122,10 +152,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
-    const dark900 = Color(0xFF0D0D0D);
-
     return Scaffold(
       backgroundColor: dark900,
       appBar: AppBar(
@@ -247,11 +273,19 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 16),
           _buildActionTile(
             'Location',
-            _selectedLocation,
+            header:
+                _selectedLocationData != null &&
+                    _selectedLocationData!['location'] != null &&
+                    _selectedLocationData!['location']!.isNotEmpty
+                ? '${_selectedLocationData!['location']} ${_selectedLocationData!['warehouse'] ?? ""}'
+                : _selectedLocation,
+            subtext: _selectedLocationData != null
+                ? '${_selectedLocationData!['warehouseName'] ?? ""} ${_selectedLocationData!['locationType'] ?? ""} ${_selectedLocationData!['locationTypeName'] ?? ""}'
+                : null,
             onTap: _showLocationPicker,
           ),
           const SizedBox(height: 12),
-          _buildActionTile('Lot', _selectedLot, onTap: _showLotPicker),
+          _buildActionTile('Lot', header: _selectedLot, onTap: _showLotPicker),
           const SizedBox(height: 16),
           _buildLotDetailsField(),
           const SizedBox(height: 16),
@@ -288,8 +322,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Widget _buildActionTile(
-    String label,
-    String value, {
+    String label, {
+    required String header,
+    String? subtext,
     required VoidCallback onTap,
   }) {
     return Column(
@@ -303,15 +338,29 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Colors.white,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        header,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (subtext != null && subtext.trim().isNotEmpty)
+                        Text(
+                          subtext,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const Spacer(),
                 const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
@@ -491,18 +540,28 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       ),
       builder: (context) => _SearchPickerSheet(
         title: 'Location',
+        isLoading: _isLoading,
         items: _locations
             .map(
               (l) => {
                 'code': l['location'] ?? '',
-                'name': '${l['warehouse'] ?? ""} - ${l['type'] ?? ""}',
+                'header':
+                    '${l['location'] ?? ""} ${l['warehouse'] ?? ""}', // LOC_0 WRH_0
+                'subtext':
+                    '${l['warehouseName'] ?? ""} ${l['locationType'] ?? ""} ${l['locationTypeName'] ?? ""}', // WRHNAM_0 LOCTYP_0 LOCTYPNAM_0
+                ...l,
               },
             )
             .toList(),
         onSelected: (code) {
           if (code != null) {
+            final data = _locations.firstWhere(
+              (l) => l['location'] == code,
+              orElse: () => {},
+            );
             setState(() {
               _selectedLocation = code;
+              _selectedLocationData = data;
               _selectedLot = 'Select Lot'; // Reset lot when location changes
             });
             _fetchLots();
@@ -522,11 +581,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       ),
       builder: (context) => _SearchPickerSheet(
         title: 'Lot',
+        isLoading: _isLoading,
         items: _lots
             .map(
               (l) => {
                 'code': l['lot'] ?? '',
-                'name':
+                'header': l['lot'] ?? '',
+                'subtext':
                     '${l['description'] ?? ""} (Qty: ${l['quantity'] ?? "0"})',
               },
             )
@@ -541,11 +602,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
 class _SearchPickerSheet extends StatefulWidget {
   final String title;
+  final bool isLoading;
   final List<Map<String, String>> items;
   final Function(String?) onSelected;
 
   const _SearchPickerSheet({
     required this.title,
+    this.isLoading = false,
     required this.items,
     required this.onSelected,
   });
@@ -568,9 +631,10 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
     setState(() {
       _filteredItems = widget.items.where((it) {
         final code = (it['code'] ?? '').toLowerCase();
-        final name = (it['name'] ?? '').toLowerCase();
-        return code.contains(query.toLowerCase()) ||
-            name.contains(query.toLowerCase());
+        final header = (it['header'] ?? '').toLowerCase();
+        final subtext = (it['subtext'] ?? '').toLowerCase();
+        final q = query.toLowerCase();
+        return code.contains(q) || header.contains(q) || subtext.contains(q);
       }).toList();
     });
   }
@@ -620,7 +684,9 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: _filteredItems.isEmpty
+            child: widget.isLoading
+                ? Center(child: CircularProgressIndicator(color: orange))
+                : _filteredItems.isEmpty
                 ? const Center(
                     child: Text(
                       'No results found',
@@ -633,14 +699,14 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                       final item = _filteredItems[index];
                       return ListTile(
                         title: Text(
-                          item['code'] ?? '',
+                          item['header'] ?? '',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         subtitle: Text(
-                          item['name'] ?? '',
+                          item['subtext'] ?? '',
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 12,

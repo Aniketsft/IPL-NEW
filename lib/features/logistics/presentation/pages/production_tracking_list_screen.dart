@@ -299,7 +299,39 @@ class _ProductionTrackingListScreenState
               item.description,
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
-            const SizedBox(height: 8),
+            if (item.location != null && item.location!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.location_on, color: orange, size: 14),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.location} ${item.warehouse ?? ""}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          '${item.warehouseName ?? ""} ${item.locationType ?? ""} ${item.locationTypeName ?? ""}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

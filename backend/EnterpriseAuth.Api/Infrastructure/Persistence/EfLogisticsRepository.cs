@@ -69,7 +69,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             foreach (var item in sageItems)
             {
                 var manufactured = await _scanContext.ProductionScans
-                    .Where(s => s.ItemCode == item.ItemCode && !s.IsDeleted)
+                    .Where(s => s.ItemCode == item.ItemCode && !s.IsDeleted && s.ItemStatus == "A")
                     .SumAsync(s => s.ScanAmountKg);
                 item.Manufactured = manufactured;
                 item.Remaining = item.Quantity - manufactured;
@@ -220,7 +220,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Fetch Scans from separate context and join in memory to avoid cross-DB permission issues
             var scans = await _scanContext.ProductionScans
-                .Where(s => s.SoNumber == soNumber && !s.IsDeleted)
+                .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
                 .GroupBy(s => s.ItemCode)
                 .Select(g => new { ItemCode = g.Key, TotalAmount = g.Sum(x => x.ScanAmountKg) })
                 .ToListAsync();
@@ -293,7 +293,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (entry != null)
                 {
                     var scanSum = await _scanContext.ProductionScans
-                        .Where(s => s.SoNumber == soNumber && !s.IsDeleted)
+                        .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
                         .SumAsync(s => s.ScanAmountKg);
 
                     return new ProductionTrackingDto
@@ -323,11 +323,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as Quantity,
                     f1.LOC_0 as Location,
-                    f1.LOT_0 as Lot
+                    f1.LOT_0 as Lot,
+                    WRH.WRHNAM_0 as WarehouseName,
+                    STOL.WRH_0 as Warehouse,
+                    STOL.LOCTYP_0 as LocationType,
+                    ATRA.TEXTE_0 as LocationTypeName
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                LEFT JOIN InnodisTestDB.INLPROD.STOLOC STOL ON f1.STOFCY_0 = STOL.STOFCY_0 AND f1.LOC_0 = STOL.LOC_0
+                LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH ON WRH.WRH_0 = STOL.WRH_0
+                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on STOL.STOFCY_0 = ATRA.IDENT1_0 
+                    and STOL.LOCTYP_0 = ATRA.IDENT2_0 
+                    and ATRA.CODFIC_0 = 'TABLOCTYP' 
+                    and ATRA.LANGUE_0 = 'BRI' 
+                    and ATRA.ZONE_0 = 'TYPDESAXX'
                 WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ItemCode";
 
             var info = await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ItemCode = itemCode });
@@ -335,7 +346,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             if (info != null)
             {
                 var scanSum = await _scanContext.ProductionScans
-                    .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted)
+                    .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted && s.ItemStatus == "A")
                     .SumAsync(s => s.ScanAmountKg);
                 
                 info.Manufactured = scanSum;

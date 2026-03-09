@@ -225,8 +225,10 @@ class DeliveryRepository implements ILogisticsRepository {
           .map(
             (json) => {
               'location': (json['location'] ?? '').toString(),
-              'warehouse': (json['warehouseName'] ?? '').toString(),
-              'type': (json['locationTypeName'] ?? '').toString(),
+              'warehouse': (json['warehouse'] ?? '').toString(),
+              'warehouseName': (json['warehouseName'] ?? '').toString(),
+              'locationType': (json['locationType'] ?? '').toString(),
+              'locationTypeName': (json['locationTypeName'] ?? '').toString(),
             },
           )
           .toList();
@@ -309,6 +311,10 @@ class DeliveryRepository implements ILogisticsRepository {
       site: json['site'],
       location: json['location'],
       lot: json['lot'],
+      warehouse: json['warehouse'],
+      warehouseName: json['warehouseName'],
+      locationType: json['locationType'],
+      locationTypeName: json['locationTypeName'],
       itemCode: json['itemCode'] ?? '',
       description: json['description'] ?? '',
       barcodeType: json['barcodeType'] ?? 'Variable Weight',
@@ -367,6 +373,10 @@ class DeliveryRepository implements ILogisticsRepository {
       site: dto.site,
       location: dto.location,
       lot: dto.lot,
+      warehouse: dto.warehouse,
+      warehouseName: dto.warehouseName,
+      locationType: dto.locationType,
+      locationTypeName: dto.locationTypeName,
       itemCode: dto.itemCode ?? '',
       description: dto.description ?? '',
       barcodeType: dto.barcodeType ?? 'Variable Weight',

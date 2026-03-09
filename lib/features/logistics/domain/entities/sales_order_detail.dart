@@ -10,6 +10,10 @@ class SalesOrderDetail {
   final String? site;
   final String? location;
   final String? lot;
+  final String? warehouse;
+  final String? warehouseName;
+  final String? locationType;
+  final String? locationTypeName;
 
   final String itemCode;
   final String description;
@@ -29,6 +33,10 @@ class SalesOrderDetail {
     this.site,
     this.location,
     this.lot,
+    this.warehouse,
+    this.warehouseName,
+    this.locationType,
+    this.locationTypeName,
     required this.itemCode,
     required this.description,
     required this.barcodeType,
