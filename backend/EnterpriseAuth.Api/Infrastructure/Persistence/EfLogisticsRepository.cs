@@ -127,12 +127,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             var parameters = new DynamicParameters();
 
-            if (status.HasValue)
-            {
-                sql += " AND f0.ORDSTA_0 = @Status";
-                parameters.Add("Status", status.Value);
-            }
-
             if (date.HasValue)
             {
                 sql += " AND f0.SHIDAT_0 = @Date";
@@ -196,7 +190,32 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             sql += " ORDER BY [OrderDate] DESC";
 
-            return await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters);
+            var allHeaders = (await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters)).ToList();
+
+            // Override status from ScanProduction table (a locally closed order has OrderStatus = "2")
+            var allSoNumbers = allHeaders.Select(h => h.SohNum).ToList();
+            if (allSoNumbers.Any())
+            {
+                var closedSoNumbers = await _scanContext.ProductionScans
+                    .Where(s => allSoNumbers.Contains(s.SoNumber) && s.OrderStatus == "2" && !s.IsDeleted)
+                    .Select(s => s.SoNumber)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var header in allHeaders)
+                {
+                    if (closedSoNumbers.Contains(header.SohNum))
+                        header.Status = 2;
+                }
+            }
+
+            // Apply status filter after merge
+            if (status.HasValue)
+            {
+                allHeaders = allHeaders.Where(h => h.Status == status.Value).ToList();
+            }
+
+            return allHeaders.OrderByDescending(h => h.OrderDate);
         }
 
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
@@ -510,6 +529,45 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task<bool> CloseOrderAsync(string soNumber, string closedBy)
+        {
+            // Check if there's already a close record for this SO
+            var existing = await _scanContext.ProductionScans
+                .FirstOrDefaultAsync(s => s.SoNumber == soNumber && s.OrderStatus == "2" && !s.IsDeleted);
+
+            if (existing != null)
+                return true; // Already closed
+
+            // Insert a sentinel scan record marking the order as closed
+            var entity = new ProductionScan
+            {
+                ItemCode = "ORDER-CLOSE",
+                LineNo = 0,
+                ScanAmountKg = 0m,
+                SoNumber = soNumber,
+                OrderStatus = "2",
+                ItemStatus = "A",
+                CreatedBy = closedBy,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _scanContext.ProductionScans.Add(entity);
+
+            var audit = new AuditLog
+            {
+                EntityName = "production_scan",
+                EntityId = 0,
+                ActionType = "CLOSE_ORDER",
+                Payload = $"{{\"soNumber\":\"{soNumber}\",\"closedBy\":\"{closedBy}\"}}",
+                PerformedBy = closedBy,
+                PerformedAt = DateTime.UtcNow
+            };
+            _scanContext.AuditLogs.Add(audit);
+
+            await _scanContext.SaveChangesAsync();
+            return true;
         }
     }
 }

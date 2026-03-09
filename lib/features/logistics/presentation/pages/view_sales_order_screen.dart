@@ -141,7 +141,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                     itemCount: _orders.length,
                     padding: const EdgeInsets.only(bottom: 20),
                     itemBuilder: (context, index) {
-                      return SalesOrderCard(order: _orders[index]);
+                      return SalesOrderCard(
+                        order: _orders[index],
+                        onRefresh: _fetchOrders,
+                      );
                     },
                   ),
           ),
@@ -438,7 +441,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   final isSelected = _status == key;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _status = key),
+                      onTap: () {
+                        setState(() => _status = key);
+                        _fetchOrders();
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(

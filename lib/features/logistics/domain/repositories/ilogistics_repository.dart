@@ -8,4 +8,12 @@ abstract class ILogisticsRepository {
   Future<void> updateSalesOrder(SalesOrder order);
   Future<void> syncScans(List<Map<String, dynamic>> scans);
   Future<void> saveProductionScan(Map<String, dynamic> scan);
+  Future<List<SalesOrder>> fetchSalesOrderHeaders({
+    String status = 'all',
+    DateTime? date,
+    String? customerCode,
+    String? rep0,
+    String? rep1,
+  });
+  Future<void> closeOrder(String soNumber, String closedBy);
 }

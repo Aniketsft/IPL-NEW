@@ -160,5 +160,18 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 return Result<ProductionScanDto>.Failure($"Failed to save production scan: {ex.Message}");
             }
         }
+
+        public async Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy)
+        {
+            try
+            {
+                var result = await _logisticsRepository.CloseOrderAsync(soNumber, closedBy);
+                return Result<bool>.Success(result);
+            }
+            catch (Exception ex)
+            {
+                return Result<bool>.Failure($"Failed to close order: {ex.Message}");
+            }
+        }
     }
 }

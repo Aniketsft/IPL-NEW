@@ -50,6 +50,53 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     }
   }
 
+  Future<void> _closeOrder() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('Close Order', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to close this sales order? This will mark it as completed.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Close Order',
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      await repository.closeOrder(widget.order.orderNumber, 'system');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order closed successfully')),
+        );
+        Navigator.pop(context, true); // Return true to indicate status change
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to close order: $e';
+      });
+    }
+  }
+
   List<SalesOrderDetail> get _filteredDetails {
     return _details.where((d) {
       final matchCode = d.itemCode.toLowerCase().contains(
@@ -352,12 +399,37 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildFooter() {
+    if (widget.order.isClosed) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green.withOpacity(0.3)),
+          ),
+          child: const Center(
+            child: Text(
+              'THIS ORDER IS CLOSED',
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: _isLoading ? null : _closeOrder,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2C2C2E),
             foregroundColor: Colors.white,
@@ -366,10 +438,19 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               borderRadius: BorderRadius.circular(28),
             ),
           ),
-          child: const Text(
-            'Close This Sales Order',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Close This Sales Order',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ),
     );

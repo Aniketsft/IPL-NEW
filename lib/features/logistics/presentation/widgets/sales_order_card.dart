@@ -5,8 +5,9 @@ import '../../domain/entities/sales_order.dart';
 
 class SalesOrderCard extends StatelessWidget {
   final SalesOrder order;
+  final VoidCallback? onRefresh;
 
-  const SalesOrderCard({super.key, required this.order});
+  const SalesOrderCard({super.key, required this.order, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +22,17 @@ class SalesOrderCard extends StatelessWidget {
         border: Border.all(color: Colors.white10),
       ),
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SalesOrderDetailScreen(order: order),
-          ),
-        ),
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SalesOrderDetailScreen(order: order),
+            ),
+          );
+          if (result == true && onRefresh != null) {
+            onRefresh!();
+          }
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),

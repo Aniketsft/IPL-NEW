@@ -155,6 +155,18 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  @override
+  Future<void> closeOrder(String soNumber, String closedBy) async {
+    try {
+      await _dio.post(
+        'Logistics/close-order/$soNumber',
+        queryParameters: {'closedBy': closedBy},
+      );
+    } catch (e) {
+      throw 'Failed to close order: $e';
+    }
+  }
+
   Future<List<Map<String, String>>> getCustomers() async {
     try {
       final response = await _dio.get('Logistics/customers');

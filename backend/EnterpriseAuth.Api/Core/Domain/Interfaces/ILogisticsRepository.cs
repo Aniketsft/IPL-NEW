@@ -21,5 +21,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
 
         Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto entry);
         Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan);
+        Task<bool> CloseOrderAsync(string soNumber, string closedBy);
     }
 }

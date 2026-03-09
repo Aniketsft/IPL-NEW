@@ -107,6 +107,13 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
+        [HttpPost("close-order/{soNumber}")]
+        public async Task<IActionResult> CloseOrder(string soNumber, [FromQuery] string closedBy = "system")
+        {
+            var result = await _logisticsService.CloseOrderAsync(soNumber, closedBy);
+            return ToActionResult(result);
+        }
+
         private IActionResult ToActionResult<T>(Result<T> result)
         {
             return result.IsSuccess
