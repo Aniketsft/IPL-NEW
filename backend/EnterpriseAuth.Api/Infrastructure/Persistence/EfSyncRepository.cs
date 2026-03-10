@@ -128,15 +128,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            // 2. Process Cut & Bulk Entries (to EnterpriseAuthDb)
+            // 2. Process Cut & Bulk Entries (Atomic Overwrite in ScanProduction DB)
             if (request.CutBulkEntries != null && request.CutBulkEntries.Any())
             {
-                using var authTransaction = await _context.Database.BeginTransactionAsync();
+                using var syncTransaction = await _scanContext.Database.BeginTransactionAsync();
                 try
                 {
+                    var entryNumbersToRenew = request.CutBulkEntries.Select(e => e.EntryNumber).ToList();
+
+                    // PERFORMANCE: Use Atomic Delete-then-Insert strategy for enterprise data freshness (v13 Isolation)
+                    var existingHeaders = await _scanContext.CutBulkEntries
+                        .Where(e => entryNumbersToRenew.Contains(e.EntryNumber))
+                        .ToListAsync();
+                    
+                    var existingDetails = await _scanContext.SalesOrderDetailCutsBulk
+                        .Where(d => entryNumbersToRenew.Contains(d.SoNumber))
+                        .ToListAsync();
+
+                    if (existingHeaders.Any()) _scanContext.CutBulkEntries.RemoveRange(existingHeaders);
+                    if (existingDetails.Any()) _scanContext.SalesOrderDetailCutsBulk.RemoveRange(existingDetails);
+
                     foreach (var cbDto in request.CutBulkEntries)
                     {
-                        var entity = new CutBulkEntry
+                        var entryEntity = new CutBulkEntry
                         {
                             EntryNumber = cbDto.EntryNumber,
                             Type = cbDto.Type,
@@ -146,17 +160,33 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             PoNumber = cbDto.PoNumber,
                             Salesman1Code = cbDto.Salesman1Code,
                             Salesman2Code = cbDto.Salesman2Code,
-                            AmountKg = cbDto.AmountKg
+                            AmountKg = cbDto.AmountKg,
+                            SyncStatus = "Synced",
+                            DeviceId = request.DeviceId,
+                            SyncTimestamp = DateTime.UtcNow
                         };
-                        _context.CutBulkEntries.Add(entity);
+
+                        var detailEntity = new SalesOrderDetailCutsBulk
+                        {
+                            SoNumber = cbDto.EntryNumber,
+                            ItemCode = cbDto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                            Description = cbDto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
+                            Quantity = cbDto.AmountKg,
+                            SyncStatus = "Synced",
+                            CreatedAt = DateTime.UtcNow
+                        };
+
+                        _scanContext.CutBulkEntries.Add(entryEntity);
+                        _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
                     }
-                    await _context.SaveChangesAsync();
-                    await authTransaction.CommitAsync();
+
+                    await _scanContext.SaveChangesAsync();
+                    await syncTransaction.CommitAsync();
                     totalCount += request.CutBulkEntries.Count;
                 }
                 catch
                 {
-                    await authTransaction.RollbackAsync();
+                    await syncTransaction.RollbackAsync();
                     throw;
                 }
             }

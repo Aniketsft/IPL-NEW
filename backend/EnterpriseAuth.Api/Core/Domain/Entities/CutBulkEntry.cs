@@ -14,5 +14,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string? Salesman1Code { get; set; }
         public string? Salesman2Code { get; set; }
         public decimal AmountKg { get; set; }
+
+        // Enterprise Sync Metadata
+        public string? DeviceId { get; set; }
+        public string? SyncStatus { get; set; } // 'Synced', 'Pending'
+        public DateTime? SyncTimestamp { get; set; }
     }
 }

@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 9;
+  static const _databaseVersion = 10;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -142,9 +142,16 @@ class LocalDatabaseHelper {
       );
     }
 
-    // Version 5 Refactoring (Historical Context):
-    // We already handled Order schema changes by bumping version and having the user reset,
-    // but future upgrades will use this delta pattern to protect tbl_scans.
+    if (oldVersion < 10) {
+      print('DB Upgrade: Creating Enterprise Performance Indexes (v10)');
+      // Composite index for reconciliation query optimization
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_scans_reconciliation ON $tableScans($columnSoNumber, $columnProductCode, $columnIsReflected)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_details_reconciliation ON $tableDetails($colDetSoNum, $colDetItemCode)',
+      );
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -245,6 +252,14 @@ class LocalDatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_orders_date ON $tableOrders($colOrderDate)',
+    );
+
+    // PERFORMANCE: Optimized indexes for Enterprise Reconciliation
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_scans_reconciliation ON $tableScans($columnSoNumber, $columnProductCode, $columnIsReflected)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_details_reconciliation ON $tableDetails($colDetSoNum, $colDetItemCode)',
     );
   }
 

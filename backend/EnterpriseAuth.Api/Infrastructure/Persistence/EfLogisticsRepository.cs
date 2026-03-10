@@ -56,19 +56,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var sageItems = (await db.QueryAsync<ProductionTrackingDto>(sql, parameters)).ToList();
 
             // Fetch Local Bulk/Cuts and map them individually
-            var localEntries = await _context.CutBulkEntries.ToListAsync();
-            var localItems = localEntries
-                .Select(e => new ProductionTrackingDto
+            var localEntries = await _scanContext.CutBulkEntries.ToListAsync();
+            var localDetails = await _scanContext.SalesOrderDetailCutsBulk.ToListAsync();
+
+            var localItems = localDetails.Select(d => {
+                var header = localEntries.FirstOrDefault(e => e.EntryNumber == d.SoNumber);
+                return new ProductionTrackingDto
                 {
-                    SoNumber = e.EntryNumber,
-                    ItemCode = e.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                    Description = e.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
-                    Quantity = e.AmountKg,
+                    SoNumber = d.SoNumber,
+                    ItemCode = d.ItemCode,
+                    Description = d.Description,
+                    Quantity = d.Quantity,
                     Site = "IPL",
                     Location = "PROD",
-                    CustomerCode = e.CustomerCode,
-                    CustomerName = e.CustomerName
-                }).ToList();
+                    CustomerCode = header?.CustomerCode ?? "",
+                    CustomerName = header?.CustomerName ?? ""
+                };
+            }).ToList();
 
             var combinedItems = localItems.Concat(sageItems).ToList();
 
@@ -160,7 +164,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     CAST('INTERNAL' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Site],
                     1 as [Status],
                     CAST('Internal' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
-                FROM [EnterpriseAuthDb].[dbo].[CutBulkEntries]
+                FROM [ScanProduction].[dbo].[cut_bulk_entries]
                 WHERE 1=1";
 
             if (date.HasValue)
@@ -217,7 +221,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             if (soNumber.StartsWith("CB-"))
             {
-                var entry = await _context.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
+                var entry = await _scanContext.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
                 if (entry != null)
                 {
                     return new List<SalesOrderDetailDto>
@@ -251,7 +255,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                WHERE f0.SOHNUM_0 = @SoNumber";
+                WHERE f0.SOHNUM_0 = @SoNumber
+                
+                UNION ALL
+                
+                SELECT 
+                    SoNumber COLLATE DATABASE_DEFAULT as SoNumber,
+                    ItemCode COLLATE DATABASE_DEFAULT as ItemCode,
+                    Description COLLATE DATABASE_DEFAULT as Description,
+                    BarcodeType COLLATE DATABASE_DEFAULT as BarcodeType,
+                    Quantity,
+                    0.0 as Remaining,
+                    0.0 as Manufactured
+                FROM [ScanProduction].[dbo].[salesorderdetailscutsbulk]
+                WHERE SoNumber = @SoNumber";
 
             var details = (await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber })).ToList();
 
@@ -321,19 +338,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
             return totalRows;
         }
-
-
-
         public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
         {
             var today = DateTime.Now;
             var dateStr = today.ToString("yyyyMMdd");
             
             // Simple unique ID logic: count today's entries
-            int count = _context.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
+            int count = _scanContext.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
             string entryNumber = $"CB-{dateStr}-{(count + 1):D4}";
 
-            var entity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
+            var entryEntity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
             {
                 EntryNumber = entryNumber,
                 Type = dto.Type,
@@ -343,11 +357,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 PoNumber = dto.PoNumber,
                 Salesman1Code = dto.Salesman1Code,
                 Salesman2Code = dto.Salesman2Code,
-                AmountKg = dto.AmountKg
+                AmountKg = dto.AmountKg,
+                SyncStatus = "Local",
+                SyncTimestamp = DateTime.UtcNow
             };
 
-            _context.CutBulkEntries.Add(entity);
-            await _context.SaveChangesAsync();
+            var detailEntity = new SalesOrderDetailCutsBulk
+            {
+                SoNumber = entryNumber,
+                ItemCode = dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
+                Description = dto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
+                Quantity = dto.AmountKg,
+                SyncStatus = "Local",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _scanContext.CutBulkEntries.Add(entryEntity);
+            _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+            await _scanContext.SaveChangesAsync();
 
             return entryNumber;
         }
