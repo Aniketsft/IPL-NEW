@@ -188,7 +188,11 @@ class _ProductionTrackingListScreenState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildStat('Ordered', item.quantity.toStringAsFixed(0)),
-                _buildStat('Remaining', item.remaining.toStringAsFixed(0)),
+                _buildStat(
+                  'Remaining',
+                  item.remainingDisplay,
+                  color: item.remaining < 0 ? Colors.green : Colors.white70,
+                ),
                 _buildStat(
                   'Produced',
                   item.manufacturedQuantity.toStringAsFixed(0),

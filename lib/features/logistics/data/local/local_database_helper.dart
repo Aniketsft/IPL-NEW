@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 7;
+  static const _databaseVersion = 9;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -26,6 +26,7 @@ class LocalDatabaseHelper {
   static const columnItemStatus = 'itemStatus';
   static const columnLocationCode = 'location';
   static const columnIsSynced = 'isSynced';
+  static const columnIsReflected = 'isReflected';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -114,9 +115,30 @@ class LocalDatabaseHelper {
 
     // Version 7: Add isSynced column to Orders (for Internal Cut/Bulk)
     if (oldVersion < 7) {
-      print("DB Upgrade: Adding isSynced column to Orders (Version 7)");
+      print('DB Upgrade: Adding isSynced to tbl_sales_orders (v7)');
       await db.execute(
         'ALTER TABLE $tableOrders ADD COLUMN $columnIsSynced INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+
+    if (oldVersion < 8) {
+      print(
+        'DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)',
+      );
+      // Add manufactured and remaining columns to details table
+      // In SQLite, we add columns one by one
+      await db.execute(
+        'ALTER TABLE $tableDetails ADD COLUMN manufactured REAL DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0',
+      );
+    }
+
+    if (oldVersion < 9) {
+      print('DB Upgrade: Adding isReflected to tbl_scans (v9)');
+      await db.execute(
+        'ALTER TABLE $tableScans ADD COLUMN isReflected INTEGER NOT NULL DEFAULT 0',
       );
     }
 
@@ -135,7 +157,8 @@ class LocalDatabaseHelper {
         $columnTimestamp TEXT NOT NULL,
         $columnItemStatus TEXT,
         $columnLocationCode TEXT,
-        $columnIsSynced INTEGER NOT NULL DEFAULT 0
+        $columnIsSynced INTEGER NOT NULL DEFAULT 0,
+        $columnIsReflected INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -165,7 +188,9 @@ class LocalDatabaseHelper {
         $colDetItemCode TEXT,
         $colDetDescription TEXT,
         $colDetBarcodeType TEXT,
-        $colDetQuantity REAL
+        $colDetQuantity REAL,
+        manufactured REAL DEFAULT 0,
+        remaining REAL DEFAULT 0
       )
     ''');
 
@@ -239,6 +264,16 @@ class LocalDatabaseHelper {
     );
   }
 
+  // Get scans that haven't been swallowed by a refresh yet
+  Future<List<Map<String, dynamic>>> getUnreflectedScans() async {
+    Database db = await instance.database;
+    return await db.query(
+      tableScans,
+      where: '$columnIsReflected = ?',
+      whereArgs: [0],
+    );
+  }
+
   // Mark scans as synced
   Future<int> markAsSynced(List<int> ids) async {
     if (ids.isEmpty) return 0;
@@ -249,6 +284,43 @@ class LocalDatabaseHelper {
       {columnIsSynced: 1},
       where: '$columnId IN ($placeholders)',
       whereArgs: ids,
+    );
+  }
+
+  // Mark scans as swallowed by a master refresh
+  Future<int> marksReflected(List<int> ids) async {
+    if (ids.isEmpty) return 0;
+    Database db = await instance.database;
+    String placeholders = List.generate(ids.length, (index) => '?').join(', ');
+    return await db.update(
+      tableScans,
+      {columnIsReflected: 1},
+      where: '$columnId IN ($placeholders)',
+      whereArgs: ids,
+    );
+  }
+
+  // RECONCILIATION QUERY (Performance v11)
+  // Reconciles server mirror totals with local unreflected scans via SQL JOIN
+  Future<List<Map<String, dynamic>>> getReconciledDetails(
+    String soNumber,
+  ) async {
+    Database db = await instance.database;
+    return await db.rawQuery(
+      '''
+      SELECT 
+        det.*,
+        (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.$columnQuantity), 0)) as reconciledProduced,
+        (COALESCE(det.quantity, 0) - (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.$columnQuantity), 0))) as reconciledRemaining
+      FROM $tableDetails det
+      LEFT JOIN $tableScans scn 
+        ON det.$colDetSoNum = scn.$columnSoNumber 
+        AND det.$colDetItemCode = scn.$columnProductCode
+        AND scn.$columnIsReflected = 0
+      WHERE det.$colDetSoNum = ?
+      GROUP BY det.$colDetSoNum, det.$colDetItemCode
+    ''',
+      [soNumber],
     );
   }
 

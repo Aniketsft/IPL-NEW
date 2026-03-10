@@ -46,4 +46,11 @@ class SalesOrderDetail {
   });
 
   double get progress => quantity > 0 ? manufacturedQuantity / quantity : 0.0;
+
+  String get remainingDisplay {
+    if (remaining < 0) {
+      return '+${remaining.abs().toStringAsFixed(2)}';
+    }
+    return remaining.toStringAsFixed(2);
+  }
 }

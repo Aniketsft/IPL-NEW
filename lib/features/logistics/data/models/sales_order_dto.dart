@@ -61,6 +61,7 @@ class SalesOrderDto {
       'status': status,
       'source': source,
       'statusLabel': statusLabel,
+      'isSynced': 1, // Server-provided data is officially synced
     };
   }
 }

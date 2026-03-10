@@ -22,50 +22,54 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<SalesOrderDetail>> getSalesOrderDetails(String soNumber) async {
     try {
-      final db = await LocalDatabaseHelper.instance.database;
-      final maps = await db.query(
-        LocalDatabaseHelper.tableDetails,
-        where: '${LocalDatabaseHelper.colDetSoNum} = ?',
-        whereArgs: [soNumber],
+      final maps = await LocalDatabaseHelper.instance.getReconciledDetails(
+        soNumber,
       );
 
-      // We also need to factor in local scans for manufactured/remaining
-      final scans = await LocalDatabaseHelper.instance.getUnsyncedScans();
-      final filteredScans = scans
-          .where((s) => s['soNumber'] == soNumber)
-          .toList();
-
       return maps.map((map) {
-        final itemCode = map[LocalDatabaseHelper.colDetItemCode] as String;
-        final qty = (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble();
-
-        final localManufactured = filteredScans
-            .where((s) => s['productCode'] == itemCode)
-            .fold(0.0, (sum, s) => sum + (s['quantity'] as num).toDouble());
-
         return SalesOrderDetail(
           soNumber: map[LocalDatabaseHelper.colDetSoNum] as String,
-          itemCode: itemCode,
+          itemCode: map[LocalDatabaseHelper.colDetItemCode] as String,
           description: map[LocalDatabaseHelper.colDetDescription] as String,
           barcodeType: map[LocalDatabaseHelper.colDetBarcodeType] as String,
-          quantity: qty,
-          remaining: qty - localManufactured,
-          manufacturedQuantity: localManufactured,
+          quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
+          remaining: (map['reconciledRemaining'] as num).toDouble(),
+          manufacturedQuantity: (map['reconciledProduced'] as num).toDouble(),
         );
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch sales order details from local DB: $e';
+      throw 'Failed to fetch reconciled sales order details: $e';
     }
   }
 
   @override
   Future<List<SalesOrderDetail>> getProductionTracking() async {
-    // In the new model, this is just another view of the local Orders/Details
-    // For now, let's return all details for all orders marked as Internal or Sage
     try {
       final db = await LocalDatabaseHelper.instance.database;
-      final maps = await db.query(LocalDatabaseHelper.tableDetails);
-      return maps.map((m) => _mapLocalDetailToEntity(m)).toList();
+      final maps = await db.rawQuery('''
+        SELECT 
+          det.*,
+          (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0)) as reconciledProduced,
+          (COALESCE(det.quantity, 0) - (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0))) as reconciledRemaining
+        FROM ${LocalDatabaseHelper.tableDetails} det
+        LEFT JOIN ${LocalDatabaseHelper.tableScans} scn 
+          ON det.${LocalDatabaseHelper.colDetSoNum} = scn.${LocalDatabaseHelper.columnSoNumber} 
+          AND det.${LocalDatabaseHelper.colDetItemCode} = scn.${LocalDatabaseHelper.columnProductCode}
+          AND scn.${LocalDatabaseHelper.columnIsReflected} = 0
+        GROUP BY det.${LocalDatabaseHelper.colDetSoNum}, det.${LocalDatabaseHelper.colDetItemCode}
+      ''');
+
+      return maps.map((map) {
+        return SalesOrderDetail(
+          soNumber: map[LocalDatabaseHelper.colDetSoNum] as String,
+          itemCode: map[LocalDatabaseHelper.colDetItemCode] as String,
+          description: map[LocalDatabaseHelper.colDetDescription] as String,
+          barcodeType: map[LocalDatabaseHelper.colDetBarcodeType] as String,
+          quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
+          remaining: (map['reconciledRemaining'] as num).toDouble(),
+          manufacturedQuantity: (map['reconciledProduced'] as num).toDouble(),
+        );
+      }).toList();
     } catch (e) {
       throw 'Failed to fetch production tracking: $e';
     }
@@ -413,6 +417,20 @@ class DeliveryRepository implements ILogisticsRepository {
         locations: locations,
       );
 
+      // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
+      final syncedScans = await LocalDatabaseHelper.instance.database.then(
+        (db) => db.query(
+          LocalDatabaseHelper.tableScans,
+          where:
+              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
+        ),
+      );
+      if (syncedScans.isNotEmpty) {
+        final ids = syncedScans.map((s) => s['id'] as int).toList();
+        await LocalDatabaseHelper.instance.marksReflected(ids);
+        print('Reflection System: Marked ${ids.length} scans as reflected.');
+      }
+
       // Log Success
       final duration = stopwatch.elapsedMilliseconds;
       await LocalDatabaseHelper.instance.insertSyncHistory(
@@ -453,15 +471,20 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   SalesOrderDetail _mapLocalDetailToEntity(Map<String, dynamic> row) {
+    final qty = (row[LocalDatabaseHelper.colDetQuantity] as num).toDouble();
+    final manufactured = (row['manufactured'] as num?)?.toDouble() ?? 0.0;
+    final remaining =
+        (row['remaining'] as num?)?.toDouble() ?? (qty - manufactured);
+
     return SalesOrderDetail(
       soNumber: row[LocalDatabaseHelper.colDetSoNum] ?? '',
       itemCode: row[LocalDatabaseHelper.colDetItemCode] ?? '',
       description: row[LocalDatabaseHelper.colDetDescription] ?? '',
       barcodeType:
           row[LocalDatabaseHelper.colDetBarcodeType] ?? 'Variable Weight',
-      quantity: (row[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
-      remaining: 0, // Calculated in UI/Business logic
-      manufacturedQuantity: 0,
+      quantity: qty,
+      remaining: remaining,
+      manufacturedQuantity: manufactured,
     );
   }
 

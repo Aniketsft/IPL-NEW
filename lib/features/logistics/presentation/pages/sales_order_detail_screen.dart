@@ -361,11 +361,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.remaining.toStringAsFixed(2),
-                      style: const TextStyle(
+                      item.remainingDisplay,
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: Colors.red,
+                        color: item.remaining < 0 ? Colors.green : Colors.red,
                       ),
                     ),
                   ],

@@ -75,6 +75,8 @@ class SalesOrderDetailDto {
       'description': description,
       'barcodeType': barcodeType,
       'quantity': quantity,
+      'manufactured': manufactured,
+      'remaining': remaining,
     };
   }
 }
