@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'production_tracking_screen.dart';
 import '../../domain/entities/sales_order.dart';
 
@@ -17,34 +16,20 @@ class ProductionTrackingListScreen extends StatefulWidget {
 
 class _ProductionTrackingListScreenState
     extends State<ProductionTrackingListScreen> {
-  String? _selectedLocation;
-  List<Map<String, String>> _locations = [];
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchLocations();
     context.read<ManufacturingBloc>().add(
       const LoadProductionTrackingRequested(),
     );
   }
 
-  Future<void> _fetchLocations() async {
-    try {
-      final repository = context.read<DeliveryRepository>();
-      // Using 'IPL' as default site for lookup if not provided
-      final locs = await repository.getLocations('IPL');
-      setState(() => _locations = locs);
-    } catch (e) {
-      debugPrint('Error fetching locations: $e');
-    }
-  }
-
   void _applyFilters() {
     context.read<ManufacturingBloc>().add(
-      LoadProductionTrackingRequested(location: _selectedLocation),
+      const LoadProductionTrackingRequested(),
     );
   }
 
@@ -164,111 +149,7 @@ class _ProductionTrackingListScreenState
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPickerTile(
-                  'Location',
-                  _selectedLocation,
-                  _locations
-                      .map(
-                        (l) => {
-                          'code': l['location'] ?? '',
-                          'name':
-                              '${l['warehouse'] ?? ""} - ${l['type'] ?? ""}',
-                        },
-                      )
-                      .toList(),
-                  (code) => setState(() => _selectedLocation = code),
-                  orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _applyFilters,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Filter',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPickerTile(
-    String label,
-    String? currentValue,
-    List<Map<String, String>> items,
-    Function(String?) onSelected,
-    Color orange,
-  ) {
-    final valueText = currentValue ?? 'All Locations';
-
-    return InkWell(
-      onTap: () => _showSearchPicker(label, items, onSelected),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2E),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.location_on_outlined,
-              color: Colors.grey,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                valueText,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSearchPicker(
-    String title,
-    List<Map<String, String>> items,
-    Function(String?) onSelected,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _SearchPickerSheet(
-        title: title,
-        items: items,
-        onSelected: (code) {
-          onSelected(code);
-          _applyFilters();
-        },
       ),
     );
   }
@@ -299,38 +180,6 @@ class _ProductionTrackingListScreenState
               item.description,
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
-            if (item.location != null && item.location!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.location_on, color: orange, size: 14),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${item.location} ${item.warehouse ?? ""}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          '${item.warehouseName ?? ""} ${item.locationType ?? ""} ${item.locationTypeName ?? ""}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -396,139 +245,6 @@ class _ProductionTrackingListScreenState
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SearchPickerSheet extends StatefulWidget {
-  final String title;
-  final List<Map<String, String>> items;
-  final Function(String?) onSelected;
-
-  const _SearchPickerSheet({
-    required this.title,
-    required this.items,
-    required this.onSelected,
-  });
-
-  @override
-  State<_SearchPickerSheet> createState() => _SearchPickerSheetState();
-}
-
-class _SearchPickerSheetState extends State<_SearchPickerSheet> {
-  late List<Map<String, String>> _filteredItems;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredItems = widget.items;
-  }
-
-  void _filter(String query) {
-    setState(() {
-      _filteredItems = widget.items.where((it) {
-        final code = (it['code'] ?? '').toLowerCase();
-        final name = (it['name'] ?? '').toLowerCase();
-        return code.contains(query.toLowerCase()) ||
-            name.contains(query.toLowerCase());
-      }).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Select ${widget.title}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: _filter,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search...',
-              hintStyle: const TextStyle(color: Colors.white24),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              filled: true,
-              fillColor: const Color(0xFF2C2C2E),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _filteredItems.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No results found',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredItems.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return ListTile(
-                          title: const Text(
-                            'All Locations',
-                            style: TextStyle(color: Colors.orange),
-                          ),
-                          onTap: () {
-                            widget.onSelected(null);
-                            Navigator.pop(context);
-                          },
-                        );
-                      }
-                      final item = _filteredItems[index - 1];
-                      return ListTile(
-                        title: Text(
-                          item['code'] ?? '',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        subtitle: Text(
-                          item['name'] ?? '',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onTap: () {
-                          widget.onSelected(item['code']);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }

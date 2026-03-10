@@ -6,7 +6,7 @@ class GetProductionTrackingUseCase {
 
   GetProductionTrackingUseCase(this.repository);
 
-  Future<List<SalesOrderDetail>> execute({String? location}) {
-    return repository.getProductionTracking(location: location);
+  Future<List<SalesOrderDetail>> execute() {
+    return repository.getProductionTracking();
   }
 }

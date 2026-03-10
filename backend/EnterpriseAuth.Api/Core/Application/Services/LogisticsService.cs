@@ -109,31 +109,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        public async Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site)
-        {
-            try
-            {
-                var locations = await _logisticsRepository.GetLocationLookupsAsync(site);
-                return Result<IEnumerable<LocationLookupDto>>.Success(locations);
-            }
-            catch (Exception ex)
-            {
-                return Result<IEnumerable<LocationLookupDto>>.Failure($"Failed to fetch locations: {ex.Message}");
-            }
-        }
-
-        public async Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string itemCode, string? location = null)
-        {
-            try
-            {
-                var lots = await _logisticsRepository.GetLotLookupsAsync(site, itemCode, location);
-                return Result<IEnumerable<LotLookupDto>>.Success(lots);
-            }
-            catch (Exception ex)
-            {
-                return Result<IEnumerable<LotLookupDto>>.Failure($"Failed to fetch lots: {ex.Message}");
-            }
-        }
 
         public async Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto entry)
         {

@@ -398,62 +398,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return info;
         }
 
-        public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
-        {
-            using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
-                SELECT 
-                    T1.STOFCY_0 as Site,
-                    T1.LOC_0 as Location,
-                    T1.WRH_0 as Warehouse,
-                    T1.WRHNAM_0 as WarehouseName,
-                    T1.LOCTYP_0 as LocationType,
-                    ATRA.TEXTE_0 as LocationTypeName
-                FROM (
-                    SELECT
-                        STOL.STOFCY_0,
-                        STOL.LOC_0,
-                        STOL.WRH_0,
-                        WRH.WRHNAM_0,
-                        STOL.LOCTYP_0
-                    FROM InnodisTestDB.INLPROD.STOLOC STOL 
-                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0 
-                    WHERE STOL.STOFCY_0 = @Site
-                ) AS T1 
-                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on T1.STOFCY_0 = ATRA.IDENT1_0 
-                    and T1.LOCTYP_0 = ATRA.IDENT2_0 
-                    and ATRA.CODFIC_0 = 'TABLOCTYP' 
-                    and ATRA.LANGUE_0 = 'BRI' 
-                    and ATRA.ZONE_0 = 'TYPDESAXX'";
-
-            return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
-        }
-
-        public async Task<IEnumerable<LotLookupDto>> GetLotLookupsAsync(string site, string itemCode, string? location = null)
-        {
-            using IDbConnection db = new SqlConnection(_connectionString);
-            var sql = @"
-                SELECT DISTINCT
-                    LTRIM(RTRIM(LOT_0)) as LotNumber,
-                    LTRIM(RTRIM(SLO_0)) as LotDescription,
-                    SUM(QTYPCU_0) as StockQuantity
-                FROM InnodisTestDB.INLPROD.STOCK
-                WHERE STOFCY_0 = @Site AND ITMREF_0 = @ItemCode";
-
-            var parameters = new DynamicParameters();
-            parameters.Add("Site", site);
-            parameters.Add("ItemCode", itemCode);
-
-            if (!string.IsNullOrEmpty(location))
-            {
-                sql += " AND LOC_0 = @Location";
-                parameters.Add("Location", location);
-            }
-
-            sql += " GROUP BY LOT_0, SLO_0 HAVING SUM(QTYPCU_0) > 0";
-
-            return await db.QueryAsync<LotLookupDto>(sql, parameters);
-        }
 
         public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
         {

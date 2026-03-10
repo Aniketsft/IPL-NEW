@@ -25,88 +25,20 @@ class ProductionTrackingScreen extends StatefulWidget {
 }
 
 class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
-  final TextEditingController _lotDetailsController = TextEditingController(
-    text: 'test',
-  );
   String _status = 'A';
   double _currentScan = 0.0;
   double _cumulativeQty = 0.0;
-  String _selectedLocation = 'N/A';
-  Map<String, String>? _selectedLocationData;
-  String _selectedLot = 'N/A';
-  List<Map<String, String>> _locations = [];
-  List<Map<String, String>> _lots = [];
   bool _isLoading = false;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedLocation = widget.product.location ?? 'Select Location';
-    _selectedLocationData = {
-      'location': widget.product.location ?? '',
-      'warehouse': widget.product.warehouse ?? '',
-      'warehouseName': widget.product.warehouseName ?? '',
-      'locationType': widget.product.locationType ?? '',
-      'locationTypeName': widget.product.locationTypeName ?? '',
-    };
-    _selectedLot = widget.product.lot ?? 'Select Lot';
     _fetchInitialData();
   }
 
   Future<void> _fetchInitialData() async {
-    setState(() => _isLoading = true);
-    try {
-      final repository = context.read<DeliveryRepository>();
-
-      // Fetch Locations if site is available
-      if (widget.product.site != null) {
-        final locs = await repository.getLocations(widget.product.site!);
-        setState(() {
-          _locations = locs;
-          // Synchronize _selectedLocationData with full metadata if available
-          if (_selectedLocation != 'Select Location') {
-            final fullData = _locations.firstWhere(
-              (l) => l['location'] == _selectedLocation,
-              orElse: () => {
-                'location': _selectedLocation,
-                'warehouseName': 'External',
-                'locationTypeName': 'Sage Default',
-              },
-            );
-            _selectedLocationData = fullData;
-          }
-        });
-      }
-
-      // Fetch Lots if product code and site are available
-      if (widget.product.site != null) {
-        await _fetchLots();
-      }
-    } catch (e) {
-      debugPrint('Error fetching tracking data: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _fetchLots() async {
-    try {
-      final repository = context.read<DeliveryRepository>();
-      final locationFilter =
-          (_selectedLocation == 'Select Location' || _selectedLocation == 'N/A')
-          ? null
-          : _selectedLocation;
-
-      final filteredLots = await repository.fetchLots(
-        widget.product.site!,
-        widget.product.itemCode,
-        location: locationFilter,
-      );
-      setState(() => _lots = filteredLots);
-    } catch (e) {
-      debugPrint('Error fetching lots: $e');
-    }
+    // No initial data to fetch for now.
   }
 
   Future<void> _saveAndUpdate() async {
@@ -271,24 +203,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 16),
           const Divider(color: Colors.white10, height: 1),
           const SizedBox(height: 16),
-          _buildActionTile(
-            'Location',
-            header:
-                _selectedLocationData != null &&
-                    _selectedLocationData!['location'] != null &&
-                    _selectedLocationData!['location']!.isNotEmpty
-                ? '${_selectedLocationData!['location']} ${_selectedLocationData!['warehouse'] ?? ""}'
-                : _selectedLocation,
-            subtext: _selectedLocationData != null
-                ? '${_selectedLocationData!['warehouseName'] ?? ""} ${_selectedLocationData!['locationType'] ?? ""} ${_selectedLocationData!['locationTypeName'] ?? ""}'
-                : null,
-            onTap: _showLocationPicker,
-          ),
-          const SizedBox(height: 12),
-          _buildActionTile('Lot', header: _selectedLot, onTap: _showLotPicker),
-          const SizedBox(height: 16),
-          _buildLotDetailsField(),
-          const SizedBox(height: 16),
           Row(
             children: [
               const Text(
@@ -315,84 +229,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             fontWeight: FontWeight.bold,
             fontSize: 16,
             color: Colors.white,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionTile(
-    String label, {
-    required String header,
-    String? subtext,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        header,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (subtext != null && subtext.trim().isNotEmpty)
-                        Text(
-                          subtext,
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: Colors.grey),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLotDetailsField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Lot Details',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _lotDetailsController,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: const Color(0xFF2C2C2E),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
           ),
         ),
       ],
@@ -526,201 +362,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 'Save & Update',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-      ),
-    );
-  }
-
-  void _showLocationPicker() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _SearchPickerSheet(
-        title: 'Location',
-        isLoading: _isLoading,
-        items: _locations
-            .map(
-              (l) => {
-                'code': l['location'] ?? '',
-                'header':
-                    '${l['location'] ?? ""} ${l['warehouse'] ?? ""}', // LOC_0 WRH_0
-                'subtext':
-                    '${l['warehouseName'] ?? ""} ${l['locationType'] ?? ""} ${l['locationTypeName'] ?? ""}', // WRHNAM_0 LOCTYP_0 LOCTYPNAM_0
-                ...l,
-              },
-            )
-            .toList(),
-        onSelected: (code) {
-          if (code != null) {
-            final data = _locations.firstWhere(
-              (l) => l['location'] == code,
-              orElse: () => {},
-            );
-            setState(() {
-              _selectedLocation = code;
-              _selectedLocationData = data;
-              _selectedLot = 'Select Lot'; // Reset lot when location changes
-            });
-            _fetchLots();
-          }
-        },
-      ),
-    );
-  }
-
-  void _showLotPicker() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _SearchPickerSheet(
-        title: 'Lot',
-        isLoading: _isLoading,
-        items: _lots
-            .map(
-              (l) => {
-                'code': l['lot'] ?? '',
-                'header': l['lot'] ?? '',
-                'subtext':
-                    '${l['description'] ?? ""} (Qty: ${l['quantity'] ?? "0"})',
-              },
-            )
-            .toList(),
-        onSelected: (code) {
-          if (code != null) setState(() => _selectedLot = code);
-        },
-      ),
-    );
-  }
-}
-
-class _SearchPickerSheet extends StatefulWidget {
-  final String title;
-  final bool isLoading;
-  final List<Map<String, String>> items;
-  final Function(String?) onSelected;
-
-  const _SearchPickerSheet({
-    required this.title,
-    this.isLoading = false,
-    required this.items,
-    required this.onSelected,
-  });
-
-  @override
-  State<_SearchPickerSheet> createState() => _SearchPickerSheetState();
-}
-
-class _SearchPickerSheetState extends State<_SearchPickerSheet> {
-  late List<Map<String, String>> _filteredItems;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredItems = widget.items;
-  }
-
-  void _filter(String query) {
-    setState(() {
-      _filteredItems = widget.items.where((it) {
-        final code = (it['code'] ?? '').toLowerCase();
-        final header = (it['header'] ?? '').toLowerCase();
-        final subtext = (it['subtext'] ?? '').toLowerCase();
-        final q = query.toLowerCase();
-        return code.contains(q) || header.contains(q) || subtext.contains(q);
-      }).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Select ${widget.title}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: _filter,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search...',
-              hintStyle: const TextStyle(color: Colors.white24),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              filled: true,
-              fillColor: const Color(0xFF2C2C2E),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: widget.isLoading
-                ? Center(child: CircularProgressIndicator(color: orange))
-                : _filteredItems.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No results found',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _filteredItems[index];
-                      return ListTile(
-                        title: Text(
-                          item['header'] ?? '',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        subtitle: Text(
-                          item['subtext'] ?? '',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onTap: () {
-                          widget.onSelected(item['code']);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
       ),
     );
   }

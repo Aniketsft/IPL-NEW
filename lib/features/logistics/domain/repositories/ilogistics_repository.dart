@@ -4,7 +4,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_
 abstract class ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrders({DateTime? date});
   Future<List<SalesOrderDetail>> getSalesOrderDetails(String soNumber);
-  Future<List<SalesOrderDetail>> getProductionTracking({String? location});
+  Future<List<SalesOrderDetail>> getProductionTracking();
   Future<void> updateSalesOrder(SalesOrder order);
   Future<void> syncScans(List<Map<String, dynamic>> scans);
   Future<void> saveProductionScan(Map<String, dynamic> scan);

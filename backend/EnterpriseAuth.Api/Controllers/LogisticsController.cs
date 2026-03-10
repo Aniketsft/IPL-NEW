@@ -78,19 +78,6 @@ namespace EnterpriseAuth.Api.Controllers
             return ToActionResult(result);
         }
 
-        [HttpGet("locations/{site}")]
-        public async Task<IActionResult> GetLocations(string site)
-        {
-            var result = await _logisticsService.GetLocationLookupsAsync(site);
-            return ToActionResult(result);
-        }
-
-        [HttpGet("lots/{site}/{itemCode}")]
-        public async Task<IActionResult> GetLots(string site, string itemCode, [FromQuery] string? location)
-        {
-            var result = await _logisticsService.GetLotLookupsAsync(site, itemCode, location);
-            return ToActionResult(result);
-        }
 
         [HttpPost("cut-bulk")]
         public async Task<IActionResult> SaveCutBulk([FromBody] CutBulkEntryDto entry)

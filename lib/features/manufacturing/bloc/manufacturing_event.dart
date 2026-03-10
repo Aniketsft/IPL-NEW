@@ -8,10 +8,8 @@ abstract class ManufacturingEvent extends Equatable {
 }
 
 class LoadProductionTrackingRequested extends ManufacturingEvent {
-  final String? location;
-
-  const LoadProductionTrackingRequested({this.location});
+  const LoadProductionTrackingRequested();
 
   @override
-  List<Object?> get props => [location];
+  List<Object?> get props => [];
 }

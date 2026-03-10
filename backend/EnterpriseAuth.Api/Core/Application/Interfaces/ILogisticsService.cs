@@ -17,8 +17,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
 
         // Production Tracking
         Task<Result<ProductionTrackingDto>> GetProductionTrackingInfoAsync(string soNumber, string itemCode);
-        Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site);
-        Task<Result<IEnumerable<LotLookupDto>>> GetLotLookupsAsync(string site, string itemCode, string? location = null);
         Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto entry);
         Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scan);
         Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy);

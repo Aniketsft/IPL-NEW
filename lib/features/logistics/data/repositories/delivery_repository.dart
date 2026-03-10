@@ -50,18 +50,9 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<SalesOrderDetail>> getProductionTracking({
-    String? location,
-  }) async {
+  Future<List<SalesOrderDetail>> getProductionTracking() async {
     try {
-      final queryParams = <String, dynamic>{};
-      if (location != null && location.isNotEmpty) {
-        queryParams['location'] = location;
-      }
-      final response = await _dio.get(
-        'Logistics/production-tracking',
-        queryParameters: queryParams,
-      );
+      final response = await _dio.get('Logistics/production-tracking');
       final data = response.data as List;
       return data.map((json) {
         final dto = SalesOrderDetailDto.fromJson(json);
@@ -226,55 +217,6 @@ class DeliveryRepository implements ILogisticsRepository {
       return _mapDetailJsonToEntity(response.data);
     } catch (e) {
       throw 'Failed to fetch tracking info: $e';
-    }
-  }
-
-  Future<List<Map<String, String>>> getLocations(String site) async {
-    try {
-      final response = await _dio.get('Logistics/locations/$site');
-      final data = response.data as List;
-      return data
-          .map(
-            (json) => {
-              'location': (json['location'] ?? '').toString(),
-              'warehouse': (json['warehouse'] ?? '').toString(),
-              'warehouseName': (json['warehouseName'] ?? '').toString(),
-              'locationType': (json['locationType'] ?? '').toString(),
-              'locationTypeName': (json['locationTypeName'] ?? '').toString(),
-            },
-          )
-          .toList();
-    } catch (e) {
-      throw 'Failed to fetch locations: $e';
-    }
-  }
-
-  Future<List<Map<String, String>>> fetchLots(
-    String site,
-    String productCode, {
-    String? location,
-  }) async {
-    try {
-      final queryParams = <String, dynamic>{};
-      if (location != null && location.isNotEmpty) {
-        queryParams['location'] = location;
-      }
-      final response = await _dio.get(
-        'Logistics/lots/$site/$productCode',
-        queryParameters: queryParams,
-      );
-      final data = response.data as List;
-      return data
-          .map(
-            (json) => {
-              'lot': (json['lotNumber'] ?? '').toString(),
-              'description': (json['lotDescription'] ?? '').toString(),
-              'quantity': (json['stockQuantity'] ?? 0.0).toString(),
-            },
-          )
-          .toList();
-    } catch (e) {
-      throw 'Failed to fetch lots: $e';
     }
   }
 
