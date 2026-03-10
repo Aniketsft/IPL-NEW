@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
+import '../../domain/entities/location_lookup.dart';
 
 const Color orange = Color(0xFFFF9800);
 const Color dark800 = Color(0xFF1E1E1E);
@@ -30,6 +31,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   double _cumulativeQty = 0.0;
   bool _isLoading = false;
   bool _isSaving = false;
+  List<LocationLookup> _locations = [];
+  LocationLookup? _selectedLocation;
+  bool _loadingLocations = false;
 
   @override
   void initState() {
@@ -38,7 +42,36 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Future<void> _fetchInitialData() async {
-    // No initial data to fetch for now.
+    setState(() => _loadingLocations = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final site = widget.product.site ?? 'IPL';
+      final locations = await repository.getLocationLookups(site);
+      if (mounted) {
+        setState(() {
+          _locations = locations;
+          // Pre-select if current product location matches one in the list
+          if (widget.product.location != null) {
+            _selectedLocation = _locations.firstWhere(
+              (l) => l.location == widget.product.location,
+              orElse: () => _locations.isNotEmpty
+                  ? _locations.first
+                  : _locations[0], // fallback logic or null
+            );
+          } else if (_locations.isNotEmpty) {
+            _selectedLocation = _locations.first;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading locations: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLocations = false);
+    }
   }
 
   Future<void> _saveAndUpdate() async {
@@ -61,6 +94,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         'customerId': widget.order.customerCode,
         'customerDescription': widget.order.customerName,
         'itemStatus': _status, // A, Q, or R
+        'location': _selectedLocation?.location,
+        'lot': _selectedLocation
+            ?.warehouse, // Using warehouse as lot placeholder if needed, or keeping it separate
       };
 
       await repository.saveProductionScan(payload);
@@ -120,6 +156,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                     child: Column(
                       children: [
                         _buildHeaderCard(dark800),
+                        const SizedBox(height: 16),
+                        _buildLocationSelector(dark800, orange),
                         const SizedBox(height: 16),
                         _buildTrackingParamsCard(dark800, orange),
                         const SizedBox(height: 16),
@@ -328,6 +366,60 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationSelector(Color dark, Color orange) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dark,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Target Location',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          _loadingLocations
+              ? const LinearProgressIndicator(color: Colors.orange)
+              : DropdownButtonHideUnderline(
+                  child: DropdownButtonFormField<LocationLookup>(
+                    value: _selectedLocation,
+                    dropdownColor: dark800,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF2C2C2E),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: _locations.map((l) {
+                      return DropdownMenuItem(
+                        value: l,
+                        child: Text(
+                          l.fullInfo,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedLocation = val),
+                    hint: const Text(
+                      'Select Location',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
         ],
       ),
     );

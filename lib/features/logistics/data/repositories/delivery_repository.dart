@@ -8,6 +8,8 @@ import '../../domain/entities/sales_order_detail.dart';
 import '../../domain/repositories/ilogistics_repository.dart';
 import '../models/sales_order_dto.dart';
 import '../models/sales_order_detail_dto.dart';
+import '../models/location_lookup_dto.dart';
+import '../../domain/entities/location_lookup.dart';
 import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
@@ -310,6 +312,22 @@ class DeliveryRepository implements ILogisticsRepository {
       await _dio.post('Logistics/production-scan', data: scan);
     } catch (e) {
       throw 'Failed to save production scan: $e';
+    }
+  }
+
+  @override
+  Future<List<LocationLookup>> getLocationLookups(String site) async {
+    try {
+      final response = await _dio.get(
+        'Logistics/locations',
+        queryParameters: {'site': site},
+      );
+      final data = response.data as List;
+      return data
+          .map((json) => LocationLookupDto.fromJson(json).toEntity())
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch location lookups: $e';
     }
   }
 

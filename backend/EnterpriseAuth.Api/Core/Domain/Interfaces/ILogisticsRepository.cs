@@ -7,18 +7,16 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
 {
     public interface ILogisticsRepository
     {
-        Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? location = null);
+        Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync();
         Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1);
         Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber);
         Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync();
         Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync();
         Task<int> SyncScansAsync(IEnumerable<ScanDto> scans);
 
-        // Production Tracking
-        Task<ProductionTrackingDto?> GetProductionTrackingInfoAsync(string soNumber, string itemCode);
-
-        Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto entry);
-        Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scan);
+        Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site);
         Task<bool> CloseOrderAsync(string soNumber, string closedBy);
+        Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto);
+        Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scanDto);
     }
 }

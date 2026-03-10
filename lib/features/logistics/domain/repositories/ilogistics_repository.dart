@@ -1,5 +1,6 @@
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order_detail.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart';
 
 abstract class ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrders({DateTime? date});
@@ -16,4 +17,5 @@ abstract class ILogisticsRepository {
     String? rep1,
   });
   Future<void> closeOrder(String soNumber, String closedBy);
+  Future<List<LocationLookup>> getLocationLookups(String site);
 }

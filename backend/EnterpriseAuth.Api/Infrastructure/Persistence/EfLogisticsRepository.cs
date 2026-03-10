@@ -4,12 +4,12 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
-using EnterpriseAuth.Api.Core.Application.DTOs;
-using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
+using EnterpriseAuth.Api.Core.Domain.Interfaces;
+using EnterpriseAuth.Api.Core.Application.DTOs;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -27,7 +27,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _scanContext = scanContext;
         }
 
-        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? location = null)
+        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync()
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             
@@ -50,11 +50,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE 1=1";
 
             var parameters = new DynamicParameters();
-            if (!string.IsNullOrEmpty(location))
-            {
-                sql += " AND f1.LOC_0 = @Location";
-                parameters.Add("Location", location);
-            }
 
             sql += " ORDER BY f0.ORDDAT_0 DESC";
 
@@ -327,76 +322,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return totalRows;
         }
 
-        public async Task<ProductionTrackingDto?> GetProductionTrackingInfoAsync(string soNumber, string itemCode)
-        {
-            if (soNumber.StartsWith("CB-"))
-            {
-                var entry = await _context.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
-                if (entry != null)
-                {
-                    var scanSum = await _scanContext.ProductionScans
-                        .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
-                        .SumAsync(s => s.ScanAmountKg);
-
-                    return new ProductionTrackingDto
-                    {
-                        SoNumber = entry.EntryNumber,
-                        Site = "IPL",
-                        ItemCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                        Description = entry.Type == "Cuts" ? "Cuts" : "Bulk",
-                        BarcodeType = "Variable Weight",
-                        Quantity = entry.AmountKg,
-                        Manufactured = scanSum,
-                        Remaining = entry.AmountKg - scanSum,
-                        Location = "PROD",
-                        Lot = entry.PoNumber ?? string.Empty
-                    };
-                }
-                return null;
-            }
-
-            using IDbConnection db = new SqlConnection(_connectionString);
-            var sql = @"
-                SELECT 
-                    f0.SOHNUM_0 as SoNumber,
-                    f1.STOFCY_0 as Site,
-                    f2.ITMREF_0 as ItemCode,
-                    f2.ITMDES1_0 as Description,
-                    'Variable Weight' as BarcodeType,
-                    f1.QTY_0 as Quantity,
-                    f1.LOC_0 as Location,
-                    f1.LOT_0 as Lot,
-                    WRH.WRHNAM_0 as WarehouseName,
-                    STOL.WRH_0 as Warehouse,
-                    STOL.LOCTYP_0 as LocationType,
-                    ATRA.TEXTE_0 as LocationTypeName
-                FROM InnodisTestDB.INLPROD.SORDER f0
-                JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                LEFT JOIN InnodisTestDB.INLPROD.STOLOC STOL ON f1.STOFCY_0 = STOL.STOFCY_0 AND f1.LOC_0 = STOL.LOC_0
-                LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH ON WRH.WRH_0 = STOL.WRH_0
-                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on STOL.STOFCY_0 = ATRA.IDENT1_0 
-                    and STOL.LOCTYP_0 = ATRA.IDENT2_0 
-                    and ATRA.CODFIC_0 = 'TABLOCTYP' 
-                    and ATRA.LANGUE_0 = 'BRI' 
-                    and ATRA.ZONE_0 = 'TYPDESAXX'
-                WHERE f0.SOHNUM_0 = @SoNumber AND f2.ITMREF_0 = @ItemCode";
-
-            var info = await db.QueryFirstOrDefaultAsync<ProductionTrackingDto>(sql, new { SoNumber = soNumber, ItemCode = itemCode });
-            
-            if (info != null)
-            {
-                var scanSum = await _scanContext.ProductionScans
-                    .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted && s.ItemStatus == "A")
-                    .SumAsync(s => s.ScanAmountKg);
-                
-                info.Manufactured = scanSum;
-                info.Remaining = info.Quantity - scanSum;
-            }
-
-            return info;
-        }
 
 
         public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
@@ -473,6 +398,37 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT 
+                    T1.STOFCY_0 as Site,
+                    T1.LOC_0 as Location,
+                    T1.WRH_0 as Warehouse,
+                    T1.WRHNAM_0 as WarehouseName,
+                    T1.LOCTYP_0 as LocationType,
+                    ATRA.TEXTE_0 as LocationTypeName
+                FROM (
+                    SELECT
+                        STOL.STOFCY_0,
+                        STOL.LOC_0,
+                        STOL.WRH_0,
+                        WRH.WRHNAM_0,
+                        STOL.LOCTYP_0
+                    FROM InnodisTestDB.INLPROD.STOLOC STOL 
+                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0 
+                    WHERE STOL.STOFCY_0 = @Site
+                ) AS T1 
+                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on T1.STOFCY_0 = ATRA.IDENT1_0 
+                    and T1.LOCTYP_0 = ATRA.IDENT2_0 
+                    and ATRA.CODFIC_0 = 'TABLOCTYP' 
+                    and ATRA.LANGUE_0 = 'BRI' 
+                    and ATRA.ZONE_0 = 'TYPDESAXX'";
+
+            return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
         }
 
         public async Task<bool> CloseOrderAsync(string soNumber, string closedBy)
