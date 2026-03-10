@@ -67,4 +67,14 @@ class SalesOrderDetailDto {
       manufactured: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
     );
   }
+
+  Map<String, dynamic> toSqlMap() {
+    return {
+      'soNumber': soNumber,
+      'itemCode': itemCode,
+      'description': description,
+      'barcodeType': barcodeType,
+      'quantity': quantity,
+    };
+  }
 }

@@ -3,44 +3,64 @@ class SalesOrderDto {
   final String customerCode;
   final String customerName;
   final String deliveryDate;
-  final String? salesman;
-  final String? deliveryFrom;
-  final String? deliveryNo;
-  final String? deliveryLorry;
-  final String? deliverySalesman;
-  final String? soLorry;
-  final String? oriSoLorry;
-  final String? poNumber;
+  final String orderDate;
+  final String? rep0;
+  final String? rep1;
+  final String? site;
+  final int? status;
+  final String? source;
+  final String? statusLabel;
+  final String? poNo;
 
   SalesOrderDto({
     required this.soNumber,
     required this.customerCode,
     required this.customerName,
     required this.deliveryDate,
-    this.salesman,
-    this.deliveryFrom,
-    this.deliveryNo,
-    this.deliveryLorry,
-    this.deliverySalesman,
-    this.soLorry,
-    this.oriSoLorry,
-    this.poNumber,
+    required this.orderDate,
+    this.rep0,
+    this.rep1,
+    this.site,
+    this.status,
+    this.source,
+    this.statusLabel,
+    this.poNo,
   });
 
   factory SalesOrderDto.fromJson(Map<String, dynamic> json) {
     return SalesOrderDto(
-      soNumber: json['soNo'] ?? json['soNumber'] ?? '',
-      customerCode: json['oriSoCustCode'] ?? json['customerCode'] ?? '',
-      customerName: json['oriSoCustName'] ?? json['customerName'] ?? '',
-      deliveryDate: json['soDeliveryDate'] ?? json['deliveryDate'] ?? '',
-      salesman: json['soSalesman'] ?? json['salesman'],
-      deliveryFrom: json['deliveryFrom'],
-      deliveryNo: json['deliveryNo'],
-      deliveryLorry: json['deliveryLorry'],
-      deliverySalesman: json['deliverySalesman'],
-      soLorry: json['soLorry'],
-      oriSoLorry: json['oriSoLorry'],
-      poNumber: json['poNo'] ?? json['poNumber'],
+      soNumber: json['sohNum'] ?? json['soNo'] ?? json['soNumber'] ?? '',
+      customerCode: json['customerCode'] ?? json['oriSoCustCode'] ?? '',
+      customerName: json['customerName'] ?? json['oriSoCustName'] ?? '',
+      deliveryDate: json['deliveryDate'] ?? json['soDeliveryDate'] ?? '',
+      orderDate:
+          json['orderDate'] ??
+          json['soDeliveryDate'] ??
+          '', // Fallback to delivery date
+      rep0: json['rep0'] ?? json['soSalesman'],
+      rep1: json['rep1']?.toString(),
+      site: json['site']?.toString(),
+      status: json['status'] as int?,
+      source: json['source']?.toString(),
+      statusLabel: json['statusLabel']?.toString(),
+      poNo: json['poNo'] ?? json['poNumber'],
     );
+  }
+
+  Map<String, dynamic> toSqlMap() {
+    return {
+      'sohNum': soNumber,
+      'poNo': poNo,
+      'orderDate': orderDate,
+      'deliveryDate': deliveryDate,
+      'customerCode': customerCode,
+      'customerName': customerName,
+      'rep0': rep0,
+      'rep1': rep1,
+      'site': site,
+      'status': status,
+      'source': source,
+      'statusLabel': statusLabel,
+    };
   }
 }

@@ -38,4 +38,15 @@ class LocationLookupDto {
       locationTypeName: locationTypeName,
     );
   }
+
+  Map<String, dynamic> toSqlMap() {
+    return {
+      'site': site,
+      'location': location,
+      'warehouse': warehouse,
+      'warehouseName': warehouseName,
+      'locationType': locationType,
+      'locationTypeName': locationTypeName,
+    };
+  }
 }

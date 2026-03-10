@@ -13,3 +13,10 @@ class LoadProductionTrackingRequested extends ManufacturingEvent {
   @override
   List<Object?> get props => [];
 }
+
+class SyncDataRequested extends ManufacturingEvent {
+  const SyncDataRequested();
+
+  @override
+  List<Object?> get props => [];
+}

@@ -18,4 +18,5 @@ abstract class ILogisticsRepository {
   });
   Future<void> closeOrder(String soNumber, String closedBy);
   Future<List<LocationLookup>> getLocationLookups(String site);
+  Future<void> synchronize();
 }

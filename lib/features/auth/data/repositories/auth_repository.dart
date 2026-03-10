@@ -1,53 +1,53 @@
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/entities/user.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
 import 'package:enterprise_auth_mobile/features/auth/data/models/user_dto.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
-import 'package:enterprise_auth_mobile/core/config/api_config.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:sqflite/sqflite.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 class AuthRepository implements IAuthRepository {
   final Dio _dio;
   final SecureStorageService _storageService;
 
-  static String get _baseUrl => '${ApiConfig.baseUrl}Auth/';
-
-  AuthRepository({required SecureStorageService storageService})
-    : _storageService = storageService,
-      _dio = Dio(
-        BaseOptions(
-          baseUrl: _baseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 15),
-          sendTimeout: const Duration(seconds: 10),
-        ),
-      ) {
-    // SSL Bypass for local development (self-signed certs)
-    if (kDebugMode && !kIsWeb) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) => true;
-        return client;
-      };
-    }
-  }
+  AuthRepository({
+    required NetworkService networkService,
+    required SecureStorageService storageService,
+  }) : _storageService = storageService,
+       _dio = networkService.dio;
 
   @override
   Future<User> login(String username, String password) async {
     try {
       final response = await _dio.post(
-        'login',
+        'Auth/login',
         data: {'username': username, 'password': password},
       );
 
       final dto = UserDto.fromJson(response.data);
 
-      // Save sensitive data in repository implementation (Data Layer responsibility)
+      // 1. Storage Service (Session tokens)
       await _storageService.saveToken(dto.token);
       await _storageService.saveUsername(dto.username);
+
+      // 2. Local DB (Offline caching)
+      final db = await LocalDatabaseHelper.instance.database;
+      final passHash = sha256.convert(utf8.encode(password)).toString();
+
+      await db.insert(
+        LocalDatabaseHelper.tableCachedUsers,
+        {
+          LocalDatabaseHelper.colUserUsername: dto.username,
+          LocalDatabaseHelper.colUserPassHash: passHash,
+          LocalDatabaseHelper.colUserPermissions: jsonEncode(dto.permissions),
+          LocalDatabaseHelper.colUserEmail: dto.email,
+          LocalDatabaseHelper.colUserId: dto.id,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
       return User(
         id: dto.id,
@@ -56,17 +56,51 @@ class AuthRepository implements IAuthRepository {
         permissions: dto.permissions.map((p) => p.toLowerCase()).toList(),
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        return _attemptOfflineLogin(username, password);
+      }
       throw _handleDioError(e, 'Login');
     } catch (e) {
       throw 'Unexpected error: $e';
     }
   }
 
+  Future<User> _attemptOfflineLogin(String username, String password) async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final passHash = sha256.convert(utf8.encode(password)).toString();
+
+    final maps = await db.query(
+      LocalDatabaseHelper.tableCachedUsers,
+      where:
+          '${LocalDatabaseHelper.colUserUsername} = ? AND ${LocalDatabaseHelper.colUserPassHash} = ?',
+      whereArgs: [username, passHash],
+    );
+
+    if (maps.isNotEmpty) {
+      final row = maps.first;
+      final permissions =
+          jsonDecode(row[LocalDatabaseHelper.colUserPermissions] as String)
+              as List;
+
+      return User(
+        id: row[LocalDatabaseHelper.colUserId] as String,
+        username: row[LocalDatabaseHelper.colUserUsername] as String,
+        email: row[LocalDatabaseHelper.colUserEmail] as String,
+        permissions: permissions
+            .map((p) => (p as String).toLowerCase())
+            .toList(),
+      );
+    }
+
+    throw 'Cannot reach server and no valid offline credentials found.';
+  }
+
   @override
   Future<void> register(String email, String username, String password) async {
     try {
       await _dio.post(
-        'register',
+        'Auth/register',
         data: {'email': email, 'username': username, 'password': password},
       );
     } on DioException catch (e) {
@@ -79,7 +113,7 @@ class AuthRepository implements IAuthRepository {
   @override
   Future<void> forgotPassword(String email) async {
     try {
-      await _dio.post('forgot-password', data: {'email': email});
+      await _dio.post('Auth/forgot-password', data: {'email': email});
     } on DioException catch (e) {
       throw _handleDioError(e, 'Password Reset');
     } catch (e) {
@@ -93,14 +127,6 @@ class AuthRepository implements IAuthRepository {
   }
 
   String _handleDioError(DioException e, String operation) {
-    if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.sendTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      return '$operation failed: Server timed out. Check if backend is running on ${_baseUrl}.';
-    }
-    if (e.type == DioExceptionType.connectionError) {
-      return '$operation failed: Cannot reach server at ${_baseUrl}. Ensure backend is running and firewall allows port 5004.';
-    }
     if (e.response != null) {
       final data = e.response?.data;
       if (data is Map && data.containsKey('message')) {

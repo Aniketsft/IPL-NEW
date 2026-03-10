@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../widgets/sync_status_header.dart';
 import '../../domain/entities/sales_order.dart';
 import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
@@ -19,6 +20,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   List<SalesOrder> _orders = [];
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
+  final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   String? _selectedCustomerCode;
   String? _selectedSM1Code;
@@ -118,6 +120,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       ),
       body: Column(
         children: [
+          SyncStatusHeader(lastSync: _lastSync),
           _buildFilterHeader(),
           if (_isFilterExpanded) _buildFilters(dark800, orange),
           Expanded(

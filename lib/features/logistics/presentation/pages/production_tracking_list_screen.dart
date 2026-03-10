@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
+import '../widgets/sync_status_header.dart';
 import 'production_tracking_screen.dart';
 import '../../domain/entities/sales_order.dart';
 
@@ -18,6 +19,7 @@ class _ProductionTrackingListScreenState
     extends State<ProductionTrackingListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _ProductionTrackingListScreenState
       ),
       body: Column(
         children: [
+          SyncStatusHeader(lastSync: _lastSync),
           _buildFilters(dark800, orange),
           Expanded(
             child: BlocBuilder<ManufacturingBloc, ManufacturingState>(

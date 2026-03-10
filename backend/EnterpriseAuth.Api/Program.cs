@@ -75,6 +75,7 @@ builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();
 builder.Services.AddScoped<IUserGroupRepository, EfUserGroupRepository>();
 builder.Services.AddScoped<ILogisticsRepository, EfLogisticsRepository>();
 builder.Services.AddScoped<ILogisticsService, LogisticsService>();
+builder.Services.AddScoped<ISyncRepository, EfSyncRepository>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
