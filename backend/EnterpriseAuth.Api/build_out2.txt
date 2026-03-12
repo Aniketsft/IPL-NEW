@@ -1,0 +1,14 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(280,43): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(302,40): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+  EnterpriseAuth.Api -> C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.dll
+
+Build succeeded.
+
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(280,43): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(302,40): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+    2 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.48

@@ -217,8 +217,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         'batchId': DateTime.now().millisecondsSinceEpoch.toString(),
         'itemCode': widget.product.itemCode,
         'originalOrderQty': widget.product.quantity,
-        'cumulativeScanQty': _cumulativeQty,
-        'status': _status, // A, Q, or R
+        'scanAmountKg': _cumulativeQty,
+        'itemStatus': _status, // A, Q, or R
         'location': _selectedLocation?.location,
         'warehouse': _selectedLocation?.warehouse,
         'timestamp': DateTime.now().toIso8601String(),
@@ -229,8 +229,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       await repository.saveProductionScan(payload);
 
       if (mounted) {
+        final isPartial = (_cumulativeQty + widget.product.manufacturedQuantity - widget.product.quantity).abs() > 0.001;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Production log saved successfully')),
+          SnackBar(
+            content: Text(isPartial 
+                ? 'Partial progress saved successfully' 
+                : 'Production log completed and saved'),
+            backgroundColor: isPartial ? Colors.blue : Colors.green,
+          ),
         );
         Navigator.pop(context, true);
       }
@@ -430,6 +436,37 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Colors.red;
   }
 
+  void _addManualOneKg() {
+    final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+    if (1.0 > remaining + 0.001) {
+      _showErrorDialog(
+        'Limit Exceeded',
+        'Adding 1.00 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
+      );
+      return;
+    }
+
+    setState(() {
+      final manualScan = {
+        'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+        'productCode': widget.product.itemCode,
+        'weight': 1.0,
+        'timestamp': DateTime.now().toIso8601String(),
+        'isManual': true,
+      };
+      _scans.add(manualScan);
+      _cumulativeQty += 1.0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Added 1.00 KG manually'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
   Widget _buildScannerView() {
     return Container(
       height: 300,
@@ -520,7 +557,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       decoration: BoxDecoration(color: dark800, borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
-          const Text('Scan Quantity (Manual Input Fallback)', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const Text('Scan Quantity', style: TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -534,16 +571,40 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _toggleScanner,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Open Hardware Scanner', style: TextStyle(fontSize: 16)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: orange,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-            ),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _toggleScanner,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Scanner', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 56),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: ElevatedButton(
+                  onPressed: _addManualOneKg,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white10,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                      side: const BorderSide(color: Colors.white24),
+                    ),
+                  ),
+                  child: const Text('+ 1 KG', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           TextButton(
@@ -576,17 +637,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: (_isSaving || !isReconciled) ? null : _saveAndUpload,
+                  onPressed: (_isSaving || _cumulativeQty <= 0) ? null : _saveAndUpload,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isReconciled ? orange : darkBorder,
+                    backgroundColor: isReconciled ? orange : Colors.blueGrey,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(double.infinity, 56),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                   ),
                   child: _isSaving
-                      ? const CircularProgressIndicator()
+                      ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          isReconciled ? 'Complete & Log Batch' : 'Awaiting Reconciliation',
+                          isReconciled ? 'Complete & Log Batch' : 'Save Progress & Continue',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                 ),
