@@ -190,27 +190,95 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildHeaderInfo() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${widget.order.customerCode} - ${widget.order.customerName}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'PO: ${widget.order.purchaseOrderNumber ?? "N/A"}',
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Delivery: ${widget.order.deliveryDate}',
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
+    const orange = Color(0xFFFF9800);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.order.customerName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.order.customerCode,
+                      style: TextStyle(
+                        color: orange.withOpacity(0.8),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusBadge(isClosed: widget.order.isClosed, orange: orange),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildCompactInfo('PO NUMBER', widget.order.purchaseOrderNumber ?? 'N/A'),
+              const SizedBox(width: 32),
+              _buildCompactInfo('DELIVERY DATE', widget.order.deliveryDate),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactInfo(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.35),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -451,6 +519,35 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   'Close This Sales Order',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
+        ),
+      ),
+    );
+  }
+}
+class _StatusBadge extends StatelessWidget {
+  final bool isClosed;
+  final Color orange;
+
+  const _StatusBadge({required this.isClosed, required this.orange});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isClosed ? Colors.white10 : orange.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isClosed ? Colors.white24 : orange.withOpacity(0.3),
+        ),
+      ),
+      child: Text(
+        isClosed ? 'CLOSED' : 'OPEN',
+        style: TextStyle(
+          color: isClosed ? Colors.white60 : orange,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
         ),
       ),
     );

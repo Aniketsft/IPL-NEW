@@ -8,10 +8,14 @@ import '../models/sales_order_dto.dart';
 import '../models/sales_order_detail_dto.dart';
 import '../models/location_lookup_dto.dart';
 import '../models/lookup_dto.dart';
+import '../models/product_master_dto.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../domain/entities/location_lookup.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import '../local/local_database_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../domain/entities/sync_progress.dart';
+import 'dart:async';
 
 class DeliveryRepository implements ILogisticsRepository {
   final Dio _dio;
@@ -122,6 +126,8 @@ class DeliveryRepository implements ILogisticsRepository {
     String? customerCode,
     String? rep0,
     String? rep1,
+    int limit = 100,
+    int offset = 0,
   }) async {
     try {
       final db = await LocalDatabaseHelper.instance.database;
@@ -153,6 +159,8 @@ class DeliveryRepository implements ILogisticsRepository {
         whereArgs: whereArgs,
         groupBy: LocalDatabaseHelper.colOrderNum,
         orderBy: '${LocalDatabaseHelper.colOrderDate} DESC',
+        limit: limit,
+        offset: offset,
       );
 
       return maps.map((m) => _mapLocalHeaderToEntity(m)).toList();
@@ -400,6 +408,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final reps = processedData['reps'] as List<Map<String, dynamic>>;
       final locations =
           processedData['locations'] as List<Map<String, dynamic>>;
+      final products = processedData['products'] as List<Map<String, dynamic>>;
 
       counts = {
         'orders': orders.length,
@@ -407,6 +416,7 @@ class DeliveryRepository implements ILogisticsRepository {
         'customers': customers.length,
         'reps': reps.length,
         'locations': locations.length,
+        'products': products.length,
       };
 
       await LocalDatabaseHelper.instance.refreshLogisticsData(
@@ -415,6 +425,7 @@ class DeliveryRepository implements ILogisticsRepository {
         customers: customers,
         reps: reps,
         locations: locations,
+        products: products,
       );
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
@@ -446,6 +457,131 @@ class DeliveryRepository implements ILogisticsRepository {
         counts: counts.isNotEmpty ? counts : null,
       );
       throw 'Sync failed: $e';
+    }
+  }
+
+  @override
+  Stream<SyncProgress> synchronizeWithProgress() async* {
+    final stopwatch = Stopwatch()..start();
+    Map<String, int> counts = {};
+
+    try {
+      yield SyncProgress(status: 'Initializing sync...', progress: 0.05);
+
+      // 1. Push Unsynced Work
+      yield SyncProgress(status: 'Pushing local changes...', progress: 0.1);
+      final unsyncedScans = await LocalDatabaseHelper.instance.getUnsyncedScans();
+      final unsyncedOrders = await LocalDatabaseHelper.instance.getUnsyncedInternalOrders();
+
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty) {
+        final payload = {
+          'scans': unsyncedScans.map((s) => {
+            'soNumber': s['soNumber'],
+            'itemCode': s['productCode'],
+            'scanAmountKg': s['quantity'],
+            'itemStatus': s['itemStatus'] ?? 'Q',
+            'location': s['location'],
+          }).toList(),
+          'cutBulkEntries': (await Future.wait(unsyncedOrders.map((o) async {
+            final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
+            final details = await LocalDatabaseHelper.instance.getSalesOrderDetails(soNum);
+            double amount = details.isNotEmpty ? (details.first['quantity'] as num).toDouble() : 0;
+            return {
+              'entryNumber': soNum,
+              'type': soNum.toUpperCase().contains('CUT') ? 'Cuts' : 'Bulks',
+              'customerCode': o[LocalDatabaseHelper.colCustomerCode],
+              'customerName': o[LocalDatabaseHelper.colCustomerName],
+              'date': o[LocalDatabaseHelper.colOrderDate],
+              'poNumber': o[LocalDatabaseHelper.colPoNum],
+              'salesman1Code': o[LocalDatabaseHelper.colRep0],
+              'salesman2Code': o[LocalDatabaseHelper.colRep1],
+              'amountKg': amount,
+            };
+          }))),
+          'deviceId': 'mobile-terminal',
+        };
+
+        await _dio.post('Sync/push', data: payload);
+        
+        if (unsyncedScans.isNotEmpty) {
+          await LocalDatabaseHelper.instance.markAsSynced(unsyncedScans.map((s) => s['id'] as int).toList());
+        }
+        if (unsyncedOrders.isNotEmpty) {
+          await LocalDatabaseHelper.instance.markOrdersAsSynced(unsyncedOrders.map((o) => o[LocalDatabaseHelper.colOrderNum] as String).toList());
+        }
+      }
+
+      yield SyncProgress(status: 'Fetching updates...', progress: 0.3);
+      
+      // 2. Refresh Mirror Data (Incremental)
+      final prefs = await SharedPreferences.getInstance();
+      final lastSync = prefs.getString('last_sync_timestamp');
+
+      final response = await _dio.get(
+        'Sync/refresh',
+        queryParameters: {
+          'site': 'IPL',
+          if (lastSync != null) 'since': lastSync,
+        },
+      );
+      
+      final rawData = response.data;
+      final serverTimestamp = rawData['timestamp'] as String?;
+
+      yield SyncProgress(status: 'Processing data...', progress: 0.6);
+      final processedData = await compute(_parseAndSanitizeData, rawData);
+
+      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products'];
+      for (var i = 0; i < tables.length; i++) {
+        final table = tables[i];
+        final data = processedData[table] as List<Map<String, dynamic>>;
+        counts[table] = data.length;
+        yield SyncProgress(
+          status: 'Updating $table (${data.length} items)...',
+          progress: 0.6 + (0.3 * (i / tables.length)),
+        );
+      }
+
+      await LocalDatabaseHelper.instance.refreshLogisticsData(
+        orders: processedData['orders'] as List<Map<String, dynamic>>,
+        details: processedData['details'] as List<Map<String, dynamic>>,
+        customers: processedData['customers'] as List<Map<String, dynamic>>,
+        reps: processedData['reps'] as List<Map<String, dynamic>>,
+        locations: processedData['locations'] as List<Map<String, dynamic>>,
+        products: processedData['products'] as List<Map<String, dynamic>>,
+      );
+
+      // Save new timestamp
+      if (serverTimestamp != null) {
+        await prefs.setString('last_sync_timestamp', serverTimestamp);
+      }
+
+      // Reflection
+      final syncedScans = await LocalDatabaseHelper.instance.database.then(
+        (db) => db.query(
+          LocalDatabaseHelper.tableScans,
+          where: '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
+        ),
+      );
+      if (syncedScans.isNotEmpty) {
+        await LocalDatabaseHelper.instance.marksReflected(syncedScans.map((s) => s['id'] as int).toList());
+      }
+
+      final duration = stopwatch.elapsedMilliseconds;
+      await LocalDatabaseHelper.instance.insertSyncHistory(
+        status: 'Success',
+        message: 'Sync completed in ${duration}ms',
+        counts: counts,
+      );
+
+      yield SyncProgress.completed();
+    } catch (e) {
+      await LocalDatabaseHelper.instance.insertSyncHistory(
+        status: 'Failed',
+        message: 'Sync error: $e',
+        counts: counts.isNotEmpty ? counts : null,
+      );
+      yield SyncProgress.error(e.toString());
     }
   }
 
@@ -515,6 +651,10 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
+  Future<bool> isValidProduct(String code) async {
+    return await LocalDatabaseHelper.instance.isValidProduct(code);
+  }
+
   Future<void> saveProductionScan(Map<String, dynamic> scan) async {
     try {
       // 1. Map UI payload to SQLite schema
@@ -585,29 +725,62 @@ class DeliveryRepository implements ILogisticsRepository {
       throw 'Failed to fetch location lookups from local DB: $e';
     }
   }
+
+  Future<Map<String, dynamic>?> decodeBarcode(String barcode) async {
+    // 1. Variable Weight (VW) - Prefix "20"
+    // Format: 20[5-char item code][5-char weight in grams][1-char checksum]
+    if (barcode.startsWith('20') && barcode.length == 13) {
+      final productCode = barcode.substring(2, 7);
+      final weightStr = barcode.substring(7, 12);
+      final weight = int.parse(weightStr) / 1000.0;
+      return {'productCode': productCode, 'weight': weight};
+    }
+
+    // 2. Fixed Weight (FW) - Prefix "10"
+    // Format: 10[5-char item code]...
+    if (barcode.startsWith('10') && barcode.length >= 7) {
+      final productCode = barcode.substring(2, 7);
+      return {'productCode': productCode, 'weight': 1.0};
+    }
+
+    // 3. Global Lookup (GL) - Full match in product_master
+    final product = await LocalDatabaseHelper.instance.getProductByCode(barcode);
+    if (product != null) {
+      return {
+        'productCode': product[LocalDatabaseHelper.colProdCode],
+        'weight': 1.0
+      };
+    }
+
+    return null;
+  }
 }
 
 /// Top-level background function for Isolate-based data processing.
 /// This prevents large payload mapping from blocking the UI thread.
 Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
   final orders = (data['orders'] as List)
-      .map((j) => SalesOrderDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>((j) => SalesOrderDto.fromJson(j).toSqlMap())
       .toList();
 
   final details = (data['details'] as List)
-      .map((j) => SalesOrderDetailDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>((j) => SalesOrderDetailDto.fromJson(j).toSqlMap())
       .toList();
 
   final customers = (data['customers'] as List)
-      .map((j) => LookupDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>((j) => LookupDto.fromJson(j).toSqlMap())
       .toList();
 
   final reps = (data['reps'] as List)
-      .map((j) => LookupDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>((j) => LookupDto.fromJson(j).toSqlMap())
       .toList();
 
   final locations = (data['locations'] as List)
-      .map((j) => LocationLookupDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>((j) => LocationLookupDto.fromJson(j).toSqlMap())
+      .toList();
+
+  final products = (data['products'] as List)
+      .map<Map<String, dynamic>>((j) => ProductMasterDto.fromJson(j).toSqlMap())
       .toList();
 
   return {
@@ -616,5 +789,6 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
     'customers': customers,
     'reps': reps,
     'locations': locations,
+    'products': products,
   };
 }

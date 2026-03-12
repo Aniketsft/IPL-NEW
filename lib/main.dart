@@ -21,6 +21,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/sync/sync_manager
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/get_production_tracking_use_case.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchronize_logistics_use_case.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 
 void main() {
@@ -94,6 +95,12 @@ class MyApp extends StatelessWidget {
               getProductionTracking: context
                   .read<GetProductionTrackingUseCase>(),
               synchronizeLogistics: context.read<SynchronizeLogisticsUseCase>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => SyncBloc(
+              synchronizeLogisticsUseCase:
+                  context.read<SynchronizeLogisticsUseCase>(),
             ),
           ),
           BlocProvider(create: (_) => ThemeCubit()),

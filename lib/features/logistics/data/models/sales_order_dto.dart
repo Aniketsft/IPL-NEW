@@ -27,16 +27,20 @@ class SalesOrderDto {
     this.poNo,
   });
 
+  static String _truncateDate(dynamic value) {
+    if (value == null) return '';
+    final str = value.toString();
+    if (str.length >= 10) return str.substring(0, 10);
+    return str;
+  }
+
   factory SalesOrderDto.fromJson(Map<String, dynamic> json) {
     return SalesOrderDto(
       soNumber: json['sohNum'] ?? json['soNo'] ?? json['soNumber'] ?? '',
       customerCode: json['customerCode'] ?? json['oriSoCustCode'] ?? '',
       customerName: json['customerName'] ?? json['oriSoCustName'] ?? '',
-      deliveryDate: json['deliveryDate'] ?? json['soDeliveryDate'] ?? '',
-      orderDate:
-          json['orderDate'] ??
-          json['soDeliveryDate'] ??
-          '', // Fallback to delivery date
+      deliveryDate: _truncateDate(json['deliveryDate'] ?? json['soDeliveryDate']),
+      orderDate: _truncateDate(json['orderDate'] ?? json['soDeliveryDate']),
       rep0: json['rep0'] ?? json['soSalesman'],
       rep1: json['rep1']?.toString(),
       site: json['site']?.toString(),

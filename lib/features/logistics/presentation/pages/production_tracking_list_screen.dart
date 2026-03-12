@@ -4,6 +4,7 @@ import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
 import '../widgets/sync_status_header.dart';
+import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
 import '../../domain/entities/sales_order.dart';
 
@@ -62,64 +63,69 @@ class _ProductionTrackingListScreenState
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          SyncStatusHeader(lastSync: _lastSync),
-          _buildFilters(dark800, orange),
-          Expanded(
-            child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
-              builder: (context, state) {
-                if (state is ManufacturingLoadInProgress) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: orange),
-                  );
-                }
-                if (state is ManufacturingFailure) {
-                  return Center(
-                    child: Text(
-                      state.message,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  );
-                }
-                if (state is ProductionTrackingLoaded) {
-                  final filteredItems = state.items.where((it) {
-                    final code = it.itemCode.toLowerCase();
-                    final desc = it.description.toLowerCase();
-                    return code.contains(_searchQuery.toLowerCase()) ||
-                        desc.contains(_searchQuery.toLowerCase());
-                  }).toList();
+          Column(
+            children: [
+              SyncStatusHeader(lastSync: _lastSync),
+              _buildFilters(dark800, orange),
+              Expanded(
+                child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
+                  builder: (context, state) {
+                    if (state is ManufacturingLoadInProgress) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: orange),
+                      );
+                    }
+                    if (state is ManufacturingFailure) {
+                      return Center(
+                        child: Text(
+                          state.message,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+                    if (state is ProductionTrackingLoaded) {
+                      final filteredItems = state.items.where((it) {
+                        final code = it.itemCode.toLowerCase();
+                        final desc = it.description.toLowerCase();
+                        return code.contains(_searchQuery.toLowerCase()) ||
+                            desc.contains(_searchQuery.toLowerCase());
+                      }).toList();
 
-                  if (filteredItems.isEmpty) {
+                      if (filteredItems.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'No items found',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        itemCount: filteredItems.length,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          return _buildProductCard(item, dark800, orange);
+                        },
+                      );
+                    }
                     return const Center(
                       child: Text(
-                        'No items found',
+                        'Initialize tracking...',
                         style: TextStyle(color: Colors.grey),
                       ),
                     );
-                  }
-
-                  return ListView.builder(
-                    itemCount: filteredItems.length,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    itemBuilder: (context, index) {
-                      final item = filteredItems[index];
-                      return _buildProductCard(item, dark800, orange);
-                    },
-                  );
-                }
-                return const Center(
-                  child: Text(
-                    'Initialize tracking...',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                );
-              },
-            ),
+                  },
+                ),
+              ),
+            ],
           ),
+          const SyncOverlay(),
         ],
       ),
     );

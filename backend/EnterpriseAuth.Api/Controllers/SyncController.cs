@@ -29,7 +29,7 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpPost("push")]
         public async Task<ActionResult<int>> PushScans([FromBody] SyncPushRequestDto request)
         {
-            if (request == null || request.Scans == null)
+            if (request == null)
             {
                 return BadRequest("Invalid sync request");
             }

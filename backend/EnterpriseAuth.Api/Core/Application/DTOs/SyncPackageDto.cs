@@ -10,6 +10,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<CustomerLookupDto> Customers { get; set; } = new();
         public List<SalesRepLookupDto> Reps { get; set; } = new();
         public List<LocationLookupDto> Locations { get; set; } = new();
+        public List<ProductLookupDto> Products { get; set; } = new();
+        public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
         public List<ProductionScanDto> RecentScans { get; set; } = new();
         public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
     }

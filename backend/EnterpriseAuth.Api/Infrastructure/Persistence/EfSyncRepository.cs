@@ -11,6 +11,8 @@ using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
+using EnterpriseAuth.Api.Core.Application.Common;
+using Microsoft.Extensions.Options;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -19,23 +21,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly string _connectionString;
         private readonly ApplicationDbContext _context;
         private readonly ScanProductionDbContext _scanContext;
+        private readonly SyncSettings _syncSettings;
 
-        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext)
+        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
             _context = context;
             _scanContext = scanContext;
+            _syncSettings = syncSettings.Value;
         }
 
         public async Task<SyncPackageDto> GetRefreshPackageAsync(string site)
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             var package = new SyncPackageDto();
 
-            // 1. Fetch Orders (Header + joined info)
-            var ordersSql = @"
-                SELECT TOP 200
+            // Define fetching tasks with separate connections for parallel execution
+            var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>(@"
+                SELECT TOP 100
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
                     f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
                     f0.ORDDAT_0 as [OrderDate],
@@ -50,12 +53,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
                 JOIN InnodisTestDB.INLPROD.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
                 JOIN InnodisTestDB.INLPROD.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
-                ORDER BY f0.ORDDAT_0 DESC";
+                ORDER BY f0.ORDDAT_0 DESC");
 
-            package.Orders = (await db.QueryAsync<SalesOrderHeaderDto>(ordersSql)).ToList();
-
-            // 2. Fetch Details
-            var detailsSql = @"
+            var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>(@"
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
                     f2.ITMREF_0 as ItemCode,
@@ -65,15 +65,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
-                WHERE f0.SOHNUM_0 IN (SELECT TOP 200 SOHNUM_0 FROM InnodisTestDB.INLPROD.SORDER ORDER BY ORDDAT_0 DESC)";
+                WHERE f0.SOHNUM_0 IN (
+                    SELECT TOP 100 s.SOHNUM_0 
+                    FROM InnodisTestDB.INLPROD.SORDER s WITH (NOLOCK) 
+                    ORDER BY s.ORDDAT_0 DESC
+                )");
 
-            package.Details = (await db.QueryAsync<SalesOrderDetailDto>(detailsSql)).ToList();
-
-            // 3. Lookups
-            package.Customers = (await db.QueryAsync<CustomerLookupDto>("SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM InnodisTestDB.INLPROD.BPCUSTOMER WITH (NOLOCK)")).ToList();
-            package.Reps = (await db.QueryAsync<SalesRepLookupDto>("SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM InnodisTestDB.INLPROD.SALESREP WITH (NOLOCK)")).ToList();
+            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>("SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM InnodisTestDB.INLPROD.BPCUSTOMER WITH (NOLOCK)");
+            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>("SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM InnodisTestDB.INLPROD.SALESREP WITH (NOLOCK)");
             
-            // 4. Locations
             var locSql = @"
                 SELECT 
                     T1.STOFCY_0 as Site, T1.LOC_0 as Location, T1.WRH_0 as Warehouse,
@@ -85,10 +85,126 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' and ATRA.LANGUE_0 = 'BRI' and ATRA.ZONE_0 = 'TYPDESAXX'
                 WHERE T1.STOFCY_0 = @Site";
+            var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
+
+            var productsSql = @"
+                SELECT 
+                    f0.ITMREF_0 as ProductCode,
+                    f0.ITMDES1_0 as ProductDescription,
+                    f0.STU_0 as StockUnit,
+                    f0.SAU_0 as SalesUnit
+                FROM InnodisTestDB.INLPROD.ITMMASTER f0 WITH (NOLOCK)
+                JOIN InnodisTestDB.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
+                WHERE f1.STOFCY_0 = @Site";
+            var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
+
+            // Execute tasks in parallel
+            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask);
+
+            package.Orders = ordersTask.Result.ToList();
+            package.Details = detailsTask.Result.ToList();
+            package.Customers = customersTask.Result.ToList();
+            package.Reps = repsTask.Result.ToList();
+            package.Locations = locationsTask.Result.ToList();
+            package.Products = productsTask.Result.ToList();
+
+            // 5.5 Include Cut & Bulk Entries from ScanProduction (Sequential due to DbContext thread safety)
+            var cutsBulkEntities = await _scanContext.CutBulkEntries
+                .Where(e => e.SyncStatus == "Synced")
+                .ToListAsync();
+
+            var cutsBulkDetails = await _scanContext.SalesOrderDetailCutsBulk
+                .Where(d => d.SyncStatus == "Synced")
+                .ToListAsync();
+
+            // 6. Aggregate Production Scans for EXTERNAL orders ONLY (Internal orders use persisted totals)
+            var orderNumbers = package.Orders.Select(o => o.SohNum).ToList();
             
-            package.Locations = (await db.QueryAsync<LocationLookupDto>(locSql, new { Site = site })).ToList();
+            var externalScanAggregates = await _scanContext.ProductionScans
+                .Where(s => orderNumbers.Contains(s.SoNumber) && !s.IsDeleted)
+                .GroupBy(s => new { s.SoNumber, s.ItemCode })
+                .Select(g => new {
+                    g.Key.SoNumber,
+                    g.Key.ItemCode,
+                    TotalCalculated = g.Sum(s => s.ScanAmountKg)
+                })
+                .ToListAsync();
+
+            // Update External Order Details
+            foreach (var detail in package.Details)
+            {
+                var aggregate = externalScanAggregates.FirstOrDefault(a => 
+                    a.SoNumber == detail.SoNumber && 
+                    a.ItemCode == detail.ItemCode);
+                
+                if (aggregate != null)
+                {
+                    detail.Manufactured = aggregate.TotalCalculated;
+                    detail.Remaining = Math.Max(0, detail.Quantity - detail.Manufactured);
+                }
+                else
+                {
+                    detail.Remaining = detail.Quantity;
+                }
+            }
+
+            // 7. Process Internal Orders (Virtual Orders) - RECONCILIATION
+            foreach (var cb in cutsBulkEntities)
+            {
+                // Create Virtual Order Header
+                package.Orders.Add(new SalesOrderHeaderDto
+                {
+                    SohNum = cb.EntryNumber,
+                    PoNo = cb.PoNumber ?? "",
+                    OrderDate = cb.Date,
+                    DeliveryDate = cb.Date,
+                    CustomerCode = cb.CustomerCode,
+                    CustomerName = cb.CustomerName,
+                    Rep0 = cb.Salesman1Code ?? "",
+                    Rep1 = cb.Salesman2Code ?? "",
+                    Site = site,
+                    Status = 1, // Open
+                    Source = "Internal"
+                });
+
+                // Map to legacy CutBulkEntryDto for backward compatibility if needed
+                var detail = cutsBulkDetails.FirstOrDefault(d => d.SoNumber == cb.EntryNumber);
+                var manufactured = detail?.ManufacturedQuantity ?? 0;
+
+                package.CutBulkEntries.Add(new CutBulkEntryDto {
+                    EntryNumber = cb.EntryNumber,
+                    Type = cb.Type,
+                    CustomerCode = cb.CustomerCode,
+                    CustomerName = cb.CustomerName,
+                    Date = cb.Date,
+                    AmountKg = cb.AmountKg,
+                    ManufacturedQuantity = manufactured,
+                    RemainingQuantity = Math.Max(0, cb.AmountKg - manufactured)
+                });
+
+                // Create Virtual Order Detail
+                if (detail != null)
+                {
+                    package.Details.Add(new SalesOrderDetailDto
+                    {
+                        SoNumber = cb.EntryNumber,
+                        ItemCode = detail.ItemCode,
+                        Description = detail.Description,
+                        BarcodeType = "Internal",
+                        Quantity = detail.Quantity,
+                        Manufactured = manufactured,
+                        Remaining = Math.Max(0, detail.Quantity - manufactured)
+                    });
+                }
+            }
 
             return package;
+        }
+
+        private async Task<IEnumerable<T>> FetchFromInnodisAsync<T>(string sql, object? parameters = null)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            return await db.QueryAsync<T>(sql, parameters);
         }
 
         public async Task<int> PushUpdatesAsync(SyncPushRequestDto request)
@@ -117,6 +233,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             CreatedAt = DateTime.UtcNow
                         };
                         _scanContext.ProductionScans.Add(entity);
+
+                        // RECONCILIATION: Update persisted totals for Internal Orders (Cut/Bulk)
+                        var internalDetail = await _scanContext.SalesOrderDetailCutsBulk
+                            .FirstOrDefaultAsync(d => d.SoNumber == scanDto.SoNumber && d.ItemCode == scanDto.ItemCode);
+                        
+                        if (internalDetail != null)
+                        {
+                            internalDetail.ManufacturedQuantity += scanDto.ScanAmountKg;
+                        }
                     }
                     totalCount += await _scanContext.SaveChangesAsync();
                     await scanTransaction.CommitAsync();

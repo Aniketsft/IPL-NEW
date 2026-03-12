@@ -13,5 +13,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Salesman1Code { get; set; }
         public string? Salesman2Code { get; set; }
         public decimal AmountKg { get; set; }
+        public decimal ManufacturedQuantity { get; set; }
+        public decimal RemainingQuantity { get; set; }
     }
 }

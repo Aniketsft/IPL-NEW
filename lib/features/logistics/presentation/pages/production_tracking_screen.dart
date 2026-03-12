@@ -4,6 +4,7 @@ import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const Color orange = Color(0xFFFF9800);
 const Color dark800 = Color(0xFF1E1E1E);
@@ -47,19 +48,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       final repository = context.read<DeliveryRepository>();
       final site = widget.product.site ?? 'IPL';
       final locations = await repository.getLocationLookups(site);
+      final prefs = await SharedPreferences.getInstance();
+      final lastLocation = prefs.getString('last_selected_location');
+
       if (mounted) {
         setState(() {
           _locations = locations;
-          // Pre-select if current product location matches one in the list
-          if (widget.product.location != null) {
-            _selectedLocation = _locations.firstWhere(
-              (l) => l.location == widget.product.location,
-              orElse: () => _locations.isNotEmpty
-                  ? _locations.first
-                  : _locations[0], // fallback logic or null
-            );
-          } else if (_locations.isNotEmpty) {
-            _selectedLocation = _locations.first;
+          // Priority: 1. Last used location, 2. Product's current location, 3. First in list
+          if (lastLocation != null) {
+            final found = _locations.where((l) => l.location == lastLocation);
+            _selectedLocation = found.isNotEmpty ? found.first : _getDefaultLocation();
+          } else {
+            _selectedLocation = _getDefaultLocation();
           }
         });
       }
@@ -72,6 +72,119 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     } finally {
       if (mounted) setState(() => _loadingLocations = false);
     }
+  }
+
+  LocationLookup? _getDefaultLocation() {
+    if (widget.product.location != null) {
+      return _locations.firstWhere(
+        (l) => l.location == widget.product.location,
+        orElse: () => _locations.first,
+      );
+    }
+    return _locations.isNotEmpty ? _locations.first : null;
+  }
+
+  Future<void> _saveLastLocation(String location) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_selected_location', location);
+  }
+
+  Future<void> _showLocationPicker(Color orange) async {
+    final TextEditingController searchController = TextEditingController();
+    List<LocationLookup> filteredLocations = List.from(_locations);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: dark800,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Select Target Location',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Search locations...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  filled: true,
+                  fillColor: const Color(0xFF2C2C2E),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) {
+                  setModalState(() {
+                    filteredLocations = _locations
+                        .where((l) =>
+                            l.fullInfo.toLowerCase().contains(value.toLowerCase()))
+                        .toList();
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filteredLocations.length,
+                  itemBuilder: (context, index) {
+                    final loc = filteredLocations[index];
+                    final isSelected = _selectedLocation?.location == loc.location;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      title: Text(
+                        loc.location ?? '',
+                        style: TextStyle(
+                          color: isSelected ? orange : Colors.white,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${loc.locationTypeName} - ${loc.warehouseName}',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: isSelected ? Icon(Icons.check, color: orange) : null,
+                      onTap: () {
+                        setState(() => _selectedLocation = loc);
+                        _saveLastLocation(loc.location!);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveAndUpdate() async {
@@ -118,6 +231,124 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     }
   }
 
+  Future<void> _showScanDialog(Color orange) async {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: dark800,
+        title: const Text('Scan Barcode', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter or scan barcode',
+            hintStyle: const TextStyle(color: Colors.grey),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: orange),
+            ),
+          ),
+          autofocus: true,
+          onSubmitted: (value) async {
+            Navigator.pop(context);
+            await _handleScan(value);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _handleScan(controller.text);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: orange),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _decodeBarcode(String barcode) async {
+    final repository = context.read<DeliveryRepository>();
+    return await repository.decodeBarcode(barcode);
+  }
+
+  Future<void> _handleScan(String barcode) async {
+    if (barcode.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final decoded = await _decodeBarcode(barcode);
+
+      if (mounted) {
+        if (decoded != null) {
+          final productCode = decoded['productCode'] as String;
+          final weight = decoded['weight'] as double;
+
+          // Check if productCode matches current product
+          if (productCode == widget.product.itemCode) {
+            setState(() {
+              _currentScan = weight;
+              _cumulativeQty += weight;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text('Valid scan ($barcode): $weight KG added'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'WRONG PRODUCT SCANNED: $productCode (Expected: ${widget.product.itemCode})',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('INVALID BARCODE: $barcode'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Validation error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _simulateScan() {
+    setState(() {
+      _currentScan = 1.0;
+      _cumulativeQty += 1.0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'SIMULATED SCAN: 1.0 KG added for product ${widget.product.itemCode}',
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,32 +374,50 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               ),
             ),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.logout)),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () {
+              // Show scanning instructions
+            },
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.logout),
+          ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: orange))
-          : Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildHeaderCard(dark800),
-                        const SizedBox(height: 16),
-                        _buildLocationSelector(dark800, orange),
-                        const SizedBox(height: 16),
-                        _buildTrackingParamsCard(dark800, orange),
-                        const SizedBox(height: 16),
-                        _buildScanningCard(dark800, orange),
-                      ],
-                    ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildHeaderCard(dark800),
+                      const SizedBox(height: 16),
+                      _buildLocationSelector(dark800, orange),
+                      const SizedBox(height: 16),
+                      _buildTrackingParamsCard(dark800, orange),
+                      const SizedBox(height: 16),
+                      _buildScanningCard(dark800, orange),
+                    ],
                   ),
                 ),
-                _buildFooter(dark800, orange),
-              ],
+              ),
+              _buildFooter(dark800, orange),
+            ],
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: orange),
+              ),
             ),
+        ],
+      ),
     );
   }
 
@@ -288,9 +537,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFF1E1E1E)
-                    : Colors.transparent,
+                color: isSelected ? const Color(0xFF1E1E1E) : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -347,24 +594,39 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => setState(() {
-              _currentScan = 10.0;
-              _cumulativeQty += 10.0;
-            }),
-            icon: const Icon(Icons.grid_view_rounded),
-            label: const Text(
-              'Scan Quantity',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: orange,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showScanDialog(orange),
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: const Text(
+                    'Scan Barcode',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Material(
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(28),
+                child: IconButton(
+                  onPressed: _simulateScan,
+                  icon: const Icon(Icons.add_task_rounded, color: Colors.green),
+                  tooltip: 'Simulate 1.0kg Scan',
+                  iconSize: 28,
+                  padding: const EdgeInsets.all(14),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -388,35 +650,38 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 12),
           _loadingLocations
               ? const LinearProgressIndicator(color: Colors.orange)
-              : DropdownButtonHideUnderline(
-                  child: DropdownButtonFormField<LocationLookup>(
-                    value: _selectedLocation,
-                    dropdownColor: dark800,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFF2C2C2E),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+              : InkWell(
+                  onTap: () => _showLocationPicker(orange),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
                     ),
-                    items: _locations.map((l) {
-                      return DropdownMenuItem(
-                        value: l,
-                        child: Text(
-                          l.fullInfo,
-                          overflow: TextOverflow.ellipsis,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C2C2E),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _selectedLocation?.fullInfo ?? 'Select Location',
+                            style: TextStyle(
+                              color: _selectedLocation == null
+                                  ? Colors.grey
+                                  : Colors.white,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (val) => setState(() => _selectedLocation = val),
-                    hint: const Text(
-                      'Select Location',
-                      style: TextStyle(color: Colors.grey),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey,
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 10;
+  static const _databaseVersion = 11;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -16,6 +16,7 @@ class LocalDatabaseHelper {
   static const tableLocations = 'tbl_locations';
   static const tableCachedUsers = 'tbl_cached_users';
   static const tableSyncHistory = 'tbl_sync_history';
+  static const tableProducts = 'tbl_products';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -60,6 +61,12 @@ class LocalDatabaseHelper {
   static const colLocWrhName = 'warehouseName';
   static const colLocType = 'locationType';
   static const colLocTypeName = 'locationTypeName';
+
+  // tbl_products columns
+  static const colProdCode = 'productCode';
+  static const colProdDesc = 'productDescription';
+  static const colProdStu = 'stockUnit';
+  static const colProdSau = 'salesUnit';
 
   // tbl_cached_users columns
   static const colUserUsername = 'username';
@@ -152,6 +159,33 @@ class LocalDatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_details_reconciliation ON $tableDetails($colDetSoNum, $colDetItemCode)',
       );
     }
+
+    if (oldVersion < 11) {
+      print('DB Upgrade: Creating Product Master table (v11)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableProducts (
+          $colProdCode TEXT PRIMARY KEY,
+          $colProdDesc TEXT,
+          $colProdStu TEXT,
+          $colProdSau TEXT
+        )
+      ''');
+    }
+
+    if (oldVersion < 12) {
+      print('DB Upgrade: Adding UNIQUE constraints for incremental sync (v12)');
+      // SQLite doesn't support directly adding constraints to existing tables easily
+      // We will create temporary tables or just ensure indexes exist if they are enough,
+      // but for proper UPSERT (ConflictAlgorithm.replace), we need UNIQUE constraints.
+
+      // For Orders
+      await db.execute(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unq_num ON $tableOrders($colOrderNum)');
+
+      // For Details
+      await db.execute(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_details_unq_composite ON $tableDetails($colDetSoNum, $colDetItemCode)');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -172,7 +206,7 @@ class LocalDatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableOrders (
         $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
-        $colOrderNum TEXT,
+        $colOrderNum TEXT UNIQUE,
         $colPoNum TEXT,
         $colOrderDate TEXT,
         $colDeliveryDate TEXT,
@@ -197,7 +231,8 @@ class LocalDatabaseHelper {
         $colDetBarcodeType TEXT,
         $colDetQuantity REAL,
         manufactured REAL DEFAULT 0,
-        remaining REAL DEFAULT 0
+        remaining REAL DEFAULT 0,
+        UNIQUE($colDetSoNum, $colDetItemCode)
       )
     ''');
 
@@ -261,6 +296,15 @@ class LocalDatabaseHelper {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_details_reconciliation ON $tableDetails($colDetSoNum, $colDetItemCode)',
     );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableProducts (
+        $colProdCode TEXT PRIMARY KEY,
+        $colProdDesc TEXT,
+        $colProdStu TEXT,
+        $colProdSau TEXT
+      )
+    ''');
   }
 
   // Insert a scan record
@@ -409,32 +453,53 @@ class LocalDatabaseHelper {
     required List<Map<String, dynamic>> customers,
     required List<Map<String, dynamic>> reps,
     required List<Map<String, dynamic>> locations,
+    required List<Map<String, dynamic>> products,
+    bool incremental = true,
   }) async {
     Database db = await instance.database;
 
     await db.transaction((txn) async {
-      // 1. SELECTIVE CLEANUP
-      // Note: Delete details FIRST while we can still join with the Orders table to find "External" ones
-      await txn.rawDelete('''
-        DELETE FROM $tableDetails 
-        WHERE $colDetSoNum IN (
-          SELECT $colOrderNum FROM $tableOrders WHERE $colSource = 'External'
-        )
-      ''');
+      // 1. SELECTIVE CLEANUP (or full wipe if not incremental)
+      if (!incremental) {
+        // Full wipe if requested
+        await txn.delete(tableOrders); // Wipes all orders, including internal
+        await txn.delete(tableDetails); // Wipes all details
+        await txn.delete(tableCustomers);
+        await txn.delete(tableReps);
+        await txn.delete(tableLocations);
+        await txn.delete(tableProducts);
+      } else {
+        // Incremental cleanup: Only remove external orders and their details
+        // that are no longer present in the incoming data.
+        // For now, we'll stick to the previous selective delete for external orders
+        // and rely on ConflictAlgorithm.replace for updates/inserts.
+        // Note: Delete details FIRST while we can still join with the Orders table to find "External" ones
+        await txn.rawDelete('''
+          DELETE FROM $tableDetails 
+          WHERE $colDetSoNum IN (
+            SELECT $colOrderNum FROM $tableOrders WHERE $colSource = 'External'
+          )
+        ''');
 
-      // Now delete "External" (Sage) header/denormalized rows. Preserve "Internal" local entries.
-      await txn.delete(
-        tableOrders,
-        where: '$colSource = ?',
-        whereArgs: ['External'],
-      );
+        // Now delete "External" (Sage) header/denormalized rows. Preserve "Internal" local entries.
+        await txn.delete(
+          tableOrders,
+          where: '$colSource = ?',
+          whereArgs: ['External'],
+        );
 
-      // Clear lookup mirrors (these are always full refreshed from API)
-      await txn.delete(tableCustomers);
-      await txn.delete(tableReps);
-      await txn.delete(tableLocations);
+        // For lookup tables (customers, reps, locations, products),
+        // ConflictAlgorithm.replace handles updates for existing items.
+        // To remove items no longer present, a full clear and re-insert is simpler
+        // than complex diffing logic for these smaller tables.
+        // So, for now, we'll keep clearing them even in incremental mode.
+        await txn.delete(tableCustomers);
+        await txn.delete(tableReps);
+        await txn.delete(tableLocations);
+        await txn.delete(tableProducts);
+      }
 
-      // 2. Batch Insert new data
+      // 2. Batch Insert new data (UPSERT via ConflictAlgorithm.replace)
       Batch batch = txn.batch();
 
       try {
@@ -473,15 +538,42 @@ class LocalDatabaseHelper {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+        for (var product in products) {
+          batch.insert(
+            tableProducts,
+            product,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
 
         await batch.commit(noResult: true);
         print(
-          "Data Sync Storage: Selective refresh complete. Inserted ${orders.length} orders and ${details.length} details.",
+          "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, and ${products.length} products.",
         );
       } catch (e) {
-        print("CRITICAL: Error during selective batch insertion: $e");
+        print("CRITICAL: Error during batch insertion: $e");
         rethrow;
       }
     });
+  }
+
+  Future<bool> isValidProduct(String code) async {
+    final db = await instance.database;
+    final results = await db.query(
+      tableProducts,
+      where: '$colProdCode = ?',
+      whereArgs: [code],
+    );
+    return results.isNotEmpty || code == 'BLK' || code == 'CUT';
+  }
+  Future<Map<String, dynamic>?> getProductByCode(String code) async {
+    final db = await instance.database;
+    final results = await db.query(
+      tableProducts,
+      where: '$colProdCode = ?',
+      whereArgs: [code],
+    );
+    if (results.isEmpty) return null;
+    return results.first;
   }
 }

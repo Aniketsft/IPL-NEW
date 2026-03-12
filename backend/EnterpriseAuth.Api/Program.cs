@@ -7,6 +7,7 @@ using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Infrastructure.Security;
 using EnterpriseAuth.Api.Core.Application.Services;
+using EnterpriseAuth.Api.Core.Application.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -79,6 +80,9 @@ builder.Services.AddScoped<ISyncRepository, EfSyncRepository>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Configure SyncSettings
+builder.Services.Configure<SyncSettings>(builder.Configuration.GetSection("SyncSettings"));
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");

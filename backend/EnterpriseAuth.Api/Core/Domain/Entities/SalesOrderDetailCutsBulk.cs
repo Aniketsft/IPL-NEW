@@ -10,6 +10,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string Description { get; set; } = string.Empty;
         public string BarcodeType { get; set; } = "Variable Weight";
         public decimal Quantity { get; set; }
+        public decimal ManufacturedQuantity { get; set; } = 0; // Accumulated weight from synced scans
         
         // Enterprise Metadata
         public string? SyncStatus { get; set; } // 'Synced', 'Local'

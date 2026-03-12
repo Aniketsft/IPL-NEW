@@ -6,6 +6,7 @@ import '../../domain/entities/sales_order.dart';
 import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
 import 'new_cuts_bulk_screen.dart';
+import '../widgets/sync_overlay.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
   const ViewSalesOrderScreen({super.key});
@@ -27,15 +28,61 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   String? _selectedSM2Code;
 
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentOffset = 0;
   bool _isLoadingLookups = false;
   String? _errorMessage;
   bool _isFilterExpanded = false;
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  List<SalesOrder> _filteredOrders = [];
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
+    _searchController.addListener(_onSearchChanged);
     _loadLookups();
     _fetchOrders();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _applyLocalFilters();
+  }
+
+  void _applyLocalFilters() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredOrders = List.from(_orders);
+      } else {
+        _filteredOrders = _orders.where((o) {
+          final matchesSearch = o.orderNumber.toLowerCase().contains(query) ||
+              o.customerName.toLowerCase().contains(query) ||
+              o.customerCode.toLowerCase().contains(query);
+          return matchesSearch;
+        }).toList();
+      }
+    });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _fetchMoreOrders();
+    }
   }
 
   Future<void> _loadLookups() async {
@@ -59,6 +106,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   Future<void> _fetchOrders() async {
     setState(() {
       _isLoading = true;
+      _currentOffset = 0;
+      _hasMore = true;
       _errorMessage = null;
     });
 
@@ -71,10 +120,14 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         customerCode: _selectedCustomerCode,
         rep0: _selectedSM1Code,
         rep1: _selectedSM2Code,
+        limit: 100,
+        offset: 0,
       );
 
       setState(() {
         _orders = results;
+        _applyLocalFilters();
+        _hasMore = results.length == 100;
         _isLoading = false;
       });
     } catch (e) {
@@ -82,6 +135,42 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         _isLoading = false;
         _errorMessage = e.toString();
       });
+    }
+  }
+
+  Future<void> _fetchMoreOrders() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final nextOffset = _currentOffset + 100;
+
+      final results = await repository.fetchSalesOrderHeaders(
+        status: _status,
+        date: _selectedDate,
+        customerCode: _selectedCustomerCode,
+        rep0: _selectedSM1Code,
+        rep1: _selectedSM2Code,
+        limit: 100,
+        offset: nextOffset,
+      );
+
+      setState(() {
+        _orders.addAll(results);
+        _applyLocalFilters();
+        _currentOffset = nextOffset;
+        _hasMore = results.length == 100;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+      debugPrint('Error loading more orders: $e');
     }
   }
 
@@ -118,39 +207,53 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          SyncStatusHeader(lastSync: _lastSync),
-          _buildFilterHeader(),
-          if (_isFilterExpanded) _buildFilters(dark800, orange),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: orange))
-                : _errorMessage != null
-                ? Center(
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  )
-                : _orders.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No orders found',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _orders.length,
-                    padding: const EdgeInsets.only(bottom: 20),
-                    itemBuilder: (context, index) {
-                      return SalesOrderCard(
-                        order: _orders[index],
-                        onRefresh: _fetchOrders,
-                      );
-                    },
-                  ),
+          Column(
+            children: [
+              SyncStatusHeader(lastSync: _lastSync),
+              _buildFilterHeader(),
+              if (_isFilterExpanded) _buildFilters(dark800, orange),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: orange))
+                    : _errorMessage != null
+                    ? Center(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      )
+                    : _orders.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No orders found',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _filteredOrders.length + (_hasMore ? 1 : 0),
+                        padding: const EdgeInsets.only(bottom: 20),
+                        itemBuilder: (context, index) {
+                          if (index == _filteredOrders.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: CircularProgressIndicator(color: orange),
+                              ),
+                            );
+                          }
+                          return SalesOrderCard(
+                            order: _filteredOrders[index],
+                            onRefresh: _fetchOrders,
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
+          const SyncOverlay(),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -216,6 +319,23 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                 backgroundColor: Colors.white10,
               ),
             ),
+          TextField( // New search bar
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Search order number or customer...',
+              hintStyle: const TextStyle(color: Colors.white54),
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: const Color(0xFF2C2C2E),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(child: _buildDatePicker(orange)),
@@ -253,7 +373,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _buildStatusToggle(orange),
+          _buildStatusToggle(orange), // Use the new status toggle
           const SizedBox(height: 16),
           Row(
             children: [
@@ -266,6 +386,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                       _selectedSM2Code = null;
                       _selectedDate = null;
                       _status = 'all';
+                      _searchController.clear();
                     });
                     _fetchOrders();
                   },

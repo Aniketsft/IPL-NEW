@@ -6,7 +6,17 @@ class GetSalesOrderHeadersUseCase {
 
   GetSalesOrderHeadersUseCase(this._repository);
 
-  Future<List<SalesOrder>> execute({String status = 'all', DateTime? date}) {
-    return _repository.fetchSalesOrderHeaders(status: status, date: date);
+  Future<List<SalesOrder>> execute({
+    String status = 'all',
+    DateTime? date,
+    int limit = 100,
+    int offset = 0,
+  }) {
+    return _repository.fetchSalesOrderHeaders(
+      status: status,
+      date: date,
+      limit: limit,
+      offset: offset,
+    );
   }
 }

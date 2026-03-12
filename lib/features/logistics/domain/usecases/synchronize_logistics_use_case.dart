@@ -1,4 +1,5 @@
 import '../repositories/ilogistics_repository.dart';
+import '../entities/sync_progress.dart';
 
 class SynchronizeLogisticsUseCase {
   final ILogisticsRepository _repository;
@@ -7,5 +8,9 @@ class SynchronizeLogisticsUseCase {
 
   Future<void> execute() async {
     return await _repository.synchronize();
+  }
+
+  Stream<SyncProgress> executeWithProgress() {
+    return _repository.synchronizeWithProgress();
   }
 }

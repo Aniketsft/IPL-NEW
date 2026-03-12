@@ -42,13 +42,28 @@ class SalesOrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    order.orderNumber,
-                    style: const TextStyle(
-                      color: orange,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      letterSpacing: 1.1,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            order.orderNumber,
+                            style: const TextStyle(
+                              color: orange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 1.1,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.cloud_done_rounded,
+                          size: 14,
+                          color: Colors.green.withOpacity(0.5),
+                        ),
+                      ],
                     ),
                   ),
                   Container(
@@ -59,10 +74,10 @@ class SalesOrderCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: order.isClosed
                           ? Colors.grey.withOpacity(0.2)
-                          : orange.withOpacity(0.2),
+                          : orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: order.isClosed ? Colors.grey : orange,
+                        color: order.isClosed ? Colors.grey : orange.withOpacity(0.5),
                         width: 1,
                       ),
                     ),
@@ -70,7 +85,7 @@ class SalesOrderCard extends StatelessWidget {
                       order.isClosed ? 'CLOSED' : 'OPEN',
                       style: TextStyle(
                         color: order.isClosed ? Colors.grey : orange,
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
                       ),
@@ -86,6 +101,8 @@ class SalesOrderCard extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   fontSize: 17,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 12),
               if (order.soDate != null) ...[
