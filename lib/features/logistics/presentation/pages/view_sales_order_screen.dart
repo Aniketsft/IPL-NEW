@@ -17,7 +17,7 @@ class ViewSalesOrderScreen extends StatefulWidget {
 
 class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   DateTime? _selectedDate;
-  String _status = 'all';
+  String _status = 'open';
   List<SalesOrder> _orders = [];
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];

@@ -135,8 +135,8 @@ class DeliveryRepository implements ILogisticsRepository {
       List<dynamic> whereArgs = [];
 
       if (status == 'open') {
-        whereClause += ' AND ${LocalDatabaseHelper.colStatus} = ?';
-        whereArgs.add(1);
+        whereClause += ' AND (${LocalDatabaseHelper.colStatus} IS NULL OR ${LocalDatabaseHelper.colStatus} != ?)';
+        whereArgs.add(2);
       } else if (status == 'closed') {
         whereClause += ' AND ${LocalDatabaseHelper.colStatus} = ?';
         whereArgs.add(2);
@@ -175,6 +175,15 @@ class DeliveryRepository implements ILogisticsRepository {
       await _dio.post(
         'Logistics/close-order/$soNumber',
         queryParameters: {'closedBy': closedBy},
+      );
+
+      // Also update local DB so the status change reflects immediately
+      final db = await LocalDatabaseHelper.instance.database;
+      await db.update(
+        LocalDatabaseHelper.tableOrders,
+        {LocalDatabaseHelper.colStatus: 2, LocalDatabaseHelper.colStatusLabel: 'Closed'},
+        where: '${LocalDatabaseHelper.colOrderNum} = ?',
+        whereArgs: [soNumber],
       );
     } catch (e) {
       throw 'Failed to close order: $e';
