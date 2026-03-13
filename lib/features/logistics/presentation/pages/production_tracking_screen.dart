@@ -128,13 +128,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           }
 
           // RULE 2: RECONCILIATION / OVER-SCAN (Zero-Tolerance)
-          final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
-          if (weight > remaining + 0.001) { // Strict zero-tolerance
-            _showErrorDialog(
-              'Limit Exceeded',
-              'Scanning ${weight.toStringAsFixed(2)} KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
-            );
-            return;
+          // CB (Cut/Bulk) orders have no ordered quantity limit — manufactured can exceed ordered
+          final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
+          if (!isCutBulkOrder) {
+            final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+            if (weight > remaining + 0.001) { // Strict zero-tolerance
+              _showErrorDialog(
+                'Limit Exceeded',
+                'Scanning ${weight.toStringAsFixed(2)} KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
+              );
+              return;
+            }
           }
 
           setState(() {
@@ -437,13 +441,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   void _addManualOneKg() {
-    final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
-    if (1.0 > remaining + 0.001) {
-      _showErrorDialog(
-        'Limit Exceeded',
-        'Adding 1.00 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
-      );
-      return;
+    // CB (Cut/Bulk) orders have no ordered quantity limit
+    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
+    if (!isCutBulkOrder) {
+      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+      if (1.0 > remaining + 0.001) {
+        _showErrorDialog(
+          'Limit Exceeded',
+          'Adding 1.00 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
+        );
+        return;
+      }
     }
 
     setState(() {

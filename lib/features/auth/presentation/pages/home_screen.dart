@@ -2,16 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/receipt_screen.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
-import 'package:enterprise_auth_mobile/features/inventory/ui/screens/stock_control_screen.dart';
-import 'package:enterprise_auth_mobile/features/inventory/ui/screens/picking_screen.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/by_identifier_screen.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufacturing_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_modules_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/ui/widgets/processing_simulator_dialog.dart';
 
 class HomeScreen extends StatelessWidget {
   final String username;
@@ -98,14 +94,16 @@ class HomeScreen extends StatelessWidget {
           context,
           'Receipt',
           Icons.receipt_long_rounded,
-          const ReceiptScreen(),
+          null, //const ReceiptScreen(),
+          onTapOverride: () => _simulateModuleWork(context, 'Receipt'),
         ),
       if (_hasAccess('logistics', 'delivery'))
         _buildMenuButton(
           context,
           'Delivery',
           Icons.local_shipping_rounded,
-          const DeliveryScreen(),
+          null, //const DeliveryScreen(),
+          onTapOverride: () => _simulateModuleWork(context, 'Delivery'),
         ),
       if (_hasAccess('manufacturing', 'dashboard'))
         _buildMenuButton(
@@ -119,14 +117,16 @@ class HomeScreen extends StatelessWidget {
           context,
           'Stock control',
           Icons.grid_view_rounded,
-          const StockControlScreen(),
+          null, //const StockControlScreen(),
+          onTapOverride: () => _simulateModuleWork(context, 'Stock control'),
         ),
       if (_hasAccess('inventory', 'picking'))
         _buildMenuButton(
           context,
           'Picking',
           Icons.pan_tool_alt_rounded,
-          const PickingScreen(),
+          null, //const PickingScreen(),
+          onTapOverride: () => _simulateModuleWork(context, 'Picking'),
         ),
       if (_hasAccess('settings', 'general'))
         _buildMenuButton(
@@ -140,7 +140,8 @@ class HomeScreen extends StatelessWidget {
           context,
           'Transfer',
           Icons.swap_horiz_rounded,
-          const TransferScreen(),
+          null, //const TransferScreen(),
+          onTapOverride: () => _simulateModuleWork(context, 'Transfer'),
         ),
       if (_hasAccess('administration', 'user_management'))
         _buildMenuButton(
@@ -182,6 +183,21 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _simulateModuleWork(BuildContext context, String title) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ProcessingSimulatorDialog(
+        title: 'Loading $title...',
+        duration: const Duration(seconds: 15),
+      ),
+    );
+
+    // After loading, stay on home screen (the dialog closing is enough if we use it from home)
+    // The user also mentioned "parent product componet product work order in manufacturing... these all should return to the home page"
+    // So for Manufacturing, they should return home. For Home screen, staying on home is "returning home".
+  }
+
   Widget _buildRestrictedUI(String title, String message) {
     return Center(
       child: Padding(
@@ -220,14 +236,21 @@ class HomeScreen extends StatelessWidget {
     BuildContext context,
     String title,
     IconData icon,
-    Widget screen,
-  ) {
+    Widget? screen, {
+    VoidCallback? onTapOverride,
+  }) {
     return Material(
       color: const Color(0xFF1E1E1E),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: () =>
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
+        onTap:
+            onTapOverride ??
+            (screen != null
+                ? () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => screen),
+                  )
+                : null),
         borderRadius: BorderRadius.circular(8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -23,20 +23,35 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     emit(const SyncInProgress(0.0, 'Initializing sync...'));
 
     await _progressSubscription?.cancel();
+
+    // Use a Completer to await the stream's natural completion.
+    // Previously, both executeWithProgress() AND execute() were called
+    // concurrently, causing a double-sync race condition that zeroed
+    // manufactured quantities.
+    final completer = Completer<void>();
+    String? syncError;
+
     _progressSubscription = _synchronizeLogisticsUseCase.executeWithProgress().listen(
       (progress) {
         add(SyncProgressUpdated(progress.progress, progress.status));
       },
+      onError: (e) {
+        syncError = e.toString();
+        if (!completer.isCompleted) completer.complete();
+      },
+      onDone: () {
+        if (!completer.isCompleted) completer.complete();
+      },
     );
 
-    try {
-      await _synchronizeLogisticsUseCase.execute();
+    await completer.future;
+    await _progressSubscription?.cancel();
+
+    if (syncError != null) {
+      emit(SyncFailure(syncError!));
+    } else {
       final lastSync = DateTime.now().toString().substring(0, 16);
       emit(SyncSuccess(lastSync));
-    } catch (e) {
-      emit(SyncFailure(e.toString()));
-    } finally {
-      await _progressSubscription?.cancel();
     }
   }
 

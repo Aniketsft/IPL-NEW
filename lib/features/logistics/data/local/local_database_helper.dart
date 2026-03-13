@@ -469,34 +469,12 @@ class LocalDatabaseHelper {
         await txn.delete(tableLocations);
         await txn.delete(tableProducts);
       } else {
-        // Incremental cleanup: Only remove external orders and their details
-        // that are no longer present in the incoming data.
-        // For now, we'll stick to the previous selective delete for external orders
-        // and rely on ConflictAlgorithm.replace for updates/inserts.
-        // Note: Delete details FIRST while we can still join with the Orders table to find "External" ones
-        await txn.rawDelete('''
-          DELETE FROM $tableDetails 
-          WHERE $colDetSoNum IN (
-            SELECT $colOrderNum FROM $tableOrders WHERE $colSource = 'External'
-          )
-        ''');
-
-        // Now delete "External" (Sage) header/denormalized rows. Preserve "Internal" local entries.
-        await txn.delete(
-          tableOrders,
-          where: '$colSource = ?',
-          whereArgs: ['External'],
-        );
-
-        // For lookup tables (customers, reps, locations, products),
-        // ConflictAlgorithm.replace handles updates for existing items.
-        // To remove items no longer present, a full clear and re-insert is simpler
-        // than complex diffing logic for these smaller tables.
-        // So, for now, we'll keep clearing them even in incremental mode.
-        await txn.delete(tableCustomers);
-        await txn.delete(tableReps);
-        await txn.delete(tableLocations);
-        await txn.delete(tableProducts);
+        // Incremental cleanup: In incremental mode, we NO LONGER delete all external orders.
+        // We rely on ConflictAlgorithm.replace to update existing records or insert new ones.
+        // This ensures that orders not included in the latest delta still persist locally.
+        
+        // Note: For lookup tables, we also skip clearing them to maintain local cache.
+        // If a full refresh of lookups is needed, the caller should pass incremental = false.
       }
 
       // 2. Batch Insert new data (UPSERT via ConflictAlgorithm.replace)

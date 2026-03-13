@@ -108,6 +108,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             package.Locations = locationsTask.Result.ToList();
             package.Products = productsTask.Result.ToList();
 
+            // 5.1 Override status from ScanProduction for orders closed via the app
+            var allSoNumbers = package.Orders.Select(o => o.SohNum).ToList();
+            if (allSoNumbers.Any())
+            {
+                var closedSoNumbers = await _scanContext.ProductionScans
+                    .Where(s => allSoNumbers.Contains(s.SoNumber) && s.OrderStatus == "2" && !s.IsDeleted)
+                    .Select(s => s.SoNumber)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var header in package.Orders)
+                {
+                    if (closedSoNumbers.Contains(header.SohNum))
+                        header.Status = 2;
+                }
+            }
+
             // 5.5 Include Cut & Bulk Entries from ScanProduction (Sequential due to DbContext thread safety)
             var cutsBulkEntities = await _scanContext.CutBulkEntries
                 .Where(e => e.SyncStatus == "Synced")
@@ -140,11 +157,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (aggregate != null)
                 {
                     detail.Manufactured = aggregate.TotalCalculated;
-                    detail.Remaining = Math.Max(0, detail.Quantity - detail.Manufactured);
+                    detail.Remaining = Math.Max(0m, (detail.Quantity ?? 0m) - detail.Manufactured);
                 }
                 else
                 {
-                    detail.Remaining = detail.Quantity;
+                    detail.Remaining = detail.Quantity ?? 0m;
                 }
             }
 
@@ -179,7 +196,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Date = cb.Date,
                     AmountKg = cb.AmountKg,
                     ManufacturedQuantity = manufactured,
-                    RemainingQuantity = Math.Max(0, cb.AmountKg - manufactured)
+                    RemainingQuantity = cb.AmountKg - manufactured  // CB orders: allow negative remaining
                 });
 
                 // Create Virtual Order Detail
@@ -193,7 +210,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         BarcodeType = "Internal",
                         Quantity = detail.Quantity,
                         Manufactured = manufactured,
-                        Remaining = Math.Max(0, detail.Quantity - manufactured)
+                        Remaining = detail.Quantity - manufactured  // Internal orders: allow over-manufacture
                     });
                 }
             }
@@ -225,9 +242,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             LineNo = scanDto.LineNo,
                             ScanAmountKg = scanDto.ScanAmountKg,
                             SoNumber = scanDto.SoNumber ?? string.Empty,
-                            OrderStatus = scanDto.OrderStatus,
+                            OrderStatus = scanDto.OrderStatus ?? "1",
                             ItemStatus = scanDto.ItemStatus ?? "Q",
-                            Location = scanDto.Location,
+                            Location = scanDto.Location ?? "",
                             Lot = scanDto.Lot,
                             CreatedBy = scanDto.CreatedBy ?? "system",
                             CreatedAt = DateTime.UtcNow
@@ -281,7 +298,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Type = cbDto.Type,
                             CustomerCode = cbDto.CustomerCode,
                             CustomerName = cbDto.CustomerName,
-                            Date = cbDto.Date,
+                            Date = cbDto.Date ?? DateTime.Now,
                             PoNumber = cbDto.PoNumber,
                             Salesman1Code = cbDto.Salesman1Code,
                             Salesman2Code = cbDto.Salesman2Code,
@@ -294,8 +311,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         var detailEntity = new SalesOrderDetailCutsBulk
                         {
                             SoNumber = cbDto.EntryNumber,
-                            ItemCode = cbDto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                            Description = cbDto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
+                            ItemCode = cbDto.ItemCode ?? (cbDto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                            Description = cbDto.ProductName ?? (cbDto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
                             Quantity = cbDto.AmountKg,
                             SyncStatus = "Synced",
                             CreatedAt = DateTime.UtcNow
@@ -303,6 +320,31 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                         _scanContext.CutBulkEntries.Add(entryEntity);
                         _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+                    }
+
+                    await _scanContext.SaveChangesAsync();
+
+                    // RECONCILIATION: Re-aggregate ManufacturedQuantity from ProductionScans
+                    // for the just-inserted detail rows. This ensures the delete-then-insert
+                    // cycle preserves accumulated scan totals (same pattern as external orders).
+                    var internalScanAggregates = await _scanContext.ProductionScans
+                        .Where(s => entryNumbersToRenew.Contains(s.SoNumber) && !s.IsDeleted)
+                        .GroupBy(s => new { s.SoNumber, s.ItemCode })
+                        .Select(g => new {
+                            g.Key.SoNumber,
+                            g.Key.ItemCode,
+                            TotalManufactured = g.Sum(s => s.ScanAmountKg)
+                        })
+                        .ToListAsync();
+
+                    foreach (var agg in internalScanAggregates)
+                    {
+                        var detail = await _scanContext.SalesOrderDetailCutsBulk
+                            .FirstOrDefaultAsync(d => d.SoNumber == agg.SoNumber && d.ItemCode == agg.ItemCode);
+                        if (detail != null)
+                        {
+                            detail.ManufacturedQuantity = agg.TotalManufactured;
+                        }
                     }
 
                     await _scanContext.SaveChangesAsync();

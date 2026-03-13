@@ -95,7 +95,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     .Sum(s => s.ScanAmountKg);
 
                 item.Manufactured = manufactured;
-                item.Remaining = item.Quantity - manufactured;
+                item.Remaining = (item.Quantity ?? 0m) - manufactured;
                 if (string.IsNullOrEmpty(item.Site)) item.Site = "IPL"; // Default
             }
 
@@ -219,28 +219,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
         {
-            if (soNumber.StartsWith("CB-"))
-            {
-                var entry = await _scanContext.CutBulkEntries.FirstOrDefaultAsync(e => e.EntryNumber == soNumber);
-                if (entry != null)
-                {
-                    return new List<SalesOrderDetailDto>
-                    {
-                        new SalesOrderDetailDto
-                        {
-                            SoNumber = entry.EntryNumber,
-                            ItemCode = entry.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                            Description = entry.Type == "Cuts" ? "Cuts" : "Bulk",
-                            BarcodeType = "Variable Weight",
-                            Quantity = 0m,
-                            Remaining = entry.AmountKg,
-                            Manufactured = 0m
-                        }
-                    };
-                }
-                return new List<SalesOrderDetailDto>();
-            }
-
             using IDbConnection db = new SqlConnection(_connectionString);
             const string sql = @"
                 SELECT 
@@ -282,7 +260,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             foreach (var detail in details)
             {
                 var scanSum = scans.FirstOrDefault(s => s.ItemCode == detail.ItemCode)?.TotalAmount ?? 0m;
-                detail.Remaining = detail.Quantity - scanSum;
+                detail.Remaining = (detail.Quantity ?? 0m) - scanSum;
                 detail.Manufactured = scanSum;
             }
 
@@ -340,43 +318,66 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         }
         public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
         {
-            var today = DateTime.Now;
-            var dateStr = today.ToString("yyyyMMdd");
-            
-            // Simple unique ID logic: count today's entries
-            int count = _scanContext.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
-            string entryNumber = $"CB-{dateStr}-{(count + 1):D4}";
+            string soNumber = dto.ExistingSoNumber;
+            bool isNew = string.IsNullOrEmpty(soNumber);
 
-            var entryEntity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
+            if (isNew)
             {
-                EntryNumber = entryNumber,
-                Type = dto.Type,
-                CustomerCode = dto.CustomerCode,
-                CustomerName = dto.CustomerName,
-                Date = dto.Date,
-                PoNumber = dto.PoNumber,
-                Salesman1Code = dto.Salesman1Code,
-                Salesman2Code = dto.Salesman2Code,
-                AmountKg = dto.AmountKg,
-                SyncStatus = "Local",
-                SyncTimestamp = DateTime.UtcNow
-            };
+                var today = DateTime.Now;
+                var dateStr = today.ToString("yyyyMMdd");
+                
+                // Simple unique ID logic: count today's entries
+                int count = _scanContext.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
+                soNumber = $"CB-{dateStr}-{(count + 1):D4}";
 
-            var detailEntity = new SalesOrderDetailCutsBulk
+                var entryEntity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
+                {
+                    EntryNumber = soNumber,
+                    Type = dto.Type,
+                    CustomerCode = dto.CustomerCode ?? string.Empty,
+                    CustomerName = dto.CustomerName ?? string.Empty,
+                    Date = dto.Date ?? DateTime.Now,
+                    PoNumber = dto.PoNumber,
+                    Salesman1Code = dto.Salesman1Code,
+                    Salesman2Code = dto.Salesman2Code,
+                    AmountKg = dto.AmountKg,
+                    SyncStatus = "Local",
+                    SyncTimestamp = DateTime.UtcNow
+                };
+
+                var detailEntity = new SalesOrderDetailCutsBulk
+                {
+                    SoNumber = soNumber,
+                    ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                    Description = !string.IsNullOrEmpty(dto.ProductName) ? dto.ProductName : (dto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
+                    Quantity = 0m, // Ordered amount must always be zero for Cut/Bulk entries
+                    SyncStatus = "Local",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _scanContext.CutBulkEntries.Add(entryEntity);
+                _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+            }
+
+            // Always create a production scan for this entry to update manufactured quantity
+            var scan = new ProductionScan
             {
-                SoNumber = entryNumber,
-                ItemCode = dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK",
-                Description = dto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk",
-                Quantity = dto.AmountKg,
-                SyncStatus = "Local",
+                SoNumber = soNumber,
+                ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                ScanAmountKg = dto.AmountKg,
+                LineNo = 1,
+                OrderStatus = "1", // Open
+                ItemStatus = "A",   // Accepted
+                Location = "PROD",
+                Lot = "INTERNAL",
+                CreatedBy = "mobile-user",
                 CreatedAt = DateTime.UtcNow
             };
 
-            _scanContext.CutBulkEntries.Add(entryEntity);
-            _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+            _scanContext.ProductionScans.Add(scan);
             await _scanContext.SaveChangesAsync();
 
-            return entryNumber;
+            return soNumber;
         }
 
         public async Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scanDto)
@@ -390,9 +391,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LineNo = scanDto.LineNo,
                     ScanAmountKg = scanDto.ScanAmountKg,
                     SoNumber = scanDto.SoNumber ?? string.Empty,
-                    OrderStatus = scanDto.OrderStatus,
+                    OrderStatus = scanDto.OrderStatus ?? "1",
                     ItemStatus = scanDto.ItemStatus ?? "Q",
-                    Location = scanDto.Location,
+                    Location = scanDto.Location ?? string.Empty,
                     Lot = scanDto.Lot,
                     CreatedBy = scanDto.CreatedBy ?? "system",
                     CreatedAt = DateTime.UtcNow

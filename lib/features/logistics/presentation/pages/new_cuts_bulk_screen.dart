@@ -14,15 +14,20 @@ class NewCutsBulkScreen extends StatefulWidget {
 class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts' or 'bulks'
   DateTime? _date = DateTime.now();
-  final TextEditingController _poController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController();
+  bool _isNewSO = true; // Toggle: new SO vs existing SO
 
   String? _selectedCustomerCode;
   String? _selectedSM1Code;
   String? _selectedSM2Code;
+  String? _selectedProductCode;
+  String? _selectedProductName;
+  String? _selectedExistingSO;
+  // Amount is always 0 for Cut/Bulk — not user-editable
 
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
+  List<Map<String, String>> _productsList = [];
+  List<Map<String, String>> _existingSOsList = [];
 
   @override
   void initState() {
@@ -35,10 +40,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       final repository = context.read<DeliveryRepository>();
       final customers = await repository.getCustomers();
       final reps = await repository.getSalesReps();
+      final products = await repository.getProducts();
+      final existingSOs = await repository.getExistingCutBulkSOs();
 
       setState(() {
         _customersList = customers;
         _salesRepsList = reps;
+        _productsList = products;
+        _existingSOsList = existingSOs;
       });
     } catch (e) {
       if (mounted) {
@@ -49,48 +58,53 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _poController.dispose();
-    _amountController.dispose();
-    super.dispose();
-  }
-
   Future<void> _handleSave() async {
-    if (_selectedCustomerCode == null) {
+    if (_selectedProductCode == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a customer')));
+      ).showSnackBar(const SnackBar(content: Text('Please select a product')));
       return;
     }
 
-    if (_amountController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter amount')));
-      return;
+    const amount = 0.0; // Cut/Bulk always starts at zero
+
+    if (_isNewSO) {
+      // New SO: require customer
+      if (_selectedCustomerCode == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a customer')),
+        );
+        return;
+      }
+    } else {
+      // Existing SO: require SO selection
+      if (_selectedExistingSO == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select an existing SO')),
+        );
+        return;
+      }
     }
 
-    final amount = double.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid positive amount')),
-      );
-      return;
-    }
-
-    final customer = _customersList.firstWhere(
-      (c) => c['code'] == _selectedCustomerCode,
-    );
+    final customer = _isNewSO
+        ? _customersList.firstWhere(
+            (c) => c['code'] == _selectedCustomerCode,
+          )
+        : <String, String>{};
 
     final entry = {
       'type': _mode == 'cuts' ? 'Cuts' : 'Bulks',
-      'customerCode': _selectedCustomerCode,
-      'customerName': customer['name'],
-      'date': _date?.toIso8601String(),
-      'poNumber': _poController.text,
-      'salesman1Code': _selectedSM1Code,
-      'salesman2Code': _selectedSM2Code,
+      'productCode': _selectedProductCode,
+      'productName': _selectedProductName,
+      if (_isNewSO) ...{
+        'customerCode': _selectedCustomerCode,
+        'customerName': customer['name'],
+        'date': _date?.toIso8601String(),
+        'salesman1Code': _selectedSM1Code,
+        'salesman2Code': _selectedSM2Code,
+      },
+      if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
+      'amount': amount,
       'amountKg': amount,
     };
 
@@ -100,7 +114,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved successfully! Entry No: $entryNo')),
+          SnackBar(content: Text('Saved successfully! SO: $entryNo')),
         );
         Navigator.pop(context, true); // Return true to trigger refresh
       }
@@ -128,43 +142,81 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
               children: [
                 _buildModeToggle(orange),
                 const SizedBox(height: 24),
+                _buildSOToggle(orange),
+                const SizedBox(height: 24),
                 _buildSectionHeader('Details', Icons.keyboard_arrow_up),
                 const SizedBox(height: 16),
-                _buildLabel('Customer *'),
+                if (!_isNewSO) ...[
+                  _buildLabel('Select Existing SO *'),
+                  _buildPickerTile(
+                    'Existing SO',
+                    _selectedExistingSO,
+                    _existingSOsList,
+                    (val) => setState(() => _selectedExistingSO = val),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (_isNewSO) ...[
+                  _buildLabel('Customer *'),
+                  _buildPickerTile(
+                    'Customer',
+                    _selectedCustomerCode,
+                    _customersList,
+                    (val) => setState(() => _selectedCustomerCode = val),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Date'),
+                  _buildDatePicker(orange),
+                  const SizedBox(height: 16),
+                ],
+                _buildLabel('Product *'),
                 _buildPickerTile(
-                  'Customer',
-                  _selectedCustomerCode,
-                  _customersList,
-                  (val) => setState(() => _selectedCustomerCode = val),
+                  'Product',
+                  _selectedProductCode,
+                  _productsList,
+                  (val) {
+                    final product = _productsList.firstWhere(
+                      (p) => p['code'] == val,
+                      orElse: () => {},
+                    );
+                    setState(() {
+                      _selectedProductCode = val;
+                      _selectedProductName = product['name'];
+                    });
+                  },
                 ),
+                if (_isNewSO) ...[
+                  const SizedBox(height: 16),
+                  _buildLabel('Salesman 1'),
+                  _buildPickerTile(
+                    'Salesman 1',
+                    _selectedSM1Code,
+                    _salesRepsList,
+                    (val) => setState(() => _selectedSM1Code = val),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Salesman 2'),
+                  _buildPickerTile(
+                    'Salesman 2',
+                    _selectedSM2Code,
+                    _salesRepsList,
+                    (val) => setState(() => _selectedSM2Code = val),
+                  ),
+                ],
                 const SizedBox(height: 16),
-                _buildLabel('Date'),
-                _buildDatePicker(orange),
-                const SizedBox(height: 16),
-                _buildLabel('Amount (kg) *'),
-                _buildTextField(
-                  _amountController,
-                  'Enter Amount',
-                  isNumeric: true,
-                ),
-                const SizedBox(height: 16),
-                _buildLabel('PO Number'),
-                _buildTextField(_poController, 'Enter PO Number'),
-                const SizedBox(height: 16),
-                _buildLabel('Salesman 1'),
-                _buildPickerTile(
-                  'Salesman 1',
-                  _selectedSM1Code,
-                  _salesRepsList,
-                  (val) => setState(() => _selectedSM1Code = val),
-                ),
-                const SizedBox(height: 16),
-                _buildLabel('Salesman 2'),
-                _buildPickerTile(
-                  'Salesman 2',
-                  _selectedSM2Code,
-                  _salesRepsList,
-                  (val) => setState(() => _selectedSM2Code = val),
+                _buildLabel('Amount (Kg)'),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  ),
+                  child: const Text(
+                    '0.00',
+                    style: TextStyle(color: Colors.white38, fontSize: 14),
+                  ),
                 ),
                 const SizedBox(height: 100), // Space for bottom bar
               ],
@@ -192,11 +244,62 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     );
   }
 
+  Widget _buildSOToggle(Color orange) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          _buildSOToggleButton(true, 'New SO', orange),
+          _buildSOToggleButton(false, 'Existing SO', orange),
+        ],
+      ),
+    );
+  }
+
   Widget _buildToggleButton(String key, String label, Color orange) {
     final isSelected = _mode == key;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _mode = key),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF2C2C2E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? orange : Colors.white38,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSOToggleButton(bool isNew, String label, Color orange) {
+    final isSelected = _isNewSO == isNew;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _isNewSO = isNew;
+          // Reset selection when toggling
+          if (isNew) {
+            _selectedExistingSO = null;
+          } else {
+            _selectedCustomerCode = null;
+            _selectedSM1Code = null;
+            _selectedSM2Code = null;
+          }
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
@@ -240,36 +343,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       child: Text(
         text,
         style: const TextStyle(color: Colors.white70, fontSize: 13),
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    TextEditingController controller,
-    String hint, {
-    bool isNumeric = false,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumeric
-            ? const TextInputType.numberWithOptions(decimal: true)
-            : TextInputType.text,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
       ),
     );
   }

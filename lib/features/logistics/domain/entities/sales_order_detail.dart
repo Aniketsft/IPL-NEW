@@ -45,7 +45,10 @@ class SalesOrderDetail {
     required this.manufacturedQuantity,
   });
 
-  double get progress => quantity > 0 ? manufacturedQuantity / quantity : 0.0;
+  // CB orders: quantity=0, manufactured grows freely. Show 100% if any production happened.
+  double get progress => quantity > 0
+      ? manufacturedQuantity / quantity
+      : (manufacturedQuantity > 0 ? 1.0 : 0.0);
 
   String get remainingDisplay {
     if (remaining < 0) {

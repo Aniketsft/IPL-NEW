@@ -244,29 +244,68 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  // --- PRODUCT & SO LOOKUP ---
+
+  Future<List<Map<String, String>>> getProducts() async {
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
+      final rows = await db.query(LocalDatabaseHelper.tableProducts);
+      return rows.map((r) => {
+        'code': r[LocalDatabaseHelper.colProdCode]?.toString() ?? '',
+        'name': r[LocalDatabaseHelper.colProdDesc]?.toString() ?? '',
+      }).toList();
+    } catch (e) {
+      throw 'Failed to fetch products from local DB: $e';
+    }
+  }
+
+  Future<List<Map<String, String>>> getExistingCutBulkSOs() async {
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
+      final rows = await db.query(
+        LocalDatabaseHelper.tableOrders,
+        where: "${LocalDatabaseHelper.colOrderNum} LIKE 'CB-%'",
+        orderBy: '${LocalDatabaseHelper.colOrderNum} DESC',
+      );
+      return rows.map((r) => {
+        'code': r[LocalDatabaseHelper.colOrderNum]?.toString() ?? '',
+        'name': '${r[LocalDatabaseHelper.colCustomerName] ?? ''} (${r[LocalDatabaseHelper.colOrderDate]?.toString().substring(0, 10) ?? ''})',
+      }).toList();
+    } catch (e) {
+      throw 'Failed to fetch existing Cut/Bulk SOs: $e';
+    }
+  }
+
+  // --- CUT/BULK SAVE ---
+
   Future<String> saveCutBulkEntry(Map<String, dynamic> entry) async {
     final db = await LocalDatabaseHelper.instance.database;
     final today = DateTime.now();
     final dateStr = DateFormat('yyyyMMdd').format(today);
 
     try {
-      // 1. Generate Local ID (CB-DATE-COUNT style to match backend expectations)
-      final existingCount =
-          Sqflite.firstIntValue(
-            await db.rawQuery(
-              'SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableOrders} WHERE ${LocalDatabaseHelper.colOrderNum} LIKE ?',
-              ['CB-$dateStr%'],
-            ),
-          ) ??
-          0;
-      final entryNo =
-          'CB-$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
+      final String entryNo;
+      final existingSo = entry['existingSoNumber'] as String?;
 
-      // 2. Save to SQLite with "Internal" flag to protect from sync-wipes
-      await db.transaction((txn) async {
-        await txn.insert(LocalDatabaseHelper.tableOrders, {
+      if (existingSo != null && existingSo.isNotEmpty) {
+        // Reuse existing SO — only add a new detail line
+        entryNo = existingSo;
+      } else {
+        // Generate new SO number
+        final existingCount =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableOrders} WHERE ${LocalDatabaseHelper.colOrderNum} LIKE ?',
+                ['CB-$dateStr%'],
+              ),
+            ) ??
+            0;
+        entryNo =
+            'CB-$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
+
+        // Insert header for new SO
+        await db.insert(LocalDatabaseHelper.tableOrders, {
           LocalDatabaseHelper.colOrderNum: entryNo,
-          LocalDatabaseHelper.colPoNum: entry['poNumber'],
           LocalDatabaseHelper.colOrderDate: entry['date'],
           LocalDatabaseHelper.colDeliveryDate: entry['date'],
           LocalDatabaseHelper.colCustomerCode: entry['customerCode'],
@@ -279,24 +318,34 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.colStatusLabel: 'Open',
           LocalDatabaseHelper.columnIsSynced: 0,
         });
+      }
 
-        // Add a detail record so it shows up in tracking lists
-        await txn.insert(LocalDatabaseHelper.tableDetails, {
-          LocalDatabaseHelper.colDetSoNum: entryNo,
-          LocalDatabaseHelper.colDetItemCode: entry['type'] == 'Cuts'
-              ? 'PROD-CUT'
-              : 'PROD-BLK',
-          LocalDatabaseHelper.colDetDescription: entry['type'] == 'Cuts'
-              ? 'Internal - Cuts'
-              : 'Internal - Bulk',
-          LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
-          LocalDatabaseHelper.colDetQuantity: entry['amountKg'],
-        });
+      // Always add a detail line with the selected product
+      await db.insert(LocalDatabaseHelper.tableDetails, {
+        LocalDatabaseHelper.colDetSoNum: entryNo,
+        LocalDatabaseHelper.colDetItemCode: entry['productCode'] ?? (entry['type'] == 'Cuts' ? 'PROD-CUT' : 'PROD-BLK'),
+        LocalDatabaseHelper.colDetDescription: entry['productName'] ?? (entry['type'] == 'Cuts' ? 'Internal - Cuts' : 'Internal - Bulk'),
+        LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
+        LocalDatabaseHelper.colDetQuantity: entry['amountKg'] ?? 0, // Amount from entry
       });
 
-      // 3. Attempt to push to API (Stealth Background Sync)
+      // Mark order as unsynced if it was previously synced (adding new detail)
+      if (existingSo != null && existingSo.isNotEmpty) {
+        await db.update(
+          LocalDatabaseHelper.tableOrders,
+          {LocalDatabaseHelper.columnIsSynced: 0},
+          where: '${LocalDatabaseHelper.colOrderNum} = ?',
+          whereArgs: [entryNo],
+        );
+      }
+
+      // Attempt to push to API (Stealth Background Sync)
       try {
-        await _dio.post('Logistics/cut-bulk', data: entry);
+        await _dio.post('Logistics/cut-bulk', data: {
+          ...entry,
+          'entryNumber': entryNo,
+          'amountKg': entry['amountKg'] ?? 0,
+        });
         print(
           "Offline-First: Cut/Bulk entry $entryNo successfully synced to API.",
         );
@@ -348,19 +397,23 @@ class DeliveryRepository implements ILogisticsRepository {
           'cutBulkEntries': (await Future.wait(
             unsyncedOrders.map((o) async {
               final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
-              // Fetch amount from details
+              // Fetch details for item code and amount
               final details = await LocalDatabaseHelper.instance
                   .getSalesOrderDetails(soNum);
               double amount = 0;
+              String? itemCode;
+              String? productName;
               if (details.isNotEmpty) {
                 amount = (details.first['quantity'] as num).toDouble();
+                itemCode = details.first['itemCode']?.toString();
+                productName = details.first['description']?.toString();
               }
 
               return {
                 'entryNumber': soNum,
                 'type': soNum.toUpperCase().contains('CUT')
                     ? 'Cuts'
-                    : 'Bulks', // Consistent with Entry generation
+                    : 'Bulks',
                 'customerCode': o[LocalDatabaseHelper.colCustomerCode],
                 'customerName': o[LocalDatabaseHelper.colCustomerName],
                 'date': o[LocalDatabaseHelper.colOrderDate],
@@ -368,6 +421,8 @@ class DeliveryRepository implements ILogisticsRepository {
                 'salesman1Code': o[LocalDatabaseHelper.colRep0],
                 'salesman2Code': o[LocalDatabaseHelper.colRep1],
                 'amountKg': amount,
+                'itemCode': itemCode,
+                'productName': productName,
               };
             }),
           )),
