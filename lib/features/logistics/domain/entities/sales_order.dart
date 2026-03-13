@@ -23,6 +23,7 @@ class SalesOrder extends Equatable {
   final bool isEditable;
   final String salesManCode1;
   final String salesManCode2;
+  final String? site;
 
   // Delivery-specific fields
   final String? deliveryNo;
@@ -51,6 +52,7 @@ class SalesOrder extends Equatable {
     this.deliverySalesman,
     this.soLorry,
     this.originalSoLorry,
+    this.site,
   });
 
   factory SalesOrder.fromDetail(SalesOrderDetail detail) {
@@ -66,6 +68,7 @@ class SalesOrder extends Equatable {
       purchaseOrderNumber: detail.poNumber,
       salesManCode1: detail.salesMan1 ?? '',
       salesManCode2: detail.salesMan2 ?? '',
+      site: detail.site,
       isClosed: false,
       isEditable: true,
     );
@@ -101,6 +104,7 @@ class SalesOrder extends Equatable {
       deliverySalesman: deliverySalesman ?? this.deliverySalesman,
       soLorry: soLorry ?? this.soLorry,
       originalSoLorry: originalSoLorry ?? this.originalSoLorry,
+      site: site ?? this.site,
     );
   }
 
@@ -124,5 +128,6 @@ class SalesOrder extends Equatable {
     deliverySalesman,
     soLorry,
     originalSoLorry,
+    site,
   ];
 }

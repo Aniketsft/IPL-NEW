@@ -1,0 +1,176 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../pages/sales_order_detail_screen.dart';
+import '../../domain/entities/sales_order.dart';
+
+class SalesOrderCard extends StatelessWidget {
+  final SalesOrder order;
+  final VoidCallback? onRefresh;
+
+  const SalesOrderCard({super.key, required this.order, this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    const orange = Color(0xFFFF9800);
+    const dark800 = Color(0xFF1E1E1E);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: dark800,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: InkWell(
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SalesOrderDetailScreen(order: order),
+            ),
+          );
+          if (result == true && onRefresh != null) {
+            onRefresh!();
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            order.orderNumber,
+                            style: const TextStyle(
+                              color: orange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 1.1,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.cloud_done_rounded,
+                          size: 14,
+                          color: Colors.green.withOpacity(0.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: order.isClosed
+                          ? Colors.grey.withOpacity(0.2)
+                          : orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: order.isClosed ? Colors.grey : orange.withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      order.isClosed ? 'CLOSED' : 'OPEN',
+                      style: TextStyle(
+                        color: order.isClosed ? Colors.grey : orange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '${order.customerCode} - ${order.customerName}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              if (order.soDate != null) ...[
+                _buildInfoRow(
+                  Icons.history_outlined,
+                  'SO Date',
+                  DateFormat('dd/MM/yyyy').format(order.soDate!),
+                ),
+                const SizedBox(height: 8),
+              ],
+              _buildInfoRow(
+                Icons.description_outlined,
+                'PO',
+                order.purchaseOrderNumber ?? 'N/A',
+              ),
+              const SizedBox(height: 8),
+              _buildInfoRow(
+                Icons.calendar_month_outlined,
+                'Del. Date',
+                order.deliveryDate,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoRow(
+                      Icons.person_outline,
+                      'SM1',
+                      order.salesManCode1,
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildInfoRow(
+                      Icons.person_outline,
+                      'SM2',
+                      order.salesManCode2,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.white38),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(color: Colors.white38, fontSize: 13),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}

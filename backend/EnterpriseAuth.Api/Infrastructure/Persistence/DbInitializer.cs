@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
@@ -12,6 +13,41 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public static async Task SeedAsync(ApplicationDbContext context, IPasswordHasher hasher)
         {
             await context.Database.EnsureCreatedAsync();
+
+            // Ensure CutBulkEntries table exists (EnsureCreated doesn't add tables to existing DBs)
+            var createTableSql = @"
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CutBulkEntries]') AND type in (N'U'))
+                BEGIN
+                    CREATE TABLE [dbo].[CutBulkEntries] (
+                        [Id] INT IDENTITY(1,1) NOT NULL,
+                        [EntryNumber] NVARCHAR(50) NOT NULL,
+                        [Type] NVARCHAR(20) NOT NULL,
+                        [CustomerCode] NVARCHAR(50) NOT NULL,
+                        [CustomerName] NVARCHAR(100) NOT NULL,
+                        [Date] DATETIME NOT NULL,
+                        [PoNumber] NVARCHAR(50) NULL,
+                        [Salesman1Code] NVARCHAR(50) NULL,
+                        [Salesman2Code] NVARCHAR(50) NULL,
+                        [AmountKg] DECIMAL(18, 2) NOT NULL,
+                        CONSTRAINT [PK_CutBulkEntries] PRIMARY KEY CLUSTERED ([Id] ASC)
+                    );
+                    CREATE UNIQUE INDEX [IX_CutBulkEntries_EntryNumber] ON [dbo].[CutBulkEntries] ([EntryNumber] ASC);
+                END";
+            
+            await context.Database.ExecuteSqlRawAsync(createTableSql);
+
+            // Reconciliation: Add missing columns if table already existed (EnsureCreated limitation)
+            var addColumnsSql = @"
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CutBulkEntries]') AND name = 'Salesman1Code')
+                BEGIN
+                    ALTER TABLE [dbo].[CutBulkEntries] ADD [Salesman1Code] NVARCHAR(50) NULL;
+                END
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CutBulkEntries]') AND name = 'Salesman2Code')
+                BEGIN
+                    ALTER TABLE [dbo].[CutBulkEntries] ADD [Salesman2Code] NVARCHAR(50) NULL;
+                END";
+            
+            await context.Database.ExecuteSqlRawAsync(addColumnsSql);
 
             // Seed Permissions (Hierarchical Tree Structure)
             // Format: Module -> SubModule(s) -> Child(ren)

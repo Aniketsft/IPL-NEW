@@ -19,6 +19,9 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/orde
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/local_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/sync/sync_manager.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/get_production_tracking_use_case.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchronize_logistics_use_case.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 
 void main() {
@@ -35,12 +38,20 @@ class MyApp extends StatelessWidget {
       providers: [
         RepositoryProvider(create: (_) => SecureStorageService()),
         RepositoryProvider(
-          create: (context) => AuthRepository(
+          create: (context) => NetworkService(
             storageService: context.read<SecureStorageService>(),
           ),
         ),
         RepositoryProvider(
-          create: (_) => enterprise_auth_mobile_repo.DeliveryRepository(),
+          create: (context) => AuthRepository(
+            networkService: context.read<NetworkService>(),
+            storageService: context.read<SecureStorageService>(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => enterprise_auth_mobile_repo.DeliveryRepository(
+            networkService: context.read<NetworkService>(),
+          ),
         ),
         RepositoryProvider(create: (_) => LocalRepository()),
         RepositoryProvider(
@@ -52,6 +63,11 @@ class MyApp extends StatelessWidget {
         ),
         RepositoryProvider(
           create: (context) => GetProductionTrackingUseCase(
+            context.read<enterprise_auth_mobile_repo.DeliveryRepository>(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => SynchronizeLogisticsUseCase(
             context.read<enterprise_auth_mobile_repo.DeliveryRepository>(),
           ),
         ),
@@ -78,6 +94,13 @@ class MyApp extends StatelessWidget {
             create: (context) => ManufacturingBloc(
               getProductionTracking: context
                   .read<GetProductionTrackingUseCase>(),
+              synchronizeLogistics: context.read<SynchronizeLogisticsUseCase>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => SyncBloc(
+              synchronizeLogisticsUseCase:
+                  context.read<SynchronizeLogisticsUseCase>(),
             ),
           ),
           BlocProvider(create: (_) => ThemeCubit()),

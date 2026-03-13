@@ -3,6 +3,7 @@ import 'package:dio/io.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/user_management.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class UserManagementRepository {
   final Dio _dio;
@@ -10,17 +11,12 @@ class UserManagementRepository {
   // if placed directly after the _dio initialization.
   // The original _baseUrl getter is kept as it is syntactically correct and functional.
   // if (!kIsWeb && Platform.isAndroid) {
-  //     return 'http://10.0.2.2:5150/api';
+  //     return 'http://10.0.2.2:5004/api';
   //   }
   //   return 'https://localhost:7176/api';
   // }
 
-  static String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:5150/api/';
-    }
-    return 'https://localhost:7176/api/';
-  }
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   UserManagementRepository()
     : _dio = Dio(

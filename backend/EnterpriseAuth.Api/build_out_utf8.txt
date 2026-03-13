@@ -1,0 +1,15 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(280,43): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(302,40): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfLogisticsRepository.cs(228,25): error CS0136: A local or parameter named 'scans' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+
+Build FAILED.
+
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(280,43): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfSyncRepository.cs(302,40): warning CS8601: Possible null reference assignment. [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\Infrastructure\Persistence\EfLogisticsRepository.cs(228,25): error CS0136: A local or parameter named 'scans' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter [C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj]
+    2 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:02.30

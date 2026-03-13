@@ -6,41 +6,143 @@ using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 
-namespace EnterpriseAuth.Api.Core.Application.Services
+namespace EnterpriseAuth.Api.Core.Application.Services;
+
+public class LogisticsService : ILogisticsService
 {
-    public class LogisticsService : ILogisticsService
+    private readonly ILogisticsRepository _logisticsRepository;
+
+    public LogisticsService(ILogisticsRepository logisticsRepository)
     {
-        private readonly ILogisticsRepository _logisticsRepository;
+        _logisticsRepository = logisticsRepository;
+    }
 
-        public LogisticsService(ILogisticsRepository logisticsRepository)
+    public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync()
+    {
+        try
         {
-            _logisticsRepository = logisticsRepository;
+            var tracking = await _logisticsRepository.GetProductionTrackingAsync();
+            return Result<IEnumerable<ProductionTrackingDto>>.Success(tracking);
         }
-
-        public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync()
+        catch (Exception ex)
         {
-            try
-            {
-                var tracking = await _logisticsRepository.GetProductionTrackingAsync();
-                return Result<IEnumerable<ProductionTrackingDto>>.Success(tracking);
-            }
-            catch (Exception ex)
-            {
-                return Result<IEnumerable<ProductionTrackingDto>>.Failure($"Failed to fetch production tracking data: {ex.Message}");
-            }
+            return Result<IEnumerable<ProductionTrackingDto>>.Failure($"Failed to fetch production tracking data: {ex.Message}");
         }
+    }
 
-        public async Task<Result<int>> SyncScansAsync(IEnumerable<ScanDto> scans)
+    public async Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
+    {
+        try
         {
-            try
-            {
-                var count = await _logisticsRepository.SyncScansAsync(scans);
-                return Result<int>.Success(count);
-            }
-            catch (Exception ex)
-            {
-                return Result<int>.Failure($"Failed to sync scans: {ex.Message}");
-            }
+            var headers = await _logisticsRepository.GetSalesOrderHeadersAsync(status, date, customerCode, rep0, rep1);
+            return Result<IEnumerable<SalesOrderHeaderDto>>.Success(headers);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<SalesOrderHeaderDto>>.Failure($"Failed to fetch sales order headers: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<SalesOrderDetailDto>>> GetSalesOrderDetailsAsync(string soNumber)
+    {
+        try
+        {
+            var details = await _logisticsRepository.GetSalesOrderDetailsAsync(soNumber);
+            return Result<IEnumerable<SalesOrderDetailDto>>.Success(details);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<SalesOrderDetailDto>>.Failure($"Failed to fetch sales order details: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<CustomerLookupDto>>> GetCustomerLookupAsync()
+    {
+        try
+        {
+            var customers = await _logisticsRepository.GetCustomerLookupAsync();
+            return Result<IEnumerable<CustomerLookupDto>>.Success(customers);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<CustomerLookupDto>>.Failure($"Failed to fetch customers: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<SalesRepLookupDto>>> GetSalesRepLookupAsync()
+    {
+        try
+        {
+            var salesreps = await _logisticsRepository.GetSalesRepLookupAsync();
+            return Result<IEnumerable<SalesRepLookupDto>>.Success(salesreps);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<SalesRepLookupDto>>.Failure($"Failed to fetch sales representatives: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<int>> SyncScansAsync(IEnumerable<ScanDto> scans)
+    {
+        try
+        {
+            var count = await _logisticsRepository.SyncScansAsync(scans);
+            return Result<int>.Success(count);
+        }
+        catch (Exception ex)
+        {
+            return Result<int>.Failure($"Failed to sync scans: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site)
+    {
+        try
+        {
+            var locations = await _logisticsRepository.GetLocationLookupsAsync(site);
+            return Result<IEnumerable<LocationLookupDto>>.Success(locations);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<LocationLookupDto>>.Failure($"Failed to fetch locations: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy)
+    {
+        try
+        {
+            var result = await _logisticsRepository.CloseOrderAsync(soNumber, closedBy);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to close order: {ex.Message}");
+        }
+    }
+    public async Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto dto)
+    {
+        try
+        {
+            var result = await _logisticsRepository.SaveCutBulkEntryAsync(dto);
+            return Result<string>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Failure($"Failed to save cut/bulk entry: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scanDto)
+    {
+        try
+        {
+            var result = await _logisticsRepository.SaveProductionScanAsync(scanDto);
+            return Result<ProductionScanDto>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<ProductionScanDto>.Failure($"Failed to save production scan: {ex.Message}");
         }
     }
 }

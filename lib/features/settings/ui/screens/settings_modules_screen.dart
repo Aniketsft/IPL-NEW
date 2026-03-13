@@ -5,7 +5,6 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/repositories/settings_repository_mock.dart';
-import '../../../../features/administration/ui/screens/user_management_screen.dart';
 
 class SettingsModulesScreen extends StatefulWidget {
   const SettingsModulesScreen({super.key});
@@ -154,64 +153,6 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                               color: Colors.white54,
                               fontSize: 11,
                               height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSectionCard(
-                        color: cardColor,
-                        title: 'Administration',
-                        titleColor: sectionTitleColor,
-                        children: [
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const UserManagementScreen(),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.admin_panel_settings_outlined,
-                                    color: Color(0xFFFF9800),
-                                    size: 28,
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: const [
-                                        Text(
-                                          'User Management',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          'Create users and set module permissions.',
-                                          style: TextStyle(
-                                            color: Colors.white54,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         ],

@@ -1,4 +1,4 @@
-@EnterpriseAuth.Api_HostAddress = http://localhost:5150
+@EnterpriseAuth.Api_HostAddress = http://localhost:5004
 
 GET {{EnterpriseAuth.Api_HostAddress}}/weatherforecast/
 Accept: application/json
