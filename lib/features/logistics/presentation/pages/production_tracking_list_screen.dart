@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
+import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import '../widgets/sync_status_header.dart';
 import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
@@ -68,7 +69,7 @@ class _ProductionTrackingListScreenState
           Column(
             children: [
               SyncStatusHeader(lastSync: _lastSync),
-              _buildFilters(dark800, orange),
+              _buildFilters(),
               Expanded(
                 child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
                   builder: (context, state) {
@@ -131,34 +132,25 @@ class _ProductionTrackingListScreenState
     );
   }
 
-  Widget _buildFilters(Color dark, Color orange) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            onChanged: (val) => setState(() => _searchQuery = val),
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search Product...',
-              hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              filled: true,
-              fillColor: const Color(0xFF2C2C2E),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-          ),
-        ],
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: StandardFilter(
+        searchController: _searchController,
+        searchHint: 'Search Product...',
+        onSearchChanged: (val) => setState(() => _searchQuery = val),
+        onApply: _applyFilters,
+        onReset: () {
+          setState(() {
+            _searchController.clear();
+            _searchQuery = '';
+          });
+          _applyFilters();
+        },
+        child: const Text(
+          'Detailed production filters coming soon...',
+          style: TextStyle(color: Colors.white24, fontSize: 12),
+        ),
       ),
     );
   }
@@ -200,8 +192,8 @@ class _ProductionTrackingListScreenState
                   color: item.remaining < 0 ? Colors.green : Colors.white70,
                 ),
                 _buildStat(
-                  'Produced',
-                  item.manufacturedQuantity.toStringAsFixed(0),
+                  'Scanned',
+                  item.scannedQuantity.toStringAsFixed(0),
                   color: orange,
                 ),
               ],

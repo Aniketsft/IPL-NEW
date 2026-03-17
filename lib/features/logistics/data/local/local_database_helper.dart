@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 11;
+  static const _databaseVersion = 16;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -28,6 +28,7 @@ class LocalDatabaseHelper {
   static const columnLocationCode = 'location';
   static const columnIsSynced = 'isSynced';
   static const columnIsReflected = 'isReflected';
+  static const columnSite = 'site';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -49,6 +50,14 @@ class LocalDatabaseHelper {
   static const colDetDescription = 'description';
   static const colDetBarcodeType = 'barcodeType';
   static const colDetQuantity = 'quantity';
+  static const colDetSite = 'site';
+  static const colDetLocation = 'location';
+  static const colDetLot = 'lot';
+  static const colDetWarehouse = 'warehouse';
+  static const colDetWarehouseName = 'warehouseName';
+  static const colDetLocationType = 'locationType';
+  static const colDetLocationTypeName = 'locationTypeName';
+  static const colDetScanned = 'scanned';
 
   // Common Code/Name columns
   static const colCode = 'code';
@@ -80,6 +89,7 @@ class LocalDatabaseHelper {
   static const colSyncStatus = 'status'; // 'Success', 'Failed'
   static const colSyncMessage = 'message';
   static const colSyncCounts = 'recordCounts'; // JSON string of counts
+  static const colSyncSite = 'site';
 
   LocalDatabaseHelper._privateConstructor();
   static final LocalDatabaseHelper instance =
@@ -132,10 +142,10 @@ class LocalDatabaseHelper {
       print(
         'DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)',
       );
-      // Add manufactured and remaining columns to details table
+      // Add scanned and remaining columns to details table
       // In SQLite, we add columns one by one
       await db.execute(
-        'ALTER TABLE $tableDetails ADD COLUMN manufactured REAL DEFAULT 0',
+        'ALTER TABLE $tableDetails ADD COLUMN $colDetScanned REAL DEFAULT 0',
       );
       await db.execute(
         'ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0',
@@ -186,6 +196,57 @@ class LocalDatabaseHelper {
       await db.execute(
           'CREATE UNIQUE INDEX IF NOT EXISTS idx_details_unq_composite ON $tableDetails($colDetSoNum, $colDetItemCode)');
     }
+
+    if (oldVersion < 13) {
+      print('DB Upgrade: Adding site tracking to Sync History (v13)');
+      await db.execute(
+        'ALTER TABLE $tableSyncHistory ADD COLUMN $colSyncSite TEXT',
+      );
+      // PERFORMANCE: Index on isSynced for faster batching
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_scans_is_synced ON $tableScans($columnIsSynced)',
+      );
+    }
+
+    if (oldVersion < 14) {
+      await db.execute(
+        'ALTER TABLE $tableScans ADD COLUMN $columnSite TEXT',
+      );
+    }
+
+    if (oldVersion < 15) {
+      print('DB Upgrade: Adding extended detail tracking to tbl_sales_order_details (v15)');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetSite TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocation TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLot TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetWarehouse TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetWarehouseName TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocationType TEXT');
+      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocationTypeName TEXT');
+    }
+
+    if (oldVersion < 16) {
+      print('DB Upgrade: Ensuring columns exist in tbl_sales_order_details (v16)');
+      // Re-run the same columns in case v15 was skipped or failed on some devices
+      // Wrapped in try-catch to avoid crashing if they already exist from a partially failed v15
+      final columnsToAdd = [
+        colDetSite,
+        colDetLocation,
+        colDetLot,
+        colDetWarehouse,
+        colDetWarehouseName,
+        colDetLocationType,
+        colDetLocationTypeName,
+      ];
+
+      for (var column in columnsToAdd) {
+        try {
+          await db.execute('ALTER TABLE $tableDetails ADD COLUMN $column TEXT');
+        } catch (e) {
+          print('Column $column might already exist: $e');
+        }
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -199,7 +260,8 @@ class LocalDatabaseHelper {
         $columnItemStatus TEXT,
         $columnLocationCode TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
-        $columnIsReflected INTEGER NOT NULL DEFAULT 0
+        $columnIsReflected INTEGER NOT NULL DEFAULT 0,
+        $columnSite TEXT
       )
     ''');
 
@@ -230,8 +292,15 @@ class LocalDatabaseHelper {
         $colDetDescription TEXT,
         $colDetBarcodeType TEXT,
         $colDetQuantity REAL,
-        manufactured REAL DEFAULT 0,
+        $colDetScanned REAL DEFAULT 0,
         remaining REAL DEFAULT 0,
+        $colDetSite TEXT,
+        $colDetLocation TEXT,
+        $colDetLot TEXT,
+        $colDetWarehouse TEXT,
+        $colDetWarehouseName TEXT,
+        $colDetLocationType TEXT,
+        $colDetLocationTypeName TEXT,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
     ''');
@@ -277,7 +346,8 @@ class LocalDatabaseHelper {
         $colSyncTimestamp TEXT NOT NULL,
         $colSyncStatus TEXT NOT NULL,
         $colSyncMessage TEXT,
-        $colSyncCounts TEXT
+        $colSyncCounts TEXT,
+        $colSyncSite TEXT
       )
     ''');
 
@@ -369,8 +439,8 @@ class LocalDatabaseHelper {
       '''
       SELECT 
         det.*,
-        (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.$columnQuantity), 0)) as reconciledProduced,
-        (COALESCE(det.quantity, 0) - (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.$columnQuantity), 0))) as reconciledRemaining
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
+        (COALESCE(det.quantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0))) as reconciledRemaining
       FROM $tableDetails det
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 
@@ -430,6 +500,7 @@ class LocalDatabaseHelper {
   Future<void> insertSyncHistory({
     required String status,
     required String message,
+    String? site,
     Map<String, int>? counts,
   }) async {
     final db = await instance.database;
@@ -438,6 +509,7 @@ class LocalDatabaseHelper {
       colSyncStatus: status,
       colSyncMessage: message,
       colSyncCounts: counts != null ? jsonEncode(counts) : null,
+      colSyncSite: site,
     });
   }
 

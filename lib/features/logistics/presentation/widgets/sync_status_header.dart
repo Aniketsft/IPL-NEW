@@ -3,6 +3,8 @@ import '../pages/sync_history_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/sync_bloc.dart';
 import '../bloc/sync_event.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 
 class SyncStatusHeader extends StatelessWidget {
   final String lastSync;
@@ -89,7 +91,12 @@ class SyncStatusHeader extends StatelessWidget {
                   constraints: const BoxConstraints(),
                   icon: const Icon(Icons.sync_rounded, size: 24, color: Colors.orange),
                   onPressed: () {
-                    context.read<SyncBloc>().add(StartSyncRequested());
+                    final authState = context.read<AuthBloc>().state;
+                    if (authState is Authenticated) {
+                      context.read<SyncBloc>().add(
+                        StartSyncRequested(siteCode: authState.siteCode),
+                      );
+                    }
                   },
                 ),
                 const SizedBox(width: 12),

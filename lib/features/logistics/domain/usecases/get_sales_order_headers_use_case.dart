@@ -9,12 +9,14 @@ class GetSalesOrderHeadersUseCase {
   Future<List<SalesOrder>> execute({
     String status = 'all',
     DateTime? date,
+    String? siteCode,
     int limit = 100,
     int offset = 0,
   }) {
     return _repository.fetchSalesOrderHeaders(
       status: status,
       date: date,
+      siteCode: siteCode,
       limit: limit,
       offset: offset,
     );

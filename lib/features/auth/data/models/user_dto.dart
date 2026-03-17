@@ -4,6 +4,7 @@ class UserDto {
   final String email;
   final List<String> permissions;
   final String token;
+  final String? siteCode;
 
   UserDto({
     required this.id,
@@ -11,6 +12,7 @@ class UserDto {
     required this.email,
     required this.permissions,
     required this.token,
+    this.siteCode,
   });
 
   factory UserDto.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class UserDto {
       email: json['email'] ?? '',
       permissions: List<String>.from(json['permissions'] ?? []),
       token: json['token'] ?? '',
+      siteCode: json['siteCode'],
     );
   }
 }

@@ -7,6 +7,7 @@ class LocalRepository {
     required String soNumber,
     required String productCode,
     required double quantity,
+    String? siteCode,
   }) async {
     await _dbHelper.insertScan({
       LocalDatabaseHelper.columnSoNumber: soNumber,
@@ -14,6 +15,7 @@ class LocalRepository {
       LocalDatabaseHelper.columnQuantity: quantity,
       LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
       LocalDatabaseHelper.columnIsSynced: 0,
+      LocalDatabaseHelper.columnSite: siteCode,
     });
   }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
+import '../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
+
 
 class StockControlScreen extends StatefulWidget {
   const StockControlScreen({super.key});
@@ -69,7 +72,24 @@ class _StockControlScreenState extends State<StockControlScreen> {
       title: 'STOCK CONTROL',
       body: Column(
         children: [
-          _buildSearchHeader(),
+          StandardFilter(
+            onApply: () => setState(() {}),
+            searchController: _searchController,
+            onSearchChanged: (_) => setState(() {}),
+            onReset: () {
+              _searchController.clear();
+              setState(() {});
+            },
+            child: Column(
+              children: [
+                FilterDropdown(
+                  label: 'Warehouse',
+                  value: 'All Warehouses',
+                  options: const ['All Warehouses', 'WH-A1', 'WH-B2', 'WH-C1'],
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -82,27 +102,6 @@ class _StockControlScreenState extends State<StockControlScreen> {
     );
   }
 
-  Widget _buildSearchHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
-        border: Border(bottom: BorderSide(color: Color(0xFF2C2C2E))),
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (_) => setState(() {}),
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Search SKU, Name or Location...',
-          hintStyle: const TextStyle(color: Colors.white38),
-          prefixIcon: const Icon(Icons.search, color: Colors.white38),
-          border: InputBorder.none,
-          suffixIcon: const Icon(Icons.filter_list, color: Colors.white38),
-        ),
-      ),
-    );
-  }
 
   Widget _buildStockCard(StockItem item) {
     final bool isLowStock = item.qty < 50;

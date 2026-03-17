@@ -20,7 +20,7 @@ class SalesOrderDetail {
   final String barcodeType;
   final double quantity;
   final double remaining;
-  final double manufacturedQuantity;
+  final double scannedQuantity;
 
   SalesOrderDetail({
     required this.soNumber,
@@ -42,13 +42,13 @@ class SalesOrderDetail {
     required this.barcodeType,
     required this.quantity,
     required this.remaining,
-    required this.manufacturedQuantity,
+    required this.scannedQuantity,
   });
 
-  // CB orders: quantity=0, manufactured grows freely. Show 100% if any production happened.
+  // CB orders: quantity=0, scanned grows freely. Show 100% if any production happened.
   double get progress => quantity > 0
-      ? manufacturedQuantity / quantity
-      : (manufacturedQuantity > 0 ? 1.0 : 0.0);
+      ? scannedQuantity / quantity
+      : (scannedQuantity > 0 ? 1.0 : 0.0);
 
   String get remainingDisplay {
     if (remaining < 0) {

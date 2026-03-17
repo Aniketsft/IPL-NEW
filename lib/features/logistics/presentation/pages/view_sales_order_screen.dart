@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
+import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../widgets/sync_status_header.dart';
 import '../../domain/entities/sales_order.dart';
@@ -33,7 +34,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   int _currentOffset = 0;
   bool _isLoadingLookups = false;
   String? _errorMessage;
-  bool _isFilterExpanded = false;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   List<SalesOrder> _filteredOrders = [];
@@ -177,7 +177,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   @override
   Widget build(BuildContext context) {
     const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
     const dark900 = Color(0xFF0D0D0D);
 
     return Scaffold(
@@ -212,8 +211,90 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
           Column(
             children: [
               SyncStatusHeader(lastSync: _lastSync),
-              _buildFilterHeader(),
-              if (_isFilterExpanded) _buildFilters(dark800, orange),
+              StandardFilter(
+                onApply: _fetchOrders,
+                searchController: _searchController,
+                onSearchChanged: (_) => _applyLocalFilters(),
+                hasActiveFilters: _selectedDate != null || 
+                                 _selectedCustomerCode != null || 
+                                 _selectedSM1Code != null || 
+                                 _selectedSM2Code != null || 
+                                 (_status != 'all' && _status != 'open'),
+                onReset: () {
+                  setState(() {
+                    _selectedCustomerCode = null;
+                    _selectedSM1Code = null;
+                    _selectedSM2Code = null;
+                    _selectedDate = null;
+                    _status = 'all';
+                    _searchController.clear();
+                  });
+                  _fetchOrders();
+                },
+                child: Column(
+                  children: [
+                    if (_isLoadingLookups)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: LinearProgressIndicator(
+                          minHeight: 2,
+                          color: Colors.orange,
+                          backgroundColor: Colors.white10,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildDatePicker(orange),
+                        const SizedBox(width: 12),
+                        FilterPickerTile(
+                          label: 'Customer',
+                          value: _selectedCustomerCode,
+                          icon: Icons.business,
+                          onTap: () => _showSearchPicker(
+                            'Customer', 
+                            _customersList, 
+                            (code) => setState(() => _selectedCustomerCode = code)
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        FilterPickerTile(
+                          label: 'Sales Man 1',
+                          value: _selectedSM1Code,
+                          onTap: () => _showSearchPicker(
+                            'Sales Man 1', 
+                            _salesRepsList, 
+                            (code) => setState(() => _selectedSM1Code = code)
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilterPickerTile(
+                          label: 'Sales Man 2',
+                          value: _selectedSM2Code,
+                          onTap: () => _showSearchPicker(
+                            'Sales Man 2', 
+                            _salesRepsList, 
+                            (code) => setState(() => _selectedSM2Code = code)
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    FilterSegmentedToggle(
+                      label: 'Order Status',
+                      value: _status,
+                      options: const ['open', 'closed', 'all'],
+                      onChanged: (value) {
+                        setState(() => _status = value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator(color: orange))
@@ -247,6 +328,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           return SalesOrderCard(
                             order: _filteredOrders[index],
                             onRefresh: _fetchOrders,
+                            onLongPress: () => _showShipmentDialog(_filteredOrders[index]),
                           );
                         },
                       ),
@@ -272,197 +354,86 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     );
   }
 
-  Widget _buildFilterHeader() {
-    return InkWell(
-      onTap: () => setState(() => _isFilterExpanded = !_isFilterExpanded),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Future<void> _showShipmentDialog(SalesOrder order) async {
+    if (order.isClosed) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
           children: [
-            const Text(
-              'Filters',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Icon(
-              _isFilterExpanded
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-              color: Colors.orange,
-            ),
+            Icon(Icons.local_shipping_outlined, color: Color(0xFFFF9800)),
+            SizedBox(width: 8),
+            Text('Prepare for Shipment', style: TextStyle(color: Colors.white, fontSize: 18)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFilters(Color dark, Color orange) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          if (_isLoadingLookups)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: LinearProgressIndicator(
-                minHeight: 2,
-                color: Colors.orange,
-                backgroundColor: Colors.white10,
-              ),
-            ),
-          TextField( // New search bar
-            controller: _searchController,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search order number or customer...',
-              hintStyle: const TextStyle(color: Colors.white54),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              filled: true,
-              fillColor: const Color(0xFF2C2C2E),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            ),
+        content: Text(
+          'Close order ${order.orderNumber}\nfor ${order.customerName}?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildDatePicker(orange)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildPickerTile(
-                  'Customer',
-                  _selectedCustomerCode,
-                  _customersList,
-                  (code) => setState(() => _selectedCustomerCode = code),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPickerTile(
-                  'Sales Man 1',
-                  _selectedSM1Code,
-                  _salesRepsList,
-                  (code) => setState(() => _selectedSM1Code = code),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildPickerTile(
-                  'Sales Man 2',
-                  _selectedSM2Code,
-                  _salesRepsList,
-                  (code) => setState(() => _selectedSM2Code = code),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildStatusToggle(orange), // Use the new status toggle
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedCustomerCode = null;
-                      _selectedSM1Code = null;
-                      _selectedSM2Code = null;
-                      _selectedDate = null;
-                      _status = 'all';
-                      _searchController.clear();
-                    });
-                    _fetchOrders();
-                  },
-                  child: const Text(
-                    'Reset',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: _fetchOrders,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: orange,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'Apply Filters',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && mounted) {
+      try {
+        final repository = context.read<DeliveryRepository>();
+        await repository.closeOrder(order.orderNumber, 'mobile-user');
+        _fetchOrders();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Order ${order.orderNumber} prepared for shipment'),
+              backgroundColor: const Color(0xFFFF9800),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
-  Widget _buildPickerTile(
-    String label,
-    String? currentValue,
-    List<Map<String, String>> items,
-    Function(String?) onSelected,
-  ) {
-    final currentItem = items.firstWhere(
-      (it) => it['code'] == currentValue,
-      orElse: () => {},
-    );
-    final valueText = currentItem.isNotEmpty ? '${currentItem['code']}' : 'All';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: () => _showSearchPicker(label, items, onSelected),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+  Widget _buildDatePicker(Color orange) {
+    return FilterDatePicker(
+      label: 'Del. Date',
+      value: _selectedDate,
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2101),
+          builder: (context, child) => Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.dark(
+                primary: orange,
+                onPrimary: Colors.white,
+                surface: const Color(0xFF1E1E1E),
+                onSurface: Colors.white,
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    valueText,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 20),
-              ],
-            ),
+            child: child!,
           ),
-        ),
-      ],
+        );
+        if (picked != null) setState(() => _selectedDate = picked);
+      },
     );
   }
 
@@ -486,120 +457,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     );
   }
 
-  Widget _buildDatePicker(Color orange) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Del. Date',
-          style: TextStyle(color: Colors.grey, fontSize: 11),
-        ),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate ?? DateTime.now(),
-              firstDate: DateTime(2000),
-              lastDate: DateTime(2101),
-              builder: (context, child) => Theme(
-                data: Theme.of(context).copyWith(
-                  colorScheme: ColorScheme.dark(
-                    primary: orange,
-                    onPrimary: Colors.white,
-                    surface: const Color(0xFF1E1E1E),
-                    onSurface: Colors.white,
-                  ),
-                ),
-                child: child!,
-              ),
-            );
-            if (picked != null) setState(() => _selectedDate = picked);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedDate == null
-                        ? 'All'
-                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                ),
-                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildStatusToggle(Color orange) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Order Status',
-          style: TextStyle(color: Colors.grey, fontSize: 11),
-        ),
-        const SizedBox(height: 8),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2C2C2E),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: ['Open', 'Closed', 'All'].map((s) {
-                  final key = s.toLowerCase();
-                  final isSelected = _status == key;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _status = key);
-                        _fetchOrders();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF1E1E1E)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Center(
-                          child: Text(
-                            s,
-                            style: TextStyle(
-                              color: isSelected ? orange : Colors.grey,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
 }
 
 class _SearchPickerSheet extends StatefulWidget {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
+import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 
 class ReceiptScreen extends StatefulWidget {
@@ -37,8 +39,70 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       title: 'GOODS RECEIPT',
       body: Column(
         children: [
-          _buildFilters(),
-          _buildStatusToggle(),
+          StandardFilter(
+            searchController: _searchController,
+            searchHint: 'Search GRN or PO',
+            onApply: () => setState(() {}),
+            onReset: () {
+              setState(() {
+                _searchController.clear();
+                _dateController.clear();
+                _selectedSupplier = null;
+                _showVerified = false;
+              });
+            },
+            child: Column(
+              children: [
+                FilterDatePicker(
+                  label: 'Date',
+                  value: _dateController.text.isNotEmpty ? DateTime.tryParse(_dateController.text) : null,
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2101),
+                    );
+                    if (picked != null) {
+                      setState(() => _dateController.text = picked.toString().split(' ')[0]);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                FilterPickerTile(
+                  label: 'Supplier',
+                  value: _selectedSupplier,
+                  onTap: () async {
+                    final result = await showModalBottomSheet<String>(
+                      context: context,
+                      backgroundColor: const Color(0xFF1E1E1E),
+                      builder: (context) => ListView(
+                        shrinkWrap: true,
+                        children: [
+                          ListTile(
+                            title: const Text('All Suppliers', style: TextStyle(color: Colors.orange)),
+                            onTap: () => Navigator.pop(context, null),
+                          ),
+                          ..._suppliers.map((s) => ListTile(
+                            title: Text(s, style: const TextStyle(color: Colors.white)),
+                            onTap: () => Navigator.pop(context, s),
+                          )),
+                        ],
+                      ),
+                    );
+                    setState(() => _selectedSupplier = result);
+                  },
+                ),
+                const SizedBox(height: 16),
+                FilterSegmentedToggle(
+                  label: 'Status',
+                  value: _showVerified ? 'verified' : 'pending',
+                  options: const ['pending', 'verified'],
+                  onChanged: (val) => setState(() => _showVerified = val == 'verified'),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: const Center(
               child: Text(
@@ -52,127 +116,4 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-  Widget _buildFilters() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2C2C2E), width: 1)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(
-                  'Search GRN or PO',
-                  Icons.search,
-                  _searchController,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildTextField(
-                  'Date',
-                  Icons.calendar_today,
-                  _dateController,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildSupplierDropdown(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSupplierDropdown() {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2C2C2E)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedSupplier,
-          isExpanded: true,
-          hint: const Text(
-            'Select Supplier...',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
-          ),
-          dropdownColor: const Color(0xFF1E1E1E),
-          items: [
-            const DropdownMenuItem<String>(
-              value: null,
-              child: Text(
-                'All Suppliers',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            ..._suppliers.map(
-              (s) => DropdownMenuItem(
-                value: s,
-                child: Text(s, style: const TextStyle(color: Colors.white)),
-              ),
-            ),
-          ],
-          onChanged: (val) => setState(() => _selectedSupplier = val),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusToggle() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            _showVerified ? 'VERIFIED RECEIPTS' : 'PENDING RECEIPTS',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-          Switch(
-            value: _showVerified,
-            onChanged: (val) => setState(() => _showVerified = val),
-            activeColor: const Color(0xFFFF9800),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    String hint,
-    IconData icon,
-    TextEditingController controller,
-  ) {
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2C2C2E)),
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: (_) => setState(() {}),
-        style: const TextStyle(color: Colors.white, fontSize: 13),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-          prefixIcon: Icon(icon, color: Colors.white38, size: 18),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
-  }
 }

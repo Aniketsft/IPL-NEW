@@ -21,11 +21,11 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
 
     final totalOrdered =
         soItems.fold<double>(0, (s, i) => s + i.quantity);
-    final totalManufactured =
-        soItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
+    final totalScanned =
+        soItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
     final aggProgress = totalOrdered > 0
-        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
-        : (totalManufactured > 0 ? 1.0 : 0.0);
+        ? (totalScanned / totalOrdered).clamp(0.0, 1.0)
+        : (totalScanned > 0 ? 1.0 : 0.0);
 
     return Scaffold(
       backgroundColor: dark900,
@@ -79,8 +79,9 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
                         value: totalOrdered.toStringAsFixed(0),
                         color: Colors.white70),
                     _statChip(
-                        label: 'Total Produced',
-                        value: totalManufactured.toStringAsFixed(0),
+                        label: 'Total Scanned',
+                        value:
+                            '${totalScanned.toStringAsFixed(0)} / ${totalOrdered.toStringAsFixed(0)}',
                         color: orange),
                     _statChip(
                         label: 'Overall',
@@ -207,8 +208,8 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
                   '${item.quantity.toStringAsFixed(0)} KG',
                   Colors.white70),
               _soStat(
-                  'Produced',
-                  '${item.manufacturedQuantity.toStringAsFixed(0)} KG',
+                  'Scanned',
+                  '${item.scannedQuantity.toStringAsFixed(0)} KG',
                   orange),
               _soStat(
                   'Progress',

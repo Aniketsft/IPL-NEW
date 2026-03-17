@@ -6,8 +6,9 @@ import '../../domain/entities/sales_order.dart';
 class SalesOrderCard extends StatelessWidget {
   final SalesOrder order;
   final VoidCallback? onRefresh;
+  final VoidCallback? onLongPress;
 
-  const SalesOrderCard({super.key, required this.order, this.onRefresh});
+  const SalesOrderCard({super.key, required this.order, this.onRefresh, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +23,7 @@ class SalesOrderCard extends StatelessWidget {
         border: Border.all(color: Colors.white10),
       ),
       child: InkWell(
+        onLongPress: onLongPress,
         onTap: () async {
           final result = await Navigator.push(
             context,

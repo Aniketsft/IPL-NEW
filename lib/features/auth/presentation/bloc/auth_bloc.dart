@@ -42,7 +42,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('AuthBloc: Permissions received: ${user.permissions}');
 
       emit(
-        Authenticated(username: user.username, permissions: user.permissions),
+        Authenticated(
+          username: user.username,
+          permissions: user.permissions,
+          siteCode: user.siteCode,
+        ),
       );
     } catch (e) {
       emit(AuthFailure(e.toString()));

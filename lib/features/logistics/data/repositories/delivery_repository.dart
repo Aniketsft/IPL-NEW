@@ -38,7 +38,7 @@ class DeliveryRepository implements ILogisticsRepository {
           barcodeType: map[LocalDatabaseHelper.colDetBarcodeType] as String,
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
-          manufacturedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
         );
       }).toList();
     } catch (e) {
@@ -47,19 +47,26 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<SalesOrderDetail>> getProductionTracking() async {
+  Future<List<SalesOrderDetail>> getProductionTracking({String? siteCode}) async {
     try {
       final db = await LocalDatabaseHelper.instance.database;
+      
+      String siteFilter = '';
+      if (siteCode != null && siteCode.isNotEmpty) {
+        siteFilter = 'WHERE det.${LocalDatabaseHelper.colSite} = "$siteCode"';
+      }
+
       final maps = await db.rawQuery('''
         SELECT 
           det.*,
-          (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0)) as reconciledProduced,
-          (COALESCE(det.quantity, 0) - (COALESCE(det.manufactured, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0))) as reconciledRemaining
+          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0)) as reconciledProduced,
+          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0))) as reconciledRemaining
         FROM ${LocalDatabaseHelper.tableDetails} det
         LEFT JOIN ${LocalDatabaseHelper.tableScans} scn 
           ON det.${LocalDatabaseHelper.colDetSoNum} = scn.${LocalDatabaseHelper.columnSoNumber} 
           AND det.${LocalDatabaseHelper.colDetItemCode} = scn.${LocalDatabaseHelper.columnProductCode}
           AND scn.${LocalDatabaseHelper.columnIsReflected} = 0
+        $siteFilter
         GROUP BY det.${LocalDatabaseHelper.colDetSoNum}, det.${LocalDatabaseHelper.colDetItemCode}
       ''');
 
@@ -71,7 +78,7 @@ class DeliveryRepository implements ILogisticsRepository {
           barcodeType: map[LocalDatabaseHelper.colDetBarcodeType] as String,
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
-          manufacturedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
         );
       }).toList();
     } catch (e) {
@@ -80,11 +87,14 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<SalesOrder>> fetchSalesOrders({DateTime? date}) async {
+  Future<List<SalesOrder>> fetchSalesOrders({DateTime? date, String? siteCode}) async {
     try {
       final queryParams = <String, dynamic>{};
       if (date != null) {
         queryParams['deliveryDate'] = DateFormat('yyyy-MM-dd').format(date);
+      }
+      if (siteCode != null && siteCode.isNotEmpty) {
+        queryParams['site'] = siteCode;
       }
 
       final response = await _dio.get(
@@ -123,6 +133,7 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrderHeaders({
     String status = 'all',
     DateTime? date,
+    String? siteCode,
     String? customerCode,
     String? rep0,
     String? rep1,
@@ -133,6 +144,11 @@ class DeliveryRepository implements ILogisticsRepository {
       final db = await LocalDatabaseHelper.instance.database;
       String whereClause = '1=1';
       List<dynamic> whereArgs = [];
+
+      if (siteCode != null && siteCode.isNotEmpty) {
+        whereClause += ' AND ${LocalDatabaseHelper.colSite} = ?';
+        whereArgs.add(siteCode);
+      }
 
       if (status == 'open') {
         whereClause += ' AND (${LocalDatabaseHelper.colStatus} IS NULL OR ${LocalDatabaseHelper.colStatus} != ?)';
@@ -350,6 +366,9 @@ class DeliveryRepository implements ILogisticsRepository {
 
       // Attempt to push to API (Stealth Background Sync)
       try {
+        final fullUrl = '${_dio.options.baseUrl}Logistics/cut-bulk';
+        print("Stealth-Push: Attempting to sync Cut/Bulk entry $entryNo to $fullUrl");
+
         await _dio.post('Logistics/cut-bulk', data: {
           ...entry,
           'entryNumber': entryNo,
@@ -359,14 +378,18 @@ class DeliveryRepository implements ILogisticsRepository {
           "Offline-First: Cut/Bulk entry $entryNo successfully synced to API.",
         );
       } on DioException catch (e) {
+        final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
         if (e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.sendTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
           print(
-            "Offline-First: Connection issue saving Cut/Bulk $entryNo. Kept local (unsynced).",
+            "Offline-First: Sync deferred for Cut/Bulk $entryNo. Network issue reaching $fullUrl. Error: ${e.error ?? e.message}",
           );
         } else {
+          print(
+            "Offline-First: Sync failed for $entryNo to $fullUrl with non-connectivity error: ${e.response?.statusCode} - ${e.message}",
+          );
           rethrow;
         }
       }
@@ -379,9 +402,11 @@ class DeliveryRepository implements ILogisticsRepository {
 
   // --- SYNC ORCHESTRATION ---
 
-  Future<void> synchronize() async {
+  @override
+  Future<void> synchronize({String? siteCode}) async {
     final stopwatch = Stopwatch()..start();
     Map<String, int> counts = {};
+    final activeSite = siteCode ?? 'IPL';
 
     try {
       // 1. Push Unsynced Work (Scans + Cut/Bulk)
@@ -438,9 +463,16 @@ class DeliveryRepository implements ILogisticsRepository {
           'deviceId': 'mobile-terminal',
         };
 
-        // Note: We might need to refine the cutBulk mapping to get the amountKg from details table
-        // For now, let's just implement the skeleton to fix the sync crash context.
-        await _dio.post('Sync/push', data: payload);
+        // Note: Refined sync payload construction
+        print("Sync: Pushing ${unsyncedScans.length} scans and ${unsyncedOrders.length} Cut/Bulk entries to API.");
+        
+        try {
+          await _dio.post('Sync/push', data: payload);
+        } on DioException catch (e) {
+          final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
+          print("Sync: Push failed to $fullUrl. Error: ${e.error ?? e.message}");
+          rethrow;
+        }
 
         // Mark everything as synced locally
         if (unsyncedScans.isNotEmpty) {
@@ -458,7 +490,7 @@ class DeliveryRepository implements ILogisticsRepository {
       // 2. Refresh Mirror Data
       final response = await _dio.get(
         'Sync/refresh',
-        queryParameters: {'site': 'IPL'},
+        queryParameters: {'site': activeSite},
       );
       final rawData = response.data;
 
@@ -506,11 +538,11 @@ class DeliveryRepository implements ILogisticsRepository {
         print('Reflection System: Marked ${ids.length} scans as reflected.');
       }
 
-      // Log Success
       final duration = stopwatch.elapsedMilliseconds;
       await LocalDatabaseHelper.instance.insertSyncHistory(
         status: 'Success',
         message: 'Sync completed in ${duration}ms',
+        site: activeSite,
         counts: counts,
       );
     } catch (e) {
@@ -518,6 +550,7 @@ class DeliveryRepository implements ILogisticsRepository {
       await LocalDatabaseHelper.instance.insertSyncHistory(
         status: 'Failed',
         message: 'Sync error: $e',
+        site: activeSite,
         counts: counts.isNotEmpty ? counts : null,
       );
       throw 'Sync failed: $e';
@@ -525,9 +558,10 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Stream<SyncProgress> synchronizeWithProgress() async* {
+  Stream<SyncProgress> synchronizeWithProgress({String? siteCode}) async* {
     final stopwatch = Stopwatch()..start();
     Map<String, int> counts = {};
+    final activeSite = siteCode ?? 'IPL';
 
     try {
       yield SyncProgress(status: 'Initializing sync...', progress: 0.05);
@@ -584,7 +618,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final response = await _dio.get(
         'Sync/refresh',
         queryParameters: {
-          'site': 'IPL',
+          'site': activeSite,
           if (lastSync != null) 'since': lastSync,
         },
       );
@@ -635,6 +669,7 @@ class DeliveryRepository implements ILogisticsRepository {
       await LocalDatabaseHelper.instance.insertSyncHistory(
         status: 'Success',
         message: 'Sync completed in ${duration}ms',
+        site: activeSite,
         counts: counts,
       );
 
@@ -643,6 +678,7 @@ class DeliveryRepository implements ILogisticsRepository {
       await LocalDatabaseHelper.instance.insertSyncHistory(
         status: 'Failed',
         message: 'Sync error: $e',
+        site: activeSite,
         counts: counts.isNotEmpty ? counts : null,
       );
       yield SyncProgress.error(e.toString());
@@ -671,10 +707,10 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   SalesOrderDetail _mapLocalDetailToEntity(Map<String, dynamic> row) {
-    final qty = (row[LocalDatabaseHelper.colDetQuantity] as num).toDouble();
-    final manufactured = (row['manufactured'] as num?)?.toDouble() ?? 0.0;
+    final qty = (row[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
+    final manufactured = (row[LocalDatabaseHelper.colDetScanned] as num?)?.toDouble() ?? 0.0;
     final remaining =
-        (row['remaining'] as num?)?.toDouble() ?? (qty - manufactured);
+        (row['reconciledRemaining'] as num?)?.toDouble() ?? (qty - manufactured);
 
     return SalesOrderDetail(
       soNumber: row[LocalDatabaseHelper.colDetSoNum] ?? '',
@@ -684,7 +720,14 @@ class DeliveryRepository implements ILogisticsRepository {
           row[LocalDatabaseHelper.colDetBarcodeType] ?? 'Variable Weight',
       quantity: qty,
       remaining: remaining,
-      manufacturedQuantity: manufactured,
+      scannedQuantity: manufactured,
+      site: row[LocalDatabaseHelper.colDetSite],
+      location: row[LocalDatabaseHelper.colDetLocation],
+      lot: row[LocalDatabaseHelper.colDetLot],
+      warehouse: row[LocalDatabaseHelper.colDetWarehouse],
+      warehouseName: row[LocalDatabaseHelper.colDetWarehouseName],
+      locationType: row[LocalDatabaseHelper.colDetLocationType],
+      locationTypeName: row[LocalDatabaseHelper.colDetLocationTypeName],
     );
   }
 
@@ -695,15 +738,16 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<void> syncScans(List<Map<String, dynamic>> scans) async {
+  Future<void> syncScans(List<Map<String, dynamic>> scans, {String? siteCode}) async {
     try {
       final payload = scans
           .map(
             (s) => {
               'soNumber': s['soNumber'],
-              'itemCode': s['itemCode'],
+              'itemCode': s['itemCode'] ?? s['productCode'],
               'quantity': s['quantity'],
               'scanTimestamp': s['timestamp'],
+              'site': siteCode ?? s['site'],
             },
           )
           .toList();

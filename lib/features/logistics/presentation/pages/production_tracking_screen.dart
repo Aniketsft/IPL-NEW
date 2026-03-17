@@ -8,6 +8,7 @@ import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
+import '../widgets/scan_item_card.dart';
 
 const Color orange = Color(0xFFFF9800);
 const Color dark800 = Color(0xFF1E1E1E);
@@ -128,10 +129,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           }
 
           // RULE 2: RECONCILIATION / OVER-SCAN (Zero-Tolerance)
-          // CB (Cut/Bulk) orders have no ordered quantity limit — manufactured can exceed ordered
+          // CB (Cut/Bulk) orders have no ordered quantity limit — scanned can exceed ordered
+          // QC (Q) and Rejected (R) status scans do not count toward production qty limits
           final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
-          if (!isCutBulkOrder) {
-            final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+          if (!isCutBulkOrder && _status == 'A') {
+            final remaining = widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty;
             if (weight > remaining + 0.001) { // Strict zero-tolerance
               _showErrorDialog(
                 'Limit Exceeded',
@@ -233,12 +235,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       await repository.saveProductionScan(payload);
 
       if (mounted) {
-        final isPartial = (_cumulativeQty + widget.product.manufacturedQuantity - widget.product.quantity).abs() > 0.001;
+        final isPartial = (_cumulativeQty + widget.product.scannedQuantity - widget.product.quantity).abs() > 0.001;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isPartial 
                 ? 'Partial progress saved successfully' 
-                : 'Production log completed and saved'),
+                : 'Production scan completed and saved'),
             backgroundColor: isPartial ? Colors.blue : Colors.green,
           ),
         );
@@ -375,8 +377,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statItem('Order Qty', '${widget.product.quantity} KG'),
-              _statItem('Already Done', '${widget.product.manufacturedQuantity} KG'),
-              _statItem('Remaining', '${(widget.product.quantity - widget.product.manufacturedQuantity).toStringAsFixed(2)} KG'),
+              _statItem('Already Scanned', '${widget.product.scannedQuantity} KG'),
+              _statItem('Remaining', '${(widget.product.quantity - widget.product.scannedQuantity).toStringAsFixed(2)} KG'),
             ],
           ),
           const SizedBox(height: 16),
@@ -444,7 +446,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     // CB (Cut/Bulk) orders have no ordered quantity limit
     final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
     if (!isCutBulkOrder) {
-      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+      final remaining = widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty;
       if (1.0 > remaining + 0.001) {
         _showErrorDialog(
           'Limit Exceeded',
@@ -625,7 +627,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Widget _buildActionFooter() {
-    final isReconciled = (_cumulativeQty + widget.product.manufacturedQuantity - widget.product.quantity).abs() < 0.001;
+    final isReconciled = (_cumulativeQty + widget.product.scannedQuantity - widget.product.quantity).abs() < 0.001;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -637,7 +639,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Remaining: ${(widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty).toStringAsFixed(2)} KG',
+                'Remaining: ${(widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty).toStringAsFixed(2)} KG',
                 style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ),
@@ -645,7 +647,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: (_isSaving || _cumulativeQty <= 0) ? null : _saveAndUpload,
+                  onPressed: (_isSaving || _scans.isEmpty) ? null : _saveAndUpload,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isReconciled ? orange : Colors.blueGrey,
                     foregroundColor: Colors.white,
@@ -670,8 +672,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void _savePendingScan() {
     if (_pendingScan == null) return;
     setState(() {
-      _scans.add(_pendingScan!);
-      _cumulativeQty += _pendingScan!['weight'] as double;
+      final scanWithStatus = Map<String, dynamic>.from(_pendingScan!);
+      scanWithStatus['status'] = _status;
+      _scans.add(scanWithStatus);
+      if (_status == 'A') {
+        _cumulativeQty += _pendingScan!['weight'] as double;
+      }
       _pendingScan = null;
     });
     _scannerController?.start();
@@ -685,41 +691,23 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Individual Scans', style: TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 8),
-        ..._scans.reversed.map((scan) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: dark800, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white10)),
-              child: Row(
-                children: [
-                  const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 16),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(scan['barcode'], style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'monospace')),
-                        Text(scan['timestamp'].toString().substring(11, 16), style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    '${(scan['weight'] as double).toStringAsFixed(2)} KG',
-                    style: const TextStyle(color: orange, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
-                    onPressed: () {
-                      setState(() {
-                        _scans.remove(scan);
-                        _cumulativeQty -= scan['weight'] as double;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            )),
+        const SizedBox(height: 12),
+        ..._scans.indexed.map((indexedScan) {
+          final index = indexedScan.$1;
+          final scan = indexedScan.$2;
+          return ScanItemCard(
+            lineNumber: _scans.length - index,
+            scan: scan,
+            onDelete: () {
+              setState(() {
+                _scans.removeAt(index);
+                if (scan['status'] == 'A') {
+                  _cumulativeQty -= scan['weight'] as double;
+                }
+              });
+            },
+          );
+        }).toList().reversed,
       ],
     );
   }

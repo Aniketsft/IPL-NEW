@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/local_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import '../local/local_database_helper.dart';
 
 class SyncManager {
   final LocalRepository _localRepository;
@@ -36,19 +37,30 @@ class SyncManager {
         return;
       }
 
-      if (kDebugMode) {
-        print('Starting sync for ${unsyncedScans.length} scans...');
+      // Group scans by site
+      final Map<String, List<Map<String, dynamic>>> groupedScans = {};
+      for (var scan in unsyncedScans) {
+        final site = scan[LocalDatabaseHelper.columnSite] as String? ?? 'IPL';
+        groupedScans.putIfAbsent(site, () => []).add(scan);
       }
 
-      // Try to send to API
-      await _deliveryRepository.syncScans(unsyncedScans);
+      for (var site in groupedScans.keys) {
+        final scans = groupedScans[site]!;
+        
+        if (kDebugMode) {
+          print('Starting sync for ${scans.length} scans at site $site...');
+        }
 
-      // If successful, mark as synced
-      final ids = unsyncedScans.map((s) => s['id'] as int).toList();
-      await _localRepository.markScansAsSynced(ids);
+        // Try to send to API
+        await _deliveryRepository.syncScans(scans, siteCode: site);
 
-      if (kDebugMode) {
-        print('Successfully synced ${ids.length} scans.');
+        // If successful, mark as synced
+        final ids = scans.map((s) => s['id'] as int).toList();
+        await _localRepository.markScansAsSynced(ids);
+
+        if (kDebugMode) {
+          print('Successfully synced ${ids.length} scans for site $site.');
+        }
       }
     } catch (e) {
       if (kDebugMode) {

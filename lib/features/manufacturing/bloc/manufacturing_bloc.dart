@@ -24,7 +24,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   ) async {
     emit(ManufacturingLoadInProgress());
     try {
-      final items = await _getProductionTracking.execute();
+      final items = await _getProductionTracking.execute(siteCode: event.siteCode);
       emit(ProductionTrackingLoaded(items));
     } catch (e) {
       emit(ManufacturingFailure(e.toString()));
@@ -54,7 +54,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
       );
 
       // Step 2: Full Sync (Push + Pull handled in UseCase/Repo)
-      await _synchronizeLogistics.execute();
+      await _synchronizeLogistics.execute(siteCode: event.siteCode);
 
       emit(
         const ManufacturingSyncProgress(
@@ -73,7 +73,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
       );
 
       // Reload local data after sync
-      final items = await _getProductionTracking.execute();
+      final items = await _getProductionTracking.execute(siteCode: event.siteCode);
       emit(ProductionTrackingLoaded(items));
     } catch (e) {
       emit(ManufacturingFailure('Sync failed: $e'));

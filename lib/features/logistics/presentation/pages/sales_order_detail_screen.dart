@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
+import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
+import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'production_tracking_screen.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
@@ -55,9 +57,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Close Order', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Close Production',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
-          'Are you sure you want to close this sales order? This will mark it as completed.',
+          'Are you sure you want to close this Production? This will mark it as completed.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -68,7 +73,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text(
-              'Close Order',
+              'Close Production',
               style: TextStyle(color: Colors.orange),
             ),
           ),
@@ -85,14 +90,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order closed successfully')),
+          const SnackBar(content: Text('Production closed successfully')),
         );
         Navigator.pop(context, true); // Return true to indicate status change
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Failed to close order: $e';
+        _errorMessage = 'Failed to close Production: $e';
       });
     }
   }
@@ -141,7 +146,79 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeaderInfo(),
-          _buildSearchFilters(),
+          StandardFilter(
+            searchController: _codeFilter,
+            searchHint: 'Product Code...',
+            onSearchChanged: (_) => setState(() {}),
+            hasActiveFilters: _descFilter.text.isNotEmpty,
+            onReset: () {
+              _codeFilter.clear();
+              _descFilter.clear();
+              setState(() {});
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                // Row 1: Delivery Date + Customer (read-only)
+                Row(
+                  children: [
+                    FilterDatePicker(
+                      label: 'Del. Date',
+                      value: widget.order.date,
+                      onTap: () {}, // read-only
+                    ),
+                    const SizedBox(width: 12),
+                    FilterPickerTile(
+                      label: 'Customer',
+                      value: widget.order.customerName.isNotEmpty
+                          ? widget.order.customerName
+                          : null,
+                      icon: Icons.business,
+                      onTap: () {}, // read-only
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Row 2: Sales Man 1 + Sales Man 2 (read-only)
+                Row(
+                  children: [
+                    FilterPickerTile(
+                      label: 'Sales Man 1',
+                      value: widget.order.salesManCode1.isNotEmpty
+                          ? widget.order.salesManCode1
+                          : null,
+                      onTap: () {}, // read-only
+                    ),
+                    const SizedBox(width: 12),
+                    FilterPickerTile(
+                      label: 'Sales Man 2',
+                      value: widget.order.salesManCode2.isNotEmpty
+                          ? widget.order.salesManCode2
+                          : null,
+                      onTap: () {}, // read-only
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Status toggle (read-only)
+                FilterSegmentedToggle(
+                  label: 'Order Status',
+                  value: widget.order.isClosed ? 'closed' : 'open',
+                  options: const ['open', 'closed'],
+                  onChanged: (_) {}, // read-only
+                ),
+                const SizedBox(height: 16),
+                // Editable product description filter
+                FilterSearchInput(
+                  controller: _descFilter,
+                  hint: 'Product Description...',
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -246,7 +323,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _buildCompactInfo('PO NUMBER', widget.order.purchaseOrderNumber ?? 'N/A'),
+              _buildCompactInfo(
+                'PO NUMBER',
+                widget.order.purchaseOrderNumber ?? 'N/A',
+              ),
               const SizedBox(width: 32),
               _buildCompactInfo('DELIVERY DATE', widget.order.deliveryDate),
             ],
@@ -279,57 +359,6 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSearchFilters() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _codeFilter,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Filter by product code',
-                hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                fillColor: const Color(0xFF1E1E1E),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _descFilter,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Filter by product desc',
-                hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                fillColor: const Color(0xFF1E1E1E),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -445,7 +474,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  'Manufactured: ${item.manufacturedQuantity.toStringAsFixed(2)}',
+                  'Scanned: ${item.scannedQuantity.toStringAsFixed(2)}',
                   style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ],
@@ -515,15 +544,24 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     color: Colors.white,
                   ),
                 )
-              : const Text(
-                  'Close This Sales Order',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+              : const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Close Production',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ),
     );
   }
 }
+
 class _StatusBadge extends StatelessWidget {
   final bool isClosed;
   final Color orange;

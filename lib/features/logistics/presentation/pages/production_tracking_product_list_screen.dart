@@ -156,11 +156,11 @@ class _ProductionTrackingProductListScreenState
   ) {
     final description = soItems.first.description;
     final totalOrdered = soItems.fold<double>(0, (s, i) => s + i.quantity);
-    final totalManufactured =
-        soItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
+    final totalScanned =
+        soItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
     final aggProgress = totalOrdered > 0
-        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
-        : (totalManufactured > 0 ? 1.0 : 0.0);
+        ? (totalScanned / totalOrdered).clamp(0.0, 1.0)
+        : (totalScanned > 0 ? 1.0 : 0.0);
     final soCount = soItems.length;
 
     return GestureDetector(
@@ -253,7 +253,7 @@ class _ProductionTrackingProductListScreenState
                     'Ordered', totalOrdered.toStringAsFixed(0), Colors.white70),
                 _buildStat(
                     'Produced',
-                    totalManufactured.toStringAsFixed(0),
+                        'Scanned: ${totalScanned.toStringAsFixed(2)} / ${totalOrdered.toStringAsFixed(2)}',
                     orange),
                 _buildStat(
                     'Progress',

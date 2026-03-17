@@ -6,11 +6,11 @@ class SynchronizeLogisticsUseCase {
 
   SynchronizeLogisticsUseCase(this._repository);
 
-  Future<void> execute() async {
-    return await _repository.synchronize();
+  Future<void> execute({String? siteCode}) async {
+    return await _repository.synchronize(siteCode: siteCode);
   }
 
-  Stream<SyncProgress> executeWithProgress() {
-    return _repository.synchronizeWithProgress();
+  Stream<SyncProgress> executeWithProgress({String? siteCode}) {
+    return _repository.synchronizeWithProgress(siteCode: siteCode);
   }
 }

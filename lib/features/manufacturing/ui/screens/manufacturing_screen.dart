@@ -6,6 +6,8 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/pro
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
 import '../../bloc/manufacturing_bloc.dart';
 import '../../bloc/manufacturing_event.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/sync_progress_dialog.dart';
 import '../widgets/processing_simulator_dialog.dart';
 
@@ -29,12 +31,18 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
   }
 
   void _triggerSync() {
+    final authState = context.read<AuthBloc>().state;
+    String? siteCode;
+    if (authState is Authenticated) {
+      siteCode = authState.siteCode;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const SyncProgressDialog(),
     );
-    context.read<ManufacturingBloc>().add(const SyncDataRequested());
+    context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
     setState(() {
       _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     });

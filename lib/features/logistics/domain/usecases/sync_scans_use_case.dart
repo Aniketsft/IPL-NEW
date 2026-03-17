@@ -5,7 +5,7 @@ class SyncScansUseCase {
 
   SyncScansUseCase(this.repository);
 
-  Future<void> execute(List<Map<String, dynamic>> scans) {
-    return repository.syncScans(scans);
+  Future<void> execute(List<Map<String, dynamic>> scans, {String? siteCode}) {
+    return repository.syncScans(scans, siteCode: siteCode);
   }
 }

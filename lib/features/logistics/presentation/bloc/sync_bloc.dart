@@ -27,11 +27,11 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     // Use a Completer to await the stream's natural completion.
     // Previously, both executeWithProgress() AND execute() were called
     // concurrently, causing a double-sync race condition that zeroed
-    // manufactured quantities.
+    // scanned quantities.
     final completer = Completer<void>();
     String? syncError;
 
-    _progressSubscription = _synchronizeLogisticsUseCase.executeWithProgress().listen(
+    _progressSubscription = _synchronizeLogisticsUseCase.executeWithProgress(siteCode: event.siteCode).listen(
       (progress) {
         add(SyncProgressUpdated(progress.progress, progress.status));
       },

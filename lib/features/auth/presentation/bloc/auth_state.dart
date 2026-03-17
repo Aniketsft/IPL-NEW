@@ -12,11 +12,16 @@ class AuthLoading extends AuthState {}
 class Authenticated extends AuthState {
   final String username;
   final List<String> permissions;
+  final String? siteCode;
 
-  Authenticated({required this.username, required this.permissions});
+  Authenticated({
+    required this.username,
+    required this.permissions,
+    this.siteCode,
+  });
 
   @override
-  List<Object?> get props => [username, permissions];
+  List<Object?> get props => [username, permissions, siteCode];
 }
 
 class Unauthenticated extends AuthState {}

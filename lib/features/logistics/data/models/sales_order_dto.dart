@@ -44,7 +44,7 @@ class SalesOrderDto {
       rep0: json['rep0'] ?? json['soSalesman'],
       rep1: json['rep1']?.toString(),
       site: json['site']?.toString(),
-      status: json['status'] as int?,
+      status: (json['status'] as num?)?.toInt(),
       source: json['source']?.toString(),
       statusLabel: json['statusLabel']?.toString(),
       poNo: json['poNo'] ?? json['poNumber'],

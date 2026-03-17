@@ -9,7 +9,7 @@ class SalesOrderDetailDto {
   final String? barcodeType;
   final double quantity;
   final double remaining;
-  final double manufactured;
+  final double scannedQuantity;
   final String? salesMan1;
   final String? salesMan2;
   final String? site;
@@ -40,7 +40,7 @@ class SalesOrderDetailDto {
     required this.barcodeType,
     required this.quantity,
     required this.remaining,
-    required this.manufactured,
+    required this.scannedQuantity,
   });
 
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
@@ -64,7 +64,7 @@ class SalesOrderDetailDto {
       barcodeType: json['barcodeType']?.toString() ?? 'Variable Weight',
       quantity: (json['quantity'] as num?)?.toDouble() ?? 0.0,
       remaining: (json['remaining'] as num?)?.toDouble() ?? 0.0,
-      manufactured: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
+      scannedQuantity: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -75,8 +75,15 @@ class SalesOrderDetailDto {
       'description': description,
       'barcodeType': barcodeType,
       'quantity': quantity,
-      'manufactured': manufactured,
+      'scanned': scannedQuantity,
       'remaining': remaining,
+      'site': site,
+      'location': location,
+      'lot': lot,
+      'warehouse': warehouse,
+      'warehouseName': warehouseName,
+      'locationType': locationType,
+      'locationTypeName': locationTypeName,
     };
   }
 }

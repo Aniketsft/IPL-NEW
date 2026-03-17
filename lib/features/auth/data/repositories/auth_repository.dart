@@ -54,6 +54,7 @@ class AuthRepository implements IAuthRepository {
         username: dto.username,
         email: dto.email,
         permissions: dto.permissions.map((p) => p.toLowerCase()).toList(),
+        siteCode: dto.siteCode,
       );
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionError ||
