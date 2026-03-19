@@ -8,6 +8,7 @@ import '../widgets/sync_status_header.dart';
 import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
 import '../../domain/entities/sales_order.dart';
+import '../../../settings/data/models/site.dart';
 
 class ProductionTrackingListScreen extends StatefulWidget {
   const ProductionTrackingListScreen({super.key});
@@ -22,18 +23,19 @@ class _ProductionTrackingListScreenState
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
+  String? _selectedSiteId = 'IPL';
+  List<Site> _sites = [];
 
   @override
   void initState() {
     super.initState();
-    context.read<ManufacturingBloc>().add(
-      const LoadProductionTrackingRequested(),
-    );
+    _sites = Site.mockSites;
+    _applyFilters();
   }
 
   void _applyFilters() {
     context.read<ManufacturingBloc>().add(
-      const LoadProductionTrackingRequested(),
+      LoadProductionTrackingRequested(siteCode: _selectedSiteId),
     );
   }
 
@@ -53,12 +55,24 @@ class _ProductionTrackingListScreenState
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          const Padding(
-            padding: EdgeInsets.only(right: 16),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: Text(
-                'IPL - Main Plant',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+              child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
+                builder: (context, state) {
+                  String siteName = 'All Sites';
+                  if (state is ProductionTrackingLoaded && state.currentSiteCode != null) {
+                    final site = _sites.firstWhere(
+                      (s) => s.id == state.currentSiteCode,
+                      orElse: () => Site(id: '', companyId: '', name: state.currentSiteCode!),
+                    );
+                    siteName = site.name;
+                  }
+                  return Text(
+                    siteName,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  );
+                },
               ),
             ),
           ),
@@ -147,9 +161,42 @@ class _ProductionTrackingListScreenState
           });
           _applyFilters();
         },
-        child: const Text(
-          'Detailed production filters coming soon...',
-          style: TextStyle(color: Colors.white24, fontSize: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Site',
+              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedSiteId,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  isExpanded: true,
+                  icon: const Icon(Icons.keyboard_arrow_down, color: orange),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All Sites', style: TextStyle(color: Colors.white)),
+                    ),
+                    ..._sites.map((site) => DropdownMenuItem(
+                      value: site.id,
+                      child: Text(site.name, style: const TextStyle(color: Colors.white)),
+                    )),
+                  ],
+                  onChanged: (val) => setState(() => _selectedSiteId = val),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -2,23 +2,40 @@ import 'package:equatable/equatable.dart';
 import '../../logistics/domain/entities/sales_order_detail.dart';
 
 abstract class ManufacturingState extends Equatable {
-  const ManufacturingState();
+  final String? currentSiteCode;
+  final String dashboardSearchQuery;
+
+  const ManufacturingState({
+    this.currentSiteCode,
+    this.dashboardSearchQuery = '',
+  });
 
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => [currentSiteCode, dashboardSearchQuery];
 }
 
-class ManufacturingInitial extends ManufacturingState {}
+class ManufacturingInitial extends ManufacturingState {
+  const ManufacturingInitial() : super();
+}
 
-class ManufacturingLoadInProgress extends ManufacturingState {}
+class ManufacturingLoadInProgress extends ManufacturingState {
+  const ManufacturingLoadInProgress({
+    super.currentSiteCode,
+    super.dashboardSearchQuery,
+  });
+}
 
 class ProductionTrackingLoaded extends ManufacturingState {
   final List<SalesOrderDetail> items;
 
-  const ProductionTrackingLoaded(this.items);
+  const ProductionTrackingLoaded({
+    required this.items,
+    super.currentSiteCode,
+    super.dashboardSearchQuery,
+  });
 
   @override
-  List<Object?> get props => [items];
+  List<Object?> get props => [items, currentSiteCode, dashboardSearchQuery];
 }
 
 class ManufacturingFailure extends ManufacturingState {

@@ -1,3 +1,4 @@
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/site.dart';
 import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
@@ -8,6 +9,7 @@ import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
 import 'new_cuts_bulk_screen.dart';
 import '../widgets/sync_overlay.dart';
+
 
 class ViewSalesOrderScreen extends StatefulWidget {
   const ViewSalesOrderScreen({super.key});
@@ -22,11 +24,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   List<SalesOrder> _orders = [];
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
+  List<Map<String, String>> _sitesList = [];
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   String? _selectedCustomerCode;
   String? _selectedSM1Code;
   String? _selectedSM2Code;
+  Site? _selectedSite;
 
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -66,7 +70,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         _filteredOrders = List.from(_orders);
       } else {
         _filteredOrders = _orders.where((o) {
-          final matchesSearch = o.orderNumber.toLowerCase().contains(query) ||
+          final matchesSearch =
+              o.orderNumber.toLowerCase().contains(query) ||
               o.customerName.toLowerCase().contains(query) ||
               o.customerCode.toLowerCase().contains(query);
           return matchesSearch;
@@ -91,15 +96,27 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       final repository = context.read<DeliveryRepository>();
       final customers = await repository.getCustomers();
       final reps = await repository.getSalesReps();
+      final sites = await repository.getSites();
 
       setState(() {
-        _customersList = customers;
-        _salesRepsList = reps;
+        _customersList = customers
+            .map((c) => {'code': c.code, 'name': c.name})
+            .toList();
+        _salesRepsList = reps
+            .map((r) => {'code': r.code, 'name': r.name})
+            .toList();
+        _sitesList = sites
+            .map((s) => {'code': s.code, 'name': s.name})
+            .toList();
         _isLoadingLookups = false;
       });
     } catch (e) {
-      setState(() => _isLoadingLookups = false);
-      debugPrint('Error loading lookups: $e');
+      if (mounted) {
+        setState(() => _isLoadingLookups = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
+      }
     }
   }
 
@@ -117,6 +134,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       final results = await repository.fetchSalesOrderHeaders(
         status: _status,
         date: _selectedDate,
+        siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
         rep0: _selectedSM1Code,
         rep1: _selectedSM2Code,
@@ -152,6 +170,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       final results = await repository.fetchSalesOrderHeaders(
         status: _status,
         date: _selectedDate,
+        siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
         rep0: _selectedSM1Code,
         rep1: _selectedSM2Code,
@@ -197,9 +216,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
             padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: Text(
-                _orders.isNotEmpty
-                    ? (_orders.first.site ?? 'Main Plant')
-                    : 'Main Plant',
+                _selectedSite?.name ??
+                    (_orders.isNotEmpty
+                        ? (_orders.first.site ?? 'Main Plant')
+                        : 'Main Plant'),
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
@@ -215,16 +235,19 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                 onApply: _fetchOrders,
                 searchController: _searchController,
                 onSearchChanged: (_) => _applyLocalFilters(),
-                hasActiveFilters: _selectedDate != null || 
-                                 _selectedCustomerCode != null || 
-                                 _selectedSM1Code != null || 
-                                 _selectedSM2Code != null || 
-                                 (_status != 'all' && _status != 'open'),
+                hasActiveFilters:
+                    _selectedDate != null ||
+                    _selectedCustomerCode != null ||
+                    _selectedSM1Code != null ||
+                    _selectedSM2Code != null ||
+                    _selectedSite != null ||
+                    (_status != 'all' && _status != 'open'),
                 onReset: () {
                   setState(() {
                     _selectedCustomerCode = null;
                     _selectedSM1Code = null;
                     _selectedSM2Code = null;
+                    _selectedSite = null;
                     _selectedDate = null;
                     _status = 'all';
                     _searchController.clear();
@@ -248,13 +271,45 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                         _buildDatePicker(orange),
                         const SizedBox(width: 12),
                         FilterPickerTile(
+                          label: 'Site',
+                          value: _selectedSite?.name,
+                          icon: Icons.location_on,
+                          onTap: () => _showSearchPicker(
+                            'Site',
+                            _sitesList,
+                            (code) {
+                              setState(() {
+                                if (code == null) {
+                                  _selectedSite = null;
+                                } else {
+                                  final siteMap = _sitesList.firstWhere(
+                                      (s) => s['code'] == code,
+                                      orElse: () => {});
+                                  if (siteMap.isNotEmpty) {
+                                    _selectedSite = Site(
+                                      code: siteMap['code']!,
+                                      name: siteMap['name']!,
+                                    );
+                                  }
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        FilterPickerTile(
                           label: 'Customer',
                           value: _selectedCustomerCode,
                           icon: Icons.business,
                           onTap: () => _showSearchPicker(
-                            'Customer', 
-                            _customersList, 
-                            (code) => setState(() => _selectedCustomerCode = code)
+                            'Customer',
+                            _customersList,
+                            (code) =>
+                                setState(() => _selectedCustomerCode = code),
                           ),
                         ),
                       ],
@@ -266,9 +321,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           label: 'Sales Man 1',
                           value: _selectedSM1Code,
                           onTap: () => _showSearchPicker(
-                            'Sales Man 1', 
-                            _salesRepsList, 
-                            (code) => setState(() => _selectedSM1Code = code)
+                            'Sales Man 1',
+                            _salesRepsList,
+                            (code) => setState(() => _selectedSM1Code = code),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -276,9 +331,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           label: 'Sales Man 2',
                           value: _selectedSM2Code,
                           onTap: () => _showSearchPicker(
-                            'Sales Man 2', 
-                            _salesRepsList, 
-                            (code) => setState(() => _selectedSM2Code = code)
+                            'Sales Man 2',
+                            _salesRepsList,
+                            (code) => setState(() => _selectedSM2Code = code),
                           ),
                         ),
                       ],
@@ -297,7 +352,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: orange))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: orange),
+                      )
                     : _errorMessage != null
                     ? Center(
                         child: Text(
@@ -328,7 +385,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           return SalesOrderCard(
                             order: _filteredOrders[index],
                             onRefresh: _fetchOrders,
-                            onLongPress: () => _showShipmentDialog(_filteredOrders[index]),
+                            onLongPress: () =>
+                                _showShipmentDialog(_filteredOrders[index]),
                           );
                         },
                       ),
@@ -366,7 +424,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
           children: [
             Icon(Icons.local_shipping_outlined, color: Color(0xFFFF9800)),
             SizedBox(width: 8),
-            Text('Prepare for Shipment', style: TextStyle(color: Colors.white, fontSize: 18)),
+            Text(
+              'Prepare for Shipment',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
           ],
         ),
         content: Text(
@@ -379,7 +440,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF9800),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
@@ -456,8 +519,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
       ),
     );
   }
-
-
 }
 
 class _SearchPickerSheet extends StatefulWidget {

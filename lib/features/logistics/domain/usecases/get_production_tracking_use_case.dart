@@ -6,7 +6,17 @@ class GetProductionTrackingUseCase {
 
   GetProductionTrackingUseCase(this.repository);
 
-  Future<List<SalesOrderDetail>> execute({String? siteCode}) {
-    return repository.getProductionTracking(siteCode: siteCode);
+  Future<List<SalesOrderDetail>> execute({
+    String? siteCode,
+    String? customerCode,
+    String? salesRepCode,
+    DateTime? date,
+  }) {
+    return repository.getProductionTracking(
+      siteCode: siteCode,
+      customerCode: customerCode,
+      salesRepCode: salesRepCode,
+      date: date,
+    );
   }
 }

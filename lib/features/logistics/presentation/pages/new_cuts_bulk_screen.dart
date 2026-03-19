@@ -22,7 +22,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String? _selectedProductCode;
   String? _selectedProductName;
   String? _selectedExistingSO;
-  // Amount is always 0 for Cut/Bulk — not user-editable
+  final TextEditingController _amountController = TextEditingController(text: '0.00');
 
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
@@ -35,6 +35,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     _loadLookups();
   }
 
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadLookups() async {
     try {
       final repository = context.read<DeliveryRepository>();
@@ -44,8 +50,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       final existingSOs = await repository.getExistingCutBulkSOs();
 
       setState(() {
-        _customersList = customers;
-        _salesRepsList = reps;
+        _customersList = customers
+            .map((c) => {'code': c.code, 'name': c.name})
+            .toList();
+        _salesRepsList = reps
+            .map((r) => {'code': r.code, 'name': r.name})
+            .toList();
         _productsList = products;
         _existingSOsList = existingSOs;
       });
@@ -66,7 +76,13 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       return;
     }
 
-    const amount = 0.0; // Cut/Bulk always starts at zero
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid weight')),
+      );
+      return;
+    }
 
     if (_isNewSO) {
       // New SO: require customer
@@ -204,18 +220,25 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                _buildLabel('Amount (Kg)'),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
-                  ),
-                  child: const Text(
-                    '0.00',
-                    style: TextStyle(color: Colors.white38, fontSize: 14),
+                _buildLabel('Amount (Kg) *'),
+                TextFormField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1E1E1E),
+                    hintText: '0.00',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFFFF9800)),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 100), // Space for bottom bar

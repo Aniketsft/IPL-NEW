@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 16;
+  static const _databaseVersion = 17;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -17,6 +17,7 @@ class LocalDatabaseHelper {
   static const tableCachedUsers = 'tbl_cached_users';
   static const tableSyncHistory = 'tbl_sync_history';
   static const tableProducts = 'tbl_products';
+  static const tableSites = 'tbl_sites';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -247,6 +248,16 @@ class LocalDatabaseHelper {
         }
       }
     }
+    
+    if (oldVersion < 17) {
+      print('DB Upgrade: Creating Sites table (v17)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSites (
+          $colCode TEXT PRIMARY KEY,
+          $colName TEXT
+        )
+      ''');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -373,6 +384,13 @@ class LocalDatabaseHelper {
         $colProdDesc TEXT,
         $colProdStu TEXT,
         $colProdSau TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSites (
+        $colCode TEXT PRIMARY KEY,
+        $colName TEXT
       )
     ''');
   }
@@ -526,6 +544,7 @@ class LocalDatabaseHelper {
     required List<Map<String, dynamic>> reps,
     required List<Map<String, dynamic>> locations,
     required List<Map<String, dynamic>> products,
+    required List<Map<String, dynamic>> sites,
     bool incremental = true,
   }) async {
     Database db = await instance.database;
@@ -540,6 +559,7 @@ class LocalDatabaseHelper {
         await txn.delete(tableReps);
         await txn.delete(tableLocations);
         await txn.delete(tableProducts);
+        await txn.delete(tableSites);
       } else {
         // Incremental cleanup: In incremental mode, we NO LONGER delete all external orders.
         // We rely on ConflictAlgorithm.replace to update existing records or insert new ones.
@@ -595,10 +615,17 @@ class LocalDatabaseHelper {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+        for (var site in sites) {
+          batch.insert(
+            tableSites,
+            site,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
 
         await batch.commit(noResult: true);
         print(
-          "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, and ${products.length} products.",
+          "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, ${products.length} products, and ${sites.length} sites.",
         );
       } catch (e) {
         print("CRITICAL: Error during batch insertion: $e");
@@ -625,5 +652,10 @@ class LocalDatabaseHelper {
     );
     if (results.isEmpty) return null;
     return results.first;
+  }
+
+  Future<List<Map<String, dynamic>>> getSites() async {
+    Database db = await instance.database;
+    return await db.query(tableSites);
   }
 }

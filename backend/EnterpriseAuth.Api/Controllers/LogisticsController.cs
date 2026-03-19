@@ -20,9 +20,9 @@ public class LogisticsController : ControllerBase
     }
 
     [HttpGet("production-tracking")]
-    public async Task<IActionResult> GetProductionTracking()
+    public async Task<IActionResult> GetProductionTracking([FromQuery] string? siteCode)
     {
-        var result = await _logisticsService.GetProductionTrackingAsync();
+        var result = await _logisticsService.GetProductionTrackingAsync(siteCode);
         return ToActionResult(result);
     }
 

@@ -2,11 +2,19 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order_detail.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sync_progress.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/site.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/customer.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_rep.dart';
 
 abstract class ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrders({DateTime? date, String? siteCode});
   Future<List<SalesOrderDetail>> getSalesOrderDetails(String soNumber);
-  Future<List<SalesOrderDetail>> getProductionTracking({String? siteCode});
+  Future<List<SalesOrderDetail>> getProductionTracking({
+    String? siteCode,
+    String? customerCode,
+    String? salesRepCode,
+    DateTime? date,
+  });
   Future<void> updateSalesOrder(SalesOrder order);
   Future<void> syncScans(List<Map<String, dynamic>> scans, {String? siteCode});
   Future<void> saveProductionScan(Map<String, dynamic> scan);
@@ -25,4 +33,7 @@ abstract class ILogisticsRepository {
   Future<List<LocationLookup>> getLocationLookups(String site);
   Future<void> synchronize({String? siteCode});
   Stream<SyncProgress> synchronizeWithProgress({String? siteCode});
+  Future<List<Site>> getSites();
+  Future<List<Customer>> getCustomers();
+  Future<List<SalesRep>> getSalesReps();
 }

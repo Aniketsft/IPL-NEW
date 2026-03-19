@@ -47,7 +47,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as [CustomerName],
                     f0.REP_0 COLLATE DATABASE_DEFAULT as [Rep0],
                     f0.REP_1 COLLATE DATABASE_DEFAULT as [Rep1],
-                    f0.SALFCY_0 COLLATE DATABASE_DEFAULT as [Site],
+                    f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
@@ -61,7 +61,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMREF_0 as ItemCode,
                     f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
-                    f1.QTY_0 as Quantity
+                    f1.QTY_0 as Quantity,
+                    f1.STOFCY_0 as Site
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
@@ -73,6 +74,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             var customersTask = FetchFromInnodisAsync<CustomerLookupDto>("SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM InnodisTestDB.INLPROD.BPCUSTOMER WITH (NOLOCK)");
             var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>("SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM InnodisTestDB.INLPROD.SALESREP WITH (NOLOCK)");
+            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>("SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM InnodisTestDB.INLPROD.FACILITY WITH (NOLOCK)");
             
             var locSql = @"
                 SELECT 
@@ -99,12 +101,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
             // Execute tasks in parallel
-            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask);
+            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask);
 
             package.Orders = ordersTask.Result.ToList();
             package.Details = detailsTask.Result.ToList();
             package.Customers = customersTask.Result.ToList();
             package.Reps = repsTask.Result.ToList();
+            package.Sites = sitesTask.Result.ToList();
             package.Locations = locationsTask.Result.ToList();
             package.Products = productsTask.Result.ToList();
 

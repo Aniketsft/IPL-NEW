@@ -16,6 +16,36 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
        super(ManufacturingInitial()) {
     on<LoadProductionTrackingRequested>(_onLoadProductionTrackingRequested);
     on<SyncDataRequested>(_onSyncDataRequested);
+    on<SiteFilterChanged>(_onSiteFilterChanged);
+    on<DashboardSearchChanged>(_onDashboardSearchChanged);
+  }
+
+  void _onSiteFilterChanged(
+    SiteFilterChanged event,
+    Emitter<ManufacturingState> emit,
+  ) {
+    emit(ManufacturingInitial()); // Optional: clear items or keep them
+    add(LoadProductionTrackingRequested(siteCode: event.siteCode));
+  }
+
+  void _onDashboardSearchChanged(
+    DashboardSearchChanged event,
+    Emitter<ManufacturingState> emit,
+  ) {
+    if (state is ProductionTrackingLoaded) {
+      final currentState = state as ProductionTrackingLoaded;
+      emit(
+        ProductionTrackingLoaded(
+          items: currentState.items,
+          currentSiteCode: currentState.currentSiteCode,
+          dashboardSearchQuery: event.query,
+        ),
+      );
+    } else {
+      // If not loaded, we still update the query in the state
+      // This is a bit tricky if we want to persist it across states
+      // For now, let's just emit a new state with the query
+    }
   }
 
   Future<void> _onLoadProductionTrackingRequested(
@@ -25,7 +55,13 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
     emit(ManufacturingLoadInProgress());
     try {
       final items = await _getProductionTracking.execute(siteCode: event.siteCode);
-      emit(ProductionTrackingLoaded(items));
+      emit(
+        ProductionTrackingLoaded(
+          items: items,
+          currentSiteCode: event.siteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
+        ),
+      );
     } catch (e) {
       emit(ManufacturingFailure(e.toString()));
     }
@@ -74,7 +110,13 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
 
       // Reload local data after sync
       final items = await _getProductionTracking.execute(siteCode: event.siteCode);
-      emit(ProductionTrackingLoaded(items));
+      emit(
+        ProductionTrackingLoaded(
+          items: items,
+          currentSiteCode: event.siteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
+        ),
+      );
     } catch (e) {
       emit(ManufacturingFailure('Sync failed: $e'));
     }

@@ -16,6 +16,24 @@ class LoadProductionTrackingRequested extends ManufacturingEvent {
   List<Object?> get props => [siteCode];
 }
 
+class SiteFilterChanged extends ManufacturingEvent {
+  final String? siteCode;
+
+  const SiteFilterChanged(this.siteCode);
+
+  @override
+  List<Object?> get props => [siteCode];
+}
+
+class DashboardSearchChanged extends ManufacturingEvent {
+  final String query;
+
+  const DashboardSearchChanged(this.query);
+
+  @override
+  List<Object?> get props => [query];
+}
+
 class SyncDataRequested extends ManufacturingEvent {
   final String? siteCode;
 

@@ -27,7 +27,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _scanContext = scanContext;
         }
 
-        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync()
+        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             
@@ -50,6 +50,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE 1=1";
 
             var parameters = new DynamicParameters();
+            
+            if (!string.IsNullOrEmpty(siteCode))
+            {
+                sql += " AND f1.STOFCY_0 = @SiteCode";
+                parameters.Add("SiteCode", siteCode);
+            }
 
             sql += " ORDER BY f0.ORDDAT_0 DESC";
 
@@ -72,7 +78,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     CustomerCode = header?.CustomerCode ?? "",
                     CustomerName = header?.CustomerName ?? ""
                 };
-            }).ToList();
+            })
+            .Where(item => string.IsNullOrEmpty(siteCode) || item.Site == siteCode)
+            .ToList();
 
             var combinedItems = localItems.Concat(sageItems).ToList();
 
@@ -227,6 +235,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as Quantity,
+                    f1.STOFCY_0 as Site,
                     0.0 as Remaining, 
                     0.0 as Manufactured       
                 FROM InnodisTestDB.INLPROD.SORDER f0
@@ -243,6 +252,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Description COLLATE DATABASE_DEFAULT as Description,
                     BarcodeType COLLATE DATABASE_DEFAULT as BarcodeType,
                     Quantity,
+                    CAST('INTERNAL' AS NVARCHAR(20)) as Site,
                     0.0 as Remaining,
                     0.0 as Manufactured
                 FROM [ScanProduction].[dbo].[salesorderdetailscutsbulk]

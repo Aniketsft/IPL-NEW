@@ -17,11 +17,11 @@ public class LogisticsService : ILogisticsService
         _logisticsRepository = logisticsRepository;
     }
 
-    public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync()
+    public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync(string? siteCode)
     {
         try
         {
-            var tracking = await _logisticsRepository.GetProductionTrackingAsync();
+            var tracking = await _logisticsRepository.GetProductionTrackingAsync(siteCode);
             return Result<IEnumerable<ProductionTrackingDto>>.Success(tracking);
         }
         catch (Exception ex)

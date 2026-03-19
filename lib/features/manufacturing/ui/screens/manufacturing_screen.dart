@@ -6,6 +6,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/pro
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
 import '../../bloc/manufacturing_bloc.dart';
 import '../../bloc/manufacturing_event.dart';
+import '../../bloc/manufacturing_state.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/sync_progress_dialog.dart';
@@ -18,6 +19,22 @@ class ManufacturingScreen extends StatefulWidget {
 
   @override
   State<ManufacturingScreen> createState() => _ManufacturingScreenState();
+}
+
+class _MenuItem {
+  final String title;
+  final IconData icon;
+  final Widget? targetScreen;
+  final VoidCallback? onTap;
+  final String? subtitle;
+
+  _MenuItem({
+    required this.title,
+    required this.icon,
+    this.targetScreen,
+    this.onTap,
+    this.subtitle,
+  });
 }
 
 class _ManufacturingScreenState extends State<ManufacturingScreen> {
@@ -168,67 +185,149 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return IndustrialModuleLayout(
-      title: 'Manufacturing',
-      body: GridView.count(
-        padding: const EdgeInsets.all(24),
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.85,
-        children: [
-          _buildMenuCard(
-            context,
-            'Data Sync',
-            Icons.sync_rounded,
-            null,
-            onTapOverride: _triggerSync,
+    return BlocBuilder<ManufacturingBloc, ManufacturingState>(
+      builder: (context, state) {
+        final query = state.dashboardSearchQuery.toLowerCase();
+
+        final menuItems = [
+          _MenuItem(
+            title: 'Data Sync',
+            icon: Icons.sync_rounded,
+            onTap: _triggerSync,
             subtitle: 'Last: $_lastSyncStr',
           ),
           if (_hasAccess('manufacturing', 'work_order'))
-            _buildMenuCard(
-              context,
-              'Work order',
-              Icons.timer_outlined,
-              null,
-              onTapOverride: () => _simulateModuleWork('Work order'),
+            _MenuItem(
+              title: 'Work order',
+              icon: Icons.timer_outlined,
+              onTap: () => _simulateModuleWork('Work order'),
             ),
           if (_hasAccess('manufacturing', 'view_sales_order'))
-            _buildMenuCard(
-              context,
-              'View sales order',
-              Icons.show_chart_rounded,
-              const ViewSalesOrderScreen(),
+            _MenuItem(
+              title: 'View sales order',
+              icon: Icons.show_chart_rounded,
+              targetScreen: const ViewSalesOrderScreen(),
             ),
           if (_hasAccess('manufacturing', 'tracking'))
-            _buildMenuCard(
-              context,
-              'Production order tracking',
-              Icons.description_outlined,
-              const ProductionTrackingProductListScreen(),
+            _MenuItem(
+              title: 'Production order tracking',
+              icon: Icons.description_outlined,
+              targetScreen: const ProductionTrackingProductListScreen(),
             ),
           if (_hasAccess('manufacturing', 'components'))
-            _buildMenuCard(
-              context,
-              'Component products',
-              Icons.account_tree_rounded,
-              null,
-              onTapOverride: () => _simulateModuleWork('Component products'),
+            _MenuItem(
+              title: 'Component products',
+              icon: Icons.account_tree_rounded,
+              onTap: () => _simulateModuleWork('Component products'),
             ),
           if (_hasAccess('manufacturing', 'products'))
-            _buildMenuCard(
-              context,
-              'Parent product',
-              Icons.view_in_ar_rounded,
-              null,
-              onTapOverride: () => _simulateModuleWork('Parent product'),
+            _MenuItem(
+              title: 'Parent product',
+              icon: Icons.view_in_ar_rounded,
+              onTap: () => _simulateModuleWork('Parent product'),
             ),
-          _buildMenuCard(
-            context,
-            'End of Day',
-            Icons.event_busy_rounded,
-            null,
-            onTapOverride: _startEndOfDayFlow,
+          _MenuItem(
+            title: 'End of Day',
+            icon: Icons.event_busy_rounded,
+            onTap: _startEndOfDayFlow,
+          ),
+        ];
+
+        final filteredItems =
+            menuItems.where((item) => item.title.toLowerCase().contains(query)).toList();
+
+        return IndustrialModuleLayout(
+          title: 'Manufacturing',
+          body: Column(
+            children: [
+              _buildFilters(context, state),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(24),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: filteredItems.length,
+                  itemBuilder: (context, index) {
+                    final item = filteredItems[index];
+                    return _buildMenuCard(
+                      context,
+                      item.title,
+                      item.icon,
+                      item.targetScreen,
+                      onTapOverride: item.onTap,
+                      subtitle: item.subtitle,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFilters(BuildContext context, ManufacturingState state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      color: const Color(0xFF1E1E1E),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    hintText: 'Search dashboard...',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: const Color(0xFF2A2A2A),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  onChanged: (value) {
+                    context.read<ManufacturingBloc>().add(DashboardSearchChanged(value));
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    value: state.currentSiteCode ?? 'IPL',
+                    hint: const Text('Site', style: TextStyle(color: Colors.white54)),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'IPL',
+                        child: Text('IPL - Main', style: TextStyle(color: Colors.white)),
+                      ),
+                      DropdownMenuItem(
+                        value: 'SFT',
+                        child: Text('SFT - Whse', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      context.read<ManufacturingBloc>().add(SiteFilterChanged(value));
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -9,9 +9,21 @@ abstract class OrderEvent extends Equatable {
 
 class LoadSalesOrderItemsRequested extends OrderEvent {
   final DateTime? date;
+  final String? site;
+  final String? customerCode;
+  final String? salesRepCode;
 
-  const LoadSalesOrderItemsRequested({this.date});
+  const LoadSalesOrderItemsRequested({
+    this.date,
+    this.site,
+    this.customerCode,
+    this.salesRepCode,
+  });
 
   @override
-  List<Object?> get props => [date];
+  List<Object?> get props => [date, site, customerCode, salesRepCode];
+}
+
+class LoadFiltersRequested extends OrderEvent {
+  const LoadFiltersRequested();
 }

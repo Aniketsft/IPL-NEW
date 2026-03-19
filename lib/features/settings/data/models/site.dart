@@ -15,10 +15,10 @@ class Site {
 
   // Example of what the mock will generate
   static List<Site> get mockSites => [
-    Site(id: 'SITE-001', companyId: 'COMP-001', name: 'Main Plant'),
-    Site(id: 'SITE-002', companyId: 'COMP-001', name: 'North Warehouse'),
+    Site(id: 'IPL', companyId: 'COMP-001', name: 'Innodis Plant (IPL)'),
+    Site(id: 'SFT', companyId: 'COMP-001', name: 'SFT Warehouse'),
     Site(
-      id: 'SITE-003',
+      id: 'DC-ALPHA',
       companyId: 'COMP-002',
       name: 'Distribution Center Alpha',
     ),
