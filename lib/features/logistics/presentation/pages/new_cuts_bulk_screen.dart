@@ -3,6 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart';
+import 'package:collection/collection.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/scan_item_card.dart';
 
 class NewCutsBulkScreen extends StatefulWidget {
   const NewCutsBulkScreen({super.key});
@@ -23,21 +29,39 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String? _selectedProductName;
   String? _selectedExistingSO;
   final TextEditingController _amountController = TextEditingController(text: '0.00');
+  final TextEditingController _poController = TextEditingController();
 
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
   List<Map<String, String>> _productsList = [];
   List<Map<String, String>> _existingSOsList = [];
 
+  // Scanner & Site/Location State
+  List<Map<String, dynamic>> _scans = [];
+  bool _isScannerVisible = false;
+  MobileScannerController? _scannerController;
+  
+  List<String> _sites = [];
+  String? _selectedSite;
+  List<LocationLookup> _locations = [];
+  LocationLookup? _selectedLocation;
+  
+  bool _isLoadingSites = false;
+  bool _isLoadingLocations = false;
+  double _cumulativeWeight = 0.0;
+
   @override
   void initState() {
     super.initState();
     _loadLookups();
+    _fetchInitialData();
   }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _poController.dispose();
+    _scannerController?.dispose();
     super.dispose();
   }
 
@@ -65,6 +89,140 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
       }
+    }
+  }
+
+  Future<void> _fetchInitialData() async {
+    await _fetchProductionSites();
+  }
+
+  Future<void> _fetchProductionSites() async {
+    setState(() => _isLoadingSites = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final sites = await repository.getProductionSites();
+      if (mounted) {
+        setState(() {
+          _sites = sites;
+          if (_selectedSite == null || !_sites.contains(_selectedSite)) {
+            _selectedSite = _sites.isNotEmpty ? _sites.first : null;
+          }
+          _isLoadingSites = false;
+        });
+        if (_selectedSite != null) {
+          _fetchLocations();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingSites = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading sites: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchLocations() async {
+    if (_selectedSite == null) return;
+
+    setState(() => _isLoadingLocations = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final locations = await repository.getLocationLookups(_selectedSite!);
+      final prefs = await SharedPreferences.getInstance();
+      final lastLocation = prefs.getString('last_selected_location');
+
+      if (mounted) {
+        setState(() {
+          _locations = locations;
+          if (lastLocation != null) {
+            _selectedLocation = _locations.firstWhereOrNull(
+              (l) => l.location == lastLocation,
+            );
+          }
+          _selectedLocation ??= _locations.firstWhereOrNull(
+            (l) => l.warehouseName == 'Main Warehouse',
+          );
+          _selectedLocation ??= _locations.isNotEmpty ? _locations.first : null;
+          _isLoadingLocations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLocations = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading locations: $e')),
+        );
+      }
+    }
+  }
+
+  void _onSiteChanged(String? site) {
+    if (site != null && site != _selectedSite) {
+      setState(() {
+        _selectedSite = site;
+        _selectedLocation = null;
+        _locations = [];
+      });
+      _fetchLocations();
+    }
+  }
+
+  void _toggleScanner() async {
+    if (!_isScannerVisible) {
+      final status = await Permission.camera.request();
+      if (status.isGranted) {
+        setState(() {
+          _isScannerVisible = true;
+          _scannerController = MobileScannerController();
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Camera permission is required to scan')),
+          );
+        }
+      }
+    } else {
+      setState(() {
+        _isScannerVisible = false;
+        _scannerController?.dispose();
+        _scannerController = null;
+      });
+    }
+  }
+
+  Future<void> _handleScan(BarcodeCapture capture) async {
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+
+    final code = barcodes.first.rawValue;
+    if (code == null) return;
+
+    // Optional: add haptic feedback or sound
+
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final result = await repository.decodeBarcode(code);
+      
+      if (result != null && mounted) {
+        final weight = result['weight'] as double;
+        final productCode = result['productCode'] as String;
+        
+        setState(() {
+          _scans.add({
+            'barcode': code,
+            'weight': weight,
+            'productCode': productCode,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          _cumulativeWeight += weight;
+          _amountController.text = _cumulativeWeight.toStringAsFixed(3);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error decoding barcode: $e');
     }
   }
 
@@ -122,6 +280,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
       'amount': amount,
       'amountKg': amount,
+      'scans': _scans,
     };
 
     try {
@@ -152,7 +311,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       body: Stack(
         children: [
           SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -160,7 +319,8 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                 const SizedBox(height: 24),
                 _buildSOToggle(orange),
                 const SizedBox(height: 24),
-                _buildSectionHeader('Details', Icons.keyboard_arrow_up),
+
+                _buildSectionHeader('Details', Icons.edit_note),
                 const SizedBox(height: 16),
                 if (!_isNewSO) ...[
                   _buildLabel('Select Existing SO *'),
@@ -184,42 +344,134 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                   _buildLabel('Date'),
                   _buildDatePicker(orange),
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Salesman 1'),
+                            _buildPickerTile(
+                              'Salesman 1',
+                              _selectedSM1Code,
+                              _salesRepsList,
+                              (val) => setState(() => _selectedSM1Code = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Salesman 2'),
+                            _buildPickerTile(
+                              'Salesman 2',
+                              _selectedSM2Code,
+                              _salesRepsList,
+                              (val) => setState(() => _selectedSM2Code = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                 ],
+
                 _buildLabel('Product *'),
                 _buildPickerTile(
                   'Product',
                   _selectedProductCode,
                   _productsList,
                   (val) {
-                    final product = _productsList.firstWhere(
-                      (p) => p['code'] == val,
-                      orElse: () => {},
-                    );
+                    final product = _productsList.firstWhereOrNull((p) => p['code'] == val);
                     setState(() {
                       _selectedProductCode = val;
-                      _selectedProductName = product['name'];
+                      _selectedProductName = product?['name'];
                     });
                   },
                 ),
-                if (_isNewSO) ...[
-                  const SizedBox(height: 16),
-                  _buildLabel('Salesman 1'),
-                  _buildPickerTile(
-                    'Salesman 1',
-                    _selectedSM1Code,
-                    _salesRepsList,
-                    (val) => setState(() => _selectedSM1Code = val),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel('Salesman 2'),
-                  _buildPickerTile(
-                    'Salesman 2',
-                    _selectedSM2Code,
-                    _salesRepsList,
-                    (val) => setState(() => _selectedSM2Code = val),
-                  ),
-                ],
+                const SizedBox(height: 24),
+
+                _buildSectionHeader('Scanning', Icons.qr_code_scanner),
                 const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel('Production Site'),
+                          _buildDropdownTile(
+                            'Site',
+                            _selectedSite,
+                            _sites,
+                            _onSiteChanged,
+                            isLoading: _isLoadingSites,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel('Location'),
+                          _buildDropdownTile(
+                            'Location',
+                            _selectedLocation?.location,
+                            _locations.where((l) => l.location != null).map((l) => l.location!).toList(),
+                            (val) {
+                              setState(() {
+                                _selectedLocation = _locations.firstWhereOrNull((l) => l.location == val);
+                              });
+                            },
+                            isLoading: _isLoadingLocations,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                if (_isScannerVisible)
+                  _buildScannerView()
+                else
+                  _buildScannerToggle(),
+                
+                const SizedBox(height: 24),
+
+                if (_scans.isNotEmpty) ...[
+                  _buildSectionHeader('Scanned Items (${_scans.length})', Icons.list),
+                  const SizedBox(height: 8),
+                  ..._scans.reversed.map((scan) {
+                    final index = _scans.indexOf(scan);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: ScanItemCard(
+                        lineNumber: index + 1,
+                        scan: {
+                          ...scan,
+                          'productName': _selectedProductName ?? 'Product ${_selectedProductCode ?? ""}',
+                          'status': 'A',
+                        },
+                        onDelete: () {
+                          setState(() {
+                            _cumulativeWeight -= (scan['weight'] as num).toDouble();
+                            _scans.removeAt(index);
+                            _amountController.text = _cumulativeWeight.toStringAsFixed(3);
+                          });
+                        },
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 24),
+                ],
+
                 _buildLabel('Amount (Kg) *'),
                 TextFormField(
                   controller: _amountController,
@@ -241,7 +493,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 100), // Space for bottom bar
               ],
             ),
           ),
@@ -339,6 +590,125 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownTile(
+    String label,
+    String? value,
+    List<String> items,
+    Function(String?) onSelected, {
+    bool isLoading = false,
+  }) {
+    return InkWell(
+      onTap: isLoading ? null : () => _showSearchPicker(label, items.map((e) => {'code': e, 'name': e}).toList(), (val) => onSelected(val)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF9800)),
+                    )
+                  : Text(
+                      value ?? 'Select $label...',
+                      style: TextStyle(
+                        color: value == null ? Colors.white24 : Colors.white,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: Colors.white38),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScannerToggle() {
+    return Center(
+      child: Column(
+        children: [
+          const Text(
+            'Ready to scan barcodes',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _toggleScanner,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('OPEN SCANNER'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF9800),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScannerView() {
+    return Container(
+      height: 300,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFF9800)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          MobileScanner(
+            controller: _scannerController!,
+            onDetect: _handleScan,
+          ),
+          // Scanner Overlay
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFFF9800).withOpacity(0.5), width: 2),
+            ),
+            margin: const EdgeInsets.all(40),
+          ),
+          // Close button
+          Positioned(
+            top: 8,
+            right: 8,
+            child: CircleAvatar(
+              backgroundColor: Colors.black54,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _toggleScanner,
+              ),
+            ),
+          ),
+          // Instruction
+          const Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Text(
+              'Align barcode within frame',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

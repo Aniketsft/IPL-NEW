@@ -425,16 +425,32 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.colDetQuantity: quantity,
       });
 
-      // ALSO: Insert a pseudo-scan for this entry so it's visible in Production Tracking
-      await db.insert(LocalDatabaseHelper.tableScans, {
-        LocalDatabaseHelper.columnSoNumber: entryNo,
-        LocalDatabaseHelper.columnProductCode: productCode,
-        LocalDatabaseHelper.columnQuantity: quantity,
-        LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
-        LocalDatabaseHelper.columnIsSynced: 0,
-        LocalDatabaseHelper.columnItemStatus: 'Internal Entry',
-        LocalDatabaseHelper.columnSite: 'INTERNAL',
-      });
+      // ALSO: Insert scans for this entry so it's visible in Production Tracking
+      if (entry['scans'] != null && (entry['scans'] as List).isNotEmpty) {
+        final scans = entry['scans'] as List;
+        for (final scan in scans) {
+          await db.insert(LocalDatabaseHelper.tableScans, {
+            LocalDatabaseHelper.columnSoNumber: entryNo,
+            LocalDatabaseHelper.columnProductCode: scan['productCode'],
+            LocalDatabaseHelper.columnQuantity: scan['weight'],
+            LocalDatabaseHelper.columnTimestamp:
+                scan['timestamp'] ?? DateTime.now().toIso8601String(),
+            LocalDatabaseHelper.columnIsSynced: 0,
+            LocalDatabaseHelper.columnItemStatus: 'Scanned',
+            LocalDatabaseHelper.columnSite: 'INTERNAL',
+          });
+        }
+      } else {
+        await db.insert(LocalDatabaseHelper.tableScans, {
+          LocalDatabaseHelper.columnSoNumber: entryNo,
+          LocalDatabaseHelper.columnProductCode: productCode,
+          LocalDatabaseHelper.columnQuantity: quantity,
+          LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
+          LocalDatabaseHelper.columnIsSynced: 0,
+          LocalDatabaseHelper.columnItemStatus: 'Internal Entry',
+          LocalDatabaseHelper.columnSite: 'INTERNAL',
+        });
+      }
 
       // Mark order as unsynced if it was previously synced (adding new detail)
       if (existingSo != null && existingSo.isNotEmpty) {

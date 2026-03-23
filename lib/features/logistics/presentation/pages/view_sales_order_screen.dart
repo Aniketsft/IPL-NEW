@@ -385,8 +385,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           return SalesOrderCard(
                             order: _filteredOrders[index],
                             onRefresh: _fetchOrders,
-                            onLongPress: () =>
-                                _showShipmentDialog(_filteredOrders[index]),
                           );
                         },
                       ),
@@ -412,66 +410,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     );
   }
 
-  Future<void> _showShipmentDialog(SalesOrder order) async {
-    if (order.isClosed) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.local_shipping_outlined, color: Color(0xFFFF9800)),
-            SizedBox(width: 8),
-            Text(
-              'Prepare for Shipment',
-              style: TextStyle(color: Colors.white, fontSize: 18),
-            ),
-          ],
-        ),
-        content: Text(
-          'Close order ${order.orderNumber}\nfor ${order.customerName}?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF9800),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        final repository = context.read<DeliveryRepository>();
-        await repository.closeOrder(order.orderNumber, 'mobile-user');
-        _fetchOrders();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Order ${order.orderNumber} prepared for shipment'),
-              backgroundColor: const Color(0xFFFF9800),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
-  }
 
   Widget _buildDatePicker(Color orange) {
     return FilterDatePicker(

@@ -20,8 +20,9 @@ class ScanItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final barcode = scan['barcode'] as String;
     final timestamp = scan['timestamp'] as String;
-    final weight = scan['weight'] as double;
+    final weight = (scan['weight'] as num).toDouble();
     final status = scan['status'] ?? 'A'; // Default to 'A' if not present
+    final productName = scan['productName'] as String?;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -50,7 +51,7 @@ class ScanItemCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // Barcode and Timestamp
+          // Barcode, Product Name and Timestamp
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,6 +64,19 @@ class ScanItemCard extends StatelessWidget {
                     fontFamily: 'monospace',
                   ),
                 ),
+                if (productName != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    productName,
+                    style: const TextStyle(
+                      color: orange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Text(
                   timestamp.length > 16 
