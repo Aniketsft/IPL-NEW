@@ -14,6 +14,8 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<IEnumerable<CustomerLookupDto>>> GetCustomerLookupAsync();
         Task<Result<IEnumerable<SalesRepLookupDto>>> GetSalesRepLookupAsync();
         Task<Result<int>> SyncScansAsync(IEnumerable<ScanDto> scans);
+        Task<Result<IEnumerable<string>>> GetProductionSitesAsync();
+        Task<Result<IEnumerable<string>>> GetLotsAsync(string itemCode, string siteCode);
 
         Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site);
         Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy);

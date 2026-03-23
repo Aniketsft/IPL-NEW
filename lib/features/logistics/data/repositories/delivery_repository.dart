@@ -288,6 +288,29 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  @override
+  Future<List<String>> getProductionSites() async {
+    try {
+      final response = await _dio.get('Logistics/production-sites');
+      return (response.data as List).map((s) => s.toString()).toList();
+    } catch (e) {
+      throw 'Failed to fetch production sites: $e';
+    }
+  }
+
+  @override
+  Future<List<String>> getLots(String itemCode, String siteCode) async {
+    try {
+      final response = await _dio.get(
+        'Logistics/lots',
+        queryParameters: {'itemCode': itemCode, 'siteCode': siteCode},
+      );
+      return (response.data as List).map((s) => s.toString()).toList();
+    } catch (e) {
+      throw 'Failed to fetch lots: $e';
+    }
+  }
+
   Future<List<SalesOrderDetail>> fetchSalesOrderDetails(String soNumber) async {
     return getSalesOrderDetails(soNumber);
   }

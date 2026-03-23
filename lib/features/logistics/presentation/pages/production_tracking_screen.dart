@@ -1,4 +1,3 @@
-import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -37,11 +36,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   List<Map<String, dynamic>> _scans = [];
   Map<String, dynamic>? _pendingScan;
   bool _isSaving = false;
-  List<Site> _sites = [];
+  List<String> _sites = [];
   String? _selectedSite;
+  List<String> _lots = [];
+  String? _selectedLot;
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocation;
   bool _isLoadingLocations = false;
+  bool _isLoadingSites = false;
+  bool _isLoadingLots = false;
   MobileScannerController? _scannerController;
   bool _isScannerVisible = false;
 
@@ -60,17 +63,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   Future<void> _fetchInitialData() async {
     try {
-      // Initialize sites
-      _sites = Site.mockSites;
-
-      // If product site is not in mock sites, add it if possible or default to first
-      if (_selectedSite != null && !_sites.any((s) => s.id == _selectedSite)) {
-        // Fallback
-      }
-
-      _selectedSite ??= _sites.isNotEmpty ? _sites.first.id : null;
-
+      await _fetchProductionSites();
       await _fetchLocations();
+      if (_selectedSite != null) {
+        await _fetchLots();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -116,13 +113,67 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     }
   }
 
+  Future<void> _fetchProductionSites() async {
+    setState(() => _isLoadingSites = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final sites = await repository.getProductionSites();
+      if (mounted) {
+        setState(() {
+          _sites = sites;
+          if (_selectedSite == null || !_sites.contains(_selectedSite)) {
+            _selectedSite = _sites.isNotEmpty ? _sites.first : null;
+          }
+          _isLoadingSites = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingSites = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading production sites: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchLots() async {
+    if (_selectedSite == null) return;
+    setState(() => _isLoadingLots = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final lots = await repository.getLots(
+        widget.product.itemCode,
+        _selectedSite!,
+      );
+      if (mounted) {
+        setState(() {
+          _lots = lots;
+          if (_selectedLot == null || !_lots.contains(_selectedLot)) {
+            _selectedLot = _lots.isNotEmpty ? _lots.first : null;
+          }
+          _isLoadingLots = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLots = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading lots: $e')));
+      }
+    }
+  }
+
   void _onSiteChanged(String? siteId) {
     if (siteId != null && siteId != _selectedSite) {
       setState(() {
         _selectedSite = siteId;
         _selectedLocation = null;
+        _selectedLot = null;
       });
       _fetchLocations();
+      _fetchLots();
     }
   }
 
@@ -268,6 +319,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       return;
     }
 
+    if (_selectedSite == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a production site')),
+      );
+      return;
+    }
+
+    if (_selectedLot == null && _lots.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a production lot')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final repository = context.read<DeliveryRepository>();
@@ -286,6 +351,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         'customerName': widget.order.customerName,
         'siteId': _selectedSite,
         'locationCode': _selectedLocation?.location,
+        'lotNumber': _selectedLot,
       };
 
       await repository.saveProductionScan(payload);
@@ -346,6 +412,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                   _buildHeaderCard(),
                   const SizedBox(height: 16),
                   _buildSiteSelector(),
+                  const SizedBox(height: 12),
+                  _buildLotSelector(),
                   const SizedBox(height: 12),
                   _buildLocationSelector(),
                   const SizedBox(height: 16),
@@ -436,9 +504,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _selectedSite,
             dropdownColor: dark800,
-            style: const TextStyle(color: Colors.white),
+            value: _selectedSite,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               filled: true,
               fillColor: darkBorder,
@@ -451,14 +519,89 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 horizontal: 12,
                 vertical: 14,
               ),
+              suffixIcon:
+                  _isLoadingSites
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: orange,
+                          ),
+                        ),
+                      )
+                      : null,
             ),
-            items: _sites
-                .map(
-                  (site) =>
-                      DropdownMenuItem(value: site.id, child: Text(site.name)),
-                )
-                .toList(),
+            items:
+                _sites
+                    .map(
+                      (site) => DropdownMenuItem(value: site, child: Text(site)),
+                    )
+                    .toList(),
             onChanged: _onSiteChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLotSelector() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dark800,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Production Lot',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            dropdownColor: dark800,
+            value: _selectedLot,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: darkBorder,
+              prefixIcon: const Icon(Icons.layers, color: orange, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+              suffixIcon:
+                  _isLoadingLots
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: orange,
+                          ),
+                        ),
+                      )
+                      : null,
+            ),
+            items:
+                _lots
+                    .map(
+                      (lot) => DropdownMenuItem(value: lot, child: Text(lot)),
+                    )
+                    .toList(),
+            onChanged: (value) {
+              setState(() => _selectedLot = value);
+            },
           ),
         ],
       ),

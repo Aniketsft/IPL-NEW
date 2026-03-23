@@ -36,4 +36,6 @@ abstract class ILogisticsRepository {
   Future<List<Site>> getSites();
   Future<List<Customer>> getCustomers();
   Future<List<SalesRep>> getSalesReps();
+  Future<List<String>> getProductionSites();
+  Future<List<String>> getLots(String itemCode, String siteCode);
 }

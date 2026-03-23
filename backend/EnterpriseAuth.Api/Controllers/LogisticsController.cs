@@ -95,6 +95,24 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("production-sites")]
+    public async Task<IActionResult> GetProductionSites()
+    {
+        var result = await _logisticsService.GetProductionSitesAsync();
+        return ToActionResult(result);
+    }
+
+    [HttpGet("lots")]
+    public async Task<IActionResult> GetLots([FromQuery] string itemCode, [FromQuery] string siteCode)
+    {
+        if (string.IsNullOrEmpty(itemCode) || string.IsNullOrEmpty(siteCode))
+        {
+            return BadRequest("ItemCode and SiteCode are required.");
+        }
+        var result = await _logisticsService.GetLotsAsync(itemCode, siteCode);
+        return ToActionResult(result);
+    }
+
     [HttpPost("close-order/{soNumber}")]
     public async Task<IActionResult> CloseOrder(string soNumber, [FromQuery] string closedBy = "system")
     {

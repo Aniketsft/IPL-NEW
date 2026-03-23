@@ -303,6 +303,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<SalesRepLookupDto>(sql);
         }
 
+        public async Task<IEnumerable<string>> GetProductionSitesAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = "SELECT DISTINCT STOFCY_0 FROM InnodisTestDB.INLPROD.STOLOC ORDER BY STOFCY_0";
+            return await db.QueryAsync<string>(sql);
+        }
+
+        public async Task<IEnumerable<string>> GetLotsAsync(string itemCode, string siteCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            const string sql = @"
+                SELECT DISTINCT LOT_0 
+                FROM InnodisTestDB.INLPROD.STOCK 
+                WHERE ITMREF_0 = @ItemCode AND STOFCY_0 = @SiteCode AND QTYPCU_0 > 0
+                ORDER BY LOT_0";
+            return await db.QueryAsync<string>(sql, new { ItemCode = itemCode, SiteCode = siteCode });
+        }
+
         public async Task<int> SyncScansAsync(IEnumerable<ScanDto> scans)
         {
             if (scans == null || !scans.Any()) return 0;
