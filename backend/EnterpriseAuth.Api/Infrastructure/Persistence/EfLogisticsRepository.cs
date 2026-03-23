@@ -32,7 +32,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             
             var sql = @"
-                SELECT TOP 100
+                SELECT TOP 300
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as SoNumber,
                     f1.STOFCY_0 COLLATE DATABASE_DEFAULT as Site,
                     LTRIM(RTRIM(f2.ITMREF_0)) COLLATE DATABASE_DEFAULT as ItemCode,

@@ -38,7 +38,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Define fetching tasks with separate connections for parallel execution
             var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>(@"
-                SELECT TOP 100
+                SELECT TOP 300
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
                     f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
                     f0.ORDDAT_0 as [OrderDate],
@@ -66,9 +66,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 IN (
-                    SELECT TOP 100 s.SOHNUM_0 
+                    SELECT TOP 300 s.SOHNUM_0 
                     FROM InnodisTestDB.INLPROD.SORDER s WITH (NOLOCK) 
+                    JOIN InnodisTestDB.INLPROD.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
+                    JOIN InnodisTestDB.INLPROD.BPCUSTOMER bc WITH (NOLOCK) ON s.BPCORD_0 = bc.BPCNUM_0
                     ORDER BY s.ORDDAT_0 DESC
                 )");
 
