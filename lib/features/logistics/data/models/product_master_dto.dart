@@ -15,10 +15,14 @@ class ProductMasterDto {
 
   factory ProductMasterDto.fromJson(Map<String, dynamic> json) {
     return ProductMasterDto(
-      productCode: json['productCode'] ?? '',
-      productDescription: json['productDescription'] ?? '',
-      stockUnit: json['stockUnit'] ?? '',
-      salesUnit: json['salesUnit'] ?? '',
+      productCode: (json['productCode'] ?? json['itemCode'] ?? '').toString(),
+      productDescription: (json['productDescription'] ??
+              json['itemDescription'] ??
+              json['description'] ??
+              '')
+          .toString(),
+      stockUnit: (json['stockUnit'] ?? json['baseUnit'] ?? '').toString(),
+      salesUnit: (json['salesUnit'] ?? json['unit'] ?? '').toString(),
     );
   }
 

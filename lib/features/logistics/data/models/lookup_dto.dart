@@ -6,8 +6,20 @@ class LookupDto {
 
   factory LookupDto.fromJson(Map<String, dynamic> json) {
     return LookupDto(
-      code: (json['code'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
+      code: (json['code'] ??
+              json['customerCode'] ??
+              json['repCode'] ??
+              json['salesmanCode'] ??
+              json['siteCode'] ??
+              '')
+          .toString(),
+      name: (json['name'] ??
+              json['customerName'] ??
+              json['repName'] ??
+              json['salesmanName'] ??
+              json['siteName'] ??
+              '')
+          .toString(),
     );
   }
 

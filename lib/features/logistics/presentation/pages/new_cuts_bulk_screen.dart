@@ -35,6 +35,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   List<Map<String, String>> _salesRepsList = [];
   List<Map<String, String>> _productsList = [];
   List<Map<String, String>> _existingSOsList = [];
+  bool _isLoadingSOs = false;
 
 
   
@@ -59,6 +60,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       final customers = await repository.getCustomers();
       final reps = await repository.getSalesReps();
       final products = await repository.getProducts();
+      setState(() => _isLoadingSOs = true);
       final existingSOs = await repository.getExistingCutBulkSOs();
 
       setState(() {
@@ -70,6 +72,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             .toList();
         _productsList = products;
         _existingSOsList = existingSOs;
+        _isLoadingSOs = false;
       });
     } catch (e) {
       if (mounted) {
@@ -146,6 +149,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         'salesman2Code': _selectedSM2Code,
       },
       if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
+      'poNumber': _poController.text,
       'amount': amount,
       'amountKg': amount,
       'scans': _selectedProducts.expand((p) => p['scans'] as List).toList(),
@@ -189,116 +193,94 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                 const SizedBox(height: 32),
 
                 // SO Details Section
-                Row(
-                  children: [
-                    Icon(_isNewSO ? Icons.assignment_outlined : Icons.inventory_2_outlined, color: Colors.grey, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      _isNewSO ? 'SO DETAILS' : 'SELECT EXISTING SO',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        _soDetailsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: Colors.grey,
-                        size: 20,
-                      ),
-                      onPressed: () => setState(() => _soDetailsExpanded = !_soDetailsExpanded),
-                    ),
-                  ],
-                ),
-                if (_soDetailsExpanded) ...[
-                  const SizedBox(height: 16),
-                  if (_isNewSO) ...[
-                    _buildLabel('Customer'),
-                    _buildDropdownTile(
-                      'Customer',
-                      _selectedCustomerCode != null 
-                          ? (_customersList.any((c) => c['code'] == _selectedCustomerCode)
-                              ? _customersList.firstWhere((c) => c['code'] == _selectedCustomerCode)['name']
-                              : _selectedCustomerCode)
-                          : null,
-                      _customersList.map((e) => e['name']!).toList(),
-                      (val) {
-                        final customerIndex = _customersList.indexWhere((c) => c['name'] == val);
-                        if (customerIndex != -1) {
-                          setState(() => _selectedCustomerCode = _customersList[customerIndex]['code']);
-                        }
-                      }
-                    ),
-                    const SizedBox(height: 16),
-                    _buildLabel('Date'),
-                    _buildDatePicker(),
-                    const SizedBox(height: 16),
-                    Row(
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    initiallyExpanded: _soDetailsExpanded,
+                    onExpansionChanged: (expanded) => setState(() => _soDetailsExpanded = expanded),
+                    tilePadding: EdgeInsets.zero,
+                    title: Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('Salesman 1'),
-                              _buildDropdownTile(
-                                'Salesman 1',
-                                _selectedSM1Code != null 
-                                    ? (_salesRepsList.any((s) => s['code'] == _selectedSM1Code)
-                                        ? _salesRepsList.firstWhere((s) => s['code'] == _selectedSM1Code)['name']
-                                        : _selectedSM1Code)
-                                    : null,
-                                _salesRepsList.map((e) => e['name']!).toList(),
-                                (val) {
-                                  final index = _salesRepsList.indexWhere((s) => s['name'] == val);
-                                  if (index != -1) {
-                                    setState(() => _selectedSM1Code = _salesRepsList[index]['code']);
-                                  }
-                                }
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('Salesman 2'),
-                              _buildDropdownTile(
-                                'Salesman 2',
-                                _selectedSM2Code != null 
-                                    ? (_salesRepsList.any((s) => s['code'] == _selectedSM2Code)
-                                        ? _salesRepsList.firstWhere((s) => s['code'] == _selectedSM2Code)['name']
-                                        : _selectedSM2Code)
-                                    : null,
-                                _salesRepsList.map((e) => e['name']!).toList(),
-                                (val) {
-                                  final index = _salesRepsList.indexWhere((s) => s['name'] == val);
-                                  if (index != -1) {
-                                    setState(() => _selectedSM2Code = _salesRepsList[index]['code']);
-                                  }
-                                }
-                              ),
-                            ],
+                        Icon(_isNewSO ? Icons.assignment_outlined : Icons.inventory_2_outlined, color: Colors.grey, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isNewSO ? 'SO DETAILS' : 'SELECT EXISTING SO',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ],
                     ),
-                  ] else ...[
-                    _buildLabel('Existing SO'),
-                    _buildDropdownTile(
-                      'Existing SO',
-                      _selectedExistingSO,
-                      _existingSOsList.map((e) => e['code'] ?? e['name'] ?? '').toList(),
-                      (val) => setState(() => _selectedExistingSO = val)
-                    ),
-                  ],
-                ],
+                    children: [
+                      const SizedBox(height: 16),
+                      if (_isNewSO) ...[
+                        _buildLabel('Customer'),
+                        _buildDropdownTile(
+                          'Customer',
+                          _selectedCustomerCode,
+                          _customersList,
+                          (val) => setState(() => _selectedCustomerCode = val),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildLabel('Date'),
+                        _buildDatePicker(),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Salesman 1'),
+                                  _buildDropdownTile(
+                                    'Salesman 1',
+                                    _selectedSM1Code,
+                                    _salesRepsList,
+                                    (val) => setState(() => _selectedSM1Code = val),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Salesman 2'),
+                                  _buildDropdownTile(
+                                    'Salesman 2',
+                                    _selectedSM2Code,
+                                    _salesRepsList,
+                                    (val) => setState(() => _selectedSM2Code = val),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildLabel('PO Number'),
+                        _buildPOField(),
+                      ] else ...[
+                        _buildLabel('Existing SO'),
+                        _buildDropdownTile(
+                          'Existing SO',
+                          _selectedExistingSO,
+                          _existingSOsList,
+                          (val) => setState(() => _selectedExistingSO = val),
+                          isLoading: _isLoadingSOs,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 32),
 
                 // Section Header: SCANNED PRODUCTS
@@ -433,12 +415,22 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   Widget _buildDropdownTile(
     String label,
     String? value,
-    List<String> items,
+    List<Map<String, String>> items,
     Function(String?) onSelected, {
     bool isLoading = false,
   }) {
+    String? displayName;
+    if (value != null && items.isNotEmpty) {
+      try {
+        final item = items.firstWhere((it) => it['code'] == value);
+        displayName = item['name'] ?? value;
+      } catch (_) {
+        displayName = value;
+      }
+    }
+
     return InkWell(
-      onTap: isLoading ? null : () => _showSearchPicker(label, items.map((e) => {'code': e, 'name': e}).toList(), (val) => onSelected(val)),
+      onTap: isLoading ? null : () => _showSearchPicker(label, items, onSelected),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
@@ -457,16 +449,37 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF9800)),
                     )
                   : Text(
-                      value ?? 'Select $label...',
+                      displayName ?? 'Select $label...',
                       style: TextStyle(
-                        color: value == null ? Colors.white24 : Colors.white,
+                        color: displayName == null ? Colors.white24 : Colors.white,
                         fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
             ),
-            const Icon(Icons.arrow_drop_down, color: Colors.white38),
+            const Icon(Icons.arrow_drop_down, color: Colors.white38, size: 20),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPOField() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: TextFormField(
+        controller: _poController,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: 'Enter PO Number',
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 14),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
