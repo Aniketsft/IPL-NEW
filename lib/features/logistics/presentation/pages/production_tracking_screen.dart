@@ -785,16 +785,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
     setState(() {
       final manualScan = {
-        'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-        'productCode': widget.product.itemCode,
+        'barcode': 'MANUAL-1KG-${DateTime.now().millisecondsSinceEpoch}',
         'weight': 1.0,
-        'timestamp': DateTime.now().toIso8601String(),
-        'isManual': true,
+        'productCode': widget.product.itemCode,
+        'status': _status,
         'siteId': _selectedSite,
         'locationCode': _selectedLocation?.location,
+        'timestamp': DateTime.now().toIso8601String(),
       };
       _scans.add(manualScan);
-      _cumulativeQty += 1.0;
+      if (_status == 'A') {
+        _cumulativeQty += 1.0;
+      }
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -979,8 +981,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                     ),
                   ),
                   child: const Text(
-                    '+ 1 KG',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'SCAN 1KG',
+                    style: TextStyle(height: 1.1, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),

@@ -38,4 +38,6 @@ abstract class ILogisticsRepository {
   Future<List<SalesRep>> getSalesReps();
   Future<List<String>> getProductionSites();
   Future<List<String>> getLots(String itemCode, String siteCode);
+  Future<String> saveCutBulkEntry(Map<String, dynamic> entry);
 }
+

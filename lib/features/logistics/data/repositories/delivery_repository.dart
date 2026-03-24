@@ -410,46 +410,79 @@ class DeliveryRepository implements ILogisticsRepository {
         });
       }
 
-      final productCode = entry['productCode'] ??
-          (entry['type'] == 'Cuts' ? 'PROD-CUT' : 'PROD-BLK');
-      final quantity = entry['amountKg'] ?? 0.0;
+      final List? products = entry['products'] as List?;
 
-      // Always add a detail line with the selected product
-      await db.insert(LocalDatabaseHelper.tableDetails, {
-        LocalDatabaseHelper.colDetSoNum: entryNo,
-        LocalDatabaseHelper.colDetItemCode: productCode,
-        LocalDatabaseHelper.colDetDescription:
-            entry['productName'] ??
-            (entry['type'] == 'Cuts' ? 'Internal - Cuts' : 'Internal - Bulk'),
-        LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
-        LocalDatabaseHelper.colDetQuantity: quantity,
-      });
+      if (products != null && products.isNotEmpty) {
+        for (final product in products) {
+          final productCode = product['code'];
+          final productName = product['name'];
+          final scans = product['scans'] as List? ?? [];
+          final totalWeight = scans.fold(0.0, (sum, s) => sum + (s['weight'] as num).toDouble());
 
-      // ALSO: Insert scans for this entry so it's visible in Production Tracking
-      if (entry['scans'] != null && (entry['scans'] as List).isNotEmpty) {
-        final scans = entry['scans'] as List;
-        for (final scan in scans) {
+          // Insert detail line
+          await db.insert(LocalDatabaseHelper.tableDetails, {
+            LocalDatabaseHelper.colDetSoNum: entryNo,
+            LocalDatabaseHelper.colDetItemCode: productCode,
+            LocalDatabaseHelper.colDetDescription: productName,
+            LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
+            LocalDatabaseHelper.colDetQuantity: totalWeight,
+          });
+
+          // Insert scans
+          for (final scan in scans) {
+            await db.insert(LocalDatabaseHelper.tableScans, {
+              LocalDatabaseHelper.columnSoNumber: entryNo,
+              LocalDatabaseHelper.columnProductCode: productCode,
+              LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnTimestamp:
+                  scan['timestamp'] ?? DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.columnIsSynced: 0,
+              LocalDatabaseHelper.columnItemStatus: 'Scanned',
+              LocalDatabaseHelper.columnSite: 'INTERNAL',
+            });
+          }
+        }
+      } else {
+        // Fallback for legacy single-product entries
+        final productCode = entry['productCode'] ??
+            (entry['type'] == 'Cuts' ? 'PROD-CUT' : 'PROD-BLK');
+        final quantity = entry['amountKg'] ?? 0.0;
+
+        await db.insert(LocalDatabaseHelper.tableDetails, {
+          LocalDatabaseHelper.colDetSoNum: entryNo,
+          LocalDatabaseHelper.colDetItemCode: productCode,
+          LocalDatabaseHelper.colDetDescription:
+              entry['productName'] ??
+              (entry['type'] == 'Cuts' ? 'Internal - Cuts' : 'Internal - Bulk'),
+          LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
+          LocalDatabaseHelper.colDetQuantity: quantity,
+        });
+
+        if (entry['scans'] != null && (entry['scans'] as List).isNotEmpty) {
+          final scans = entry['scans'] as List;
+          for (final scan in scans) {
+            await db.insert(LocalDatabaseHelper.tableScans, {
+              LocalDatabaseHelper.columnSoNumber: entryNo,
+              LocalDatabaseHelper.columnProductCode: scan['productCode'],
+              LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnTimestamp:
+                  scan['timestamp'] ?? DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.columnIsSynced: 0,
+              LocalDatabaseHelper.columnItemStatus: 'Scanned',
+              LocalDatabaseHelper.columnSite: 'INTERNAL',
+            });
+          }
+        } else {
           await db.insert(LocalDatabaseHelper.tableScans, {
             LocalDatabaseHelper.columnSoNumber: entryNo,
-            LocalDatabaseHelper.columnProductCode: scan['productCode'],
-            LocalDatabaseHelper.columnQuantity: scan['weight'],
-            LocalDatabaseHelper.columnTimestamp:
-                scan['timestamp'] ?? DateTime.now().toIso8601String(),
+            LocalDatabaseHelper.columnProductCode: productCode,
+            LocalDatabaseHelper.columnQuantity: quantity,
+            LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
             LocalDatabaseHelper.columnIsSynced: 0,
-            LocalDatabaseHelper.columnItemStatus: 'Scanned',
+            LocalDatabaseHelper.columnItemStatus: 'Internal Entry',
             LocalDatabaseHelper.columnSite: 'INTERNAL',
           });
         }
-      } else {
-        await db.insert(LocalDatabaseHelper.tableScans, {
-          LocalDatabaseHelper.columnSoNumber: entryNo,
-          LocalDatabaseHelper.columnProductCode: productCode,
-          LocalDatabaseHelper.columnQuantity: quantity,
-          LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
-          LocalDatabaseHelper.columnIsSynced: 0,
-          LocalDatabaseHelper.columnItemStatus: 'Internal Entry',
-          LocalDatabaseHelper.columnSite: 'INTERNAL',
-        });
       }
 
       // Mark order as unsynced if it was previously synced (adding new detail)
