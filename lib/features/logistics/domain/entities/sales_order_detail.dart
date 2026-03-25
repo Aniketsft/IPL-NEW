@@ -21,6 +21,7 @@ class SalesOrderDetail {
   final double quantity;
   final double remaining;
   final double scannedQuantity;
+  final bool isPrepared;
 
   SalesOrderDetail({
     required this.soNumber,
@@ -43,6 +44,7 @@ class SalesOrderDetail {
     required this.quantity,
     required this.remaining,
     required this.scannedQuantity,
+    this.isPrepared = false,
   });
 
   // CB orders: quantity=0, scanned grows freely. Show 100% if any production happened.
@@ -55,5 +57,53 @@ class SalesOrderDetail {
       return '+${remaining.abs().toStringAsFixed(2)}';
     }
     return remaining.toStringAsFixed(2);
+  }
+
+  SalesOrderDetail copyWith({
+    String? soNumber,
+    String? poNumber,
+    String? customerCode,
+    String? customerName,
+    DateTime? deliveryDate,
+    String? salesMan1,
+    String? salesMan2,
+    String? site,
+    String? location,
+    String? lot,
+    String? warehouse,
+    String? warehouseName,
+    String? locationType,
+    String? locationTypeName,
+    String? itemCode,
+    String? description,
+    String? barcodeType,
+    double? quantity,
+    double? remaining,
+    double? scannedQuantity,
+    bool? isPrepared,
+  }) {
+    return SalesOrderDetail(
+      soNumber: soNumber ?? this.soNumber,
+      poNumber: poNumber ?? this.poNumber,
+      customerCode: customerCode ?? this.customerCode,
+      customerName: customerName ?? this.customerName,
+      deliveryDate: deliveryDate ?? this.deliveryDate,
+      salesMan1: salesMan1 ?? this.salesMan1,
+      salesMan2: salesMan2 ?? this.salesMan2,
+      site: site ?? this.site,
+      location: location ?? this.location,
+      lot: lot ?? this.lot,
+      warehouse: warehouse ?? this.warehouse,
+      warehouseName: warehouseName ?? this.warehouseName,
+      locationType: locationType ?? this.locationType,
+      locationTypeName: locationTypeName ?? this.locationTypeName,
+      itemCode: itemCode ?? this.itemCode,
+      description: description ?? this.description,
+      barcodeType: barcodeType ?? this.barcodeType,
+      quantity: quantity ?? this.quantity,
+      remaining: remaining ?? this.remaining,
+      scannedQuantity: scannedQuantity ?? this.scannedQuantity,
+      isPrepared: isPrepared ?? this.isPrepared,
+    );
   }
 }

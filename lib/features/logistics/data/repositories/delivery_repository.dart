@@ -42,6 +42,7 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
         );
       }).toList();
     } catch (e) {
@@ -102,6 +103,7 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
         );
       }).toList();
     } catch (e) {
@@ -656,6 +658,7 @@ class DeliveryRepository implements ILogisticsRepository {
         locations: locations,
         products: products,
         sites: sites,
+        lots: [], // Added missing lots parameter
       );
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
@@ -782,6 +785,7 @@ class DeliveryRepository implements ILogisticsRepository {
         locations: processedData['locations'] as List<Map<String, dynamic>>,
         products: processedData['products'] as List<Map<String, dynamic>>,
         sites: processedData['sites'] as List<Map<String, dynamic>>,
+        lots: [], // Added missing lots parameter
       );
 
       // Save new timestamp
@@ -996,6 +1000,62 @@ class DeliveryRepository implements ILogisticsRepository {
     }
 
     return null;
+  }
+
+  @override
+  Future<List<LocationLookup>> getTargetLocations(String site, String itemCode) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      var baseUrl = prefs.getString('api_base_url') ?? 'http://10.0.2.2:5042';
+
+      final response = await _dio.get(
+        '$baseUrl/api/logistics/target-locations',
+        queryParameters: {'site': site, 'itemCode': itemCode},
+      );
+
+      final data = response.data as List;
+      return data.map((e) => LocationLookup(
+        site: e['site'] as String?,
+        location: e['location'] as String?,
+        warehouse: e['warehouse'] as String?,
+        warehouseName: e['warehouseName'] as String?,
+        locationType: e['locationType'] as String?,
+        locationTypeName: e['locationTypeName'] as String?,
+      )).toList();
+    } catch (e) {
+      print("Failed to fetch target locations from API: $e");
+      // Fallback
+      return getLocationLookups(site);
+    }
+  }
+
+  @override
+  Future<void> updateItemPreparationStatus({
+    required String soNumber,
+    required String itemCode,
+    required bool isPrepared,
+  }) async {
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
+      await db.update(
+        LocalDatabaseHelper.tableDetails,
+        {LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0},
+        where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+        whereArgs: [soNumber, itemCode],
+      );
+      
+      // Attempt to sync with server if online
+      try {
+        await _dio.post(
+          'Logistics/update-preparation-status/$soNumber/$itemCode?isPrepared=$isPrepared',
+        );
+      } catch (e) {
+        print("Failed to sync preparation status to server (background): $e");
+        // We still consider it successful locally
+      }
+    } catch (e) {
+      throw 'Failed to update preparation status: $e';
+    }
   }
 }
 

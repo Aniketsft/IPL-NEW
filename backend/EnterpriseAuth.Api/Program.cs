@@ -114,6 +114,7 @@ using (var scope = app.Services.CreateScope())
     // Automatically create ScanProduction database if it doesn't exist
     var scanContext = scope.ServiceProvider.GetRequiredService<ScanProductionDbContext>();
     scanContext.Database.EnsureCreated();
+    await DbInitializer.MigrateScanProductionAsync(scanContext);
 }
 
 // Configure the HTTP request pipeline.

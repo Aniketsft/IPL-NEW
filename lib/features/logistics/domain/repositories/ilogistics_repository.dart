@@ -31,6 +31,7 @@ abstract class ILogisticsRepository {
   });
   Future<void> closeOrder(String soNumber, String closedBy);
   Future<List<LocationLookup>> getLocationLookups(String site);
+  Future<List<LocationLookup>> getTargetLocations(String site, String itemCode);
   Future<void> synchronize({String? siteCode});
   Stream<SyncProgress> synchronizeWithProgress({String? siteCode});
   Future<List<Site>> getSites();
@@ -39,5 +40,10 @@ abstract class ILogisticsRepository {
   Future<List<String>> getProductionSites();
   Future<List<String>> getLots(String itemCode, String siteCode);
   Future<String> saveCutBulkEntry(Map<String, dynamic> entry);
+  Future<void> updateItemPreparationStatus({
+    required String soNumber,
+    required String itemCode,
+    required bool isPrepared,
+  });
 }
 

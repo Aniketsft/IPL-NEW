@@ -103,8 +103,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE f1.STOFCY_0 = @Site";
             var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
+            var lotsSql = @"
+                SELECT DISTINCT ITMREF_0 as ItemCode, STOFCY_0 as SiteCode, LOT_0 as Lot
+                FROM InnodisTestDB.INLPROD.STOCK WITH (NOLOCK)
+                WHERE STOFCY_0 = @Site AND QTYPCU_0 > 0";
+            var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
+
             // Execute tasks in parallel
-            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask);
+            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask, lotsTask);
 
             package.Orders = ordersTask.Result.ToList();
             package.Details = detailsTask.Result.ToList();
@@ -113,6 +119,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             package.Sites = sitesTask.Result.ToList();
             package.Locations = locationsTask.Result.ToList();
             package.Products = productsTask.Result.ToList();
+            package.Lots = lotsTask.Result.ToList();
 
             // 5.1 Override status from ScanProduction for orders closed via the app
             var allSoNumbers = package.Orders.Select(o => o.SohNum).ToList();

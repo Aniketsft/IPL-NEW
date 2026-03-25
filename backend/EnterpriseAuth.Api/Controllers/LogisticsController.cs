@@ -66,6 +66,12 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("target-locations")]
+    public async Task<IActionResult> GetTargetLocations([FromQuery] string site, [FromQuery] string itemCode)
+    {
+        var result = await _logisticsService.GetTargetLocationsAsync(site, itemCode);
+        return ToActionResult(result);
+    }
     [HttpPost("sync-scans")]
     public async Task<IActionResult> SyncScans([FromBody] List<ScanDto> scans)
     {
@@ -117,6 +123,13 @@ public class LogisticsController : ControllerBase
     public async Task<IActionResult> CloseOrder(string soNumber, [FromQuery] string closedBy = "system")
     {
         var result = await _logisticsService.CloseOrderAsync(soNumber, closedBy);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("update-preparation-status/{soNumber}/{itemCode}")]
+    public async Task<IActionResult> UpdatePreparationStatus(string soNumber, string itemCode, [FromQuery] bool isPrepared)
+    {
+        var result = await _logisticsService.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared);
         return ToActionResult(result);
     }
 

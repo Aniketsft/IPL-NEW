@@ -1,23 +1,28 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../logistics/domain/usecases/get_production_tracking_use_case.dart';
 import '../../logistics/domain/usecases/synchronize_logistics_use_case.dart';
+import '../../logistics/domain/usecases/set_preparation_status_use_case.dart';
 import 'manufacturing_event.dart';
 import 'manufacturing_state.dart';
 
 class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   final GetProductionTrackingUseCase _getProductionTracking;
   final SynchronizeLogisticsUseCase _synchronizeLogistics;
+  final SetPreparationStatusUseCase _setPreparationStatus;
 
   ManufacturingBloc({
     required GetProductionTrackingUseCase getProductionTracking,
     required SynchronizeLogisticsUseCase synchronizeLogistics,
+    required SetPreparationStatusUseCase setPreparationStatus,
   }) : _getProductionTracking = getProductionTracking,
        _synchronizeLogistics = synchronizeLogistics,
+       _setPreparationStatus = setPreparationStatus,
        super(ManufacturingInitial()) {
     on<LoadProductionTrackingRequested>(_onLoadProductionTrackingRequested);
     on<SyncDataRequested>(_onSyncDataRequested);
     on<SiteFilterChanged>(_onSiteFilterChanged);
     on<DashboardSearchChanged>(_onDashboardSearchChanged);
+    on<UpdateItemPreparationStatus>(_onUpdateItemPreparationStatus);
   }
 
   void _onSiteFilterChanged(
@@ -119,6 +124,40 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
       );
     } catch (e) {
       emit(ManufacturingFailure('Sync failed: $e'));
+    }
+  }
+
+  Future<void> _onUpdateItemPreparationStatus(
+    UpdateItemPreparationStatus event,
+    Emitter<ManufacturingState> emit,
+  ) async {
+    try {
+      await _setPreparationStatus.execute(
+        soNumber: event.soNumber,
+        itemCode: event.itemCode,
+        isPrepared: event.isPrepared,
+      );
+
+      // Refresh data to reflect changes
+      if (state is ProductionTrackingLoaded) {
+        final currentState = state as ProductionTrackingLoaded;
+        final updatedItems = currentState.items.map((item) {
+          if (item.soNumber == event.soNumber &&
+              item.itemCode == event.itemCode) {
+            return item.copyWith(isPrepared: event.isPrepared);
+          }
+          return item;
+        }).toList();
+
+        emit(ProductionTrackingLoaded(
+          items: updatedItems,
+          currentSiteCode: currentState.currentSiteCode,
+          dashboardSearchQuery: currentState.dashboardSearchQuery,
+        ));
+      }
+    } catch (e) {
+      // In a real app we might want a specific error state or toast
+      print('Failed to update preparation status: $e');
     }
   }
 }

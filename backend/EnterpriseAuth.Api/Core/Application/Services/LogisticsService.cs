@@ -108,6 +108,19 @@ public class LogisticsService : ILogisticsService
         }
     }
 
+    public async Task<Result<IEnumerable<LocationLookupDto>>> GetTargetLocationsAsync(string site, string itemCode)
+    {
+        try
+        {
+            var locations = await _logisticsRepository.GetTargetLocationsAsync(site, itemCode);
+            return Result<IEnumerable<LocationLookupDto>>.Success(locations);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<LocationLookupDto>>.Failure($"Failed to fetch target locations: {ex.Message}");
+        }
+    }
+
     public async Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy)
     {
         try
@@ -169,6 +182,19 @@ public class LogisticsService : ILogisticsService
         catch (Exception ex)
         {
             return Result<IEnumerable<string>>.Failure($"Failed to fetch lots: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
+    {
+        try
+        {
+            var result = await _logisticsRepository.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to update item preparation status: {ex.Message}");
         }
     }
 }

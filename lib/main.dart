@@ -23,6 +23,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/get_si
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/get_customers_use_case.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/get_sales_reps_use_case.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchronize_logistics_use_case.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/set_preparation_status_use_case.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
@@ -89,6 +90,11 @@ class MyApp extends StatelessWidget {
             context.read<enterprise_auth_mobile_repo.DeliveryRepository>(),
           ),
         ),
+        RepositoryProvider(
+          create: (context) => SetPreparationStatusUseCase(
+            context.read<enterprise_auth_mobile_repo.DeliveryRepository>(),
+          ),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -115,6 +121,7 @@ class MyApp extends StatelessWidget {
               getProductionTracking: context
                   .read<GetProductionTrackingUseCase>(),
               synchronizeLogistics: context.read<SynchronizeLogisticsUseCase>(),
+              setPreparationStatus: context.read<SetPreparationStatusUseCase>(),
             ),
           ),
           BlocProvider(

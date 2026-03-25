@@ -52,6 +52,56 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     }
   }
 
+  Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(item.isPrepared ? 'Remove Prepared Status' : 'Mark as Prepared',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          item.isPrepared 
+            ? 'Are you sure you want to remove the prepared status from this item?'
+            : 'Are you sure you want to mark this item as prepared?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              item.isPrepared ? 'Remove Status' : 'Mark Prepared',
+              style: const TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (mounted) setState(() => _isLoading = true);
+      try {
+        await context.read<DeliveryRepository>().updateItemPreparationStatus(
+              soNumber: widget.order.orderNumber,
+              itemCode: item.itemCode,
+              isPrepared: !item.isPrepared,
+            );
+        _fetchDetails(); 
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update status: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _closeOrder() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -364,7 +414,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
     return InkWell(
+      onLongPress: () => _toggleItemPreparation(item),
       onTap: () async {
+        if (item.isPrepared) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot access prepared item. Long-press to remove status.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
@@ -376,15 +436,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           _fetchDetails();
         }
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: Border(
-            bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+      child: Opacity(
+        opacity: item.isPrepared ? 0.4 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            border: Border(
+              bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+            ),
           ),
-        ),
         child: Column(
           children: [
             Row(
@@ -471,8 +533,18 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             ),
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                if (item.isPrepared)
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      SizedBox(width: 4),
+                      Text('Prepared', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  )
+                else
+                  const SizedBox(),
                 Text(
                   'Scanned: ${item.scannedQuantity.toStringAsFixed(2)}',
                   style: const TextStyle(color: Colors.grey, fontSize: 11),
@@ -491,6 +563,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

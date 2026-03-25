@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 17;
+  static const _databaseVersion = 19;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -18,6 +18,7 @@ class LocalDatabaseHelper {
   static const tableSyncHistory = 'tbl_sync_history';
   static const tableProducts = 'tbl_products';
   static const tableSites = 'tbl_sites';
+  static const tableLots = 'tbl_lots';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -58,6 +59,7 @@ class LocalDatabaseHelper {
   static const colDetWarehouseName = 'warehouseName';
   static const colDetLocationType = 'locationType';
   static const colDetLocationTypeName = 'locationTypeName';
+  static const colDetIsPrepared = 'isPrepared';
   static const colDetScanned = 'scanned';
 
   // Common Code/Name columns
@@ -77,6 +79,11 @@ class LocalDatabaseHelper {
   static const colProdDesc = 'productDescription';
   static const colProdStu = 'stockUnit';
   static const colProdSau = 'salesUnit';
+
+  // tbl_lots columns
+  static const colLotItemCode = 'itemCode';
+  static const colLotSiteCode = 'siteCode';
+  static const colLotNumber = 'lot';
 
   // tbl_cached_users columns
   static const colUserUsername = 'username';
@@ -258,6 +265,28 @@ class LocalDatabaseHelper {
         )
       ''');
     }
+
+    if (oldVersion < 18) {
+      print('DB Upgrade: Adding isPrepared column to details table (v18)');
+      try {
+        await db.execute(
+            'ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0');
+      } catch (e) {
+        print('Column $colDetIsPrepared might already exist: $e');
+      }
+    }
+
+    if (oldVersion < 19) {
+      print('DB Upgrade: Creating Lots table (v19)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableLots (
+          $colLotItemCode TEXT,
+          $colLotSiteCode TEXT,
+          $colLotNumber TEXT,
+          PRIMARY KEY ($colLotItemCode, $colLotSiteCode, $colLotNumber)
+        )
+      ''');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -312,6 +341,7 @@ class LocalDatabaseHelper {
         $colDetWarehouseName TEXT,
         $colDetLocationType TEXT,
         $colDetLocationTypeName TEXT,
+        $colDetIsPrepared INTEGER DEFAULT 0,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
     ''');
@@ -391,6 +421,15 @@ class LocalDatabaseHelper {
       CREATE TABLE IF NOT EXISTS $tableSites (
         $colCode TEXT PRIMARY KEY,
         $colName TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableLots (
+        $colLotItemCode TEXT,
+        $colLotSiteCode TEXT,
+        $colLotNumber TEXT,
+        PRIMARY KEY ($colLotItemCode, $colLotSiteCode, $colLotNumber)
       )
     ''');
   }
@@ -545,6 +584,7 @@ class LocalDatabaseHelper {
     required List<Map<String, dynamic>> locations,
     required List<Map<String, dynamic>> products,
     required List<Map<String, dynamic>> sites,
+    required List<Map<String, dynamic>> lots,
     bool incremental = true,
   }) async {
     Database db = await instance.database;
@@ -560,6 +600,7 @@ class LocalDatabaseHelper {
         await txn.delete(tableLocations);
         await txn.delete(tableProducts);
         await txn.delete(tableSites);
+        await txn.delete(tableLots);
       } else {
         // Incremental cleanup: In incremental mode, we NO LONGER delete all external orders.
         // We rely on ConflictAlgorithm.replace to update existing records or insert new ones.
@@ -622,10 +663,17 @@ class LocalDatabaseHelper {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+        for (var lot in lots) {
+          batch.insert(
+            tableLots,
+            lot,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
 
         await batch.commit(noResult: true);
         print(
-          "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, ${products.length} products, and ${sites.length} sites.",
+          "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, ${products.length} products, ${sites.length} sites and ${lots.length} lots.",
         );
       } catch (e) {
         print("CRITICAL: Error during batch insertion: $e");
@@ -657,5 +705,16 @@ class LocalDatabaseHelper {
   Future<List<Map<String, dynamic>>> getSites() async {
     Database db = await instance.database;
     return await db.query(tableSites);
+  }
+
+  Future<List<String>> getLotsForItemAndSite(String itemCode, String siteCode) async {
+    Database db = await instance.database;
+    final results = await db.query(
+      tableLots,
+      columns: [colLotNumber],
+      where: '$colLotItemCode = ? AND $colLotSiteCode = ?',
+      whereArgs: [itemCode, siteCode],
+    );
+    return results.map((row) => row[colLotNumber] as String).toList();
   }
 }

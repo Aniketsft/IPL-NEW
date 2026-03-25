@@ -17,8 +17,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<string>> GetLotsAsync(string itemCode, string siteCode);
 
         Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site);
+        Task<IEnumerable<LocationLookupDto>> GetTargetLocationsAsync(string site, string itemCode);
         Task<bool> CloseOrderAsync(string soNumber, string closedBy);
         Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto);
         Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scanDto);
+        Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared);
     }
 }

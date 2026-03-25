@@ -181,5 +181,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             await context.SaveChangesAsync();
             Console.WriteLine("[DbInitializer] Seeding completed successfully.");
         }
+
+        public static async Task MigrateScanProductionAsync(ScanProductionDbContext context)
+        {
+            // Robust check for IsPrepared column
+            var addColumnSql = @"
+                IF NOT EXISTS (
+                    SELECT * FROM sys.columns 
+                    WHERE object_id = OBJECT_ID(N'[dbo].[salesorderdetailscutsbulk]') 
+                    AND name = 'IsPrepared'
+                )
+                BEGIN
+                    -- Try to add the column, catch if table doesn't exist yet (EnsureCreated will handle it)
+                    BEGIN TRY
+                        ALTER TABLE [dbo].[salesorderdetailscutsbulk] ADD [IsPrepared] BIT NOT NULL DEFAULT 0;
+                    END TRY
+                    BEGIN CATCH
+                        -- Table might not be created yet, EnsureCreated will handle base schema
+                    END CATCH
+                END";
+
+            await context.Database.ExecuteSqlRawAsync(addColumnSql);
+            Console.WriteLine("[DbInitializer] ScanProduction schema migration completed.");
+        }
     }
 }

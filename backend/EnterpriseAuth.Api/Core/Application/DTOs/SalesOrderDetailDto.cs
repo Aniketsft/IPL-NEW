@@ -10,5 +10,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal Remaining { get; set; }
         public decimal Manufactured { get; set; }
         public string Site { get; set; } = string.Empty;
+        public bool IsPrepared { get; set; }
     }
 }

@@ -18,8 +18,10 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<IEnumerable<string>>> GetLotsAsync(string itemCode, string siteCode);
 
         Task<Result<IEnumerable<LocationLookupDto>>> GetLocationLookupsAsync(string site);
+        Task<Result<IEnumerable<LocationLookupDto>>> GetTargetLocationsAsync(string site, string itemCode);
         Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy);
         Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto dto);
         Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scanDto);
+        Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared);
     }
 }

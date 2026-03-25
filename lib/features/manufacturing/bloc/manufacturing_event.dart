@@ -42,3 +42,17 @@ class SyncDataRequested extends ManufacturingEvent {
   @override
   List<Object?> get props => [siteCode];
 }
+class UpdateItemPreparationStatus extends ManufacturingEvent {
+  final String soNumber;
+  final String itemCode;
+  final bool isPrepared;
+
+  const UpdateItemPreparationStatus({
+    required this.soNumber,
+    required this.itemCode,
+    required this.isPrepared,
+  });
+
+  @override
+  List<Object?> get props => [soNumber, itemCode, isPrepared];
+}

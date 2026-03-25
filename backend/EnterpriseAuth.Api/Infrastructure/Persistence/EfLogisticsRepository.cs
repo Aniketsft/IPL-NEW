@@ -237,7 +237,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f1.QTY_0 as Quantity,
                     f1.STOFCY_0 as Site,
                     0.0 as Remaining, 
-                    0.0 as Manufactured       
+                    0.0 as Manufactured,
+                    CAST(0 AS BIT) as IsPrepared
                 FROM InnodisTestDB.INLPROD.SORDER f0
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
@@ -254,7 +255,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Quantity,
                     CAST('INTERNAL' AS NVARCHAR(20)) as Site,
                     0.0 as Remaining,
-                    0.0 as Manufactured
+                    0.0 as Manufactured,
+                    IsPrepared
                 FROM [ScanProduction].[dbo].[salesorderdetailscutsbulk]
                 WHERE SoNumber = @SoNumber";
 
@@ -485,6 +487,47 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     and ATRA.ZONE_0 = 'TYPDESAXX'";
 
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site });
+        }
+
+        public async Task<IEnumerable<LocationLookupDto>> GetTargetLocationsAsync(string site, string itemCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var sql = @"
+                SELECT DISTINCT
+                    T1.[Site],
+                    T1.[Location],
+                    T1.[Warehouse],
+                    '' as WarehouseName,
+                    T1.[LocationType],
+                    '' as LocationTypeName
+                FROM (
+                    select DISTINCT
+                        f0.STOFCY_0 as [Site],
+                        f0.ITMREF_0 as [Product],
+                        f1.ITMDES1_0 as [Description],
+                        f0.PCU_0 as [Unit],
+                        f0.LOC_0 as [Location],
+                        f0.LOCTYP_0 as [LocationType],
+                        f0.WRH_0 as [Warehouse]
+                    from InnodisTestDB.INLPROD.STOCK f0
+                    JOIN InnodisTestDB.INLPROD.ITMMASTER f1 ON f0.ITMREF_0 = f1.ITMREF_0
+                    LEFT JOIN InnodisTestDB.INLPROD.STOLOT f2 ON f0.LOT_0 = f2.LOT_0
+                ) as T1
+                WHERE T1.Site = @Site AND T1.Product = @ItemCode";
+            
+            return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site, ItemCode = itemCode });
+        }
+
+        public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
+        {
+            var detail = await _scanContext.SalesOrderDetailCutsBulk
+                .FirstOrDefaultAsync(d => d.SoNumber == soNumber && d.ItemCode == itemCode);
+
+            if (detail == null) return false;
+
+            detail.IsPrepared = isPrepared;
+            await _scanContext.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> CloseOrderAsync(string soNumber, string closedBy)

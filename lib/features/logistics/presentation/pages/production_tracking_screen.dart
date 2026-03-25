@@ -83,21 +83,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     setState(() => _isLoadingLocations = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      final locations = await repository.getLocationLookups(_selectedSite!);
-      final prefs = await SharedPreferences.getInstance();
-      final lastLocation = prefs.getString('last_selected_location');
+      final locations = await repository.getTargetLocations(
+        _selectedSite!,
+        widget.product.itemCode,
+      );
 
       if (mounted) {
         setState(() {
           _locations = locations;
-          if (lastLocation != null) {
-            _selectedLocation = _locations.firstWhereOrNull(
-              (l) => l.location == lastLocation,
-            );
-          }
-          _selectedLocation ??= _locations.firstWhereOrNull(
-            (l) => l.warehouseName == 'Main Warehouse',
-          );
           // If main warehouse not found, default to first available
           _selectedLocation ??= _locations.isNotEmpty ? _locations.first : null;
           _isLoadingLocations = false;
@@ -557,50 +550,116 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Production Lot',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Production Lot (Search or Select)',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              if (_isLoadingLots)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: orange,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            dropdownColor: dark800,
-            value: _selectedLot,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: darkBorder,
-              prefixIcon: const Icon(Icons.layers, color: orange, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 14,
-              ),
-              suffixIcon:
-                  _isLoadingLots
-                      ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: orange,
+          Autocomplete<String>(
+            initialValue: TextEditingValue(text: _selectedLot ?? ''),
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return _lots;
+              }
+              return _lots.where((String option) {
+                return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+              });
+            },
+            onSelected: (String selection) {
+              setState(() => _selectedLot = selection);
+              FocusScope.of(context).unfocus();
+            },
+            fieldViewBuilder: (
+              BuildContext context,
+              TextEditingController textEditingController,
+              FocusNode focusNode,
+              VoidCallback onFieldSubmitted,
+            ) {
+              return TextFormField(
+                controller: textEditingController,
+                focusNode: focusNode,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: darkBorder,
+                  prefixIcon: const Icon(Icons.layers, color: orange, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
+                  hintText: 'Type or tap to select lot',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                ),
+                onChanged: (value) {
+                  setState(() => _selectedLot = value);
+                },
+              );
+            },
+            optionsViewBuilder: (
+              BuildContext context,
+              AutocompleteOnSelected<String> onSelected,
+              Iterable<String> options,
+            ) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  color: dark800,
+                  elevation: 4.0,
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: 250,
+                      maxWidth: MediaQuery.of(context).size.width - 64,
+                    ),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final String option = options.elementAt(index);
+                        return InkWell(
+                          onTap: () => onSelected(option),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: darkBorder,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              option,
+                              style: const TextStyle(color: Colors.white),
+                            ),
                           ),
-                        ),
-                      )
-                      : null,
-            ),
-            items:
-                _lots
-                    .map(
-                      (lot) => DropdownMenuItem(value: lot, child: Text(lot)),
-                    )
-                    .toList(),
-            onChanged: (value) {
-              setState(() => _selectedLot = value);
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
             },
           ),
         ],

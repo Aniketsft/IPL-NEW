@@ -7,7 +7,7 @@ class ApiConfig {
   static const String serverIp = '172.26.106.44';
   //'192.168.1.107'; sft
   //'192.168.100.156'; Home
-
+  // 172.26.106.44 innodis
   /// Port number for the backend server. (Default is 5004)
   static const String serverPort = '5004';
 

@@ -1,3 +1,5 @@
+import '../local/local_database_helper.dart';
+
 class SalesOrderDetailDto {
   final String soNumber;
   final String? poNumber;
@@ -19,6 +21,7 @@ class SalesOrderDetailDto {
   final String? warehouseName;
   final String? locationType;
   final String? locationTypeName;
+  final bool isPrepared;
 
   SalesOrderDetailDto({
     required this.soNumber,
@@ -41,6 +44,7 @@ class SalesOrderDetailDto {
     required this.quantity,
     required this.remaining,
     required this.scannedQuantity,
+    this.isPrepared = false,
   });
 
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
@@ -65,6 +69,7 @@ class SalesOrderDetailDto {
       quantity: (json['quantity'] as num?)?.toDouble() ?? 0.0,
       remaining: (json['remaining'] as num?)?.toDouble() ?? 0.0,
       scannedQuantity: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
+      isPrepared: json['isPrepared'] == 1 || json['isPrepared'] == true,
     );
   }
 
@@ -84,6 +89,7 @@ class SalesOrderDetailDto {
       'warehouseName': warehouseName,
       'locationType': locationType,
       'locationTypeName': locationTypeName,
+      LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0,
     };
   }
 }

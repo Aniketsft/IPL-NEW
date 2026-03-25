@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/sales_order_detail.dart';
-
-class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
+class ProductionTrackingSoBreakdownScreen extends StatefulWidget {
   final String itemCode;
   final String description;
   final List<SalesOrderDetail> soItems;
@@ -14,15 +13,32 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
   });
 
   @override
+  State<ProductionTrackingSoBreakdownScreen> createState() =>
+      _ProductionTrackingSoBreakdownScreenState();
+}
+
+class _ProductionTrackingSoBreakdownScreenState
+    extends State<ProductionTrackingSoBreakdownScreen> {
+  late List<SalesOrderDetail> _currentItems;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentItems = List.from(widget.soItems);
+  }
+
+  @override
   Widget build(BuildContext context) {
     const orange = Color(0xFFFF9800);
     const dark800 = Color(0xFF1E1E1E);
     const dark900 = Color(0xFF0D0D0D);
 
     final totalOrdered =
-        soItems.fold<double>(0, (s, i) => s + i.quantity);
+        _currentItems.fold<double>(0, (s, i) => s + i.quantity);
     final totalScanned =
-        soItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
+        _currentItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
+    final totalPrepared = _currentItems.where((i) => i.isPrepared).length;
+
     final aggProgress = totalOrdered > 0
         ? (totalScanned / totalOrdered).clamp(0.0, 1.0)
         : (totalScanned > 0 ? 1.0 : 0.0);
@@ -31,7 +47,7 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
       backgroundColor: dark900,
       appBar: AppBar(
         title: Text(
-          itemCode,
+          widget.itemCode,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
@@ -53,7 +69,7 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  description,
+                  widget.description,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -75,14 +91,13 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _statChip(
-                        label: 'Total Ordered',
+                        label: 'Ordered',
                         value: totalOrdered.toStringAsFixed(0),
                         color: Colors.white70),
                     _statChip(
-                        label: 'Total Scanned',
-                        value:
-                            '${totalScanned.toStringAsFixed(0)} / ${totalOrdered.toStringAsFixed(0)}',
-                        color: orange),
+                        label: 'Prepared',
+                        value: '$totalPrepared / ${_currentItems.length}',
+                        color: Colors.blueAccent),
                     _statChip(
                         label: 'Overall',
                         value: '${(aggProgress * 100).toStringAsFixed(1)}%',
@@ -101,7 +116,7 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Sales Orders (${soItems.length})',
+                'Sales Orders (${_currentItems.length})',
                 style: const TextStyle(
                   color: Colors.grey,
                   fontSize: 12,
@@ -114,10 +129,10 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
             child: ListView.builder(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              itemCount: soItems.length,
+              itemCount: _currentItems.length,
               itemBuilder: (context, index) {
-                final item = soItems[index];
-                return _buildSoCard(item, dark800, orange);
+                final item = _currentItems[index];
+                return _buildSoCard(item, index, dark800, orange);
               },
             ),
           ),
@@ -127,97 +142,90 @@ class ProductionTrackingSoBreakdownScreen extends StatelessWidget {
   }
 
   Widget _buildSoCard(
-      SalesOrderDetail item, Color dark, Color orange) {
+      SalesOrderDetail item, int index, Color dark, Color orange) {
     final progress = item.progress.clamp(0.0, 1.0);
     final progressPct = (progress * 100).toStringAsFixed(1);
     final isComplete = progress >= 1.0;
+    final isPrepared = item.isPrepared;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: dark,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isComplete
-              ? Colors.greenAccent.withOpacity(0.3)
-              : Colors.white10,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // SO Number + Customer
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                item.soNumber,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              if (isComplete)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.greenAccent.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'COMPLETE',
-                    style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+    return Opacity(
+      opacity: isPrepared ? 0.6 : 1.0,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: dark,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isPrepared
+                ? Colors.blueAccent.withOpacity(0.5)
+                : (isComplete
+                    ? Colors.greenAccent.withOpacity(0.3)
+                    : Colors.white10),
           ),
-          if (item.customerName != null && item.customerName!.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              item.customerName!,
-              style:
-                  const TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // SO Number
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.soNumber,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                if (item.customerName != null &&
+                    item.customerName!.isNotEmpty)
+                  Text(
+                    item.customerName!,
+                    style:
+                        const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.white10,
+                valueColor: AlwaysStoppedAnimation<Color>(isPrepared
+                    ? Colors.blueGrey
+                    : (isComplete ? Colors.greenAccent : orange)),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Quantities
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _soStat(
+                    'Ordered',
+                    '${item.quantity.toStringAsFixed(0)} KG',
+                    Colors.white70),
+                _soStat(
+                    'Scanned',
+                    '${item.scannedQuantity.toStringAsFixed(0)} KG',
+                    orange),
+                _soStat(
+                    'Status',
+                    isPrepared
+                        ? 'PREPARED'
+                        : (isComplete ? 'COMPLETE' : '$progressPct%'),
+                    isPrepared
+                        ? Colors.blueAccent
+                        : (isComplete ? Colors.greenAccent : Colors.white70)),
+              ],
             ),
           ],
-          const SizedBox(height: 14),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                  isComplete ? Colors.greenAccent : orange),
-              minHeight: 6,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Quantities
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _soStat(
-                  'Ordered',
-                  '${item.quantity.toStringAsFixed(0)} KG',
-                  Colors.white70),
-              _soStat(
-                  'Scanned',
-                  '${item.scannedQuantity.toStringAsFixed(0)} KG',
-                  orange),
-              _soStat(
-                  'Progress',
-                  '$progressPct%',
-                  isComplete ? Colors.greenAccent : Colors.white70),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
