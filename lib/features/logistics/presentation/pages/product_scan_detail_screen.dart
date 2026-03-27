@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
+import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
+
 
 class ProductScanDetailScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -19,7 +20,7 @@ class ProductScanDetailScreen extends StatefulWidget {
 
 class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   late List<Map<String, dynamic>> _scans;
-  MobileScannerController? _scannerController;
+  // Removed MobileScannerController
   bool _isScannerVisible = false;
 
   @override
@@ -30,7 +31,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
 
   @override
   void dispose() {
-    _scannerController?.dispose();
+    // _scannerController?.dispose(); // No longer needed
     super.dispose();
   }
 
@@ -42,58 +43,21 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   }
 
   Future<void> _toggleScanner() async {
-    if (!_isScannerVisible) {
-      final status = await Permission.camera.request();
-      if (status.isGranted) {
-        setState(() {
-          _isScannerVisible = true;
-          _scannerController?.dispose();
-          _scannerController = MobileScannerController();
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Camera permission is required to scan'),
-            ),
-          );
-        }
-      }
-    } else {
-      setState(() {
-        _isScannerVisible = false;
-        _scannerController?.dispose();
-        _scannerController = null;
-      });
-    }
+    setState(() {
+      _isScannerVisible = !_isScannerVisible;
+    });
   }
 
-  void _handleScan(BarcodeCapture capture) {
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
-      final String? code = barcode.rawValue;
-      if (code != null) {
-        // Prevent duplicate scans in the current session
-        if (!_scans.any((s) => s['barcode'] == code)) {
-          setState(() {
-            _scans.add({
-              'barcode': code,
-              'productName': widget.product['productName'],
-              'weight':
-                  1.0, // Default weight for testing if not part of barcode
-            });
-          });
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Scanned: $code'),
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          }
-        }
-      }
+  void _onScanSuccess(ScanResult result) {
+    if (!_scans.any((s) => s['barcode'] == result.barcode)) {
+      HapticFeedback.lightImpact();
+      setState(() {
+        _scans.add({
+          'barcode': result.barcode,
+          'productName': result.description,
+          'weight': result.weight,
+        });
+      });
     }
   }
 
@@ -180,19 +144,21 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
 
           // Scanner Section
           if (_isScannerVisible)
-            Container(
-              height: 250,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFF9800), width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: MobileScanner(
-                  controller: _scannerController!,
-                  onDetect: _handleScan,
-                ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: AppBarcodeScanner(
+                onScanSuccess: _onScanSuccess,
+                onManualAdd: (weight) {
+                  setState(() {
+                    _scans.add({
+                      'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+                      'productName': widget.product['productName'],
+                      'weight': weight,
+                    });
+                  });
+                },
+                manualEntries: const {'1KG': 1.0},
+                themeColor: const Color(0xFFFF9800),
               ),
             ),
 

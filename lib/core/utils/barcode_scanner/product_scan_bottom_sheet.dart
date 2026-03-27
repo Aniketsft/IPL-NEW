@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'barcode_scanner_widget.dart';
 
 class ProductScanBottomSheet extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -20,82 +21,50 @@ class ProductScanBottomSheet extends StatefulWidget {
 
 class _ProductScanBottomSheetState extends State<ProductScanBottomSheet> {
   late List<Map<String, dynamic>> _scans;
-  MobileScannerController? _scannerController;
-  bool _isScannerVisible = false;
+
+  String? _selectedSite;
+  String? _selectedLocation;
+  String? _selectedLot;
+
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _lotController = TextEditingController();
+
+  // Location and Lot controllers
 
   @override
   void initState() {
     super.initState();
     _scans = List.from(widget.initialScans);
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedSite = prefs.getString('scan_site') ?? 'IPL';
+      _selectedLocation = prefs.getString('scan_location');
+      _selectedLot = prefs.getString('scan_lot');
+      _locationController.text = _selectedLocation ?? '';
+      _lotController.text = _selectedLot ?? '';
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_selectedSite != null) await prefs.setString('scan_site', _selectedSite!);
+    if (_selectedLocation != null) await prefs.setString('scan_location', _selectedLocation!);
+    if (_selectedLot != null) await prefs.setString('scan_lot', _selectedLot!);
   }
 
   @override
   void dispose() {
-    _scannerController?.dispose();
+    _locationController.dispose();
+    _lotController.dispose();
     super.dispose();
   }
 
   double get _totalWeight {
     return _scans.fold(0.0, (sum, item) => sum + (double.tryParse(item['weight'].toString()) ?? 0.0));
-  }
-
-  Future<void> _toggleScanner() async {
-    if (!_isScannerVisible) {
-      final status = await Permission.camera.request();
-      if (status.isGranted) {
-        setState(() {
-          _isScannerVisible = true;
-          _scannerController?.dispose();
-          _scannerController = MobileScannerController();
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Camera permission is required to scan')),
-          );
-        }
-      }
-    } else {
-      setState(() {
-        _isScannerVisible = false;
-        _scannerController?.dispose();
-        _scannerController = null;
-      });
-    }
-  }
-
-  void _handleScan(BarcodeCapture capture) {
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
-      final String? code = barcode.rawValue;
-      if (code != null) {
-        if (!_scans.any((s) => s['barcode'] == code)) {
-          setState(() {
-            _scans.insert(0, {
-              'barcode': code,
-              'productName': widget.product['productName'],
-              'weight': 1.0,
-              'timestamp': DateTime.now().toIso8601String(),
-              'status': 'A',
-            });
-          });
-          
-          Feedback.forLongPress(context);
-        }
-      }
-    }
-  }
-
-  void _addManualOneKg() {
-    setState(() {
-      _scans.insert(0, {
-        'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-        'productName': widget.product['productName'],
-        'weight': 1.0,
-        'timestamp': DateTime.now().toIso8601String(),
-        'status': 'A',
-      });
-    });
   }
 
   @override
@@ -160,6 +129,104 @@ class _ProductScanBottomSheetState extends State<ProductScanBottomSheet> {
             ),
           ),
           
+          const SizedBox(height: 10),
+          
+          // Site, Location, Lot Fields
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    // Site Selection
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            dropdownColor: const Color(0xFF1E1E1E),
+                            value: _selectedSite,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            items: const [
+                              DropdownMenuItem(value: 'IPL', child: Text('Site: IPL')),
+                              DropdownMenuItem(value: 'SFT', child: Text('Site: SFT')),
+                            ],
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedSite = val;
+                                _savePreferences();
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Location
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: _locationController,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Location',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E1E),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          _selectedLocation = val;
+                          _savePreferences();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Lot
+                TextField(
+                  controller: _lotController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Lot Number',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                    filled: true,
+                    fillColor: const Color(0xFF1E1E1E),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                    ),
+                  ),
+                  onChanged: (val) {
+                    _selectedLot = val;
+                    _savePreferences();
+                  },
+                ),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 20),
           
           // Summary Row
@@ -177,66 +244,42 @@ class _ProductScanBottomSheetState extends State<ProductScanBottomSheet> {
           const SizedBox(height: 20),
 
           // Scanner Area
-          if (_isScannerVisible)
-            Container(
-              height: 200,
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: orange.withOpacity(0.5), width: 1.5),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14.5),
-                child: MobileScanner(
-                  controller: _scannerController!,
-                  onDetect: _handleScan,
-                ),
-              ),
-            ),
-          
-          const SizedBox(height: 12),
-          
-          // Action Buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _toggleScanner,
-                    icon: Icon(_isScannerVisible ? Icons.power_settings_new : Icons.qr_code_scanner),
-                    label: Text(_isScannerVisible ? 'STOP SCAN' : 'START SCAN'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isScannerVisible ? Colors.red.withOpacity(0.2) : orange,
-                      foregroundColor: _isScannerVisible ? Colors.red : Colors.black,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: _isScannerVisible ? const BorderSide(color: Colors.red) : BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _addManualOneKg,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('SCAN 1KG'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.05),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: AppBarcodeScanner(
+              onScanSuccess: (result) {
+                if (!_scans.any((s) => s['barcode'] == result.barcode)) {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _scans.insert(0, {
+                      'barcode': result.barcode,
+                      'productName': result.description,
+                      'weight': result.weight,
+                      'site': _selectedSite,
+                      'location': _selectedLocation,
+                      'lot': result.lotNumber ?? _selectedLot,
+                      'timestamp': DateTime.now().toIso8601String(),
+                      'status': 'A',
+                    });
+                  });
+                }
+              },
+              onManualAdd: (weight) {
+                setState(() {
+                  _scans.insert(0, {
+                    'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+                    'productName': widget.product['productName'],
+                    'weight': weight,
+                    'site': _selectedSite,
+                    'location': _selectedLocation,
+                    'lot': _selectedLot,
+                    'timestamp': DateTime.now().toIso8601String(),
+                    'status': 'A',
+                  });
+                });
+              },
+              manualEntries: const {'1KG': 1.0},
+              themeColor: orange,
             ),
           ),
           

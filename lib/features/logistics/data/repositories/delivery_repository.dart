@@ -19,6 +19,8 @@ import '../../domain/entities/location_lookup.dart';
 import '../local/local_database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_processor.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
   final Dio _dio;
@@ -974,28 +976,14 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   Future<Map<String, dynamic>?> decodeBarcode(String barcode) async {
-    // 1. Variable Weight (VW) - Prefix "20"
-    // Format: 20[5-char item code][5-char weight in grams][1-char checksum]
-    if (barcode.startsWith('20') && barcode.length == 13) {
-      final productCode = barcode.substring(2, 7);
-      final weightStr = barcode.substring(7, 12);
-      final weight = int.parse(weightStr) / 1000.0;
-      return {'productCode': productCode, 'weight': weight};
-    }
+    final processor = OfflineBarcodeProcessor();
+    final result = await processor.processBarcode(barcode);
 
-    // 2. Fixed Weight (FW) - Prefix "10"
-    // Format: 10[5-char item code]...
-    if (barcode.startsWith('10') && barcode.length >= 7) {
-      final productCode = barcode.substring(2, 7);
-      return {'productCode': productCode, 'weight': 1.0};
-    }
-
-    // 3. Global Lookup (GL) - Full match in product_master
-    final product = await LocalDatabaseHelper.instance.getProductByCode(barcode);
-    if (product != null) {
+    if (result != null) {
       return {
-        'productCode': product[LocalDatabaseHelper.colProdCode],
-        'weight': 1.0
+        'productCode': result.itemCode,
+        'weight': result.weight,
+        'batchId': result.lotNumber,
       };
     }
 

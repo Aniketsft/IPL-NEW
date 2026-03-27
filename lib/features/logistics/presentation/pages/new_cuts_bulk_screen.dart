@@ -7,7 +7,8 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 
 
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/product_scan_bottom_sheet.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_bottom_sheet.dart';
+
 
 class NewCutsBulkScreen extends StatefulWidget {
   const NewCutsBulkScreen({super.key});

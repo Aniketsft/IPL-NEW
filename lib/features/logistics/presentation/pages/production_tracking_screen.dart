@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+
+import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
+
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:collection/collection.dart';
 import '../widgets/scan_item_card.dart';
 
 const Color orange = Color(0xFFFF9800);
@@ -45,8 +46,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   bool _isLoadingLocations = false;
   bool _isLoadingSites = false;
   bool _isLoadingLots = false;
-  MobileScannerController? _scannerController;
   bool _isScannerVisible = false;
+
 
   @override
   void initState() {
@@ -57,7 +58,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   @override
   void dispose() {
-    _scannerController?.dispose();
     super.dispose();
   }
 
@@ -176,27 +176,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Future<void> _toggleScanner() async {
-    if (_isScannerVisible) {
-      setState(() => _isScannerVisible = false);
-      _scannerController?.stop();
-    } else {
-      final status = await Permission.camera.request();
-      if (status.isGranted) {
-        setState(() {
-          _isScannerVisible = true;
-          _scannerController ??= MobileScannerController();
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Camera permission is required to scan barcodes'),
-            ),
-          );
-        }
-      }
-    }
+    setState(() => _isScannerVisible = !_isScannerVisible);
   }
+
 
   Future<void> _handleScan(String barcode) async {
     if (barcode.isEmpty) return;
@@ -245,8 +227,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'weight': weight,
               'timestamp': DateTime.now().toIso8601String(),
             };
+            _isScannerVisible = false;
           });
-          _scannerController?.stop();
+
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -512,27 +495,23 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 horizontal: 12,
                 vertical: 14,
               ),
-              suffixIcon:
-                  _isLoadingSites
-                      ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: orange,
-                          ),
+              suffixIcon: _isLoadingSites
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: orange,
                         ),
-                      )
-                      : null,
-            ),
-            items:
-                _sites
-                    .map(
-                      (site) => DropdownMenuItem(value: site, child: Text(site)),
+                      ),
                     )
-                    .toList(),
+                  : null,
+            ),
+            items: _sites
+                .map((site) => DropdownMenuItem(value: site, child: Text(site)))
+                .toList(),
             onChanged: _onSiteChanged,
           ),
         ],
@@ -576,91 +555,97 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 return _lots;
               }
               return _lots.where((String option) {
-                return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                return option.toLowerCase().contains(
+                  textEditingValue.text.toLowerCase(),
+                );
               });
             },
             onSelected: (String selection) {
               setState(() => _selectedLot = selection);
               FocusScope.of(context).unfocus();
             },
-            fieldViewBuilder: (
-              BuildContext context,
-              TextEditingController textEditingController,
-              FocusNode focusNode,
-              VoidCallback onFieldSubmitted,
-            ) {
-              return TextFormField(
-                controller: textEditingController,
-                focusNode: focusNode,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: darkBorder,
-                  prefixIcon: const Icon(Icons.layers, color: orange, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                  hintText: 'Type or tap to select lot',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                ),
-                onChanged: (value) {
-                  setState(() => _selectedLot = value);
-                },
-              );
-            },
-            optionsViewBuilder: (
-              BuildContext context,
-              AutocompleteOnSelected<String> onSelected,
-              Iterable<String> options,
-            ) {
-              return Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  color: dark800,
-                  elevation: 4.0,
-                  borderRadius: BorderRadius.circular(8),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 250,
-                      maxWidth: MediaQuery.of(context).size.width - 64,
+            fieldViewBuilder:
+                (
+                  BuildContext context,
+                  TextEditingController textEditingController,
+                  FocusNode focusNode,
+                  VoidCallback onFieldSubmitted,
+                ) {
+                  return TextFormField(
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: darkBorder,
+                      prefixIcon: const Icon(
+                        Icons.layers,
+                        color: orange,
+                        size: 20,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      hintText: 'Type or tap to select lot',
+                      hintStyle: const TextStyle(color: Colors.white38),
                     ),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final String option = options.elementAt(index);
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: darkBorder,
+                    onChanged: (value) {
+                      setState(() => _selectedLot = value);
+                    },
+                  );
+                },
+            optionsViewBuilder:
+                (
+                  BuildContext context,
+                  AutocompleteOnSelected<String> onSelected,
+                  Iterable<String> options,
+                ) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      color: dark800,
+                      elevation: 4.0,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 250,
+                          maxWidth: MediaQuery.of(context).size.width - 64,
+                        ),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final String option = options.elementAt(index);
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: darkBorder),
+                                  ),
+                                ),
+                                child: Text(
+                                  option,
+                                  style: const TextStyle(color: Colors.white),
                                 ),
                               ),
-                            ),
-                            child: Text(
-                              option,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        );
-                      },
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
           ),
         ],
       ),
@@ -879,17 +864,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: MobileScanner(
-              controller: _scannerController!,
-              onDetect: (capture) {
+            child: AppBarcodeScanner(
+              onScan: (code) {
                 if (_pendingScan != null) return;
-                final List<Barcode> barcodes = capture.barcodes;
-                if (barcodes.isNotEmpty) {
-                  final String? code = barcodes.first.rawValue;
-                  if (code != null) {
-                    _handleScan(code);
-                  }
-                }
+                _handleScan(code);
               },
             ),
           ),
@@ -945,8 +923,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                       TextButton(
                         onPressed: () => setState(() {
                           _pendingScan = null;
-                          _scannerController?.start();
                         }),
+
                         child: const Text(
                           'Discard',
                           style: TextStyle(color: Colors.red),
@@ -1130,8 +1108,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         _cumulativeQty += _pendingScan!['weight'] as double;
       }
       _pendingScan = null;
+      _pendingScan = null;
     });
-    _scannerController?.start();
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Scan saved'),
