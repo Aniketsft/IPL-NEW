@@ -156,7 +156,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Select(g => new {
                     g.Key.SoNumber,
                     g.Key.ItemCode,
-                    TotalCalculated = g.Sum(s => s.ScanAmountKg)
+                    TotalCalculated = g.Sum(s => s.ScanAmountKg),
+                    AnyPrepared = g.Any(s => s.IsPrepared)
                 })
                 .ToListAsync();
 
@@ -171,10 +172,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     detail.Manufactured = aggregate.TotalCalculated;
                     detail.Remaining = Math.Max(0m, (detail.Quantity ?? 0m) - detail.Manufactured);
+                    detail.IsPrepared = aggregate.AnyPrepared;
                 }
                 else
                 {
                     detail.Remaining = detail.Quantity ?? 0m;
+                    detail.IsPrepared = false;
                 }
             }
 
@@ -223,7 +226,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         BarcodeType = "Internal",
                         Quantity = detail.Quantity,
                         Manufactured = manufactured,
-                        Remaining = detail.Quantity - manufactured  // Internal orders: allow over-manufacture
+                        Remaining = detail.Quantity - manufactured, // Internal orders: allow over-manufacture
+                        IsPrepared = detail.IsPrepared
                     });
                 }
             }
@@ -389,6 +393,55 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     await syncTransaction.RollbackAsync();
                     throw;
                 }
+            }
+
+            // 3. Process Preparation Status Updates (Batch processing for offline status changes)
+            if (request.PreparationStatusUpdates != null && request.PreparationStatusUpdates.Any())
+            {
+                foreach (var update in request.PreparationStatusUpdates)
+                {
+                    // 1. Update Internal Detail if exists
+                    var detail = await _scanContext.SalesOrderDetailCutsBulk
+                        .FirstOrDefaultAsync(d => d.SoNumber == update.SoNumber && d.ItemCode == update.ItemCode);
+
+                    if (detail != null)
+                    {
+                        detail.IsPrepared = update.IsPrepared;
+                    }
+
+                    // 2. Update all existing scans for this item
+                    var scans = await _scanContext.ProductionScans
+                        .Where(s => s.SoNumber == update.SoNumber && s.ItemCode == update.ItemCode && !s.IsDeleted)
+                        .ToListAsync();
+
+                    foreach (var scan in scans)
+                    {
+                        scan.IsPrepared = update.IsPrepared;
+                    }
+
+                    // 3. If external order and no scans exist yet, create a sentinel record to persist status
+                    if (detail == null && !scans.Any() && update.IsPrepared)
+                    {
+                        _scanContext.ProductionScans.Add(new ProductionScan
+                        {
+                            SoNumber = update.SoNumber,
+                            ItemCode = update.ItemCode,
+                            ScanAmountKg = 0m,
+                            LineNo = 0,
+                            IsPrepared = true,
+                            CreatedAt = DateTime.UtcNow,
+                            CreatedBy = "sync-push-sentinel"
+                        });
+                    }
+                    // RECONCILIATION: Remove sentinel if unmarking and no real scans exist
+                    else if (detail == null && scans.Count == 1 && scans[0].ScanAmountKg == 0 && !update.IsPrepared)
+                    {
+                        _scanContext.ProductionScans.Remove(scans[0]);
+                    }
+                }
+
+                await _scanContext.SaveChangesAsync();
+                totalCount += request.PreparationStatusUpdates.Count;
             }
 
             return totalCount;

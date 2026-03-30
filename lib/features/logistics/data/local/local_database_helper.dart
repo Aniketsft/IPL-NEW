@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 21;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -124,7 +124,11 @@ class LocalDatabaseHelper {
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0');
+      try {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0');
+      } catch (e) {
+        print("Migration error v2: $e");
+      }
     }
     if (oldVersion < 3) {
       // Adding sync_id to scans and is_prepared to details
@@ -152,31 +156,34 @@ class LocalDatabaseHelper {
 
     // Version 7: Add isSynced column to Orders (for Internal Cut/Bulk)
     if (oldVersion < 7) {
-      print('DB Upgrade: Adding isSynced to tbl_sales_orders (v7)');
-      await db.execute(
-        'ALTER TABLE $tableOrders ADD COLUMN $columnIsSynced INTEGER NOT NULL DEFAULT 0',
-      );
+      print('DB Upgrade: Checking for isSynced in tbl_sales_orders (v7)');
+      var tableInfo = await db.rawQuery('PRAGMA table_info($tableOrders)');
+      bool columnExists = tableInfo.any((col) => col['name'] == columnIsSynced);
+      if (!columnExists) {
+        await db.execute(
+          'ALTER TABLE $tableOrders ADD COLUMN $columnIsSynced INTEGER NOT NULL DEFAULT 0',
+        );
+      }
     }
 
     if (oldVersion < 8) {
-      print(
-        'DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)',
-      );
-      // Add scanned and remaining columns to details table
-      // In SQLite, we add columns one by one
-      await db.execute(
-        'ALTER TABLE $tableDetails ADD COLUMN $colDetScanned REAL DEFAULT 0',
-      );
-      await db.execute(
-        'ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0',
-      );
+      print('DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)');
+      var tableInfo = await db.rawQuery('PRAGMA table_info($tableDetails)');
+      
+      if (!tableInfo.any((col) => col['name'] == colDetScanned)) {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetScanned REAL DEFAULT 0');
+      }
+      if (!tableInfo.any((col) => col['name'] == 'remaining')) {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0');
+      }
     }
 
     if (oldVersion < 9) {
       print('DB Upgrade: Adding isReflected to tbl_scans (v9)');
-      await db.execute(
-        'ALTER TABLE $tableScans ADD COLUMN isReflected INTEGER NOT NULL DEFAULT 0',
-      );
+      var tableInfo = await db.rawQuery('PRAGMA table_info($tableScans)');
+      if (!tableInfo.any((col) => col['name'] == 'isReflected')) {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN isReflected INTEGER NOT NULL DEFAULT 0');
+      }
     }
 
     if (oldVersion < 10) {
@@ -219,30 +226,51 @@ class LocalDatabaseHelper {
 
     if (oldVersion < 13) {
       print('DB Upgrade: Adding site tracking to Sync History (v13)');
-      await db.execute(
-        'ALTER TABLE $tableSyncHistory ADD COLUMN $colSyncSite TEXT',
-      );
+      try {
+        await db.execute(
+          'ALTER TABLE $tableSyncHistory ADD COLUMN $colSyncSite TEXT',
+        );
+      } catch (e) {
+        print("Migration error v13 (site): $e");
+      }
       // PERFORMANCE: Index on isSynced for faster batching
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_scans_is_synced ON $tableScans($columnIsSynced)',
-      );
+      try {
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_scans_is_synced ON $tableScans($columnIsSynced)',
+        );
+      } catch (e) {
+        print("Migration error v13 (index): $e");
+      }
     }
 
     if (oldVersion < 14) {
-      await db.execute(
-        'ALTER TABLE $tableScans ADD COLUMN $columnSite TEXT',
-      );
+      try {
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnSite TEXT',
+        );
+      } catch (e) {
+        print("Migration error v14: $e");
+      }
     }
 
     if (oldVersion < 15) {
       print('DB Upgrade: Adding extended detail tracking to tbl_sales_order_details (v15)');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetSite TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocation TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLot TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetWarehouse TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetWarehouseName TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocationType TEXT');
-      await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetLocationTypeName TEXT');
+      final columns = [
+        colDetSite,
+        colDetLocation,
+        colDetLot,
+        colDetWarehouse,
+        colDetWarehouseName,
+        colDetLocationType,
+        colDetLocationTypeName
+      ];
+      for (var column in columns) {
+        try {
+          await db.execute('ALTER TABLE $tableDetails ADD COLUMN $column TEXT');
+        } catch (e) {
+          print("Migration error v15 ($column): $e");
+        }
+      }
     }
 
     if (oldVersion < 16) {
@@ -305,6 +333,17 @@ class LocalDatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_locations_site ON $tableLocations($colLocSite)',
       );
     }
+
+    if (oldVersion < 21) {
+      print('DB Upgrade: Adding isSynced to tbl_sales_order_details (v21)');
+      try {
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $columnIsSynced INTEGER NOT NULL DEFAULT 1',
+        );
+      } catch (e) {
+        print("Migration error v21: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -361,6 +400,7 @@ class LocalDatabaseHelper {
         $colDetLocationType TEXT,
         $colDetLocationTypeName TEXT,
         $colDetIsPrepared INTEGER DEFAULT 0,
+        $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
     ''');
@@ -741,5 +781,29 @@ class LocalDatabaseHelper {
       whereArgs: [itemCode, siteCode],
     );
     return results.map((row) => row[colLotNumber] as String).toList();
+  }
+
+  // Preparation Status Sync Methods
+  Future<List<Map<String, dynamic>>> getUnsyncedPreparationStatuses() async {
+    final db = await instance.database;
+    return await db.query(
+      tableDetails,
+      columns: [colDetSoNum, colDetItemCode, colDetIsPrepared],
+      where: '$columnIsSynced = 0',
+    );
+  }
+
+  Future<void> markDetailsAsSynced(List<Map<String, dynamic>> updates) async {
+    final db = await instance.database;
+    Batch batch = db.batch();
+    for (var update in updates) {
+      batch.update(
+        tableDetails,
+        {columnIsSynced: 1},
+        where: '$colDetSoNum = ? AND $colDetItemCode = ?',
+        whereArgs: [update['soNumber'], update['itemCode']],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 }

@@ -164,6 +164,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     }).toList();
   }
 
+  bool get _isAllItemsPrepared =>
+      _details.isNotEmpty && _details.every((d) => d.isPrepared);
+
   @override
   Widget build(BuildContext context) {
     const orange = Color(0xFFFF9800);
@@ -596,40 +599,69 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _closeOrder,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2C2C2E),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: (_isLoading || !_isAllItemsPrepared) ? null : _closeOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2C2C2E),
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+                foregroundColor: Colors.white,
+                disabledForegroundColor: Colors.white24,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Close Production',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
-          child: _isLoading
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
+          if (!_isAllItemsPrepared && !_isLoading)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.4),
                   ),
-                )
-              : const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Close Production',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'All items must be prepared to close production',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 12,
                     ),
-                  ],
-                ),
-        ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

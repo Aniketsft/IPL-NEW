@@ -22,6 +22,14 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public List<ProductionScanDto> Scans { get; set; } = new();
         public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
+        public List<PreparationStatusUpdateDto> PreparationStatusUpdates { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
+    }
+
+    public class PreparationStatusUpdateDto
+    {
+        public string SoNumber { get; set; } = string.Empty;
+        public string ItemCode { get; set; } = string.Empty;
+        public bool IsPrepared { get; set; }
     }
 }

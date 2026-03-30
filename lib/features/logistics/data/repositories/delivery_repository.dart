@@ -611,6 +611,7 @@ class DeliveryRepository implements ILogisticsRepository {
               };
             }),
           )),
+          'preparationStatusUpdates': await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses(),
           'deviceId': 'mobile-terminal',
         };
 
@@ -635,6 +636,13 @@ class DeliveryRepository implements ILogisticsRepository {
               .map((o) => o[LocalDatabaseHelper.colOrderNum] as String)
               .toList();
           await LocalDatabaseHelper.instance.markOrdersAsSynced(soNums);
+        }
+
+        // Mark preparation status updates as synced
+        final updates = payload['preparationStatusUpdates'] as List<Map<String, dynamic>>? ?? [];
+        if (updates.isNotEmpty) {
+          await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
+          print("Sync: ${updates.length} preparation status updates marked as synced.");
         }
       }
 
@@ -725,8 +733,9 @@ class DeliveryRepository implements ILogisticsRepository {
       yield SyncProgress(status: 'Pushing local changes...', progress: 0.1);
       final unsyncedScans = await LocalDatabaseHelper.instance.getUnsyncedScans();
       final unsyncedOrders = await LocalDatabaseHelper.instance.getUnsyncedInternalOrders();
+      final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty) {
         final payload = {
           'scans': unsyncedScans.map((s) => {
             'soNumber': s['soNumber'],
@@ -752,6 +761,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'amountKg': amount,
             };
           }))),
+          'preparationStatusUpdates': unsyncedStatuses,
           'deviceId': 'mobile-terminal',
         };
 
@@ -762,6 +772,9 @@ class DeliveryRepository implements ILogisticsRepository {
         }
         if (unsyncedOrders.isNotEmpty) {
           await LocalDatabaseHelper.instance.markOrdersAsSynced(unsyncedOrders.map((o) => o[LocalDatabaseHelper.colOrderNum] as String).toList());
+        }
+        if (unsyncedStatuses.isNotEmpty) {
+          await LocalDatabaseHelper.instance.markDetailsAsSynced(unsyncedStatuses);
         }
       }
 
@@ -1057,19 +1070,28 @@ class DeliveryRepository implements ILogisticsRepository {
       final db = await LocalDatabaseHelper.instance.database;
       await db.update(
         LocalDatabaseHelper.tableDetails,
-        {LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0},
+        {
+          LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0,
+          LocalDatabaseHelper.columnIsSynced: 0, // Mark as unsynced for global sync push
+        },
         where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
         whereArgs: [soNumber, itemCode],
       );
       
-      // Attempt to sync with server if online
+      // Attempt to sync with server if online (Immediate Sync)
       try {
         await _dio.post(
           'Logistics/update-preparation-status/$soNumber/$itemCode?isPrepared=$isPrepared',
         );
+        // If immediate sync succeeds, mark as synced
+        await db.update(
+          LocalDatabaseHelper.tableDetails,
+          {LocalDatabaseHelper.columnIsSynced: 1},
+          where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+          whereArgs: [soNumber, itemCode],
+        );
       } catch (e) {
-        print("Failed to sync preparation status to server (background): $e");
-        // We still consider it successful locally
+        print("Failed to sync preparation status to server (immediate) - falling back to global sync: $e");
       }
     } catch (e) {
       throw 'Failed to update preparation status: $e';

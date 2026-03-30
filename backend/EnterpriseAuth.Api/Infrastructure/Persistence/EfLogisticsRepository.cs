@@ -263,17 +263,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var details = (await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber })).ToList();
 
             // Fetch Scans from separate context and join in memory to avoid cross-DB permission issues
-            var scans = await _scanContext.ProductionScans
+            var scanStats = await _scanContext.ProductionScans
                 .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
                 .GroupBy(s => s.ItemCode)
-                .Select(g => new { ItemCode = g.Key ?? string.Empty, TotalAmount = g.Sum(x => x.ScanAmountKg) })
+                .Select(g => new { 
+                    ItemCode = g.Key ?? string.Empty, 
+                    TotalAmount = g.Sum(x => x.ScanAmountKg),
+                    AnyPrepared = g.Any(x => x.IsPrepared)
+                })
                 .ToListAsync();
 
             foreach (var detail in details)
             {
-                var scanSum = scans.FirstOrDefault(s => s.ItemCode == detail.ItemCode)?.TotalAmount ?? 0m;
+                var stat = scanStats.FirstOrDefault(s => s.ItemCode == detail.ItemCode);
+                var scanSum = stat?.TotalAmount ?? 0m;
                 detail.Remaining = (detail.Quantity ?? 0m) - scanSum;
                 detail.Manufactured = scanSum;
+                
+                // For external orders, we derive IsPrepared from scans.
+                // For internal orders, it's already selected from the database in the UNION.
+                if (detail.Site != "INTERNAL")
+                {
+                    detail.IsPrepared = stat?.AnyPrepared ?? false;
+                }
             }
 
             return details;
@@ -429,6 +441,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ItemStatus = scanDto.ItemStatus ?? "Q",
                     Location = scanDto.Location ?? string.Empty,
                     Lot = scanDto.Lot,
+                    IsPrepared = scanDto.IsPrepared,
                     CreatedBy = scanDto.CreatedBy ?? "system",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -524,12 +537,40 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
         {
+            // 1. Update Internal Detail if exists
             var detail = await _scanContext.SalesOrderDetailCutsBulk
                 .FirstOrDefaultAsync(d => d.SoNumber == soNumber && d.ItemCode == itemCode);
 
-            if (detail == null) return false;
+            if (detail != null)
+            {
+                detail.IsPrepared = isPrepared;
+            }
 
-            detail.IsPrepared = isPrepared;
+            // 2. Update all existing scans for this item
+            var scans = await _scanContext.ProductionScans
+                .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted)
+                .ToListAsync();
+
+            foreach (var scan in scans)
+            {
+                scan.IsPrepared = isPrepared;
+            }
+
+            // 3. If external order and no scans exist yet, create a sentinel record to persist status
+            if (detail == null && !scans.Any() && isPrepared)
+            {
+                _scanContext.ProductionScans.Add(new ProductionScan
+                {
+                    SoNumber = soNumber,
+                    ItemCode = itemCode,
+                    ScanAmountKg = 0m,
+                    LineNo = 0,
+                    IsPrepared = true,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = "status-update-sentinel"
+                });
+            }
+
             await _scanContext.SaveChangesAsync();
             return true;
         }
