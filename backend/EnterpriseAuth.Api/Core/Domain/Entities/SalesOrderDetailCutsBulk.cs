@@ -14,7 +14,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public bool IsPrepared { get; set; }
         
         // Enterprise Metadata
-        public string? SyncStatus { get; set; } // 'Synced', 'Local'
+        public string SyncStatus { get; set; } = "Synced"; // 'Synced', 'Local'
         public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

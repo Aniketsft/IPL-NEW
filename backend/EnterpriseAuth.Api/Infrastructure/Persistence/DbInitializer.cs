@@ -192,12 +192,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     AND name = 'IsPrepared'
                 )
                 BEGIN
-                    -- Try to add the column, catch if table doesn't exist yet (EnsureCreated will handle it)
                     BEGIN TRY
                         ALTER TABLE [dbo].[salesorderdetailscutsbulk] ADD [IsPrepared] BIT NOT NULL DEFAULT 0;
                     END TRY
                     BEGIN CATCH
-                        -- Table might not be created yet, EnsureCreated will handle base schema
+                        -- Table might not exist yet
+                    END CATCH
+                END
+
+                IF NOT EXISTS (
+                    SELECT * FROM sys.columns 
+                    WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
+                    AND name = 'is_prepared'
+                )
+                BEGIN
+                    BEGIN TRY
+                        ALTER TABLE [dbo].[production_scan] ADD [is_prepared] BIT NOT NULL DEFAULT 0;
+                    END TRY
+                    BEGIN CATCH
+                        -- Table might not exist yet
                     END CATCH
                 END";
 

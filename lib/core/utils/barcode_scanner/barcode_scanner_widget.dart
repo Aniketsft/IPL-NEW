@@ -34,8 +34,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
   bool _isScannerVisible = false;
   final OfflineBarcodeProcessor _processor = OfflineBarcodeProcessor();
   
-  // Set to avoid processing the same barcode multiple times within a short window
-  String? _lastScannedCode;
+  // Set to avoid processing barcodes too frequently
   DateTime? _lastScanTime;
 
   @override
@@ -82,17 +81,17 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
       final String? code = barcode.rawValue;
       if (code != null && code.isNotEmpty) {
         
-        // Debounce same barcode within 2 seconds to prevent multi-fires
-        if (_lastScannedCode == code && _lastScanTime != null) {
+        // Pause between any two scans to avoid continuous/accidental fires
+        if (_lastScanTime != null) {
           if (DateTime.now().difference(_lastScanTime!).inSeconds < 2) {
             continue;
           }
         }
         
-        _lastScannedCode = code;
         _lastScanTime = DateTime.now();
 
-        HapticFeedback.heavyImpact(); // Give tactile feedback upon scan
+        HapticFeedback.heavyImpact(); // Give tactile feedback
+        SystemSound.play(SystemSoundType.click); // Audible confirmation
 
         if (widget.onScan != null) {
           widget.onScan!(code);
@@ -126,7 +125,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: widget.themeColor.withOpacity(0.5), width: 1.5),
+              border: Border.all(color: widget.themeColor.withValues(alpha: 0.5), width: 1.5),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14.5),
@@ -144,7 +143,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
                 icon: Icon(_isScannerVisible ? Icons.power_settings_new : Icons.qr_code_scanner),
                 label: Text(_isScannerVisible ? 'STOP SCAN' : 'START SCAN'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isScannerVisible ? Colors.red.withOpacity(0.2) : widget.themeColor,
+                  backgroundColor: _isScannerVisible ? Colors.red.withValues(alpha: 0.2) : widget.themeColor,
                   foregroundColor: _isScannerVisible ? Colors.red : Colors.black,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -162,13 +161,13 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
                 child: ElevatedButton(
                   onPressed: () => widget.onManualAdd!(entry.value),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.05),
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                   ),
                   child: Text('SCAN ${entry.key.toUpperCase()}'),

@@ -61,7 +61,7 @@ class SalesOrderCard extends StatelessWidget {
                         Icon(
                           Icons.cloud_done_rounded,
                           size: 14,
-                          color: Colors.green.withOpacity(0.5),
+                          color: Colors.green.withValues(alpha: 0.5),
                         ),
                       ],
                     ),
@@ -73,11 +73,11 @@ class SalesOrderCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: order.isClosed
-                          ? Colors.grey.withOpacity(0.2)
-                          : orange.withOpacity(0.1),
+                          ? Colors.grey.withValues(alpha: 0.2)
+                          : orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: order.isClosed ? Colors.grey : orange.withOpacity(0.5),
+                        color: order.isClosed ? Colors.grey : orange.withValues(alpha: 0.5),
                         width: 1,
                       ),
                     ),

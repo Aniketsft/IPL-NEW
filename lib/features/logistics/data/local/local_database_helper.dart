@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 19;
+  static const _databaseVersion = 3;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -29,7 +29,8 @@ class LocalDatabaseHelper {
   static const columnItemStatus = 'itemStatus';
   static const columnLocationCode = 'location';
   static const columnIsSynced = 'isSynced';
-  static const columnIsReflected = 'isReflected';
+  static const columnIsReflected = 'is_reflected';
+  static const columnSyncId = 'sync_id';
   static const columnSite = 'site';
 
   // tbl_sales_orders columns
@@ -59,7 +60,7 @@ class LocalDatabaseHelper {
   static const colDetWarehouseName = 'warehouseName';
   static const colDetLocationType = 'locationType';
   static const colDetLocationTypeName = 'locationTypeName';
-  static const colDetIsPrepared = 'isPrepared';
+  static const colDetIsPrepared = 'is_prepared';
   static const colDetScanned = 'scanned';
 
   // Common Code/Name columns
@@ -122,7 +123,18 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print("DB Upgrade: $oldVersion to $newVersion");
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      // Adding sync_id to scans and is_prepared to details
+      try {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnSyncId TEXT');
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0');
+      } catch (e) {
+        print("Migration error: $e");
+      }
+    }
 
     // Version 6: Add Sync History table
     if (oldVersion < 6) {
@@ -287,6 +299,12 @@ class LocalDatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 20) {
+      print('DB Upgrade: Creating locations site index (v20)');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_locations_site ON $tableLocations($colLocSite)',
+      );
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -301,6 +319,7 @@ class LocalDatabaseHelper {
         $columnLocationCode TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
         $columnIsReflected INTEGER NOT NULL DEFAULT 0,
+        $columnSyncId TEXT,
         $columnSite TEXT
       )
     ''');
@@ -408,6 +427,11 @@ class LocalDatabaseHelper {
       'CREATE INDEX IF NOT EXISTS idx_details_reconciliation ON $tableDetails($colDetSoNum, $colDetItemCode)',
     );
 
+    // PERFORMANCE: Index for location lookups by site
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_locations_site ON $tableLocations($colLocSite)',
+    );
+
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableProducts (
         $colProdCode TEXT PRIMARY KEY,
@@ -496,6 +520,7 @@ class LocalDatabaseHelper {
       '''
       SELECT 
         det.*,
+        det.$colDetIsPrepared,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.quantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0))) as reconciledRemaining
       FROM $tableDetails det

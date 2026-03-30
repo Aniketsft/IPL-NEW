@@ -49,9 +49,9 @@ class FilterPickerTile extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,7 +111,7 @@ class FilterStatusToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
+        color: Colors.white.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -132,7 +132,7 @@ class FilterStatusToggle extends StatelessWidget {
               FilterStateScope.of(context)?.onStateChanged();
             },
             activeColor: orange,
-            activeTrackColor: orange.withOpacity(0.3),
+            activeTrackColor: orange.withValues(alpha: 0.3),
             inactiveThumbColor: Colors.white24,
             inactiveTrackColor: Colors.white10,
           ),
@@ -168,15 +168,15 @@ class FilterSearchInput extends StatelessWidget {
         hintStyle: const TextStyle(color: Colors.white24, fontSize: 15),
         prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFF9800), size: 20),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
-        hoverColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white.withValues(alpha: 0.05),
+        hoverColor: Colors.white.withValues(alpha: 0.08),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -212,9 +212,9 @@ class FilterDatePicker extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,14 +276,14 @@ class FilterDateInput extends StatelessWidget {
         hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
         prefixIcon: const Icon(Icons.calendar_month_rounded, color: Color(0xFFFF9800), size: 20),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -358,9 +358,9 @@ class FilterSegmentedToggle extends StatelessWidget {
         Container(
           height: 46,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Row(
             children: options.map((option) {
@@ -379,7 +379,7 @@ class FilterSegmentedToggle extends StatelessWidget {
                       color: isSelected ? orange : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: isSelected
-                          ? [BoxShadow(color: orange.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)]
+                          ? [BoxShadow(color: orange.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 1)]
                           : [],
                     ),
                     child: Text(
@@ -435,9 +435,9 @@ class FilterDropdown extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(

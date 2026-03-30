@@ -175,11 +175,11 @@ class _StockControlScreenState extends State<StockControlScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isLow
-            ? Colors.red.withOpacity(0.15)
-            : Colors.white.withOpacity(0.05),
+            ? Colors.red.withValues(alpha: 0.15)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isLow ? Colors.red.withOpacity(0.3) : Colors.white12,
+          color: isLow ? Colors.red.withValues(alpha: 0.3) : Colors.white12,
         ),
       ),
       child: Row(
@@ -197,7 +197,7 @@ class _StockControlScreenState extends State<StockControlScreen> {
           Text(
             unit,
             style: TextStyle(
-              color: isLow ? Colors.red.withOpacity(0.7) : Colors.white38,
+              color: isLow ? Colors.red.withValues(alpha: 0.7) : Colors.white38,
               fontSize: 10,
             ),
           ),

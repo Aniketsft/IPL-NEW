@@ -42,6 +42,10 @@ CREATE TABLE barcode_mappings (
   unitFactor $numType
 )
 ''');
+
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_barcode ON barcode_mappings (barcode)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_item_code ON barcode_mappings (itemCode)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_prefix_type ON barcode_mappings (expectedPrefix, barcodeType)');
   }
 
   Future<void> clearMappings() async {

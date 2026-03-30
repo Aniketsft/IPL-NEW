@@ -118,7 +118,7 @@ class _PickingScreenState extends State<PickingScreen> {
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: item.isPicked
-              ? Colors.green.withOpacity(0.3)
+              ? Colors.green.withValues(alpha: 0.3)
               : Colors.transparent,
         ),
       ),
@@ -210,7 +210,7 @@ class _PickingScreenState extends State<PickingScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2C2C2E),
             foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white.withOpacity(0.05),
+            disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(28),

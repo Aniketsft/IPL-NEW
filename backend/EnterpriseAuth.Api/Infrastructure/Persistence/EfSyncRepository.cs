@@ -249,6 +249,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     foreach (var scanDto in request.Scans)
                     {
+                        // Deduplication: Skip if a scan with the same SoNumber, ItemCode, LineNo, and Amount already exists
+                        // This prevents doubling if the app sends the same batch multiple times.
+                        bool exists = await _scanContext.ProductionScans.AnyAsync(s => 
+                            s.SoNumber == scanDto.SoNumber && 
+                            s.ItemCode == scanDto.ItemCode && 
+                            s.LineNo == scanDto.LineNo && 
+                            s.ScanAmountKg == scanDto.ScanAmountKg &&
+                            s.CreatedAt > DateTime.UtcNow.AddHours(-1) && // Within the last hour to be safe
+                            !s.IsDeleted);
+
+                        if (exists) continue;
+
                         var entity = new ProductionScan
                         {
                             ItemCode = scanDto.ItemCode ?? string.Empty,
@@ -259,6 +271,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ItemStatus = scanDto.ItemStatus ?? "Q",
                             Location = scanDto.Location ?? "",
                             Lot = scanDto.Lot,
+                            IsPrepared = scanDto.IsPrepared,
                             CreatedBy = scanDto.CreatedBy ?? "system",
                             CreatedAt = DateTime.UtcNow
                         };
@@ -266,14 +279,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                         // RECONCILIATION: Update persisted totals for Internal Orders (Cut/Bulk)
                         var internalDetail = await _scanContext.SalesOrderDetailCutsBulk
-                            .FirstOrDefaultAsync(d => d.SoNumber == scanDto.SoNumber && d.ItemCode == scanDto.ItemCode);
+                            .FirstOrDefaultAsync(d => d.SoNumber == scanDto.SoNumber);
                         
                         if (internalDetail != null)
                         {
                             internalDetail.ManufacturedQuantity += scanDto.ScanAmountKg;
                         }
                     }
-                    totalCount += await _scanContext.SaveChangesAsync();
+                    await _scanContext.SaveChangesAsync();
                     await scanTransaction.CommitAsync();
                 }
                 catch
@@ -289,7 +302,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 using var syncTransaction = await _scanContext.Database.BeginTransactionAsync();
                 try
                 {
-                    var entryNumbersToRenew = request.CutBulkEntries.Select(e => e.EntryNumber).ToList();
+                    var entryNumbersToRenew = request.CutBulkEntries
+                        .Where(e => !string.IsNullOrEmpty(e.EntryNumber))
+                        .Select(e => e.EntryNumber!)
+                        .ToList();
 
                     // PERFORMANCE: Use Atomic Delete-then-Insert strategy for enterprise data freshness (v13 Isolation)
                     var existingHeaders = await _scanContext.CutBulkEntries
@@ -305,6 +321,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     foreach (var cbDto in request.CutBulkEntries)
                     {
+                        if (string.IsNullOrEmpty(cbDto.EntryNumber)) continue;
+
                         var entryEntity = new CutBulkEntry
                         {
                             EntryNumber = cbDto.EntryNumber,
@@ -313,8 +331,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             CustomerName = cbDto.CustomerName,
                             Date = cbDto.Date ?? DateTime.Now,
                             PoNumber = cbDto.PoNumber,
-                            Salesman1Code = cbDto.Salesman1Code,
-                            Salesman2Code = cbDto.Salesman2Code,
+                            Salesman1Code = cbDto.Salesman1Code ?? string.Empty,
+                            Salesman2Code = cbDto.Salesman2Code ?? string.Empty,
                             AmountKg = cbDto.AmountKg,
                             SyncStatus = "Synced",
                             DeviceId = request.DeviceId,
@@ -339,13 +357,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     // RECONCILIATION: Re-aggregate ManufacturedQuantity from ProductionScans
                     // for the just-inserted detail rows. This ensures the delete-then-insert
-                    // cycle preserves accumulated scan totals (same pattern as external orders).
+                    // cycle preserves accumulated scan totals.
+                    // FIX: Group by SoNumber ONLY — scans store actual product codes (e.g. "BEEF-001")
+                    // but SalesOrderDetailCutsBulk uses default codes ("PROD-CUT"/"PROD-BLK").
+                    // Each Cut/Bulk order has a single virtual detail row, so SoNumber is sufficient.
                     var internalScanAggregates = await _scanContext.ProductionScans
                         .Where(s => entryNumbersToRenew.Contains(s.SoNumber) && !s.IsDeleted)
-                        .GroupBy(s => new { s.SoNumber, s.ItemCode })
+                        .GroupBy(s => s.SoNumber)
                         .Select(g => new {
-                            g.Key.SoNumber,
-                            g.Key.ItemCode,
+                            SoNumber = g.Key,
                             TotalManufactured = g.Sum(s => s.ScanAmountKg)
                         })
                         .ToListAsync();
@@ -353,7 +373,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     foreach (var agg in internalScanAggregates)
                     {
                         var detail = await _scanContext.SalesOrderDetailCutsBulk
-                            .FirstOrDefaultAsync(d => d.SoNumber == agg.SoNumber && d.ItemCode == agg.ItemCode);
+                            .FirstOrDefaultAsync(d => d.SoNumber == agg.SoNumber);
                         if (detail != null)
                         {
                             detail.ManufacturedQuantity = agg.TotalManufactured;

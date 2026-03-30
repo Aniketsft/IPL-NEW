@@ -235,7 +235,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -243,7 +243,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFF9800).withOpacity(0.1),
+                          color: const Color(0xFFFF9800).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Icon(

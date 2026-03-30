@@ -57,14 +57,14 @@ class _ProcessingSimulatorDialogState extends State<ProcessingSimulatorDialog> {
           const SizedBox(height: 16),
           LinearProgressIndicator(
             value: _progress,
-            backgroundColor: Colors.white.withOpacity(0.1),
+            backgroundColor: Colors.white.withValues(alpha: 0.1),
             color: const Color(0xFFFF9800),
           ),
           const SizedBox(height: 16),
           Text(
             '${(_progress * 100).toInt()}%',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 12,
             ),
           ),

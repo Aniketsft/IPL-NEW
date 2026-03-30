@@ -58,9 +58,9 @@ class StandardFilter extends StatelessWidget {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: TextField(
                 controller: searchController,
@@ -88,9 +88,9 @@ class StandardFilter extends StatelessWidget {
                   height: 48,
                   width: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   child: const Icon(Icons.tune_rounded, color: Colors.white70, size: 22),
                 ),
@@ -107,7 +107,7 @@ class StandardFilter extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFF121212), width: 2),
                       boxShadow: [
-                        BoxShadow(color: orange.withOpacity(0.5), blurRadius: 4, spreadRadius: 1),
+                        BoxShadow(color: orange.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1),
                       ],
                     ),
                   ),
@@ -148,7 +148,7 @@ class _FilterModal extends StatelessWidget {
             color: dark100,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, spreadRadius: 5),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 5),
             ],
           ),
           child: Column(
@@ -199,7 +199,7 @@ class _FilterModal extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                 decoration: BoxDecoration(
                   color: dark100,
-                  border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+                  border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                 ),
                 child: Row(
                   children: [

@@ -68,5 +68,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [Column("deleted_at")]
         public DateTime? DeletedAt { get; set; }
+
+        [Column("is_prepared")]
+        public bool IsPrepared { get; set; }
     }
 }

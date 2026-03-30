@@ -91,7 +91,7 @@ class _ByIdentifierScreenState extends State<ByIdentifierScreen> {
                     right: 20,
                     child: Container(
                       height: 2,
-                      color: Colors.orange.withOpacity(0.5),
+                      color: Colors.orange.withValues(alpha: 0.5),
                     ),
                   ),
               ],
@@ -150,7 +150,7 @@ class _ByIdentifierScreenState extends State<ByIdentifierScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF9800).withOpacity(0.1),
+                  color: const Color(0xFFFF9800).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(

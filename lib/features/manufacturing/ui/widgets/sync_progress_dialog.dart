@@ -70,7 +70,7 @@ class SyncProgressDialog extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                             child: LinearProgressIndicator(
                               value: progress,
-                              backgroundColor: Colors.white.withOpacity(0.1),
+                              backgroundColor: Colors.white.withValues(alpha: 0.1),
                               color: const Color(0xFFFF9800),
                               minHeight: 8,
                             ),
@@ -79,7 +79,7 @@ class SyncProgressDialog extends StatelessWidget {
                           Text(
                             '${(progress * 100).toInt()}%',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 12,
                             ),
                           ),

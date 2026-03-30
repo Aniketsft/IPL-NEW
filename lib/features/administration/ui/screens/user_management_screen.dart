@@ -306,7 +306,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             : (depth == 0 ? Colors.grey[100] : Colors.white),
         borderRadius: BorderRadius.circular(8),
         border: depth == 0
-            ? Border.all(color: const Color(0xFFFF9800).withOpacity(0.3))
+            ? Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.3))
             : null,
       ),
       child: Row(
@@ -968,7 +968,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         color: Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF1E1E1E)
             : Colors.white,
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
       ),
       child: Row(
         children: [

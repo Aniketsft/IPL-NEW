@@ -69,9 +69,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var header = localEntries.FirstOrDefault(e => e.EntryNumber == d.SoNumber);
                 return new ProductionTrackingDto
                 {
-                    SoNumber = d.SoNumber,
-                    ItemCode = d.ItemCode,
-                    Description = d.Description,
+                    SoNumber = d.SoNumber ?? string.Empty,
+                    ItemCode = d.ItemCode ?? string.Empty,
+                    Description = d.Description ?? string.Empty,
                     Quantity = d.Quantity,
                     Site = "IPL",
                     Location = "PROD",
@@ -266,7 +266,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var scans = await _scanContext.ProductionScans
                 .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
                 .GroupBy(s => s.ItemCode)
-                .Select(g => new { ItemCode = g.Key, TotalAmount = g.Sum(x => x.ScanAmountKg) })
+                .Select(g => new { ItemCode = g.Key ?? string.Empty, TotalAmount = g.Sum(x => x.ScanAmountKg) })
                 .ToListAsync();
 
             foreach (var detail in details)
@@ -346,9 +346,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
             return totalRows;
         }
-        public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto)
+        public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto, bool skipScan = false)
         {
-            string soNumber = dto.ExistingSoNumber;
+            string soNumber = dto.ExistingSoNumber ?? string.Empty;
             bool isNew = string.IsNullOrEmpty(soNumber);
 
             if (isNew)
@@ -363,7 +363,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var entryEntity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
                 {
                     EntryNumber = soNumber,
-                    Type = dto.Type,
+                    Type = dto.Type ?? string.Empty,
                     CustomerCode = dto.CustomerCode ?? string.Empty,
                     CustomerName = dto.CustomerName ?? string.Empty,
                     Date = dto.Date ?? DateTime.Now,
@@ -387,25 +387,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 _scanContext.CutBulkEntries.Add(entryEntity);
                 _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+                await _scanContext.SaveChangesAsync();
             }
 
-            // Always create a production scan for this entry to update manufactured quantity
-            var scan = new ProductionScan
+            // Only create an automatic production scan if skipScan is false
+            if (!skipScan)
             {
-                SoNumber = soNumber,
-                ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
-                ScanAmountKg = dto.AmountKg,
-                LineNo = 1,
-                OrderStatus = "1", // Open
-                ItemStatus = "A",   // Accepted
-                Location = "PROD",
-                Lot = "INTERNAL",
-                CreatedBy = "mobile-user",
-                CreatedAt = DateTime.UtcNow
-            };
+                var scan = new ProductionScan
+                {
+                    SoNumber = soNumber,
+                    ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                    ScanAmountKg = dto.AmountKg,
+                    LineNo = 1,
+                    OrderStatus = "1", // Open
+                    ItemStatus = "A",   // Accepted
+                    Location = "PROD",
+                    Lot = "INTERNAL",
+                    CreatedBy = "mobile-user",
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _scanContext.ProductionScans.Add(scan);
-            await _scanContext.SaveChangesAsync();
+                _scanContext.ProductionScans.Add(scan);
+                await _scanContext.SaveChangesAsync();
+            }
 
             return soNumber;
         }
@@ -439,7 +443,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     EntityId = entity.ScanId,
                     ActionType = "INSERT",
                     Payload = System.Text.Json.JsonSerializer.Serialize(entity),
-                    PerformedBy = entity.CreatedBy,
+                    PerformedBy = entity.CreatedBy ?? "system",
                     PerformedAt = DateTime.UtcNow
                 };
                 _scanContext.AuditLogs.Add(audit);

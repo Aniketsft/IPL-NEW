@@ -30,5 +30,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? CreatedBy { get; set; }
         
         public DateTime? CreatedAt { get; set; }
+        
+        public bool IsPrepared { get; set; }
     }
 }

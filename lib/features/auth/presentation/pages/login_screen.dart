@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFFF9800).withOpacity(0.3)),
+            border: Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.3)),
           ),
           child: const Icon(
             Icons.lock_person_rounded,
@@ -102,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Form(
         key: _formKey,

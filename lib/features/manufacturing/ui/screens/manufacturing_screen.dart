@@ -357,7 +357,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -383,7 +383,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 10,
                   ),
                 ),

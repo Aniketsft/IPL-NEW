@@ -437,7 +437,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -471,14 +471,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: TextFormField(
         controller: _poController,
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Enter PO Number',
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 14),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 14),
           border: InputBorder.none,
           contentPadding: EdgeInsets.zero,
         ),
@@ -543,7 +543,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: scanCount > 0 ? const Color(0xFFFF9800).withOpacity(0.3) : Colors.white10,
+          color: scanCount > 0 ? const Color(0xFFFF9800).withValues(alpha: 0.3) : Colors.white10,
         ),
       ),
       child: InkWell(
@@ -575,7 +575,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                         Text(
                           '$code • $sku',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 12,
                             letterSpacing: 0.5,
                           ),
@@ -596,7 +596,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -616,7 +616,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                     Text(
                       'TAP TO START SCANNING',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.0,
@@ -639,7 +639,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.3),
+            color: Colors.white.withValues(alpha: 0.3),
             fontSize: 9,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.0,
@@ -695,7 +695,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -749,7 +749,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
           border: Border(
-            top: BorderSide(color: Colors.white.withOpacity(0.05)),
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
         ),
         child: SizedBox(

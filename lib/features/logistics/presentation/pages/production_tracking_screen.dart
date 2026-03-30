@@ -114,7 +114,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       if (mounted) {
         setState(() {
           _sites = sites;
-          if (_selectedSite == null || !_sites.contains(_selectedSite)) {
+          // Always default to 'IPL' if it exists in the list
+          if (_sites.contains('IPL')) {
+            _selectedSite = 'IPL';
+          } else if (_selectedSite == null || !_sites.contains(_selectedSite)) {
             _selectedSite = _sites.isNotEmpty ? _sites.first : null;
           }
           _isLoadingSites = false;

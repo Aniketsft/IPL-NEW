@@ -63,7 +63,7 @@ class _ProductionTrackingSoBreakdownScreenState
             decoration: BoxDecoration(
               color: dark800,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: orange.withOpacity(0.3)),
+              border: Border.all(color: orange.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,9 +157,9 @@ class _ProductionTrackingSoBreakdownScreenState
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isPrepared
-                ? Colors.blueAccent.withOpacity(0.5)
+                ? Colors.blueAccent.withValues(alpha: 0.5)
                 : (isComplete
-                    ? Colors.greenAccent.withOpacity(0.3)
+                    ? Colors.greenAccent.withValues(alpha: 0.3)
                     : Colors.white10),
           ),
         ),

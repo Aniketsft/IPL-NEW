@@ -110,16 +110,16 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
           color: isSuccess
-              ? Colors.green.withOpacity(0.3)
-              : Colors.red.withOpacity(0.3),
+              ? Colors.green.withValues(alpha: 0.3)
+              : Colors.red.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: isSuccess
-              ? Colors.green.withOpacity(0.1)
-              : Colors.red.withOpacity(0.1),
+              ? Colors.green.withValues(alpha: 0.1)
+              : Colors.red.withValues(alpha: 0.1),
           child: Icon(
             isSuccess ? Icons.check_circle_outline : Icons.error_outline,
             color: isSuccess ? Colors.green : Colors.red,
@@ -187,7 +187,7 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(

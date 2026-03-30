@@ -11,6 +11,7 @@ import '../models/sales_order_dto.dart';
 import '../models/sales_order_detail_dto.dart';
 import '../models/location_lookup_dto.dart';
 import '../models/lookup_dto.dart';
+import '../models/lot_dto.dart';
 import '../models/product_master_dto.dart';
 import '../../domain/entities/sync_progress.dart';
 import '../../domain/entities/customer.dart';
@@ -19,6 +20,7 @@ import '../../domain/entities/location_lookup.dart';
 import '../local/local_database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:uuid/uuid.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_processor.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
@@ -82,16 +84,18 @@ class DeliveryRepository implements ILogisticsRepository {
       final query = '''
         SELECT 
           det.*,
-          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0)) as reconciledProduced,
-          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(SUM(scn.${LocalDatabaseHelper.columnQuantity}), 0))) as reconciledRemaining
+          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalQty, 0)) as reconciledProduced,
+          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalQty, 0))) as reconciledRemaining
         FROM ${LocalDatabaseHelper.tableDetails} det
         INNER JOIN ${LocalDatabaseHelper.tableOrders} ord ON det.${LocalDatabaseHelper.colDetSoNum} = ord.${LocalDatabaseHelper.colOrderNum}
-        LEFT JOIN ${LocalDatabaseHelper.tableScans} scn 
-          ON det.${LocalDatabaseHelper.colDetSoNum} = scn.${LocalDatabaseHelper.columnSoNumber} 
+        LEFT JOIN (
+          SELECT ${LocalDatabaseHelper.columnSoNumber}, ${LocalDatabaseHelper.columnProductCode}, SUM(${LocalDatabaseHelper.columnQuantity}) as totalQty
+          FROM ${LocalDatabaseHelper.tableScans}
+          WHERE ${LocalDatabaseHelper.columnIsReflected} = 0
+          GROUP BY ${LocalDatabaseHelper.columnSoNumber}, ${LocalDatabaseHelper.columnProductCode}
+        ) scn ON det.${LocalDatabaseHelper.colDetSoNum} = scn.${LocalDatabaseHelper.columnSoNumber} 
           AND det.${LocalDatabaseHelper.colDetItemCode} = scn.${LocalDatabaseHelper.columnProductCode}
-          AND scn.${LocalDatabaseHelper.columnIsReflected} = 0
         $filterClause
-        GROUP BY det.${LocalDatabaseHelper.colDetSoNum}, det.${LocalDatabaseHelper.colDetItemCode}
       ''';
 
       final maps = await db.rawQuery(query);
@@ -295,23 +299,35 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<String>> getProductionSites() async {
     try {
+      final sites = await LocalDatabaseHelper.instance.getSites();
+      if (sites.isNotEmpty) {
+        return sites.map((s) => s[LocalDatabaseHelper.colCode] as String).toList();
+      }
+
+      // Fallback to API if local is empty (e.g., first run)
       final response = await _dio.get('Logistics/production-sites');
       return (response.data as List).map((s) => s.toString()).toList();
     } catch (e) {
-      throw 'Failed to fetch production sites: $e';
+      print('Production Sites: Local fetch failed, falling back to basic list. Error: $e');
+      return ['IPL', 'INTERNAL']; // Safe defaults for Innodis
     }
   }
 
   @override
   Future<List<String>> getLots(String itemCode, String siteCode) async {
     try {
+      final lots = await LocalDatabaseHelper.instance.getLotsForItemAndSite(itemCode, siteCode);
+      if (lots.isNotEmpty) return lots;
+
+      // Fallback to API
       final response = await _dio.get(
         'Logistics/lots',
         queryParameters: {'itemCode': itemCode, 'siteCode': siteCode},
       );
       return (response.data as List).map((s) => s.toString()).toList();
     } catch (e) {
-      throw 'Failed to fetch lots: $e';
+      print('Lots: Local fetch failed for $itemCode at $siteCode: $e');
+      return [];
     }
   }
 
@@ -441,7 +457,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnIsSynced: 0,
-              LocalDatabaseHelper.columnItemStatus: 'Scanned',
+              LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
             });
           }
@@ -472,7 +488,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnIsSynced: 0,
-              LocalDatabaseHelper.columnItemStatus: 'Scanned',
+              LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
             });
           }
@@ -483,7 +499,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.columnQuantity: quantity,
             LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
             LocalDatabaseHelper.columnIsSynced: 0,
-            LocalDatabaseHelper.columnItemStatus: 'Internal Entry',
+            LocalDatabaseHelper.columnItemStatus: 'A',
             LocalDatabaseHelper.columnSite: 'INTERNAL',
           });
         }
@@ -660,7 +676,7 @@ class DeliveryRepository implements ILogisticsRepository {
         locations: locations,
         products: products,
         sites: sites,
-        lots: [], // Added missing lots parameter
+        lots: processedData['lots'] as List<Map<String, dynamic>>,
       );
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
@@ -668,7 +684,7 @@ class DeliveryRepository implements ILogisticsRepository {
         (db) => db.query(
           LocalDatabaseHelper.tableScans,
           where:
-              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
+              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0 AND ${LocalDatabaseHelper.columnSite} != \'INTERNAL\'',
         ),
       );
       if (syncedScans.isNotEmpty) {
@@ -718,6 +734,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'scanAmountKg': s['quantity'],
             'itemStatus': s['itemStatus'] ?? 'Q',
             'location': s['location'],
+            'syncId': s['sync_id'],
           }).toList(),
           'cutBulkEntries': (await Future.wait(unsyncedOrders.map((o) async {
             final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
@@ -768,10 +785,10 @@ class DeliveryRepository implements ILogisticsRepository {
       yield SyncProgress(status: 'Processing data...', progress: 0.6);
       final processedData = await compute(_parseAndSanitizeData, rawData);
 
-      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites'];
+      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots'];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
-        final data = processedData[table] as List<Map<String, dynamic>>;
+        final data = (processedData[table] as List<Map<String, dynamic>>?) ?? [];
         counts[table] = data.length;
         yield SyncProgress(
           status: 'Updating $table (${data.length} items)...',
@@ -787,7 +804,7 @@ class DeliveryRepository implements ILogisticsRepository {
         locations: processedData['locations'] as List<Map<String, dynamic>>,
         products: processedData['products'] as List<Map<String, dynamic>>,
         sites: processedData['sites'] as List<Map<String, dynamic>>,
-        lots: [], // Added missing lots parameter
+        lots: processedData['lots'] as List<Map<String, dynamic>>,
       );
 
       // Save new timestamp
@@ -869,6 +886,7 @@ class DeliveryRepository implements ILogisticsRepository {
       warehouseName: row[LocalDatabaseHelper.colDetWarehouseName],
       locationType: row[LocalDatabaseHelper.colDetLocationType],
       locationTypeName: row[LocalDatabaseHelper.colDetLocationTypeName],
+      isPrepared: row[LocalDatabaseHelper.colDetIsPrepared] == 1,
     );
   }
 
@@ -906,6 +924,8 @@ class DeliveryRepository implements ILogisticsRepository {
 
   Future<void> saveProductionScan(Map<String, dynamic> scan) async {
     try {
+      final syncId = const Uuid().v4();
+
       // 1. Map UI payload to SQLite schema
       final localRow = {
         LocalDatabaseHelper.columnSoNumber: scan['soNumber'] ?? '',
@@ -914,6 +934,7 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
         LocalDatabaseHelper.columnItemStatus: scan['itemStatus'] ?? 'Q',
         LocalDatabaseHelper.columnLocationCode: scan['location'] ?? '',
+        LocalDatabaseHelper.columnSyncId: syncId,
         LocalDatabaseHelper.columnIsSynced: 0,
       };
 
@@ -923,6 +944,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
       // 3. Attempt Optimistic API Call
       try {
+        scan['syncId'] = syncId;
         await _dio.post('Logistics/production-scan', data: scan);
         // On Success, mark as synced
         await LocalDatabaseHelper.instance.markAsSynced([id]);
@@ -992,7 +1014,16 @@ class DeliveryRepository implements ILogisticsRepository {
 
   @override
   Future<List<LocationLookup>> getTargetLocations(String site, String itemCode) async {
+    // 1. Read from SQLite first (already synced via refreshLogisticsData)
+    final localLocations = await getLocationLookups(site);
+    if (localLocations.isNotEmpty) {
+      print("Target locations loaded from SQLite cache (${localLocations.length} items)");
+      return localLocations;
+    }
+
+    // 2. Fallback: API call only if SQLite is empty (first run before sync)
     try {
+      print("SQLite empty — falling back to API for target locations");
       final prefs = await SharedPreferences.getInstance();
       var baseUrl = prefs.getString('api_base_url') ?? 'http://10.0.2.2:5042';
 
@@ -1012,8 +1043,7 @@ class DeliveryRepository implements ILogisticsRepository {
       )).toList();
     } catch (e) {
       print("Failed to fetch target locations from API: $e");
-      // Fallback
-      return getLocationLookups(site);
+      return [];
     }
   }
 
@@ -1078,6 +1108,10 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
       .map<Map<String, dynamic>>((j) => LookupDto.fromJson(j).toSqlMap())
       .toList();
 
+  final lots = (data['lots'] as List? ?? [])
+      .map<Map<String, dynamic>>((j) => LotDto.fromJson(j).toSqlMap())
+      .toList();
+
   return {
     'orders': orders,
     'details': details,
@@ -1086,5 +1120,6 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
     'locations': locations,
     'products': products,
     'sites': sites,
+    'lots': lots,
   };
 }

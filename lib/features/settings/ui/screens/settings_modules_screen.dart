@@ -169,7 +169,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                       border: Border(
-                        top: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                       ),
                     ),
                     child: Row(
@@ -202,7 +202,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                             color: isDark ? Colors.white : Colors.black87,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -254,7 +254,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Divider(color: Colors.white.withOpacity(0.1), height: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
           const SizedBox(height: 16),
           ...children,
         ],

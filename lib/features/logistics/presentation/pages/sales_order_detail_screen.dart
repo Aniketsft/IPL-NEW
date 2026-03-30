@@ -329,7 +329,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -359,7 +359,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     Text(
                       widget.order.customerCode,
                       style: TextStyle(
-                        color: orange.withOpacity(0.8),
+                        color: orange.withValues(alpha: 0.8),
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -393,7 +393,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.35),
+            color: Colors.white.withValues(alpha: 0.35),
             fontSize: 10,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -444,7 +444,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           decoration: BoxDecoration(
             color: Colors.transparent,
             border: Border(
-              bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
             ),
           ),
         child: Column(
@@ -483,10 +483,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
+                              color: Colors.orange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.orange.withOpacity(0.3),
+                                color: Colors.orange.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Text(
@@ -576,9 +576,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green.withOpacity(0.3)),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
           ),
           child: const Center(
             child: Text(
@@ -646,10 +646,10 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isClosed ? Colors.white10 : orange.withOpacity(0.15),
+        color: isClosed ? Colors.white10 : orange.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isClosed ? Colors.white24 : orange.withOpacity(0.3),
+          color: isClosed ? Colors.white24 : orange.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
