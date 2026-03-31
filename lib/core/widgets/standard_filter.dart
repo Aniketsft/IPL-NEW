@@ -1,11 +1,14 @@
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 
-class StandardFilter extends StatelessWidget {
+class StandardFilter extends StatefulWidget {
   final TextEditingController searchController;
   final String searchHint;
   final Widget? child;
+  final Widget Function(BuildContext context, StateSetter setModalState)?
+      filterBuilder;
   final VoidCallback? onApply;
   final VoidCallback? onReset;
   final ValueChanged<String>? onSearchChanged;
@@ -17,6 +20,7 @@ class StandardFilter extends StatelessWidget {
     required this.searchController,
     this.searchHint = 'Search...',
     this.child,
+    this.filterBuilder,
     this.onApply,
     this.onReset,
     this.onSearchChanged,
@@ -24,20 +28,71 @@ class StandardFilter extends StatelessWidget {
     this.hasActiveFilters = false,
   });
 
+  @override
+  State<StandardFilter> createState() => _StandardFilterState();
+}
+
+class _StandardFilterState extends State<StandardFilter> {
+  Timer? _debounceTimer;
+  final ValueNotifier<int> _rebuildNotifier = ValueNotifier(0);
+
+  @override
+  void didUpdateWidget(covariant StandardFilter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the parent screen rebuilds, it might have new filter state variables.
+    // We force the modal to rebuild its filters to pick up these fresh values.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _rebuildNotifier.value++;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _rebuildNotifier.dispose();
+    super.dispose();
+  }
+
+  void _handleStateChanged(StateSetter setModalState) {
+    // 1. Immediately increment counter to force a "Hard Refresh" of the filter UI
+    _rebuildNotifier.value++;
+
+    // 2. Refresh modal scope
+    setModalState(() {});
+
+    // 3. Debounce background data update
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted && widget.onApply != null) {
+        widget.onApply!();
+      }
+    });
+  }
+
   void _showFilterModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
+      builder: (modalContext) => StatefulBuilder(
+        builder: (context, setModalState) {
           return FilterStateScope(
-            onStateChanged: () => setState(() {}),
-            child: _FilterModal(
-              title: title,
-              onApply: onApply ?? () {},
-              onReset: onReset ?? () {},
-              child: child ?? const SizedBox.shrink(),
+            onStateChanged: () => _handleStateChanged(setModalState),
+            child: ValueListenableBuilder<int>(
+              valueListenable: _rebuildNotifier,
+              builder: (context, rebuildValue, _) {
+                return _FilterModal(
+                  key: ValueKey('filter_modal_$rebuildValue'),
+                  title: widget.title,
+                  onApply: () => Navigator.pop(context),
+                  onReset: widget.onReset ?? () {},
+                  child: widget.filterBuilder?.call(context, setModalState) ??
+                      widget.child ??
+                      const SizedBox.shrink(),
+                );
+              },
             ),
           );
         },
@@ -63,13 +118,15 @@ class StandardFilter extends StatelessWidget {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: TextField(
-                controller: searchController,
-                onChanged: onSearchChanged,
+                controller: widget.searchController,
+                onChanged: widget.onSearchChanged,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: searchHint,
-                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: orange, size: 20),
+                  hintText: widget.searchHint,
+                  hintStyle:
+                      const TextStyle(color: Colors.white24, fontSize: 14),
+                  prefixIcon:
+                      const Icon(Icons.search_rounded, color: orange, size: 20),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -92,10 +149,11 @@ class StandardFilter extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
-                  child: const Icon(Icons.tune_rounded, color: Colors.white70, size: 22),
+                  child: const Icon(Icons.tune_rounded,
+                      color: Colors.white70, size: 22),
                 ),
               ),
-              if (hasActiveFilters)
+              if (widget.hasActiveFilters)
                 Positioned(
                   top: -2,
                   right: -2,
@@ -105,9 +163,13 @@ class StandardFilter extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: orange,
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF121212), width: 2),
+                      border:
+                          Border.all(color: const Color(0xFF121212), width: 2),
                       boxShadow: [
-                        BoxShadow(color: orange.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1),
+                        BoxShadow(
+                            color: orange.withValues(alpha: 0.5),
+                            blurRadius: 4,
+                            spreadRadius: 1),
                       ],
                     ),
                   ),
@@ -127,6 +189,7 @@ class _FilterModal extends StatelessWidget {
   final VoidCallback onReset;
 
   const _FilterModal({
+    super.key,
     required this.title,
     required this.child,
     required this.onApply,

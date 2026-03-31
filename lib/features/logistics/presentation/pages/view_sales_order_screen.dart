@@ -254,101 +254,128 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   });
                   _fetchOrders();
                 },
-                child: Column(
-                  children: [
-                    if (_isLoadingLookups)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: LinearProgressIndicator(
-                          minHeight: 2,
-                          color: Colors.orange,
-                          backgroundColor: Colors.white10,
+                filterBuilder: (context, setModalState) {
+                  return Column(
+                    children: [
+                      if (_isLoadingLookups)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: LinearProgressIndicator(
+                            minHeight: 2,
+                            color: Colors.orange,
+                            backgroundColor: Colors.white10,
+                          ),
                         ),
-                      ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        _buildDatePicker(orange),
-                        const SizedBox(width: 12),
-                        FilterPickerTile(
-                          label: 'Site',
-                          value: _selectedSite?.name,
-                          icon: Icons.location_on,
-                          onTap: () => _showSearchPicker(
-                            'Site',
-                            _sitesList,
-                            (code) {
-                              setState(() {
-                                if (code == null) {
-                                  _selectedSite = null;
-                                } else {
-                                  final siteMap = _sitesList.firstWhere(
-                                      (s) => s['code'] == code,
-                                      orElse: () => {});
-                                  if (siteMap.isNotEmpty) {
-                                    _selectedSite = Site(
-                                      code: siteMap['code']!,
-                                      name: siteMap['name']!,
-                                    );
-                                  }
-                                }
-                              });
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          FilterDatePicker(
+                            label: 'Del. Date',
+                            value: _selectedDate,
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate ?? DateTime.now(),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2101),
+                                builder: (context, child) => Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: ColorScheme.dark(
+                                      primary: orange,
+                                      onPrimary: Colors.white,
+                                      surface: const Color(0xFF1E1E1E),
+                                      onSurface: Colors.white,
+                                    ),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) {
+                                setState(() => _selectedDate = picked);
+                              }
                             },
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        FilterPickerTile(
-                          label: 'Customer',
-                          value: _selectedCustomerCode,
-                          icon: Icons.business,
-                          onTap: () => _showSearchPicker(
-                            'Customer',
-                            _customersList,
-                            (code) =>
-                                setState(() => _selectedCustomerCode = code),
+                          const SizedBox(width: 12),
+                          FilterPickerTile(
+                            label: 'Site',
+                            value: _selectedSite?.name,
+                            icon: Icons.location_on,
+                            onTap: () => _showSearchPicker(
+                              'Site',
+                              _sitesList,
+                              (code) {
+                                setState(() {
+                                  if (code == null) {
+                                    _selectedSite = null;
+                                  } else {
+                                    final siteMap = _sitesList.firstWhere(
+                                        (s) => s['code'] == code,
+                                        orElse: () => {});
+                                    if (siteMap.isNotEmpty) {
+                                      _selectedSite = Site(
+                                        code: siteMap['code']!,
+                                        name: siteMap['name']!,
+                                      );
+                                    }
+                                  }
+                                });
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        FilterPickerTile(
-                          label: 'Sales Man 1',
-                          value: _selectedSM1Code,
-                          onTap: () => _showSearchPicker(
-                            'Sales Man 1',
-                            _salesRepsList,
-                            (code) => setState(() => _selectedSM1Code = code),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          FilterPickerTile(
+                            label: 'Customer',
+                            value: _selectedCustomerCode,
+                            icon: Icons.business,
+                            onTap: () => _showSearchPicker(
+                              'Customer',
+                              _customersList,
+                              (code) =>
+                                  setState(() => _selectedCustomerCode = code),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilterPickerTile(
-                          label: 'Sales Man 2',
-                          value: _selectedSM2Code,
-                          onTap: () => _showSearchPicker(
-                            'Sales Man 2',
-                            _salesRepsList,
-                            (code) => setState(() => _selectedSM2Code = code),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          FilterPickerTile(
+                            label: 'Sales Man 1',
+                            value: _selectedSM1Code,
+                            onTap: () => _showSearchPicker(
+                              'Sales Man 1',
+                              _salesRepsList,
+                              (code) => setState(() => _selectedSM1Code = code),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    FilterSegmentedToggle(
-                      label: 'Order Status',
-                      value: _status,
-                      options: const ['open', 'closed', 'all'],
-                      onChanged: (value) {
-                        setState(() => _status = value);
-                      },
-                    ),
-                  ],
-                ),
+                          const SizedBox(width: 12),
+                          FilterPickerTile(
+                            label: 'Sales Man 2',
+                            value: _selectedSM2Code,
+                            onTap: () => _showSearchPicker(
+                              'Sales Man 2',
+                              _salesRepsList,
+                              (code) => setState(() => _selectedSM2Code = code),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      FilterSegmentedToggle(
+                        label: 'Order Status',
+                        value: _status,
+                        options: const ['open', 'closed', 'all'],
+                        onChanged: (value) {
+                          setState(() => _status = value);
+                        },
+                      ),
+                    ],
+                  );
+                },
               ),
               Expanded(
                 child: _isLoading
@@ -412,32 +439,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
 
 
 
-  Widget _buildDatePicker(Color orange) {
-    return FilterDatePicker(
-      label: 'Del. Date',
-      value: _selectedDate,
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _selectedDate ?? DateTime.now(),
-          firstDate: DateTime(2000),
-          lastDate: DateTime(2101),
-          builder: (context, child) => Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
-                primary: orange,
-                onPrimary: Colors.white,
-                surface: const Color(0xFF1E1E1E),
-                onSurface: Colors.white,
-              ),
-            ),
-            child: child!,
-          ),
-        );
-        if (picked != null) setState(() => _selectedDate = picked);
-      },
-    );
-  }
 
   void _showSearchPicker(
     String title,

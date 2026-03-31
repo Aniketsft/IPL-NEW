@@ -209,68 +209,72 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               _descFilter.clear();
               setState(() {});
             },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                // Row 1: Delivery Date + Customer (read-only)
-                Row(
-                  children: [
-                    FilterDatePicker(
-                      label: 'Del. Date',
-                      value: widget.order.date,
-                      onTap: () {}, // read-only
-                    ),
-                    const SizedBox(width: 12),
-                    FilterPickerTile(
-                      label: 'Customer',
-                      value: widget.order.customerName.isNotEmpty
-                          ? widget.order.customerName
-                          : null,
-                      icon: Icons.business,
-                      onTap: () {}, // read-only
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Row 2: Sales Man 1 + Sales Man 2 (read-only)
-                Row(
-                  children: [
-                    FilterPickerTile(
-                      label: 'Sales Man 1',
-                      value: widget.order.salesManCode1.isNotEmpty
-                          ? widget.order.salesManCode1
-                          : null,
-                      onTap: () {}, // read-only
-                    ),
-                    const SizedBox(width: 12),
-                    FilterPickerTile(
-                      label: 'Sales Man 2',
-                      value: widget.order.salesManCode2.isNotEmpty
-                          ? widget.order.salesManCode2
-                          : null,
-                      onTap: () {}, // read-only
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Status toggle (read-only)
-                FilterSegmentedToggle(
-                  label: 'Order Status',
-                  value: widget.order.isClosed ? 'closed' : 'open',
-                  options: const ['open', 'closed'],
-                  onChanged: (_) {}, // read-only
-                ),
-                const SizedBox(height: 16),
-                // Editable product description filter
-                FilterSearchInput(
-                  controller: _descFilter,
-                  hint: 'Product Description...',
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
+            filterBuilder: (context, setModalState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  // Row 1: Delivery Date + Customer (read-only)
+                  Row(
+                    children: [
+                      FilterDatePicker(
+                        label: 'Del. Date',
+                        value: widget.order.date,
+                        onTap: () {}, // read-only
+                      ),
+                      const SizedBox(width: 12),
+                      FilterPickerTile(
+                        label: 'Customer',
+                        value: widget.order.customerName.isNotEmpty
+                            ? widget.order.customerName
+                            : null,
+                        icon: Icons.business,
+                        onTap: () {}, // read-only
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Row 2: Sales Man 1 + Sales Man 2 (read-only)
+                  Row(
+                    children: [
+                      FilterPickerTile(
+                        label: 'Sales Man 1',
+                        value: widget.order.salesManCode1.isNotEmpty
+                            ? widget.order.salesManCode1
+                            : null,
+                        onTap: () {}, // read-only
+                      ),
+                      const SizedBox(width: 12),
+                      FilterPickerTile(
+                        label: 'Sales Man 2',
+                        value: widget.order.salesManCode2.isNotEmpty
+                            ? widget.order.salesManCode2
+                            : null,
+                        onTap: () {}, // read-only
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Status toggle (read-only)
+                  FilterSegmentedToggle(
+                    label: 'Order Status',
+                    value: widget.order.isClosed ? 'closed' : 'open',
+                    options: const ['open', 'closed'],
+                    onChanged: (_) {}, // read-only
+                  ),
+                  const SizedBox(height: 16),
+                  // Editable product description filter
+                  FilterSearchInput(
+                    controller: _descFilter,
+                    hint: 'Product Description...',
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              );
+            },
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

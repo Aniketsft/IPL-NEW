@@ -98,21 +98,23 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           _searchController.clear();
           _deliveryDate = null;
         }),
-        child: FilterDatePicker(
-          label: 'Delivery Date',
-          value: _deliveryDate,
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _deliveryDate ?? DateTime.now(),
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2030),
-            );
-            if (picked != null) {
-              setState(() => _deliveryDate = picked);
-            }
-          },
-        ),
+        filterBuilder: (context, setModalState) {
+          return FilterDatePicker(
+            label: 'Delivery Date',
+            value: _deliveryDate,
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _deliveryDate ?? DateTime.now(),
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                setState(() => _deliveryDate = picked);
+              }
+            },
+          );
+        },
       ),
     );
   }

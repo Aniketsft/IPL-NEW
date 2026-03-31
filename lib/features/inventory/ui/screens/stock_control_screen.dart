@@ -80,15 +80,21 @@ class _StockControlScreenState extends State<StockControlScreen> {
               _searchController.clear();
               setState(() {});
             },
-            child: Column(
-              children: [
-                FilterDropdown(
-                  label: 'Warehouse',
-                  value: 'All Warehouses',
-                  options: const ['All Warehouses', 'WH-A1', 'WH-B2', 'WH-C1'],
-                ),
-              ],
-            ),
+            filterBuilder: (context, setModalState) {
+              return Column(
+                children: [
+                  FilterDropdown(
+                    label: 'Warehouse',
+                    value: 'All Warehouses',
+                    options: const ['All Warehouses', 'WH-A1', 'WH-B2', 'WH-C1'],
+                    onChanged: (val) {
+                      // Logic to update warehouse filter would go here
+                      setState(() {});
+                    },
+                  ),
+                ],
+              );
+            },
           ),
           Expanded(
             child: ListView.builder(

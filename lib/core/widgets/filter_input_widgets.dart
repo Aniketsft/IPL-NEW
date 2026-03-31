@@ -37,9 +37,11 @@ class FilterPickerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: () {
-          onTap();
-          FilterStateScope.of(context)?.onStateChanged();
+        onTap: () async {
+          await Future.sync(() => onTap());
+          if (context.mounted) {
+            FilterStateScope.of(context)?.onStateChanged();
+          }
         },
         borderRadius: BorderRadius.circular(12),
         child: ClipRRect(
@@ -204,9 +206,11 @@ class FilterDatePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: () {
-          onTap();
-          FilterStateScope.of(context)?.onStateChanged();
+        onTap: () async {
+          await Future.sync(() => onTap());
+          if (context.mounted) {
+            FilterStateScope.of(context)?.onStateChanged();
+          }
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -312,11 +316,9 @@ class FilterDateInput extends StatelessWidget {
             );
           },
         );
-        if (date != null) {
+        if (date != null && context.mounted) {
           controller.text = DateFormat('yyyy-MM-dd').format(date);
-          if (context.mounted) {
-            FilterStateScope.of(context)?.onStateChanged();
-          }
+          FilterStateScope.of(context)?.onStateChanged();
         }
       },
     );

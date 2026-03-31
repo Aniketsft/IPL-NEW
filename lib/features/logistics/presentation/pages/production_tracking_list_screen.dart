@@ -4,6 +4,7 @@ import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
+import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import '../widgets/sync_status_header.dart';
 import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
@@ -158,46 +159,27 @@ class _ProductionTrackingListScreenState
           setState(() {
             _searchController.clear();
             _searchQuery = '';
+            _selectedSiteId = 'IPL';
           });
           _applyFilters();
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Select Site',
-              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        filterBuilder: (context, setModalState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FilterDropdown(
+                label: 'Production Site',
+                value: _selectedSiteId ?? 'All Sites',
+                options: ['All Sites', ..._sites.map((s) => s.id)],
+                onChanged: (val) {
+                  setState(() {
+                    _selectedSiteId = val == 'All Sites' ? null : val;
+                  });
+                },
               ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedSiteId,
-                  dropdownColor: const Color(0xFF1E1E1E),
-                  isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down, color: orange),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text('All Sites', style: TextStyle(color: Colors.white)),
-                    ),
-                    ..._sites.map((site) => DropdownMenuItem(
-                      value: site.id,
-                      child: Text(site.name, style: const TextStyle(color: Colors.white)),
-                    )),
-                  ],
-                  onChanged: (val) => setState(() => _selectedSiteId = val),
-                ),
-              ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
