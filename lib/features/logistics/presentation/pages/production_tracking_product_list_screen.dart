@@ -250,10 +250,10 @@ class _ProductionTrackingProductListScreenState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildStat(
-                    'Ordered', totalOrdered.toStringAsFixed(0), Colors.white70),
+                    'Ordered', '${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}', Colors.white70),
                 _buildStat(
                     'Produced',
-                        'Scanned: ${totalScanned.toStringAsFixed(2)} / ${totalOrdered.toStringAsFixed(2)}',
+                        'Scanned: ${soItems.first.formatQuantity(totalScanned)} ${soItems.first.unit} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
                     orange),
                 _buildStat(
                     'Progress',

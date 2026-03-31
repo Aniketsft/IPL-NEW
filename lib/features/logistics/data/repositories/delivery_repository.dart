@@ -47,6 +47,7 @@ class DeliveryRepository implements ILogisticsRepository {
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
+          unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
         );
       }).toList();
     } catch (e) {
@@ -110,6 +111,7 @@ class DeliveryRepository implements ILogisticsRepository {
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
+          unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
         );
       }).toList();
     } catch (e) {
@@ -900,6 +902,7 @@ class DeliveryRepository implements ILogisticsRepository {
       locationType: row[LocalDatabaseHelper.colDetLocationType],
       locationTypeName: row[LocalDatabaseHelper.colDetLocationTypeName],
       isPrepared: row[LocalDatabaseHelper.colDetIsPrepared] == 1,
+      unit: row[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
     );
   }
 

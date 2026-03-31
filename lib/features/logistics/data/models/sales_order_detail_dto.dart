@@ -22,6 +22,7 @@ class SalesOrderDetailDto {
   final String? locationType;
   final String? locationTypeName;
   final bool isPrepared;
+  final String unit;
 
   SalesOrderDetailDto({
     required this.soNumber,
@@ -45,6 +46,7 @@ class SalesOrderDetailDto {
     required this.remaining,
     required this.scannedQuantity,
     this.isPrepared = false,
+    this.unit = 'KG',
   });
 
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
@@ -70,6 +72,7 @@ class SalesOrderDetailDto {
       remaining: (json['remaining'] as num?)?.toDouble() ?? 0.0,
       scannedQuantity: (json['manufactured'] as num?)?.toDouble() ?? 0.0,
       isPrepared: json['isPrepared'] == 1 || json['isPrepared'] == true,
+      unit: json['unit']?.toString() ?? 'KG',
     );
   }
 
@@ -90,6 +93,7 @@ class SalesOrderDetailDto {
       'locationType': locationType,
       'locationTypeName': locationTypeName,
       LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0,
+      LocalDatabaseHelper.colDetUnit: unit,
     };
   }
 }

@@ -22,6 +22,7 @@ class SalesOrderDetail {
   final double remaining;
   final double scannedQuantity;
   final bool isPrepared;
+  final String unit;
 
   SalesOrderDetail({
     required this.soNumber,
@@ -45,6 +46,7 @@ class SalesOrderDetail {
     required this.remaining,
     required this.scannedQuantity,
     this.isPrepared = false,
+    this.unit = 'KG',
   });
 
   // CB orders: quantity=0, scanned grows freely. Show 100% if any production happened.
@@ -52,11 +54,18 @@ class SalesOrderDetail {
       ? scannedQuantity / quantity
       : (scannedQuantity > 0 ? 1.0 : 0.0);
 
+  String formatQuantity(double value) {
+    if (unit == 'EA') {
+      return value.toInt().toString();
+    }
+    return value.toStringAsFixed(2);
+  }
+
   String get remainingDisplay {
     if (remaining < 0) {
-      return '+${remaining.abs().toStringAsFixed(2)}';
+      return '+${formatQuantity(remaining.abs())}';
     }
-    return remaining.toStringAsFixed(2);
+    return formatQuantity(remaining);
   }
 
   SalesOrderDetail copyWith({
@@ -81,6 +90,7 @@ class SalesOrderDetail {
     double? remaining,
     double? scannedQuantity,
     bool? isPrepared,
+    String? unit,
   }) {
     return SalesOrderDetail(
       soNumber: soNumber ?? this.soNumber,
@@ -104,6 +114,7 @@ class SalesOrderDetail {
       remaining: remaining ?? this.remaining,
       scannedQuantity: scannedQuantity ?? this.scannedQuantity,
       isPrepared: isPrepared ?? this.isPrepared,
+      unit: unit ?? this.unit,
     );
   }
 }

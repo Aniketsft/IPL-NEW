@@ -232,15 +232,15 @@ class _ProductionTrackingListScreenState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStat('Ordered', item.quantity.toStringAsFixed(0)),
+                _buildStat('Ordered', '${item.formatQuantity(item.quantity)} ${item.unit}'),
                 _buildStat(
                   'Remaining',
-                  item.remainingDisplay,
+                  '${item.remainingDisplay} ${item.unit}',
                   color: item.remaining < 0 ? Colors.green : Colors.white70,
                 ),
                 _buildStat(
                   'Scanned',
-                  item.scannedQuantity.toStringAsFixed(0),
+                  '${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
                   color: orange,
                 ),
               ],

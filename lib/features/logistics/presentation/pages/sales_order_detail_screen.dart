@@ -510,7 +510,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.quantity.toStringAsFixed(2),
+                      '${item.formatQuantity(item.quantity)} ${item.unit}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -523,7 +523,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      item.remainingDisplay,
+                      '${item.formatQuantity(item.remaining)} ${item.unit}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -549,7 +549,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                 else
                   const SizedBox(),
                 Text(
-                  'Scanned: ${item.scannedQuantity.toStringAsFixed(2)}',
+                  'Scanned: ${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
                   style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ],

@@ -7,12 +7,14 @@ const Color darkBorder = Color(0xFF2C2C2E);
 class ScanItemCard extends StatelessWidget {
   final int lineNumber;
   final Map<String, dynamic> scan;
+  final String unit;
   final VoidCallback onDelete;
 
   const ScanItemCard({
     super.key,
     required this.lineNumber,
     required this.scan,
+    required this.unit,
     required this.onDelete,
   });
 
@@ -95,7 +97,7 @@ class ScanItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${weight.toStringAsFixed(2)} KG',
+                '${unit == 'EA' ? weight.toInt().toString() : weight.toStringAsFixed(2)} $unit',
                 style: const TextStyle(
                   color: orange,
                   fontWeight: FontWeight.bold,

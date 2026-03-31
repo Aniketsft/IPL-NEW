@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 21;
+  static const _databaseVersion = 22;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -61,6 +61,7 @@ class LocalDatabaseHelper {
   static const colDetLocationType = 'locationType';
   static const colDetLocationTypeName = 'locationTypeName';
   static const colDetIsPrepared = 'is_prepared';
+  static const colDetUnit = 'unit';
   static const colDetScanned = 'scanned';
 
   // Common Code/Name columns
@@ -344,6 +345,16 @@ class LocalDatabaseHelper {
         print("Migration error v21: $e");
       }
     }
+
+    if (oldVersion < 22) {
+      print('DB Upgrade: Adding unit column to details table (v22)');
+      try {
+        await db.execute(
+            'ALTER TABLE $tableDetails ADD COLUMN $colDetUnit TEXT DEFAULT "KG"');
+      } catch (e) {
+        print("Migration error v22: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -400,6 +411,7 @@ class LocalDatabaseHelper {
         $colDetLocationType TEXT,
         $colDetLocationTypeName TEXT,
         $colDetIsPrepared INTEGER DEFAULT 0,
+        $colDetUnit TEXT DEFAULT "KG",
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )

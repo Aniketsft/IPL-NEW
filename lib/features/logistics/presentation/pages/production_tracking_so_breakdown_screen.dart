@@ -92,7 +92,7 @@ class _ProductionTrackingSoBreakdownScreenState
                   children: [
                     _statChip(
                         label: 'Ordered',
-                        value: totalOrdered.toStringAsFixed(0),
+                        value: '${_currentItems.first.formatQuantity(totalOrdered)} ${_currentItems.first.unit}',
                         color: Colors.white70),
                     _statChip(
                         label: 'Prepared',
@@ -208,11 +208,11 @@ class _ProductionTrackingSoBreakdownScreenState
               children: [
                 _soStat(
                     'Ordered',
-                    '${item.quantity.toStringAsFixed(0)} KG',
+                    '${item.formatQuantity(item.quantity)} ${item.unit}',
                     Colors.white70),
                 _soStat(
                     'Scanned',
-                    '${item.scannedQuantity.toStringAsFixed(0)} KG',
+                    '${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
                     orange),
                 _soStat(
                     'Status',

@@ -217,7 +217,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               // Strict zero-tolerance
               _showErrorDialog(
                 'Limit Exceeded',
-                'Scanning ${weight.toStringAsFixed(2)} KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
+                'Scanning ${widget.product.formatQuantity(weight)} ${widget.product.unit} would exceed the remaining order quantity of ${widget.product.formatQuantity(remaining)} ${widget.product.unit}.',
               );
               return;
             }
@@ -236,7 +236,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Detected: $weight KG. Click SAVE SCAN to log.'),
+              content: Text('Detected: ${widget.product.formatQuantity(weight)} ${widget.product.unit}. Click SAVE SCAN to log.'),
               backgroundColor: orange,
               duration: const Duration(seconds: 2),
             ),
@@ -729,14 +729,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _statItem('Order Qty', '${widget.product.quantity} KG'),
+              _statItem('Order Qty', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
               _statItem(
                 'Already Scanned',
-                '${widget.product.scannedQuantity} KG',
+                '${widget.product.formatQuantity(widget.product.scannedQuantity)} ${widget.product.unit}',
               ),
               _statItem(
                 'Remaining',
-                '${(widget.product.quantity - widget.product.scannedQuantity).toStringAsFixed(2)} KG',
+                '${widget.product.formatQuantity(widget.product.quantity - widget.product.scannedQuantity)} ${widget.product.unit}',
               ),
             ],
           ),
@@ -898,7 +898,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '${_pendingScan!['weight'].toStringAsFixed(2)} KG',
+                        '${widget.product.formatQuantity(_pendingScan!['weight'])} ${widget.product.unit}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -973,7 +973,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                _cumulativeQty.toStringAsFixed(2),
+                widget.product.formatQuantity(_cumulativeQty),
                 style: const TextStyle(
                   color: orange,
                   fontSize: 48,
@@ -981,9 +981,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'KG',
-                style: TextStyle(color: Colors.grey, fontSize: 20),
+              Text(
+                widget.product.unit,
+                style: const TextStyle(color: Colors.grey, fontSize: 20),
               ),
             ],
           ),
@@ -1062,7 +1062,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Remaining: ${(widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty).toStringAsFixed(2)} KG',
+                'Remaining: ${widget.product.formatQuantity(widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty)} ${widget.product.unit}',
                 style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ),
@@ -1139,6 +1139,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               return ScanItemCard(
                 lineNumber: _scans.length - index,
                 scan: scan,
+                unit: widget.product.unit,
                 onDelete: () {
                   setState(() {
                     _scans.removeAt(index);

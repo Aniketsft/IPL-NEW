@@ -62,6 +62,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as Quantity,
+                    f2.SAU_0 as Unit,
                     f1.STOFCY_0 as Site
                 FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
                 JOIN InnodisTestDB.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
@@ -227,6 +228,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Quantity = detail.Quantity,
                         Manufactured = manufactured,
                         Remaining = detail.Quantity - manufactured, // Internal orders: allow over-manufacture
+                        Unit = "KG",
                         IsPrepared = detail.IsPrepared
                     });
                 }
