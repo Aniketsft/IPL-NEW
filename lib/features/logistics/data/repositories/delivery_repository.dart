@@ -364,6 +364,7 @@ class DeliveryRepository implements ILogisticsRepository {
       return rows.map((r) => {
         'code': r[LocalDatabaseHelper.colProdCode]?.toString() ?? '',
         'name': r[LocalDatabaseHelper.colProdDesc]?.toString() ?? '',
+        'unit': r[LocalDatabaseHelper.colProdStu]?.toString() ?? 'KG',
       }).toList();
     } catch (e) {
       throw 'Failed to fetch products from local DB: $e';

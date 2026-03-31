@@ -138,6 +138,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
         Row(
           children: [
             Expanded(
+              flex: 3,
               child: ElevatedButton.icon(
                 onPressed: _toggleScanner,
                 icon: Icon(_isScannerVisible ? Icons.power_settings_new : Icons.qr_code_scanner),
@@ -156,21 +157,26 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
             ),
             if (widget.manualEntries != null && widget.onManualAdd != null) ...[
               const SizedBox(width: 8),
-              ...widget.manualEntries!.entries.map((entry) => Padding(
-                padding: const EdgeInsets.only(left: 4),
+              ...widget.manualEntries!.entries.map((entry) => Expanded(
+                flex: 2,
                 child: ElevatedButton(
                   onPressed: () => widget.onManualAdd!(entry.value),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white.withValues(alpha: 0.05),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                   ),
-                  child: Text('SCAN ${entry.key.toUpperCase()}'),
+                  child: Text(
+                    entry.key.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               )).toList(),
             ],

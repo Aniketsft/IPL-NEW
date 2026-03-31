@@ -7,7 +7,7 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 
 
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_bottom_sheet.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
 
 
 class NewCutsBulkScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts' or 'bulks'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO
-  bool _soDetailsExpanded = true;
+  bool _soDetailsExpanded = false;
   bool _productsExpanded = true;
 
 
@@ -30,7 +30,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String? _selectedSM2Code;
   String? _selectedExistingSO;
   List<Map<String, dynamic>> _selectedProducts = [];
-  final TextEditingController _poController = TextEditingController();
+  // Removed _poController as per request
 
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
@@ -51,7 +51,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
 
   @override
   void dispose() {
-    _poController.dispose();
+    // Removed _poController.dispose();
     super.dispose();
   }
 
@@ -95,6 +95,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       }
     }
     return total;
+  }
+
+  String _formatQuantity(double qty, String unit) {
+    final u = unit.toUpperCase();
+    if (u == 'EA' || u == 'PCS') {
+      return qty.toInt().toString();
+    }
+    return qty.toStringAsFixed(2);
   }
 
   // Total weight is calculated via getter _totalWeight
@@ -150,7 +158,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         'salesman2Code': _selectedSM2Code,
       },
       if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
-      'poNumber': _poController.text,
+      // Removed poNumber as per request
       'amount': amount,
       'amountKg': amount,
       'scans': _selectedProducts.expand((p) => p['scans'] as List).toList(),
@@ -267,8 +275,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        _buildLabel('PO Number'),
-                        _buildPOField(),
+                        // Removed PO Number label and field as per request
                       ] else ...[
                         _buildLabel('Existing SO'),
                         _buildDropdownTile(
@@ -465,26 +472,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     );
   }
 
-  Widget _buildPOField() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: TextFormField(
-        controller: _poController,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Enter PO Number',
-          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 14),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-        ),
-      ),
-    );
-  }
+  // Removed _buildPOField as per request
 
 
   void _addProduct() {
@@ -495,6 +483,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           _selectedProducts.add({
             'code': product['code'],
             'name': product['name'],
+            'unit': product['unit'] ?? 'KG',
             'sku': 'SKU-${product['code']}', // Placeholder
             'qty': 0.0,
             'scans': [],
@@ -507,17 +496,15 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   Future<void> _navigateToScan(Map<String, dynamic> product, int index) async {
     final scans = List<Map<String, dynamic>>.from(product['scans'] ?? []);
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ProductScanBottomSheet(
+      barrierDismissible: true,
+      builder: (context) => ProductScanFloatingScreen(
         product: product,
         initialScans: scans,
         onConfirm: (result) {
           setState(() {
             _selectedProducts[index]['scans'] = result;
-            // Update total weight if needed, though _totalWeight getter handles it
           });
         },
       ),
@@ -532,6 +519,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     
     // Calculate total scanned weight for this product
     double scannedWeight = 0;
+    final String unit = (product['unit'] ?? 'KG').toString().toUpperCase();
     final scans = product['scans'] as List<dynamic>? ?? [];
     for (var scan in scans) {
       scannedWeight += (scan['weight'] as num?)?.toDouble() ?? 0.0;
@@ -603,7 +591,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildMiniInfo('SCANS', scanCount.toString()),
-                      _buildMiniInfo('WEIGHT', '${scannedWeight.toStringAsFixed(2)} KG'),
+                      _buildMiniInfo('QTY', '${_formatQuantity(scannedWeight, unit)} $unit'),
                     ],
                   ),
                 ),
@@ -861,12 +849,30 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
               itemBuilder: (context, index) {
                 final item = _filteredItems[index];
                 return ListTile(
-                  title: Text(
-                    item['code'] ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  title: Row(
+                    children: [
+                      Text(
+                        item['code'] ?? '',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (item['unit'] != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF9800).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            item['unit']!,
+                            style: const TextStyle(color: Color(0xFFFF9800), fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   subtitle: Text(
                     item['name'] ?? '',
