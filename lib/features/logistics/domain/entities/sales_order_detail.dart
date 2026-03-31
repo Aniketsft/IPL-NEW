@@ -21,6 +21,7 @@ class SalesOrderDetail {
   final double quantity;
   final double remaining;
   final double scannedQuantity;
+  final double manufacturedQuantity;
   final bool isPrepared;
   final String unit;
 
@@ -45,17 +46,18 @@ class SalesOrderDetail {
     required this.quantity,
     required this.remaining,
     required this.scannedQuantity,
+    required this.manufacturedQuantity,
     this.isPrepared = false,
     this.unit = 'KG',
   });
 
-  // CB orders: quantity=0, scanned grows freely. Show 100% if any production happened.
+  // CB orders: quantity=0, manufactured grows freely. Show 100% if any production happened.
   double get progress => quantity > 0
-      ? scannedQuantity / quantity
-      : (scannedQuantity > 0 ? 1.0 : 0.0);
+      ? manufacturedQuantity / quantity
+      : (manufacturedQuantity > 0 ? 1.0 : 0.0);
 
   String formatQuantity(double value) {
-    if (unit == 'EA') {
+    if (unit == 'EA' || unit == 'PCS') {
       return value.toInt().toString();
     }
     return value.toStringAsFixed(2);
@@ -89,6 +91,7 @@ class SalesOrderDetail {
     double? quantity,
     double? remaining,
     double? scannedQuantity,
+    double? manufacturedQuantity,
     bool? isPrepared,
     String? unit,
   }) {
@@ -113,6 +116,7 @@ class SalesOrderDetail {
       quantity: quantity ?? this.quantity,
       remaining: remaining ?? this.remaining,
       scannedQuantity: scannedQuantity ?? this.scannedQuantity,
+      manufacturedQuantity: manufacturedQuantity ?? this.manufacturedQuantity,
       isPrepared: isPrepared ?? this.isPrepared,
       unit: unit ?? this.unit,
     );

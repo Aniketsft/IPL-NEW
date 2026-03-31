@@ -35,13 +35,13 @@ class _ProductionTrackingSoBreakdownScreenState
 
     final totalOrdered =
         _currentItems.fold<double>(0, (s, i) => s + i.quantity);
-    final totalScanned =
-        _currentItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
+    final totalManufactured =
+        _currentItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
     final totalPrepared = _currentItems.where((i) => i.isPrepared).length;
 
     final aggProgress = totalOrdered > 0
-        ? (totalScanned / totalOrdered).clamp(0.0, 1.0)
-        : (totalScanned > 0 ? 1.0 : 0.0);
+        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
+        : (totalManufactured > 0 ? 1.0 : 0.0);
 
     return Scaffold(
       backgroundColor: dark900,
@@ -222,9 +222,16 @@ class _ProductionTrackingSoBreakdownScreenState
                 ),
                 Expanded(
                   child: _soStat(
-                    'Scanned',
-                    '${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
+                    'Produced (M)',
+                    '${item.formatQuantity(item.manufacturedQuantity)} ${item.unit}',
                     orange,
+                  ),
+                ),
+                Expanded(
+                  child: _soStat(
+                    'Scanned (S)',
+                    '${item.formatQuantity(item.scannedQuantity)} scans',
+                    Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
                 Expanded(

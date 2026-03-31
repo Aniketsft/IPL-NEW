@@ -5,6 +5,8 @@ import 'barcode_scanner_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../features/logistics/data/repositories/delivery_repository.dart';
 import '../../../features/logistics/domain/entities/location_lookup.dart';
+import '../../../features/logistics/data/local/local_database_helper.dart';
+import 'barcode_processor.dart';
 
 
 class ProductScanFloatingScreen extends StatefulWidget {
@@ -135,8 +137,8 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     return _scans.fold(0.0, (sum, item) => sum + (double.tryParse(item['weight'].toString()) ?? 0.0));
   }
 
-  String _formatQuantity(double qty) {
-    final unit = (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
+  String _formatQuantity(double qty, [String? overrideUnit]) {
+    final unit = (overrideUnit ?? widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
     if (unit == 'EA' || unit == 'PCS') {
       return qty.toInt().toString();
     }
@@ -153,28 +155,55 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
 
     try {
       final repository = context.read<DeliveryRepository>();
-      final decoded = await repository.decodeBarcode(barcode);
+      
+      // 1. Lookup Product by Barcode (matches tbl_products.barcode)
+      final matchedProduct = await repository.getProductByBarcode(barcode);
+      
+      String targetItemCode;
+      String targetUnit;
+      double targetStdWeight;
+
+      if (matchedProduct != null) {
+        targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
+        targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
+        targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
+      } else {
+        // Fallback to current selected product metadata
+        targetItemCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString() ?? '';
+        targetUnit = _unitLabel;
+        targetStdWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
+                         (widget.product['itemWeight'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      // 2. Process with specialised rule-set
+      final result = BarcodeProcessor.process(
+        barcode: barcode,
+        itemCode: targetItemCode,
+        unit: targetUnit,
+        standardWeight: targetStdWeight,
+      );
 
       if (mounted) {
-        if (decoded != null) {
-          final productCode = decoded['productCode'] as String;
-          final weight = decoded['weight'] as double;
-
-          // Validate product match
-          final expectedCode = widget.product['code']?.toString();
-          if (expectedCode != null && productCode != expectedCode) {
-            _showErrorDialog(
+        if (result.isValid) {
+          // Validate product match if we are in a product-specific screen
+          final expectedCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString();
+          if (expectedCode != null && result.itemCode != expectedCode && matchedProduct != null) {
+             _showErrorDialog(
               'Wrong Product',
-              'Scanned: $productCode\nExpected: $expectedCode',
+              'Scanned: ${result.itemCode}\nExpected: $expectedCode',
             );
             return;
           }
 
           setState(() {
             _pendingScan = {
-              'barcode': barcode,
-              'productCode': productCode,
-              'weight': weight,
+              'barcode': result.processedBarcode,
+              'originalBarcode': result.originalBarcode,
+              'productCode': result.itemCode,
+              'scannedQty': result.scannedQty,
+              'manufacturedQty': result.manufacturedQty,
+              'weight': result.manufacturedQty, // For backwards compatibility if needed
+              'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
             };
           });
@@ -513,10 +542,37 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                          Text(
-                            '${_formatQuantity(double.parse(_pendingScan!['weight'].toString()))} $_unitLabel',
-                            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Column(
+                              children: [
+                                Text('SCANNED', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${_formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            Container(width: 1, height: 40, color: Colors.white12),
+                            Column(
+                              children: [
+                                Text('MANUFACTURED', style: TextStyle(color: orange.withValues(alpha: 0.7), fontSize: 12)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${_formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
+                                  style: TextStyle(color: orange, fontSize: 24, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Barcode: ${_pendingScan!['barcode']}',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+                        ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -619,10 +675,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                              Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                  Text(
-                                    '${_formatQuantity(double.parse(scan['weight'].toString()))} $_unitLabel',
-                                    style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 14),
-                                  ),
+                                Text(
+                                  'M: ${_formatQuantity(double.tryParse(scan['manufacturedQty']?.toString() ?? scan['weight']?.toString() ?? '0') ?? 0.0, scan['unit'])}',
+                                  style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                Text(
+                                  'S: ${_formatQuantity(double.tryParse(scan['scannedQty']?.toString() ?? '0') ?? 0.0, scan['unit'])}',
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                                ),
                                 const SizedBox(height: 4),
                                 GestureDetector(
                                   onTap: () {

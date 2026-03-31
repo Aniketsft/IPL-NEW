@@ -6,7 +6,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 22;
+  static const _databaseVersion = 23;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -32,6 +32,7 @@ class LocalDatabaseHelper {
   static const columnIsReflected = 'is_reflected';
   static const columnSyncId = 'sync_id';
   static const columnSite = 'site';
+  static const columnManufacturedQuantity = 'manufactured_quantity';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -81,6 +82,8 @@ class LocalDatabaseHelper {
   static const colProdDesc = 'productDescription';
   static const colProdStu = 'stockUnit';
   static const colProdSau = 'salesUnit';
+  static const colProdStandardWeight = 'standardWeight';
+  static const colProdBarcode = 'barcode';
 
   // tbl_lots columns
   static const colLotItemCode = 'itemCode';
@@ -355,6 +358,23 @@ class LocalDatabaseHelper {
         print("Migration error v22: $e");
       }
     }
+    if (oldVersion < 23) {
+      print('DB Upgrade: Adding barcode and quantity extensions (v23)');
+      // For scans
+      var scansInfo = await db.rawQuery('PRAGMA table_info($tableScans)');
+      if (!scansInfo.any((col) => col['name'] == columnManufacturedQuantity)) {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnManufacturedQuantity REAL DEFAULT 0');
+      }
+
+      // For products
+      var productsInfo = await db.rawQuery('PRAGMA table_info($tableProducts)');
+      if (!productsInfo.any((col) => col['name'] == colProdStandardWeight)) {
+        await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdStandardWeight REAL DEFAULT 0');
+      }
+      if (!productsInfo.any((col) => col['name'] == colProdBarcode)) {
+        await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdBarcode TEXT');
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -370,7 +390,8 @@ class LocalDatabaseHelper {
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
         $columnIsReflected INTEGER NOT NULL DEFAULT 0,
         $columnSyncId TEXT,
-        $columnSite TEXT
+        $columnSite TEXT,
+        $columnManufacturedQuantity REAL DEFAULT 0
       )
     ''');
 
@@ -489,7 +510,9 @@ class LocalDatabaseHelper {
         $colProdCode TEXT PRIMARY KEY,
         $colProdDesc TEXT,
         $colProdStu TEXT,
-        $colProdSau TEXT
+        $colProdSau TEXT,
+        $colProdStandardWeight REAL DEFAULT 0,
+        $colProdBarcode TEXT
       )
     ''');
 
@@ -574,7 +597,8 @@ class LocalDatabaseHelper {
         det.*,
         det.$colDetIsPrepared,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
-        (COALESCE(det.quantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0))) as reconciledRemaining
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining
       FROM $tableDetails det
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 

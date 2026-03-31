@@ -45,5 +45,6 @@ abstract class ILogisticsRepository {
     required String itemCode,
     required bool isPrepared,
   });
+  Future<Map<String, dynamic>?> getProductByBarcode(String barcode);
 }
 

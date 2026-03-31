@@ -19,23 +19,29 @@ class ScanResult {
 
 class OfflineBarcodeProcessor {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final BarcodeProcessor _processor = BarcodeProcessor();
 
   Future<ScanResult?> processBarcode(String rawBarcode) async {
     if (rawBarcode.isEmpty) return null;
 
-    final model = _processor.process(rawBarcode);
+    // 1. Initial Lookup to get metadata for calculation
+    String lookupBarcode = rawBarcode.startsWith('2') ? '0$rawBarcode' : rawBarcode;
+    final mapping = await _dbHelper.getMappingByBarcode(lookupBarcode);
+
+    // 2. Process using specialized rules
+    final model = BarcodeProcessor.process(
+      barcode: rawBarcode,
+      itemCode: mapping?.itemCode ?? 'UNKNOWN',
+      unit: mapping?.unit ?? 'KG',
+      standardWeight: mapping?.unitFactor ?? 1.0,
+    );
 
     if (model.isValid) {
-      // Look up description in local DB
-      final mapping = await _dbHelper.getMappingByItemCode(model.itemCode);
-      
       return ScanResult(
         barcode: rawBarcode,
         itemCode: model.itemCode == 'BATCH' ? rawBarcode : model.itemCode,
         description: mapping?.description ?? 'Product ${model.itemCode}',
-        weight: model.weight,
-        lotNumber: model.batchId,
+        weight: model.manufacturedQty,
+        lotNumber: null, // Batch logic moved out
       );
     }
 

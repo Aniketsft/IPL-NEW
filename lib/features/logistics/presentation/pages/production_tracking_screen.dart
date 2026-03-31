@@ -10,6 +10,8 @@ import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
 import '../widgets/scan_item_card.dart';
+import '../../data/local/local_database_helper.dart';
+import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
 
 const Color orange = Color(0xFFFF9800);
 const Color dark800 = Color(0xFF1E1E1E);
@@ -188,36 +190,55 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
     try {
       final repository = context.read<DeliveryRepository>();
-      final decoded = await repository.decodeBarcode(barcode);
+      
+      // 1. Lookup Product by Barcode
+      final matchedProduct = await repository.getProductByBarcode(barcode);
+      
+      String targetItemCode;
+      String targetUnit;
+      double targetStdWeight;
+
+      if (matchedProduct != null) {
+        targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
+        targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
+        targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
+      } else {
+        // Fallback to current selected product metadata
+        targetItemCode = widget.product.itemCode;
+        targetUnit = widget.product.unit;
+        targetStdWeight = 0.0; // Assume 0 if not in database
+      }
+
+      // 2. Process with specialised rule-set
+      final result = BarcodeProcessor.process(
+        barcode: barcode,
+        itemCode: targetItemCode,
+        unit: targetUnit,
+        standardWeight: targetStdWeight,
+      );
 
       if (mounted) {
-        if (decoded != null) {
-          final productCode = decoded['productCode'] as String;
-          final weight = decoded['weight'] as double;
-
-          // RULE 1: ITEM MATCH
-          if (productCode != widget.product.itemCode) {
+        if (result.isValid) {
+          // RULE 1: ITEM MATCH (Strict validation against current screen's product)
+          if (result.itemCode != widget.product.itemCode) {
             _showErrorDialog(
               'Wrong Product',
-              'Scanned: $productCode\nExpected: ${widget.product.itemCode}',
+              'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}',
             );
             return;
           }
 
-          // RULE 2: RECONCILIATION / OVER-SCAN (Zero-Tolerance)
-          // CB (Cut/Bulk) orders have no ordered quantity limit — scanned can exceed ordered
-          // QC (Q) and Rejected (R) status scans do not count toward production qty limits
+          // RULE 2: RECONCILIATION / OVER-SCAN
           final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
           if (!isCutBulkOrder && _status == 'A') {
             final remaining =
                 widget.product.quantity -
-                widget.product.scannedQuantity -
+                widget.product.manufacturedQuantity -
                 _cumulativeQty;
-            if (weight > remaining + 0.001) {
-              // Strict zero-tolerance
+            if (result.manufacturedQty > remaining + 0.001) {
               _showErrorDialog(
                 'Limit Exceeded',
-                'Scanning ${widget.product.formatQuantity(weight)} ${widget.product.unit} would exceed the remaining order quantity of ${widget.product.formatQuantity(remaining)} ${widget.product.unit}.',
+                'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit} would exceed the remaining order quantity.',
               );
               return;
             }
@@ -225,18 +246,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
           setState(() {
             _pendingScan = {
-              'barcode': barcode,
-              'productCode': productCode,
-              'weight': weight,
+              'barcode': result.processedBarcode,
+              'originalBarcode': result.originalBarcode,
+              'productCode': result.itemCode,
+              'scannedQty': result.scannedQty,
+              'manufacturedQty': result.manufacturedQty,
+              'weight': result.manufacturedQty, // Compatibility
               'timestamp': DateTime.now().toIso8601String(),
             };
             _isScannerVisible = false;
           });
 
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Detected: ${widget.product.formatQuantity(weight)} ${widget.product.unit}. Click SAVE SCAN to log.'),
+              content: Text('Detected: ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit}.'),
               backgroundColor: orange,
               duration: const Duration(seconds: 2),
             ),
@@ -338,7 +361,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       if (mounted) {
         final isPartial =
             (_cumulativeQty +
-                    widget.product.scannedQuantity -
+                    widget.product.manufacturedQuantity -
                     widget.product.quantity)
                 .abs() >
             0.001;
@@ -731,12 +754,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             children: [
               _statItem('Order Qty', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
               _statItem(
-                'Already Scanned',
-                '${widget.product.formatQuantity(widget.product.scannedQuantity)} ${widget.product.unit}',
+                'Already Mfd',
+                '${widget.product.formatQuantity(widget.product.manufacturedQuantity)} ${widget.product.unit}',
               ),
               _statItem(
                 'Remaining',
-                '${widget.product.formatQuantity(widget.product.quantity - widget.product.scannedQuantity)} ${widget.product.unit}',
+                '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity)} ${widget.product.unit}',
               ),
             ],
           ),
@@ -819,7 +842,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     if (!isCutBulkOrder) {
       final remaining =
           widget.product.quantity -
-          widget.product.scannedQuantity -
+          widget.product.manufacturedQuantity -
           _cumulativeQty;
       if (1.0 > remaining + 0.001) {
         _showErrorDialog(
@@ -833,7 +856,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     setState(() {
       final manualScan = {
         'barcode': 'MANUAL-1KG-${DateTime.now().millisecondsSinceEpoch}',
-        'weight': 1.0,
+        'manufacturedQty': 1.0,
+        'scannedQty': 1.0,
         'productCode': widget.product.itemCode,
         'status': _status,
         'siteId': _selectedSite,
@@ -898,7 +922,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '${widget.product.formatQuantity(_pendingScan!['weight'])} ${widget.product.unit}',
+                        '${widget.product.formatQuantity(_pendingScan!['manufacturedQty'])} ${widget.product.unit}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -965,7 +989,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       child: Column(
         children: [
           const Text(
-            'Scan Quantity',
+            'Manufactured Quantity',
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -1045,7 +1069,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   Widget _buildActionFooter() {
     final isReconciled =
         (_cumulativeQty +
-                widget.product.scannedQuantity -
+                widget.product.manufacturedQuantity -
                 widget.product.quantity)
             .abs() <
         0.001;
@@ -1062,7 +1086,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Remaining: ${widget.product.formatQuantity(widget.product.quantity - widget.product.scannedQuantity - _cumulativeQty)} ${widget.product.unit}',
+                'Remaining: ${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty)} ${widget.product.unit}',
                 style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ),
@@ -1101,16 +1125,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void _savePendingScan() {
     if (_pendingScan == null) return;
     setState(() {
-      final scanWithStatus = Map<String, dynamic>.from(_pendingScan!);
-      scanWithStatus['status'] = _status;
-      scanWithStatus['siteId'] = _selectedSite;
-      scanWithStatus['locationCode'] = _selectedLocation?.location;
+      final scanWithMetadata = Map<String, dynamic>.from(_pendingScan!);
+      scanWithMetadata['status'] = _status;
+      scanWithMetadata['siteId'] = _selectedSite;
+      scanWithMetadata['locationCode'] = _selectedLocation?.location;
 
-      _scans.add(scanWithStatus);
+      _scans.add(scanWithMetadata);
       if (_status == 'A') {
-        _cumulativeQty += _pendingScan!['weight'] as double;
+        _cumulativeQty += _pendingScan!['manufacturedQty'] as double;
       }
-      _pendingScan = null;
       _pendingScan = null;
     });
 

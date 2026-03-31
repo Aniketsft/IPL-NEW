@@ -94,14 +94,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
 
             var productsSql = @"
-                SELECT 
-                    f0.ITMREF_0 as ProductCode,
-                    f0.ITMDES1_0 as ProductDescription,
-                    f0.STU_0 as StockUnit,
-                    f0.SAU_0 as SalesUnit
-                FROM InnodisTestDB.INLPROD.ITMMASTER f0 WITH (NOLOCK)
-                JOIN InnodisTestDB.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
-                WHERE f1.STOFCY_0 = @Site";
+                SELECT T1.*
+                FROM (
+                    SELECT DISTINCT
+                        f1.STOFCY_0 AS [Site],
+                        f0.TCLCOD_0 AS [Category],
+                        f0.ITMREF_0 AS [ProductCode],
+                        f0.ITMDES1_0 AS [ProductDescription],
+                        f0.STU_0 AS [StockUnit],
+                        f0.SAU_0 AS [SalesUnit],
+                        f0.ITMWEI_0 AS [StandardWeight],
+                        f0.EANCOD_0 AS [Barcode]
+                    FROM InnodisTestDB.INLPROD.ITMMASTER f0 WITH (NOLOCK)
+                    JOIN InnodisTestDB.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
+                ) AS T1
+                WHERE T1.Site = @Site
+                  AND T1.Category NOT IN ('ADMIN','CONSU','TECHN')";
             var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
             var lotsSql = @"

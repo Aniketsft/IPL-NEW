@@ -45,6 +45,7 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          manufacturedQuantity: (map['reconciledManufactured'] as num?)?.toDouble() ?? (map['reconciledProduced'] as num).toDouble(),
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
         );
@@ -84,12 +85,17 @@ class DeliveryRepository implements ILogisticsRepository {
       final query = '''
         SELECT 
           det.*,
-          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalQty, 0)) as reconciledProduced,
-          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalQty, 0))) as reconciledRemaining
+          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalScannedQty, 0)) as reconciledProduced,
+          (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
+          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining
         FROM ${LocalDatabaseHelper.tableDetails} det
         INNER JOIN ${LocalDatabaseHelper.tableOrders} ord ON det.${LocalDatabaseHelper.colDetSoNum} = ord.${LocalDatabaseHelper.colOrderNum}
         LEFT JOIN (
-          SELECT ${LocalDatabaseHelper.columnSoNumber}, ${LocalDatabaseHelper.columnProductCode}, SUM(${LocalDatabaseHelper.columnQuantity}) as totalQty
+          SELECT 
+            ${LocalDatabaseHelper.columnSoNumber}, 
+            ${LocalDatabaseHelper.columnProductCode}, 
+            SUM(${LocalDatabaseHelper.columnQuantity}) as totalScannedQty,
+            SUM(${LocalDatabaseHelper.columnManufacturedQuantity}) as totalManufacturedQty
           FROM ${LocalDatabaseHelper.tableScans}
           WHERE ${LocalDatabaseHelper.columnIsReflected} = 0
           GROUP BY ${LocalDatabaseHelper.columnSoNumber}, ${LocalDatabaseHelper.columnProductCode}
@@ -109,6 +115,7 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
+          manufacturedQuantity: (map['reconciledManufactured'] as num).toDouble(),
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
         );
@@ -900,6 +907,7 @@ class DeliveryRepository implements ILogisticsRepository {
       quantity: qty,
       remaining: remaining,
       scannedQuantity: manufactured,
+      manufacturedQuantity: manufactured, // Fallback for simple mapping
       site: row[LocalDatabaseHelper.colDetSite],
       location: row[LocalDatabaseHelper.colDetLocation],
       lot: row[LocalDatabaseHelper.colDetLot],
@@ -927,6 +935,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'soNumber': s['soNumber'],
               'itemCode': s['itemCode'] ?? s['productCode'],
               'quantity': s['quantity'],
+              'manufacturedQuantity': s['manufactured_quantity'] ?? s['quantity'],
               'scanTimestamp': s['timestamp'],
               'site': siteCode ?? s['site'],
             },
@@ -952,7 +961,8 @@ class DeliveryRepository implements ILogisticsRepository {
       final localRow = {
         LocalDatabaseHelper.columnSoNumber: scan['soNumber'] ?? '',
         LocalDatabaseHelper.columnProductCode: scan['itemCode'] ?? '',
-        LocalDatabaseHelper.columnQuantity: scan['scanAmountKg'] ?? 0.0,
+        LocalDatabaseHelper.columnQuantity: (scan['scanAmountKg'] ?? 0.0).toDouble(),
+        LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['scanAmountKg'] ?? 0.0).toDouble(),
         LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
         LocalDatabaseHelper.columnItemStatus: scan['itemStatus'] ?? 'Q',
         LocalDatabaseHelper.columnLocationCode: scan['location'] ?? '',
@@ -1105,6 +1115,51 @@ class DeliveryRepository implements ILogisticsRepository {
     } catch (e) {
       throw 'Failed to update preparation status: $e';
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
+    final db = await LocalDatabaseHelper.instance.database;
+
+    // 1. Try exact match (including prepended 0 for prefix 2)
+    String lookupBarcode = barcode;
+    if (barcode.startsWith('2') && barcode.length == 13) {
+      lookupBarcode = '0$barcode';
+    }
+
+    final exactMatch = await db.query(
+      LocalDatabaseHelper.tableProducts,
+      where: '${LocalDatabaseHelper.colProdBarcode} = ?',
+      whereArgs: [lookupBarcode],
+    );
+
+    if (exactMatch.isNotEmpty) {
+      return exactMatch.first;
+    }
+
+    // 2. Fallback prefix search: if starts with 2, take 5 digits as item code
+    if (barcode.startsWith('2') && barcode.length == 13) {
+      final code = barcode.substring(2, 7);
+      final product = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdCode} = ?',
+        whereArgs: [code],
+      );
+      if (product.isNotEmpty) return product.first;
+    }
+
+    // 3. Fallback suffix search: starts with 0, take indices 1-7
+    if (barcode.startsWith('0') && barcode.length >= 13) {
+      final code = barcode.substring(1, 7);
+      final product = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdCode} = ?',
+        whereArgs: [code],
+      );
+      if (product.isNotEmpty) return product.first;
+    }
+
+    return null;
   }
 }
 

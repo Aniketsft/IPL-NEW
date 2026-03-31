@@ -2,137 +2,115 @@ import 'package:intl/intl.dart';
 
 class BarcodeModel {
   final String itemCode;
-  final double weight;
-  final String? batchId;
+  final double scannedQty;
+  final double manufacturedQty;
+  final String originalBarcode;
+  final String processedBarcode;
   final bool isValid;
 
   BarcodeModel({
     required this.itemCode,
-    required this.weight,
-    this.batchId,
+    this.scannedQty = 0.0,
+    this.manufacturedQty = 0.0,
+    required this.originalBarcode,
+    required this.processedBarcode,
     this.isValid = true,
   });
 
-  factory BarcodeModel.invalid() => BarcodeModel(
+  factory BarcodeModel.invalid(String barcode) => BarcodeModel(
         itemCode: '',
-        weight: 0.0,
+        originalBarcode: barcode,
+        processedBarcode: barcode,
         isValid: false,
       );
 }
 
 class BarcodeProcessor {
-  /// Processes a 13-digit barcode according to business rules (priority order):
-  /// 1. If barcode starts with '0':
-  ///    - Take last 5 digits and divide by 10000.
-  ///    - This is the catch weight (manufactured quantity), displayed to 3 decimal places.
-  /// 2. If packingUnit is 'KG' (and barcode does NOT start with '0'):
-  ///    - Each scan = 1.0 (scan count = manufactured quantity).
-  /// 3. If packingUnit is 'EA' (and barcode does NOT start with '0'):
-  ///    - manufactured quantity = standardWeight (weight per piece × 1 scan).
-  static double calculateQuantity({
+  /// Processes a barcode according to complex business rules for prefixes 2 and 6.
+  /// Standardizes output into scanned vs manufactured quantities.
+  static BarcodeModel process({
     required String barcode,
-    required String packingUnit,
+    required String itemCode,
+    required String unit,
     required double standardWeight,
   }) {
-    // Rule 1: Catch weight — prefix '0' (Scenario 1)
-    if (barcode.startsWith('0') && barcode.length >= 13) {
-      final weightStr = barcode.substring(barcode.length - 5); // Take last 5 digits
-      final weight = (int.tryParse(weightStr) ?? 0) / 1000.0;
-      return double.parse(weight.toStringAsFixed(3));
+    String originalBarcode = barcode;
+    String processedBarcode = barcode;
+
+    // Rule: if prefix starts with 2, add a 0 at the start of the barcode
+    if (barcode.startsWith('2')) {
+      processedBarcode = '0$barcode';
     }
 
-    // Handle Innodis EAN prefix '6091001'
-    if (barcode.startsWith('6091001') && barcode.length >= 13) {
-      return 1.0;
+    double scannedQty = 0.0;
+    double manufacturedQty = 0.0;
+    final isKG = unit.toUpperCase() == 'KG';
+    final isEA = unit.toUpperCase() == 'EA';
+
+    if (barcode.startsWith('2')) {
+      // Case 1 & 2 (Prefix 2)
+      if (isKG) {
+        // Case 1: ignore last digit (check digit) take last 4 digit indices 9 10 11 12 divide by 1000
+        // Local indices (0-indexed) for indices 9, 10, 11, 12 in the ORIGINAL (usually 13-char) barcode.
+        // User probably means indices 9-12 based on 1-based indexing for 13 digit barcode.
+        // In 0-indexed: index 8, 9, 10, 11.
+        if (barcode.length >= 12) {
+          final qtyStr = barcode.substring(8, 12);
+          scannedQty = (double.tryParse(qtyStr) ?? 0.0) / 1000.0;
+          manufacturedQty = scannedQty; // Default for KG
+        } else {
+          scannedQty = 1.0;
+          manufacturedQty = 1.0;
+        }
+      } else if (isEA) {
+        // Case 2: scanned qty = number of scans (1 for individual scan).
+        // manufactured qty = standard weight of product x no of scan.
+        scannedQty = 1.0;
+        manufacturedQty = standardWeight;
+      }
+    } else if (barcode.startsWith('6')) {
+      // Case 3 & 4 (Prefix 6)
+      if (isKG) {
+        // Case 3: scanned qty = standard weight x no of scan.
+        scannedQty = standardWeight;
+        manufacturedQty = standardWeight;
+      } else if (isEA) {
+        // Case 4: scanned qty = number of scans.
+        // manufactured qty = standard weight of product x no of scan.
+        scannedQty = 1.0;
+        manufacturedQty = standardWeight;
+      }
+    } else {
+      // Fallback/Legacy Logic
+      if (isKG) {
+        scannedQty = 1.0;
+        manufacturedQty = 1.0;
+      } else {
+        scannedQty = 1.0;
+        manufacturedQty = standardWeight;
+      }
     }
 
-    // Handle other Variable Weight (VW) prefix '20'
-    if (barcode.startsWith('20') && barcode.length >= 13) {
-      final weightStr = barcode.substring(barcode.length - 6, barcode.length - 1);
-      final weight = (int.tryParse(weightStr) ?? 0) / 1000.0;
-      return double.parse(weight.toStringAsFixed(3));
-    }
-
-    // Rule 2: KG unit — if not catch weight, default to 1.0 per scan
-    if (packingUnit.toUpperCase() == 'KG') {
-      return 1.0;
-    }
-
-    // Rule 3: EA unit — standardWeight × 1 (weight per piece)
-    if (packingUnit.toUpperCase() == 'EA') {
-      return standardWeight;
-    }
-
-    // Fallback: treat as 1.0
-    return 1.0;
+    return BarcodeModel(
+      itemCode: itemCode,
+      scannedQty: scannedQty,
+      manufacturedQty: manufacturedQty,
+      originalBarcode: originalBarcode,
+      processedBarcode: processedBarcode,
+    );
   }
 
-  static String formatQuantity(double quantity) {
+  static String formatQuantity(double quantity, String unit) {
+    if (unit.toUpperCase() == 'EA') {
+      return quantity.toInt().toString();
+    }
     final formatter = NumberFormat("0.00");
     return formatter.format(quantity);
   }
 
   static bool isValidBarcode(String barcode) {
-    // 1. Check for standard Retail Barcodes (EAN/UPC)
-    final validLengths = [8, 12, 13, 14];
-    if (validLengths.contains(barcode.length)) return true;
-
-    // 2. Check for Batch/Lot ID (21/22 prefix)
-    if (barcode.startsWith('21') || barcode.startsWith('22')) {
-      return barcode.length >= 10;
-    }
-
-    return false;
-  }
-
-  BarcodeModel process(String barcode) {
-    if (!isValidBarcode(barcode)) return BarcodeModel.invalid();
-
-    // Priority 1: GS1-128 Batch/Lot (21/22)
-    if (barcode.startsWith('21') || barcode.startsWith('22')) {
-      final batchId = barcode.substring(2);
-      return BarcodeModel(
-        itemCode: 'BATCH', // Generic code for batch scans
-        weight: 1.0,
-        batchId: batchId,
-      );
-    }
-
-    // Priority 2: Variable Weight (VW) - Prefix "20"
-    if (barcode.startsWith('20') && barcode.length == 13) {
-      final itemCode = barcode.substring(2, 7);
-      final weightStr = barcode.substring(7, 12);
-      final weight = (int.tryParse(weightStr) ?? 0) / 1000.0;
-      return BarcodeModel(
-        itemCode: itemCode,
-        weight: weight,
-      );
-    }
-
-    // Priority 3: Fixed Weight (FW) - Prefix "10"
-    if (barcode.startsWith('10') && barcode.length >= 7) {
-      final itemCode = barcode.substring(2, 7);
-      return BarcodeModel(
-        itemCode: itemCode,
-        weight: 1.0,
-      );
-    }
-
-    // Priority 4: Standard EAN-13 (Starts with 0 - Catch Weight)
-    if (barcode.startsWith('0') && barcode.length >= 13) {
-      final weightStr = barcode.substring(barcode.length - 5);
-      final weight = (int.tryParse(weightStr) ?? 0) / 1000.0;
-      return BarcodeModel(
-        itemCode: barcode.substring(1, 7), // Example extraction
-        weight: weight,
-      );
-    }
-
-    // Default: Generic mapping
-    return BarcodeModel(
-      itemCode: barcode,
-      weight: 1.0,
-    );
+    // Basic validation: at least 7 chars
+    return barcode.trim().length >= 7;
   }
 }
 

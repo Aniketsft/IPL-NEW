@@ -158,9 +158,11 @@ class _ProductionTrackingProductListScreenState
     final totalOrdered = soItems.fold<double>(0, (s, i) => s + i.quantity);
     final totalScanned =
         soItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
+    final totalManufactured =
+        soItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
     final aggProgress = totalOrdered > 0
-        ? (totalScanned / totalOrdered).clamp(0.0, 1.0)
-        : (totalScanned > 0 ? 1.0 : 0.0);
+        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
+        : (totalManufactured > 0 ? 1.0 : 0.0);
     final soCount = soItems.length;
 
     return GestureDetector(
@@ -265,7 +267,7 @@ class _ProductionTrackingProductListScreenState
               ],
             ),
             const SizedBox(height: 12),
-            // Full-width Scanned (Produced) row
+            // Full-width Scanned & Manufactured row
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -274,11 +276,22 @@ class _ProductionTrackingProductListScreenState
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: orange.withValues(alpha: 0.15)),
               ),
-              child: _buildStat(
-                'Scanned Quantity',
-                '${soItems.first.formatQuantity(totalScanned)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
-                orange,
-                isFullWidth: true,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildStat(
+                      'Produced (M)',
+                      '${soItems.first.formatQuantity(totalManufactured)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
+                      orange,
+                      isFullWidth: true,
+                    ),
+                  ),
+                  _buildStat(
+                    'Scanned (S)',
+                    '${soItems.first.formatQuantity(totalScanned)} scans',
+                    Colors.white.withValues(alpha: 0.5),
+                  ),
+                ],
               ),
             ),
           ],

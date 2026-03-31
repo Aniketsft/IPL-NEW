@@ -22,7 +22,6 @@ class ScanItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final barcode = scan['barcode'] as String;
     final timestamp = scan['timestamp'] as String;
-    final weight = (scan['weight'] as num).toDouble();
     final status = scan['status'] ?? 'A'; // Default to 'A' if not present
     final productName = scan['productName'] as String?;
 
@@ -92,17 +91,26 @@ class ScanItemCard extends StatelessWidget {
               ],
             ),
           ),
-          // Weight and Status Badge
+          // Quantities and Status Badge
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${unit == 'EA' ? weight.toInt().toString() : weight.toStringAsFixed(2)} $unit',
+                'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0) is double ? (unit == 'EA' || unit == 'PCS' ? (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toInt().toString() : (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(2)) : scan['weight']} $unit',
                 style: const TextStyle(
                   color: orange,
                   fontWeight: FontWeight.bold,
+                  fontSize: 13,
                 ),
               ),
+              if (scan['scannedQty'] != null)
+                Text(
+                  'S: ${scan['scannedQty']} scans',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 10,
+                  ),
+                ),
               const SizedBox(height: 4),
               _buildStatusBadge(status),
             ],
