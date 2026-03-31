@@ -21,7 +21,6 @@ import '../local/local_database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_processor.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
@@ -628,7 +627,7 @@ class DeliveryRepository implements ILogisticsRepository {
           rethrow;
         }
 
-        // Mark everything as synced locally
+        // 1.1 Mark Everything as Synced locally EXCEPT Preparation Statuses (handled after refresh)
         if (unsyncedScans.isNotEmpty) {
           final ids = unsyncedScans.map((s) => s['id'] as int).toList();
           await LocalDatabaseHelper.instance.markAsSynced(ids);
@@ -638,13 +637,6 @@ class DeliveryRepository implements ILogisticsRepository {
               .map((o) => o[LocalDatabaseHelper.colOrderNum] as String)
               .toList();
           await LocalDatabaseHelper.instance.markOrdersAsSynced(soNums);
-        }
-
-        // Mark preparation status updates as synced
-        final updates = payload['preparationStatusUpdates'] as List<Map<String, dynamic>>? ?? [];
-        if (updates.isNotEmpty) {
-          await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
-          print("Sync: ${updates.length} preparation status updates marked as synced.");
         }
       }
 
@@ -688,6 +680,14 @@ class DeliveryRepository implements ILogisticsRepository {
         sites: sites,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
       );
+
+      // 3. Mark preparation status updates as synced AFTER refresh
+      // This combined with the "Dirty-Aware" refresh prevents stale server data overwrites.
+      final updates = (await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses());
+      if (updates.isNotEmpty) {
+        await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
+        print("Sync: ${updates.length} preparation status updates marked as synced after refresh.");
+      }
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
       final syncedScans = await LocalDatabaseHelper.instance.database.then(
@@ -775,9 +775,6 @@ class DeliveryRepository implements ILogisticsRepository {
         if (unsyncedOrders.isNotEmpty) {
           await LocalDatabaseHelper.instance.markOrdersAsSynced(unsyncedOrders.map((o) => o[LocalDatabaseHelper.colOrderNum] as String).toList());
         }
-        if (unsyncedStatuses.isNotEmpty) {
-          await LocalDatabaseHelper.instance.markDetailsAsSynced(unsyncedStatuses);
-        }
       }
 
       yield SyncProgress(status: 'Fetching updates...', progress: 0.3);
@@ -803,7 +800,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots'];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
-        final data = (processedData[table] as List<Map<String, dynamic>>?) ?? [];
+        final data = processedData[table] as List<Map<String, dynamic>>? ?? [];
         counts[table] = data.length;
         yield SyncProgress(
           status: 'Updating $table (${data.length} items)...',
@@ -822,6 +819,13 @@ class DeliveryRepository implements ILogisticsRepository {
         lots: processedData['lots'] as List<Map<String, dynamic>>,
       );
 
+      // 3. Mark preparation status updates as synced AFTER refresh
+      // We re-fetch from DB to get the current list of what was dirty BEFORE refresh (and preserved)
+      if (unsyncedStatuses.isNotEmpty) {
+        await LocalDatabaseHelper.instance.markDetailsAsSynced(unsyncedStatuses);
+        print("Sync (Progress): ${unsyncedStatuses.length} preparation status updates marked as synced after refresh.");
+      }
+
       // Save new timestamp
       if (serverTimestamp != null) {
         await prefs.setString('last_sync_timestamp', serverTimestamp);
@@ -835,7 +839,10 @@ class DeliveryRepository implements ILogisticsRepository {
         ),
       );
       if (syncedScans.isNotEmpty) {
-        await LocalDatabaseHelper.instance.marksReflected(syncedScans.map((s) => s['id'] as int).toList());
+        final Map<String, dynamic> firstRow = syncedScans.first;
+        if (firstRow.containsKey('id')) {
+           await LocalDatabaseHelper.instance.marksReflected(syncedScans.map((s) => s['id'] as int).toList());
+        }
       }
 
       final duration = stopwatch.elapsedMilliseconds;
@@ -845,8 +852,6 @@ class DeliveryRepository implements ILogisticsRepository {
         site: activeSite,
         counts: counts,
       );
-
-      yield SyncProgress.completed();
     } catch (e) {
       await LocalDatabaseHelper.instance.insertSyncHistory(
         status: 'Failed',

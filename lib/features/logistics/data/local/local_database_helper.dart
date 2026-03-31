@@ -667,24 +667,29 @@ class LocalDatabaseHelper {
     Database db = await instance.database;
 
     await db.transaction((txn) async {
+      // 0. FETCH DIRTY RECORDS to preserve local state
+      // We must not overwrite isPrepared=1 if it hasn't been synced yet, 
+      // even if the server refresh (which is eventually consistent) says isPrepared=0.
+      final dirtyDetails = await txn.query(
+        tableDetails,
+        where: '$columnIsSynced = 0',
+      );
+      final Map<String, Map<String, dynamic>> dirtyDetailsMap = {
+        for (var d in dirtyDetails)
+          '${d[colDetSoNum]}_${d[colDetItemCode]}': d,
+      };
+
       // 1. SELECTIVE CLEANUP (or full wipe if not incremental)
       if (!incremental) {
         // Full wipe if requested
-        await txn.delete(tableOrders); // Wipes all orders, including internal
-        await txn.delete(tableDetails); // Wipes all details
+        await txn.delete(tableOrders);
+        await txn.delete(tableDetails);
         await txn.delete(tableCustomers);
         await txn.delete(tableReps);
         await txn.delete(tableLocations);
         await txn.delete(tableProducts);
         await txn.delete(tableSites);
         await txn.delete(tableLots);
-      } else {
-        // Incremental cleanup: In incremental mode, we NO LONGER delete all external orders.
-        // We rely on ConflictAlgorithm.replace to update existing records or insert new ones.
-        // This ensures that orders not included in the latest delta still persist locally.
-        
-        // Note: For lookup tables, we also skip clearing them to maintain local cache.
-        // If a full refresh of lookups is needed, the caller should pass incremental = false.
       }
 
       // 2. Batch Insert new data (UPSERT via ConflictAlgorithm.replace)
@@ -699,9 +704,23 @@ class LocalDatabaseHelper {
           );
         }
         for (var detail in details) {
+          // CLONE to avoid mutating the original processedData list if used elsewhere
+          final record = Map<String, dynamic>.from(detail);
+          
+          final key = '${record[colDetSoNum]}_${record[colDetItemCode]}';
+          if (dirtyDetailsMap.containsKey(key)) {
+            // MERGE: Preserve local dirty isPrepared and isSynced status
+            final local = dirtyDetailsMap[key]!;
+            record[colDetIsPrepared] = local[colDetIsPrepared];
+            record[columnIsSynced] = 0; 
+          } else {
+            // New or clean record: ensure it's marked as synced
+            record[columnIsSynced] = 1;
+          }
+
           batch.insert(
             tableDetails,
-            detail,
+            record,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
