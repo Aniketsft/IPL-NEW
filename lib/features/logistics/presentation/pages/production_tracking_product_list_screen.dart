@@ -245,21 +245,41 @@ class _ProductionTrackingProductListScreenState
               ),
             ),
             const SizedBox(height: 10),
-            // Stats row
+            // Stats row (Ordered & Progress)
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStat(
-                    'Ordered', '${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}', Colors.white70),
-                _buildStat(
-                    'Produced',
-                        'Scanned: ${soItems.first.formatQuantity(totalScanned)} ${soItems.first.unit} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
-                    orange),
-                _buildStat(
+                Expanded(
+                  child: _buildStat(
+                    'Ordered',
+                    '${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
+                    Colors.white70,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStat(
                     'Progress',
-                    '${(aggProgress * 100).toStringAsFixed(1)}%',
-                    aggProgress >= 1.0 ? Colors.greenAccent : Colors.white70),
+                    '${(aggProgress * 100).toStringAsFixed(0)}%',
+                    aggProgress >= 1.0 ? Colors.greenAccent : Colors.white70,
+                  ),
+                ),
               ],
+            ),
+            const SizedBox(height: 12),
+            // Full-width Scanned (Produced) row
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: orange.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: orange.withValues(alpha: 0.15)),
+              ),
+              child: _buildStat(
+                'Scanned Quantity',
+                '${soItems.first.formatQuantity(totalScanned)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
+                orange,
+                isFullWidth: true,
+              ),
             ),
           ],
         ),
@@ -267,7 +287,7 @@ class _ProductionTrackingProductListScreenState
     );
   }
 
-  Widget _buildStat(String label, String value, Color color) {
+  Widget _buildStat(String label, String value, Color color, {bool isFullWidth = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -279,8 +299,10 @@ class _ProductionTrackingProductListScreenState
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            fontSize: isFullWidth ? 15 : 13,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

@@ -230,18 +230,23 @@ class _ProductionTrackingListScreenState
             ),
             const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStat('Ordered', '${item.formatQuantity(item.quantity)} ${item.unit}'),
-                _buildStat(
-                  'Remaining',
-                  '${item.remainingDisplay} ${item.unit}',
-                  color: item.remaining < 0 ? Colors.green : Colors.white70,
+                Expanded(
+                  child: _buildStat('Ordered', '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}'),
                 ),
-                _buildStat(
-                  'Scanned',
-                  '${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
-                  color: orange,
+                Expanded(
+                  child: _buildStat(
+                    'Remaining',
+                    '${item.remainingDisplay} ${item.unit}',
+                    color: (item.remaining ?? 0) < 0 ? Colors.green : Colors.white70,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStat(
+                    'Scanned',
+                    '${item.formatQuantity(item.scannedQuantity ?? 0)} ${item.unit}',
+                    color: orange,
+                  ),
                 ),
               ],
             ),
@@ -293,8 +298,10 @@ class _ProductionTrackingListScreenState
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            fontSize: 13, // Slightly smaller
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

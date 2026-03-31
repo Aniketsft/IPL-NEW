@@ -88,22 +88,30 @@ class _ProductionTrackingSoBreakdownScreenState
                 ),
                 const SizedBox(height: 10),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _statChip(
+                    Expanded(
+                      child: _statChip(
                         label: 'Ordered',
                         value: '${_currentItems.first.formatQuantity(totalOrdered)} ${_currentItems.first.unit}',
-                        color: Colors.white70),
-                    _statChip(
+                        color: Colors.white70
+                      ),
+                    ),
+                    Expanded(
+                      child: _statChip(
                         label: 'Prepared',
                         value: '$totalPrepared / ${_currentItems.length}',
-                        color: Colors.blueAccent),
-                    _statChip(
+                        color: Colors.blueAccent
+                      ),
+                    ),
+                    Expanded(
+                      child: _statChip(
                         label: 'Overall',
-                        value: '${(aggProgress * 100).toStringAsFixed(1)}%',
+                        value: '${(aggProgress * 100).toStringAsFixed(0)}%',
                         color: aggProgress >= 1.0
                             ? Colors.greenAccent
-                            : Colors.white70),
+                            : Colors.white70
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -204,24 +212,32 @@ class _ProductionTrackingSoBreakdownScreenState
             const SizedBox(height: 10),
             // Quantities
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _soStat(
+                Expanded(
+                  child: _soStat(
                     'Ordered',
                     '${item.formatQuantity(item.quantity)} ${item.unit}',
-                    Colors.white70),
-                _soStat(
+                    Colors.white70,
+                  ),
+                ),
+                Expanded(
+                  child: _soStat(
                     'Scanned',
                     '${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
-                    orange),
-                _soStat(
+                    orange,
+                  ),
+                ),
+                Expanded(
+                  child: _soStat(
                     'Status',
                     isPrepared
                         ? 'PREPARED'
                         : (isComplete ? 'COMPLETE' : '$progressPct%'),
                     isPrepared
                         ? Colors.blueAccent
-                        : (isComplete ? Colors.greenAccent : Colors.white70)),
+                        : (isComplete ? Colors.greenAccent : Colors.white70),
+                  ),
+                ),
               ],
             ),
           ],
@@ -241,11 +257,15 @@ class _ProductionTrackingSoBreakdownScreenState
         Text(label,
             style: const TextStyle(color: Colors.grey, fontSize: 11)),
         const SizedBox(height: 2),
-        Text(value,
-            style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14)),
+        Text(
+          value,
+          style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 13),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
@@ -257,11 +277,15 @@ class _ProductionTrackingSoBreakdownScreenState
         Text(label,
             style: const TextStyle(color: Colors.grey, fontSize: 11)),
         const SizedBox(height: 2),
-        Text(value,
-            style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 13)),
+        Text(
+          value,
+          style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
