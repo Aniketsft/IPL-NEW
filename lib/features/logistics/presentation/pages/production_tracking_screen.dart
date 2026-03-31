@@ -254,7 +254,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'weight': result.manufacturedQty, // Compatibility
               'timestamp': DateTime.now().toIso8601String(),
             };
-            _isScannerVisible = false;
           });
 
           ScaffoldMessenger.of(context).showSnackBar(

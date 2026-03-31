@@ -496,110 +496,120 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               children: [
-                if (_pendingScan == null)
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppBarcodeScanner(
-                      onScan: _handleScan,
-                      onManualAdd: (weight) {
-                        setState(() {
-                          _scans.insert(0, {
-                            'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-                            'productName': widget.product['productName'],
-                            'weight': weight,
-                            'site': _selectedSite,
-                            'location': _selectedLocationEntity?.location,
-                            'lot': _selectedLot,
-                            'timestamp': DateTime.now().toIso8601String(),
-                            'status': 'A',
+                Stack(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: AppBarcodeScanner(
+                        onScan: _handleScan,
+                        onManualAdd: (weight) {
+                          setState(() {
+                            _scans.insert(0, {
+                              'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+                              'productName': widget.product['productName'],
+                              'weight': weight,
+                              'site': _selectedSite,
+                              'location': _selectedLocationEntity?.location,
+                              'lot': _selectedLot,
+                              'timestamp': DateTime.now().toIso8601String(),
+                              'status': 'A',
+                            });
                           });
-                        });
-                      },
-                      manualEntries: const {'1KG': 1.0},
-                      themeColor: orange,
+                        },
+                        manualEntries: const {'1KG': 1.0},
+                        themeColor: orange,
+                      ),
                     ),
-                  )
-                else
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: orange, width: 2),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.qr_code_scanner, color: orange),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Scan Detected',
-                              style: TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold),
+                    if (_pendingScan != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E).withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: orange, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              blurRadius: 10,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Column(
+                            Row(
                               children: [
-                                Text('SCANNED', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${_formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                Icon(Icons.qr_code_scanner, color: orange),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Scan Detected',
+                                  style: TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
-                            Container(width: 1, height: 40, color: Colors.white12),
-                            Column(
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                Text('MANUFACTURED', style: TextStyle(color: orange.withValues(alpha: 0.7), fontSize: 12)),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${_formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
-                                  style: TextStyle(color: orange, fontSize: 24, fontWeight: FontWeight.bold),
+                                Column(
+                                  children: [
+                                    Text('SCANNED', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${_formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                Container(width: 1, height: 40, color: Colors.white12),
+                                Column(
+                                  children: [
+                                    Text('MANUFACTURED', style: TextStyle(color: orange.withValues(alpha: 0.7), fontSize: 12)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${_formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
+                                      style: TextStyle(color: orange, fontSize: 24, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Barcode: ${_pendingScan!['barcode']}',
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () => setState(() => _pendingScan = null),
+                                    child: const Text('Discard', style: TextStyle(color: Colors.redAccent)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _savePendingScan,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                    child: const Text('SAVE SCAN'),
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Barcode: ${_pendingScan!['barcode']}',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () => setState(() => _pendingScan = null),
-                                child: const Text('Discard', style: TextStyle(color: Colors.redAccent)),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _savePendingScan,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                ),
-                                child: const Text('SAVE SCAN'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+                      ),
+                  ],
+                ),
+             ],
             ),
           ),
 
