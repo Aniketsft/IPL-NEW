@@ -50,8 +50,8 @@ class _StandardFilterState extends State<StandardFilter> {
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
     _rebuildNotifier.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -86,7 +86,11 @@ class _StandardFilterState extends State<StandardFilter> {
                 return _FilterModal(
                   key: ValueKey('filter_modal_$rebuildValue'),
                   title: widget.title,
-                  onApply: () => Navigator.pop(context),
+                  onApply: () {
+                    // Explicitly apply before closing
+                    if (widget.onApply != null) widget.onApply!();
+                    Navigator.pop(context);
+                  },
                   onReset: widget.onReset ?? () {},
                   child: widget.filterBuilder?.call(context, setModalState) ??
                       widget.child ??
@@ -285,7 +289,6 @@ class _FilterModal extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: () {
                           onApply();
-                          Navigator.pop(context);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: orange,

@@ -45,8 +45,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f0.SHIDAT_0 as [DeliveryDate],
                     f0.BPCORD_0 COLLATE DATABASE_DEFAULT as [CustomerCode],
                     c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as [CustomerName],
-                    f0.REP_0 COLLATE DATABASE_DEFAULT as [Rep0],
-                    f0.REP_1 COLLATE DATABASE_DEFAULT as [Rep1],
+                    LTRIM(RTRIM(f0.REP_0)) COLLATE DATABASE_DEFAULT as [Rep0],
+                    LTRIM(RTRIM(f0.REP_1)) COLLATE DATABASE_DEFAULT as [Rep1],
                     f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]

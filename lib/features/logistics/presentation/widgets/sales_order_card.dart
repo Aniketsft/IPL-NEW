@@ -125,23 +125,10 @@ class SalesOrderCard extends StatelessWidget {
                 order.deliveryDate,
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInfoRow(
-                      Icons.person_outline,
-                      'SM1',
-                      order.salesManCode1,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildInfoRow(
-                      Icons.person_outline,
-                      'SM2',
-                      order.salesManCode2,
-                    ),
-                  ),
-                ],
+              _buildInfoRow(
+                Icons.person_outline,
+                'Salesman',
+                order.salesManCode2,
               ),
             ],
           ),

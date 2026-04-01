@@ -28,8 +28,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   String? _selectedCustomerCode;
-  String? _selectedSM1Code;
-  String? _selectedSM2Code;
+  String? _selectedSalesmanCode;
   Site? _selectedSite;
 
   bool _isLoading = false;
@@ -136,8 +135,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        rep0: _selectedSM1Code,
-        rep1: _selectedSM2Code,
+        rep0: null, // Removed per request
+        rep1: _selectedSalesmanCode,
         limit: 100,
         offset: 0,
       );
@@ -172,8 +171,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        rep0: _selectedSM1Code,
-        rep1: _selectedSM2Code,
+        rep0: null, // Removed per request
+        rep1: _selectedSalesmanCode,
         limit: 100,
         offset: nextOffset,
       );
@@ -238,15 +237,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                 hasActiveFilters:
                     _selectedDate != null ||
                     _selectedCustomerCode != null ||
-                    _selectedSM1Code != null ||
-                    _selectedSM2Code != null ||
+                    _selectedSalesmanCode != null ||
                     _selectedSite != null ||
                     (_status != 'all' && _status != 'open'),
                 onReset: () {
                   setState(() {
                     _selectedCustomerCode = null;
-                    _selectedSM1Code = null;
-                    _selectedSM2Code = null;
+                    _selectedSalesmanCode = null;
                     _selectedSite = null;
                     _selectedDate = null;
                     _status = 'all';
@@ -280,10 +277,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                 lastDate: DateTime(2101),
                                 builder: (context, child) => Theme(
                                   data: Theme.of(context).copyWith(
-                                    colorScheme: ColorScheme.dark(
+                                    colorScheme: const ColorScheme.dark(
                                       primary: orange,
                                       onPrimary: Colors.white,
-                                      surface: const Color(0xFF1E1E1E),
+                                      surface: Color(0xFF1E1E1E),
                                       onSurface: Colors.white,
                                     ),
                                   ),
@@ -299,25 +296,22 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                           FilterPickerTile(
                             label: 'Site',
                             value: _selectedSite?.name,
-                            icon: Icons.location_on,
+                            icon: Icons.location_on_outlined,
                             onTap: () => _showSearchPicker(
                               'Site',
                               _sitesList,
                               (code) {
+                                final site = _sitesList.firstWhere(
+                                  (s) => s['code'] == code,
+                                  orElse: () => {},
+                                );
                                 setState(() {
-                                  if (code == null) {
-                                    _selectedSite = null;
-                                  } else {
-                                    final siteMap = _sitesList.firstWhere(
-                                        (s) => s['code'] == code,
-                                        orElse: () => {});
-                                    if (siteMap.isNotEmpty) {
-                                      _selectedSite = Site(
-                                        code: siteMap['code']!,
-                                        name: siteMap['name']!,
-                                      );
-                                    }
-                                  }
+                                  _selectedSite = site.isNotEmpty
+                                      ? Site(
+                                          code: site['code']!,
+                                          name: site['name']!,
+                                        )
+                                      : null;
                                 });
                               },
                             ),
@@ -334,8 +328,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             onTap: () => _showSearchPicker(
                               'Customer',
                               _customersList,
-                              (code) =>
-                                  setState(() => _selectedCustomerCode = code),
+                              (code) {
+                                setState(() => _selectedCustomerCode = code);
+                              },
                             ),
                           ),
                         ],
@@ -344,22 +339,15 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                       Row(
                         children: [
                           FilterPickerTile(
-                            label: 'Sales Man 1',
-                            value: _selectedSM1Code,
+                            label: 'Salesman',
+                            value: _selectedSalesmanCode,
+                            icon: Icons.person_outline,
                             onTap: () => _showSearchPicker(
-                              'Sales Man 1',
+                              'Salesman',
                               _salesRepsList,
-                              (code) => setState(() => _selectedSM1Code = code),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilterPickerTile(
-                            label: 'Sales Man 2',
-                            value: _selectedSM2Code,
-                            onTap: () => _showSearchPicker(
-                              'Sales Man 2',
-                              _salesRepsList,
-                              (code) => setState(() => _selectedSM2Code = code),
+                              (code) {
+                                setState(() => _selectedSalesmanCode = code);
+                              },
                             ),
                           ),
                         ],

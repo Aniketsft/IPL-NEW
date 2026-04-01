@@ -208,6 +208,16 @@ class DeliveryRepository implements ILogisticsRepository {
         whereArgs.add(customerCode);
       }
 
+      if (rep0 != null && rep0.isNotEmpty) {
+        whereClause += ' AND ${LocalDatabaseHelper.colRep0} = ?';
+        whereArgs.add(rep0);
+      }
+
+      if (rep1 != null && rep1.isNotEmpty) {
+        whereClause += ' AND TRIM(${LocalDatabaseHelper.colRep1}) = ?';
+        whereArgs.add(rep1);
+      }
+
       final maps = await db.query(
         LocalDatabaseHelper.tableOrders,
         where: whereClause,

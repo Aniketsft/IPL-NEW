@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'barcode_scanner_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +6,8 @@ import '../../../features/logistics/data/repositories/delivery_repository.dart';
 import '../../../features/logistics/domain/entities/location_lookup.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
+import 'dart:ui' show ImageFilter;
+import '../../app_theme.dart';
 
 
 class ProductScanFloatingScreen extends StatefulWidget {
@@ -486,7 +487,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                _buildSummaryStat('TOTAL ${_unitLabel}', '${_formatQuantity(_totalWeight)} ${_unitLabel}', orange),
+                _buildSummaryStat('TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
                 const SizedBox(width: 12),
                 _buildSummaryStat('COUNT', '${_scans.length} Items', Colors.white),
               ],
@@ -525,90 +526,125 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                       ),
                     ),
                     if (_pendingScan != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E).withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: orange, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.qr_code_scanner, color: orange),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Scan Detected',
-                                  style: TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: AppTheme.darkSurface.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: AppTheme.primaryAmber.withValues(alpha: 0.3),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 20,
+                                  spreadRadius: 5,
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Column(
+                                Row(
                                   children: [
-                                    Text('SCANNED', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryAmber.withValues(alpha: 0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryAmber, size: 20),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Scan Result',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'READY',
+                                        style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
                                     ),
                                   ],
                                 ),
-                                Container(width: 1, height: 40, color: Colors.white12),
-                                Column(
+                                const SizedBox(height: 24),
+                                Row(
                                   children: [
-                                    Text('MANUFACTURED', style: TextStyle(color: orange.withValues(alpha: 0.7), fontSize: 12)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit'])} ${_pendingScan!['unit']}',
-                                      style: TextStyle(color: orange, fontSize: 24, fontWeight: FontWeight.bold),
+                                    Expanded(
+                                      child: _buildOverlayStat(
+                                        'SCANNED',
+                                        _formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
+                                        _pendingScan!['unit'],
+                                        Colors.white70,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: _buildOverlayStat(
+                                        'MANUFACTURED',
+                                        _formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit']),
+                                        _pendingScan!['unit'],
+                                        AppTheme.primaryAmber,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  'Barcode: ${_pendingScan!['barcode']}',
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic),
+                                ),
+                                const SizedBox(height: 24),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        onPressed: () => setState(() => _pendingScan = null),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.white54,
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                        child: const Text('Discard', style: TextStyle(fontWeight: FontWeight.w500)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: _savePendingScan,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppTheme.primaryAmber,
+                                          foregroundColor: Colors.black,
+                                          elevation: 4,
+                                          shadowColor: AppTheme.primaryAmber.withValues(alpha: 0.4),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        child: const Text('SAVE SCAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                      ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Barcode: ${_pendingScan!['barcode']}',
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextButton(
-                                    onPressed: () => setState(() => _pendingScan = null),
-                                    child: const Text('Discard', style: TextStyle(color: Colors.redAccent)),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: _savePendingScan,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                    ),
-                                    child: const Text('SAVE SCAN'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                   ],
@@ -617,11 +653,11 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                 Center(
                   child: TextButton.icon(
                     onPressed: _showManualScanDialog,
-                    icon: const Icon(Icons.keyboard_outlined, color: Colors.blueAccent, size: 16),
+                    icon: const Icon(Icons.keyboard_outlined, color: AppTheme.primaryAmber, size: 16),
                     label: const Text(
                       'Enter Barcode Manually',
                       style: TextStyle(
-                        color: Colors.blueAccent,
+                        color: AppTheme.primaryAmber,
                         fontSize: 12,
                         decoration: TextDecoration.underline,
                       ),
@@ -656,8 +692,8 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.qr_code_2, size: 64, color: Colors.white.withValues(alpha: 0.05)),
-                        const SizedBox(height: 12),
+                        Icon(Icons.qr_code_2, size: 40, color: Colors.white.withValues(alpha: 0.05)),
+                        const SizedBox(height: 8),
                         Text('No items scanned yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.2))),
                       ],
                     ),
@@ -880,6 +916,48 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOverlayStat(String label, String value, String unit, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.4),
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              unit,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.5),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ],
     );

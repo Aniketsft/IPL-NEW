@@ -234,22 +234,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Row 2: Sales Man 1 + Sales Man 2 (read-only)
+                  // Row 2: Sales Man (REP2_0)
                   Row(
                     children: [
                       FilterPickerTile(
-                        label: 'Sales Man 1',
-                        value: widget.order.salesManCode1.isNotEmpty
-                            ? widget.order.salesManCode1
-                            : null,
-                        onTap: () {}, // read-only
-                      ),
-                      const SizedBox(width: 12),
-                      FilterPickerTile(
-                        label: 'Sales Man 2',
+                        label: 'Salesman',
                         value: widget.order.salesManCode2.isNotEmpty
                             ? widget.order.salesManCode2
                             : null,
+                        icon: Icons.person_outline,
                         onTap: () {}, // read-only
                       ),
                     ],
