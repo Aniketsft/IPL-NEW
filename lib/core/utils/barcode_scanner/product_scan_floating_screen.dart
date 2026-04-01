@@ -149,9 +149,9 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     return (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
   }
 
-  Future<void> _handleScan(String barcode) async {
+  Future<void> _handleScan(String barcode, {bool isManual = false}) async {
     if (barcode.isEmpty) return;
-    if (_pendingScan != null) return;
+    if (_pendingScan != null && !isManual) return; // For camera, don't overlap. For manual, we show its own dialog.
 
     try {
       final repository = context.read<DeliveryRepository>();
@@ -207,6 +207,10 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
               'timestamp': DateTime.now().toIso8601String(),
             };
           });
+
+          if (isManual) {
+            _showConfirmationPrompt(result);
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -609,7 +613,22 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                       ),
                   ],
                 ),
-             ],
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _showManualScanDialog,
+                    icon: const Icon(Icons.keyboard_outlined, color: Colors.blueAccent, size: 16),
+                    label: const Text(
+                      'Enter Barcode Manually',
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -720,7 +739,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
               top: 20,
             ),
             decoration: BoxDecoration(
-              color: darkBg,
+              color: const Color(0xFF121212),
               border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
             ),
             child: Row(
@@ -744,8 +763,125 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             ),
           ),
         ],
-        ),
       ),
+    ),
+  );
+}
+
+  void _showManualScanDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('Manual Entry', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter barcode number',
+            hintStyle: TextStyle(color: Colors.grey),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          onSubmitted: (v) {
+            Navigator.pop(context);
+            _handleScan(v, isManual: true);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleScan(controller.text, isManual: true);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfirmationPrompt(BarcodeModel result) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.orange),
+            const SizedBox(width: 8),
+            const Text('Confirm Scan', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPromptRow('Product:', result.itemCode),
+            const SizedBox(height: 8),
+            _buildPromptRow('Barcode:', result.processedBarcode),
+            const SizedBox(height: 8),
+            _buildPromptRow(
+              'Weight:',
+              '${BarcodeProcessor.formatQuantity(result.manufacturedQty, widget.product['unit'] ?? 'KG')} ${widget.product['unit'] ?? 'KG'}',
+              isBold: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => _pendingScan = null);
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _savePendingScan();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: isBold ? Colors.orange : Colors.white,
+              fontSize: 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -256,13 +256,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             };
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Detected: ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit}.'),
-              backgroundColor: orange,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          if (!_isScannerVisible) {
+            // Confirmation prompt for manual entry
+            _showConfirmationPrompt(result);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Detected: ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit}.'),
+                backgroundColor: orange,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1191,8 +1196,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         content: TextField(
           controller: controller,
           style: const TextStyle(color: Colors.white),
+          keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            hintText: 'Paste barcode here',
+            hintText: 'Enter barcode number',
             hintStyle: TextStyle(color: Colors.grey),
           ),
           onSubmitted: (v) {
@@ -1214,6 +1220,84 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showConfirmationPrompt(BarcodeModel result) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: dark800,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: orange),
+            const SizedBox(width: 8),
+            const Text('Confirm Scan', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPromptRow('Product:', result.itemCode),
+            const SizedBox(height: 8),
+            _buildPromptRow('Barcode:', result.processedBarcode),
+            const SizedBox(height: 8),
+            _buildPromptRow(
+              'Weight:',
+              '${BarcodeProcessor.formatQuantity(result.manufacturedQty, widget.product.unit)} ${widget.product.unit}',
+              isBold: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => _pendingScan = null);
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _savePendingScan();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: isBold ? orange : Colors.white,
+              fontSize: 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

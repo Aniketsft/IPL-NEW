@@ -47,13 +47,13 @@ class BarcodeProcessor {
     final isKG = unit.toUpperCase() == 'KG';
     final isEA = unit.toUpperCase() == 'EA';
 
-    if (barcode.startsWith('2')) {
-      // Case 1 & 2 (Prefix 2)
+    // Case 1 & 2 (Prefix 2 or Prefix 0)
+    if (barcode.startsWith('2') || barcode.startsWith('0')) {
       if (isKG) {
         // Case 1: ignore last digit (check digit) take last 4 digit indices 9 10 11 12 divide by 1000
-        // Local indices (0-indexed) for indices 9, 10, 11, 12 in the ORIGINAL (usually 13-char) barcode.
-        // User probably means indices 9-12 based on 1-based indexing for 13 digit barcode.
-        // In 0-indexed: index 8, 9, 10, 11.
+        // User probably means indices 9-12 based on 1-based indexing for a 13 digit barcode.
+        // In 0-indexed: index 8, 9, 10, 11 if barcode is length 13.
+        // If it starts with '0' (already padded), we adjust the logic slightly or use the same indices.
         if (barcode.length >= 12) {
           final qtyStr = barcode.substring(8, 12);
           scannedQty = (double.tryParse(qtyStr) ?? 0.0) / 1000.0;
