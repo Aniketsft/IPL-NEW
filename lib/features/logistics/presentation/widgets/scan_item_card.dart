@@ -105,7 +105,7 @@ class ScanItemCard extends StatelessWidget {
               ),
               if (scan['scannedQty'] != null)
                 Text(
-                  'S: ${scan['scannedQty']} scans',
+                  'S: ${scan['scannedQty']}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 10,
