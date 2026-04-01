@@ -524,35 +524,11 @@ class DeliveryRepository implements ILogisticsRepository {
         );
       }
 
-      // Attempt to push to API (Stealth Background Sync)
-      try {
-        final fullUrl = '${_dio.options.baseUrl}Logistics/cut-bulk';
-        print("Stealth-Push: Attempting to sync Cut/Bulk entry $entryNo to $fullUrl");
-
-        await _dio.post('Logistics/cut-bulk', data: {
-          ...entry,
-          'entryNumber': entryNo,
-          'amountKg': entry['amountKg'] ?? 0,
-        });
-        print(
-          "Offline-First: Cut/Bulk entry $entryNo successfully synced to API.",
-        );
-      } on DioException catch (e) {
-        final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
-        if (e.type == DioExceptionType.connectionError ||
-            e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.sendTimeout ||
-            e.type == DioExceptionType.receiveTimeout) {
-          print(
-            "Offline-First: Sync deferred for Cut/Bulk $entryNo. Network issue reaching $fullUrl. Error: ${e.error ?? e.message}",
-          );
-        } else {
-          print(
-            "Offline-First: Sync failed for $entryNo to $fullUrl with non-connectivity error: ${e.response?.statusCode} - ${e.message}",
-          );
-          rethrow;
-        }
-      }
+      // NOTE: No optimistic API call here.
+      // Cut/Bulk entries are pushed exclusively through the Sync/push pipeline
+      // during manual sync. This prevents the dual-write race condition
+      // that caused manufactured quantities to double when online.
+      print("Offline-First: Cut/Bulk entry $entryNo saved locally. Will sync via Sync/push.");
 
       return entryNo;
     } catch (e) {
@@ -970,32 +946,14 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.columnIsSynced: 0,
       };
 
-      // 2. Persist to Local DB IMMEDIATELY
+      // 2. Persist to Local DB IMMEDIATELY (offline-first)
       final id = await LocalDatabaseHelper.instance.insertScan(localRow);
-      print("Offline-First: Scan saved locally with ID $id.");
+      print("Offline-First: Scan saved locally with ID $id. Will sync via Sync/push.");
 
-      // 3. Attempt Optimistic API Call
-      try {
-        scan['syncId'] = syncId;
-        await _dio.post('Logistics/production-scan', data: scan);
-        // On Success, mark as synced
-        await LocalDatabaseHelper.instance.markAsSynced([id]);
-        print("Offline-First: Scan ID $id successfully synced to API.");
-      } on DioException catch (e) {
-        // Suppress network errors for "Stealth Sync"
-        // This allows the user to continue scanning while offline
-        if (e.type == DioExceptionType.connectionError ||
-            e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.sendTimeout ||
-            e.type == DioExceptionType.receiveTimeout) {
-          print(
-            "Offline-First: Connection issue. Scan ID $id kept local (unsynced).",
-          );
-        } else {
-          // Rethrow non-connection errors (e.g., 500 Server Error, Validation)
-          rethrow;
-        }
-      }
+      // NOTE: No optimistic API call here.
+      // Scans are pushed exclusively through the Sync/push pipeline
+      // during manual sync. This prevents the dual-write race condition
+      // that caused manufactured quantities to double when online.
     } catch (e) {
       print("CRITICAL: Local persistence failed for scan: $e");
       throw 'Failed to save scan: $e';
