@@ -227,15 +227,21 @@ class DeliveryRepository implements ILogisticsRepository {
         whereArgs.add(locationCode);
       }
 
-      final maps = await db.query(
-        LocalDatabaseHelper.tableOrders,
-        where: whereClause,
-        whereArgs: whereArgs,
-        groupBy: LocalDatabaseHelper.colOrderNum,
-        orderBy: '${LocalDatabaseHelper.colOrderDate} DESC',
-        limit: limit,
-        offset: offset,
-      );
+      // Use rawQuery to support LEFT JOIN for salesman name
+      final String orderTable = LocalDatabaseHelper.tableOrders;
+      final String repTable = LocalDatabaseHelper.tableReps;
+      
+      String sql = '''
+        SELECT o.*, r.${LocalDatabaseHelper.colName} AS salesmanName
+        FROM $orderTable o
+        LEFT JOIN $repTable r ON o.${LocalDatabaseHelper.colRep1} = r.${LocalDatabaseHelper.colCode}
+        WHERE $whereClause
+        GROUP BY o.${LocalDatabaseHelper.colOrderNum}
+        ORDER BY o.${LocalDatabaseHelper.colOrderDate} DESC
+        LIMIT $limit OFFSET $offset
+      ''';
+
+      final maps = await db.rawQuery(sql, whereArgs);
 
       return maps.map((m) => _mapLocalHeaderToEntity(m)).toList();
     } catch (e) {
@@ -881,6 +887,7 @@ class DeliveryRepository implements ILogisticsRepository {
       purchaseOrderNumber: row[LocalDatabaseHelper.colPoNum],
       salesManCode1: row[LocalDatabaseHelper.colRep0] ?? '',
       salesManCode2: row[LocalDatabaseHelper.colRep1] ?? '',
+      salesmanName: row['salesmanName'],
       site: row[LocalDatabaseHelper.colSite],
       isClosed: row[LocalDatabaseHelper.colStatus] == 2,
       isEditable: true,

@@ -23,6 +23,7 @@ class SalesOrder extends Equatable {
   final bool isEditable;
   final String salesManCode1;
   final String salesManCode2;
+  final String? salesmanName;
   final String? site;
 
   // Delivery-specific fields
@@ -42,6 +43,7 @@ class SalesOrder extends Equatable {
     required this.date,
     required this.salesManCode1,
     required this.salesManCode2,
+    this.salesmanName,
     this.soDate,
     this.purchaseOrderNumber,
     this.isClosed = false,
@@ -68,6 +70,7 @@ class SalesOrder extends Equatable {
       purchaseOrderNumber: detail.poNumber,
       salesManCode1: detail.salesMan1 ?? '',
       salesManCode2: detail.salesMan2 ?? '',
+      salesmanName: null, // Populated during lookup from Reps table
       site: detail.site,
       isClosed: false,
       isEditable: true,
@@ -84,6 +87,7 @@ class SalesOrder extends Equatable {
     String? deliverySalesman,
     String? soLorry,
     String? originalSoLorry,
+    String? salesmanName,
   }) {
     return SalesOrder(
       id: id,
@@ -104,6 +108,7 @@ class SalesOrder extends Equatable {
       deliverySalesman: deliverySalesman ?? this.deliverySalesman,
       soLorry: soLorry ?? this.soLorry,
       originalSoLorry: originalSoLorry ?? this.originalSoLorry,
+      salesmanName: salesmanName ?? this.salesmanName,
       site: site ?? this.site,
     );
   }
@@ -126,6 +131,7 @@ class SalesOrder extends Equatable {
     deliveryFrom,
     deliveryLorry,
     deliverySalesman,
+    salesmanName,
     soLorry,
     originalSoLorry,
     site,
