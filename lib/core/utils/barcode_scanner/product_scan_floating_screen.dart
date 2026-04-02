@@ -4,6 +4,7 @@ import 'barcode_scanner_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../features/logistics/data/repositories/delivery_repository.dart';
 import '../../../features/logistics/domain/entities/location_lookup.dart';
+import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
 import 'dart:ui' show ImageFilter;
@@ -143,7 +144,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     if (unit == 'EA' || unit == 'PCS') {
       return qty.toInt().toString();
     }
-    return qty.toStringAsFixed(2);
+    return qty.toStringAsFixed(3);
   }
 
   String get _unitLabel {
@@ -189,6 +190,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
           // Validate product match if we are in a product-specific screen
           final expectedCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString();
           if (expectedCode != null && result.itemCode != expectedCode && matchedProduct != null) {
+            AudioService.instance.playError(); // WRONG PRODUCT
              _showErrorDialog(
               'Wrong Product',
               'Scanned: ${result.itemCode}\nExpected: $expectedCode',
@@ -196,6 +198,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             return;
           }
 
+          AudioService.instance.playSuccess(); // VALID SCAN
           setState(() {
             _pendingScan = {
               'barcode': result.processedBarcode,
@@ -213,6 +216,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             _showConfirmationPrompt(result);
           }
         } else {
+          AudioService.instance.playError(); // INVALID FORMAT
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid barcode format'),

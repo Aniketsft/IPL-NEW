@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 
 import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
+import '../../../../core/utils/audio/audio_service.dart';
 
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
@@ -221,6 +222,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         if (result.isValid) {
           // RULE 1: ITEM MATCH (Strict validation against current screen's product)
           if (result.itemCode != widget.product.itemCode) {
+            AudioService.instance.playError(); // WRONG PRODUCT
             _showErrorDialog(
               'Wrong Product',
               'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}',
@@ -236,6 +238,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 widget.product.manufacturedQuantity -
                 _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
+              AudioService.instance.playError(); // LIMIT EXCEEDED
               _showErrorDialog(
                 'Limit Exceeded',
                 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit} would exceed the remaining order quantity.',
@@ -243,6 +246,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               return;
             }
           }
+
+          AudioService.instance.playSuccess(); // VALID SCAN
 
           setState(() {
             _pendingScan = {
@@ -269,6 +274,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             );
           }
         } else {
+          AudioService.instance.playError(); // INVALID FORMAT
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid barcode format'),
@@ -849,13 +855,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           widget.product.manufacturedQuantity -
           _cumulativeQty;
       if (1.0 > remaining + 0.001) {
+        AudioService.instance.playError(); // LIMIT EXCEEDED (MANUAL)
         _showErrorDialog(
           'Limit Exceeded',
-          'Adding 1.00 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(2)} KG.',
+          'Adding 1.000 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(3)} KG.',
         );
         return;
       }
     }
+
+    AudioService.instance.playSuccess(); // MANUAL ADD SUCCESS
 
     setState(() {
       final manualScan = {
@@ -876,7 +885,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Added 1.00 KG manually'),
+        content: Text('Added 1.000 KG manually'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 1),
       ),

@@ -60,7 +60,7 @@ class SalesOrderDetail {
     if (unit == 'EA' || unit == 'PCS') {
       return value.toInt().toString();
     }
-    return value.toStringAsFixed(2);
+    return value.toStringAsFixed(3);
   }
 
   String get remainingDisplay {

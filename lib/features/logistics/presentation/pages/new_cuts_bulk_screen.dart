@@ -102,7 +102,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     if (u == 'EA' || u == 'PCS') {
       return qty.toInt().toString();
     }
-    return qty.toStringAsFixed(2);
+    return qty.toStringAsFixed(3);
   }
 
   // Total weight is calculated via getter _totalWeight

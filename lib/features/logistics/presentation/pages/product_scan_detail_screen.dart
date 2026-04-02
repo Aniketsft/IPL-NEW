@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
+import '../../../../core/utils/audio/audio_service.dart';
 
 
 class ProductScanDetailScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   }
 
   void _addManualOneKg() {
+    AudioService.instance.playSuccess();
     setState(() {
       _scans.add({
         'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
@@ -149,6 +151,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
               child: AppBarcodeScanner(
                 onScanSuccess: _onScanSuccess,
                 onManualAdd: (weight) {
+                  AudioService.instance.playSuccess();
                   setState(() {
                     _scans.add({
                       'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',

@@ -96,7 +96,7 @@ class ScanItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0) is double ? (unit == 'EA' || unit == 'PCS' ? (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toInt().toString() : (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(2)) : scan['weight']} $unit',
+                'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0) is double ? (unit == 'EA' || unit == 'PCS' ? (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toInt().toString() : (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(3)) : scan['weight']} $unit',
                 style: const TextStyle(
                   color: orange,
                   fontWeight: FontWeight.bold,

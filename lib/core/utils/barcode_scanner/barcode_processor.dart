@@ -55,7 +55,8 @@ class BarcodeProcessor {
         // In 0-indexed: index 8, 9, 10, 11 if barcode is length 13.
         // If it starts with '0' (already padded), we adjust the logic slightly or use the same indices.
         if (barcode.length >= 12) {
-          final qtyStr = barcode.substring(6, 11);
+          // Rule: Ignore the very last check digit (at length-1) and take the 5 preceding digits.
+          final qtyStr = barcode.substring(barcode.length - 6, barcode.length - 1);
           scannedQty = (double.tryParse(qtyStr) ?? 0.0) / 1000.0;
           manufacturedQty = scannedQty; // Default for KG
         } else {
@@ -104,7 +105,7 @@ class BarcodeProcessor {
     if (unit.toUpperCase() == 'EA') {
       return quantity.toInt().toString();
     }
-    final formatter = NumberFormat("0.00");
+    final formatter = NumberFormat("0.000");
     return formatter.format(quantity);
   }
 
