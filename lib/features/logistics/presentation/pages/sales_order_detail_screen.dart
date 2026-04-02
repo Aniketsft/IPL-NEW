@@ -53,6 +53,13 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
+    if (widget.order.isClosed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Production is closed and cannot be modified.')),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -414,8 +421,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
     return InkWell(
-      onLongPress: () => _toggleItemPreparation(item),
+      onLongPress: widget.order.isClosed ? null : () => _toggleItemPreparation(item),
       onTap: () async {
+        if (widget.order.isClosed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Production is closed and cannot be modified.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
         if (item.isPrepared) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -437,7 +453,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         }
       },
       child: Opacity(
-        opacity: item.isPrepared ? 0.4 : 1.0,
+        opacity: (item.isPrepared || widget.order.isClosed) ? 0.4 : 1.0,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           padding: const EdgeInsets.all(12),
