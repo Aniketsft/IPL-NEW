@@ -15,46 +15,37 @@ class AudioService {
 
   Future<void> _initialize() async {
     try {
-      // Pre-set the source for faster playback
-      // Note: These files must exist in assets/audio/ for this to work in a real build.
-      // We are setting them up as placeholders as requested.
-      await _successPlayer.setSource(
-        AssetSource(
-          'C:/Users/Aniket/.gemini/antigravity/scratch/enterprise_auth_system/assets/audio/Scan Confirm.mp3',
-        ),
-      );
-      await _errorPlayer.setSource(
-        AssetSource(
-          'C:/Users/Aniket/.gemini/antigravity/scratch/enterprise_auth_system/assets/audio/Scan Reject.mp3',
-        ),
-      );
+      // Pre-warm the players
+      debugPrint('AudioService: Initializing audio engine...');
+      // No longer mandatory to set source here, as we play directly from assets
     } catch (e) {
-      debugPrint('AudioService initialization error: $e');
+      debugPrint('AudioService: Initialization error: $e');
     }
   }
 
   /// Plays the success chime.
   Future<void> playSuccess() async {
     try {
+      debugPrint('AudioService: Playing success sound (audio/Scan Confirm.mp3)');
       if (_successPlayer.state == PlayerState.playing) {
         await _successPlayer.stop();
       }
-      await _successPlayer.resume();
+      await _successPlayer.play(AssetSource('audio/Scan Confirm.mp3'), volume: 1.0);
     } catch (e) {
-      debugPrint('Error playing success sound: $e');
-      // Fallback to system sound if assets are missing
+      debugPrint('AudioService: Error playing success sound: $e');
     }
   }
 
   /// Plays the error/invalid chime.
   Future<void> playError() async {
     try {
+      debugPrint('AudioService: Playing error sound (audio/Scan Reject.mp3)');
       if (_errorPlayer.state == PlayerState.playing) {
         await _errorPlayer.stop();
       }
-      await _errorPlayer.resume();
+      await _errorPlayer.play(AssetSource('audio/Scan Reject.mp3'), volume: 1.0);
     } catch (e) {
-      debugPrint('Error playing error sound: $e');
+      debugPrint('AudioService: Error playing error sound: $e');
     }
   }
 

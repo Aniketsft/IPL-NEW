@@ -27,9 +27,14 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/set_pr
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
+import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Pre-initialize AudioService to pre-warm the engine
+  AudioService.instance;
+  
   runApp(const MyApp());
 }
 
