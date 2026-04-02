@@ -168,7 +168,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         _descFilter.text.toLowerCase(),
       );
       return matchCode && matchDesc;
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        if (a.isPrepared == b.isPrepared) return 0;
+        return a.isPrepared ? 1 : -1;
+      });
   }
 
   bool get _isAllItemsPrepared =>
