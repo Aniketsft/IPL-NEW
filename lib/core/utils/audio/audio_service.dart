@@ -26,7 +26,8 @@ class AudioService {
   /// Plays the success chime.
   Future<void> playSuccess() async {
     try {
-      debugPrint('AudioService: Playing success sound (low latency)');
+      debugPrint('AudioService: Playing success sound');
+      // Force stop and reset to start for near-zero latency re-triggering
       if (_successPlayer.state == PlayerState.playing) {
         await _successPlayer.stop();
       }
@@ -40,7 +41,8 @@ class AudioService {
   /// Plays the error/invalid chime.
   Future<void> playError() async {
     try {
-      debugPrint('AudioService: Playing error sound (low latency)');
+      debugPrint('AudioService: Playing error sound');
+      // Force stop and reset to start for near-zero latency re-triggering
       if (_errorPlayer.state == PlayerState.playing) {
         await _errorPlayer.stop();
       }

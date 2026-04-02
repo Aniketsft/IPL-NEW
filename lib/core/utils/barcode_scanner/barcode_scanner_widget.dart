@@ -83,8 +83,9 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
       if (code != null && code.isNotEmpty) {
         
         // Pause between any two scans to avoid continuous/accidental fires
+        // Reduced to 1 second for better responsiveness on repeated scans
         if (_lastScanTime != null) {
-          if (DateTime.now().difference(_lastScanTime!).inSeconds < 2) {
+          if (DateTime.now().difference(_lastScanTime!).inSeconds < 1) {
             continue;
           }
         }

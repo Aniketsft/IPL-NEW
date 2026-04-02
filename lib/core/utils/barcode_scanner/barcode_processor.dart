@@ -82,14 +82,8 @@ class BarcodeProcessor {
         manufacturedQty = standardWeight;
       }
     } else {
-      // Fallback/Legacy Logic
-      if (isKG) {
-        scannedQty = 1.0;
-        manufacturedQty = 1.0;
-      } else {
-        scannedQty = 1.0;
-        manufacturedQty = standardWeight;
-      }
+      // Invalid Prefix
+      return BarcodeModel.invalid(originalBarcode);
     }
 
     return BarcodeModel(
@@ -110,7 +104,8 @@ class BarcodeProcessor {
   }
 
   static bool isValidBarcode(String barcode) {
-    // Basic validation: at least 7 chars
-    return barcode.trim().length >= 7;
+    if (barcode.trim().length < 7) return false;
+    final b = barcode.trim();
+    return b.startsWith('2') || b.startsWith('6');
   }
 }
