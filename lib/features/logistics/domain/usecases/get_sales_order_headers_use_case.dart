@@ -10,6 +10,10 @@ class GetSalesOrderHeadersUseCase {
     String status = 'all',
     DateTime? date,
     String? siteCode,
+    String? customerCode,
+    String? locationCode,
+    String? rep0,
+    String? rep1,
     int limit = 100,
     int offset = 0,
   }) {
@@ -17,6 +21,10 @@ class GetSalesOrderHeadersUseCase {
       status: status,
       date: date,
       siteCode: siteCode,
+      customerCode: customerCode,
+      locationCode: locationCode,
+      rep0: rep0,
+      rep1: rep1,
       limit: limit,
       offset: offset,
     );

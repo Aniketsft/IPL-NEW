@@ -174,6 +174,7 @@ class DeliveryRepository implements ILogisticsRepository {
     DateTime? date,
     String? siteCode,
     String? customerCode,
+    String? locationCode,
     String? rep0,
     String? rep1,
     int limit = 100,
@@ -216,6 +217,14 @@ class DeliveryRepository implements ILogisticsRepository {
       if (rep1 != null && rep1.isNotEmpty) {
         whereClause += ' AND TRIM(${LocalDatabaseHelper.colRep1}) = ?';
         whereArgs.add(rep1);
+      }
+
+      if (locationCode != null && locationCode.isNotEmpty) {
+        whereClause +=
+            ' AND EXISTS (SELECT 1 FROM ${LocalDatabaseHelper.tableDetails} d '
+            ' WHERE d.${LocalDatabaseHelper.colDetSoNum} = ${LocalDatabaseHelper.tableOrders}.${LocalDatabaseHelper.colOrderNum} '
+            ' AND d.${LocalDatabaseHelper.colDetLocation} = ?)';
+        whereArgs.add(locationCode);
       }
 
       final maps = await db.query(

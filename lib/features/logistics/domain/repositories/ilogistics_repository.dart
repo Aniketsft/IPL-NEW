@@ -24,6 +24,7 @@ abstract class ILogisticsRepository {
     DateTime? date,
     String? siteCode,
     String? customerCode,
+    String? locationCode,
     String? rep0,
     String? rep1,
     int limit = 100,
