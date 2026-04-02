@@ -10,6 +10,8 @@ class AudioService {
   final AudioPlayer _errorPlayer = AudioPlayer();
 
   AudioService._internal() {
+    _successPlayer.setReleaseMode(ReleaseMode.stop);
+    _errorPlayer.setReleaseMode(ReleaseMode.stop);
     _initialize();
   }
 
@@ -18,6 +20,10 @@ class AudioService {
       debugPrint('AudioService: Pre-loading audio assets...');
       await _successPlayer.setSource(AssetSource('audio/Scan Confirm.mp3'));
       await _errorPlayer.setSource(AssetSource('audio/Scan Reject.mp3'));
+      
+      // Ensure volume is at maximum for critical feedback
+      await _successPlayer.setVolume(1.0);
+      await _errorPlayer.setVolume(1.0);
     } catch (e) {
       debugPrint('AudioService: Initialization error: $e');
     }

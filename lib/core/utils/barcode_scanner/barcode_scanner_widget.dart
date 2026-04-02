@@ -34,7 +34,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
   MobileScannerController? _scannerController;
   bool _isScannerVisible = false;
   final OfflineBarcodeProcessor _processor = OfflineBarcodeProcessor();
-  
+
   // Set to avoid processing barcodes too frequently
   DateTime? _lastScanTime;
 
@@ -62,7 +62,9 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Camera permission is required to scan')),
+            const SnackBar(
+              content: Text('Camera permission is required to scan'),
+            ),
           );
         }
       }
@@ -77,23 +79,22 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
 
   Future<void> _handleScan(BarcodeCapture capture) async {
     final List<Barcode> barcodes = capture.barcodes;
-    
+
     for (final barcode in barcodes) {
       final String? code = barcode.rawValue;
       if (code != null && code.isNotEmpty) {
-        
         // Pause between any two scans to avoid continuous/accidental fires
-        // Reduced to 1 second for better responsiveness on repeated scans
+        // Configured to 5 seconds per user request
         if (_lastScanTime != null) {
-          if (DateTime.now().difference(_lastScanTime!).inSeconds < 1) {
+          if (DateTime.now().difference(_lastScanTime!).inSeconds < 2) {
             continue;
           }
         }
-        
+
         _lastScanTime = DateTime.now();
 
         HapticFeedback.lightImpact(); // Tactile feedback (lighter for high-speed)
-        
+
         if (widget.onScan != null) {
           widget.onScan!(code);
         }
@@ -128,7 +129,10 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: widget.themeColor.withValues(alpha: 0.5), width: 1.5),
+              border: Border.all(
+                color: widget.themeColor.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14.5),
@@ -144,44 +148,60 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
               flex: 3,
               child: ElevatedButton.icon(
                 onPressed: _toggleScanner,
-                icon: Icon(_isScannerVisible ? Icons.power_settings_new : Icons.qr_code_scanner),
+                icon: Icon(
+                  _isScannerVisible
+                      ? Icons.power_settings_new
+                      : Icons.qr_code_scanner,
+                ),
                 label: Text(_isScannerVisible ? 'STOP SCAN' : 'START SCAN'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isScannerVisible ? Colors.red.withValues(alpha: 0.2) : widget.themeColor,
-                  foregroundColor: _isScannerVisible ? Colors.red : Colors.black,
+                  backgroundColor: _isScannerVisible
+                      ? Colors.red.withValues(alpha: 0.2)
+                      : widget.themeColor,
+                  foregroundColor: _isScannerVisible
+                      ? Colors.red
+                      : Colors.black,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: _isScannerVisible ? const BorderSide(color: Colors.red) : BorderSide.none,
+                    side: _isScannerVisible
+                        ? const BorderSide(color: Colors.red)
+                        : BorderSide.none,
                   ),
                 ),
               ),
             ),
             if (widget.manualEntries != null && widget.onManualAdd != null) ...[
               const SizedBox(width: 8),
-              ...widget.manualEntries!.entries.map((entry) => Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => widget.onManualAdd!(entry.value),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+              ...widget.manualEntries!.entries
+                  .map(
+                    (entry) => Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () => widget.onManualAdd!(entry.value),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          entry.key.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    entry.key.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              )).toList(),
+                  )
+                  .toList(),
             ],
           ],
         ),
@@ -189,4 +209,3 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
     );
   }
 }
-

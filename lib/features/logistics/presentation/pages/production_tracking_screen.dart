@@ -906,7 +906,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             borderRadius: BorderRadius.circular(10),
             child: AppBarcodeScanner(
               onScan: (code) {
-                if (_pendingScan != null) return;
+                if (_pendingScan != null) {
+                  // Provide audible feedback that a scan was detected but rejected
+                  // because the previous scan is still pending confirmation.
+                  AudioService.instance.playError();
+                  return;
+                }
                 _handleScan(code);
               },
             ),
