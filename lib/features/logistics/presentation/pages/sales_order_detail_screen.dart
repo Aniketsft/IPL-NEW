@@ -6,6 +6,7 @@ import '../../data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'production_tracking_screen.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
   final SalesOrder order;
@@ -614,6 +615,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       );
     }
 
+    final isAllPrepared = _isAllItemsPrepared;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -621,42 +624,67 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         children: [
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
-              onPressed: (_isLoading || !_isAllItemsPrepared) ? null : _closeOrder,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2C2C2E),
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
-                foregroundColor: Colors.white,
-                disabledForegroundColor: Colors.white24,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+            child: isAllPrepared
+                ? ElevatedButton(
+                    onPressed: _isLoading ? null : _closeOrder,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2C2C2E),
+                      disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+                      foregroundColor: Colors.white,
+                      disabledForegroundColor: Colors.white24,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                    )
-                  : const Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Close Production',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
                     ),
-            ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Close Production',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProductionTrackingScanner(
+                                  order: widget.order,
+                                  details: _details,
+                                ),
+                              ),
+                            ).then((_) => _fetchDetails()), // Refresh on return
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text(
+                      'Scan Product to Track',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                    ),
+                  ),
           ),
-          if (!_isAllItemsPrepared && !_isLoading)
+          if (!isAllPrepared && !_isLoading)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Row(
@@ -669,7 +697,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'All items must be prepared to close production',
+                    'Scan or prepare all items to close production',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.4),
                       fontSize: 12,
