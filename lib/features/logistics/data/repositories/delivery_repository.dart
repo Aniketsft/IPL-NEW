@@ -1127,43 +1127,34 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
     final db = await LocalDatabaseHelper.instance.database;
 
-    // 1. Try exact match (including prepended 0 for prefix 2)
-    String lookupBarcode = barcode;
-    if (barcode.startsWith('2') && barcode.length == 13) {
-      lookupBarcode = '0$barcode';
+    // Case 1 & 2: Prefix 2 or 0 (Identification by first 6 digits)
+    if (barcode.startsWith('2') || barcode.startsWith('0')) {
+      final prefix = barcode.substring(0, 6);
+      final results = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdBarcode} LIKE ?',
+        whereArgs: ['$prefix%'],
+      );
+      if (results.isNotEmpty) return results.first;
     }
 
-    final exactMatch = await db.query(
+    // Case 3 & 4: Prefix 6 (Identification by full barcode)
+    if (barcode.startsWith('6')) {
+      final results = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdBarcode} = ?',
+        whereArgs: [barcode],
+      );
+      if (results.isNotEmpty) return results.first;
+    }
+
+    // Final fallback to exact match on item code if barcode fails
+    final fallbackCode = await db.query(
       LocalDatabaseHelper.tableProducts,
-      where: '${LocalDatabaseHelper.colProdBarcode} = ?',
-      whereArgs: [lookupBarcode],
+      where: '${LocalDatabaseHelper.colProdCode} = ?',
+      whereArgs: [barcode],
     );
-
-    if (exactMatch.isNotEmpty) {
-      return exactMatch.first;
-    }
-
-    // 2. Fallback prefix search: if starts with 2, take 5 digits as item code
-    if (barcode.startsWith('2') && barcode.length == 13) {
-      final code = barcode.substring(2, 7);
-      final product = await db.query(
-        LocalDatabaseHelper.tableProducts,
-        where: '${LocalDatabaseHelper.colProdCode} = ?',
-        whereArgs: [code],
-      );
-      if (product.isNotEmpty) return product.first;
-    }
-
-    // 3. Fallback suffix search: starts with 0, take indices 1-7
-    if (barcode.startsWith('0') && barcode.length >= 13) {
-      final code = barcode.substring(1, 7);
-      final product = await db.query(
-        LocalDatabaseHelper.tableProducts,
-        where: '${LocalDatabaseHelper.colProdCode} = ?',
-        whereArgs: [code],
-      );
-      if (product.isNotEmpty) return product.first;
-    }
+    if (fallbackCode.isNotEmpty) return fallbackCode.first;
 
     return null;
   }
