@@ -212,6 +212,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     BEGIN CATCH
                         -- Table might not exist yet
                     END CATCH
+                END
+
+                IF NOT EXISTS (
+                    SELECT * FROM sys.columns 
+                    WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
+                    AND name = 'sync_id'
+                )
+                BEGIN
+                    BEGIN TRY
+                        ALTER TABLE [dbo].[production_scan] ADD [sync_id] NVARCHAR(100) NULL;
+                    END TRY
+                    BEGIN CATCH
+                        -- Table might not exist yet
+                    END CATCH
                 END";
 
             await context.Database.ExecuteSqlRawAsync(addColumnSql);

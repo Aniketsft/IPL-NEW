@@ -23,6 +23,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   late List<Map<String, dynamic>> _scans;
   // Removed MobileScannerController
   bool _isScannerVisible = false;
+  bool _isProcessingScan = false;
 
   @override
   void initState() {
@@ -50,7 +51,10 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   }
 
   void _onScanSuccess(ScanResult result) {
-    if (!_scans.any((s) => s['barcode'] == result.barcode)) {
+    if (_isProcessingScan) return;
+    _isProcessingScan = true;
+
+    try {
       HapticFeedback.lightImpact();
       setState(() {
         _scans.add({
@@ -59,11 +63,18 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
           'weight': result.weight,
         });
       });
+      AudioService.instance.playSuccess(); // VALID SCAN - Synchronized with appearance in list
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingScan = false;
+        });
+      }
     }
   }
 
   void _addManualOneKg() {
-    AudioService.instance.playSuccess();
+    // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
     setState(() {
       _scans.add({
         'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
@@ -150,8 +161,18 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
               padding: const EdgeInsets.all(16),
               child: AppBarcodeScanner(
                 onScanSuccess: _onScanSuccess,
+                onUnknownBarcode: (code) {
+                  AudioService.instance.playError(); // Standard reject chime
+                  HapticFeedback.heavyImpact(); // ERROR TACTILE
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Unknown barcode or invalid format'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
                 onManualAdd: (weight) {
-                  AudioService.instance.playSuccess();
+                  // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
                   setState(() {
                     _scans.add({
                       'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',

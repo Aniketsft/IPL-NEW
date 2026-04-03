@@ -71,5 +71,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [Column("is_prepared")]
         public bool IsPrepared { get; set; }
+
+        [MaxLength(100)]
+        [Column("sync_id")]
+        public string? SyncId { get; set; }
     }
 }

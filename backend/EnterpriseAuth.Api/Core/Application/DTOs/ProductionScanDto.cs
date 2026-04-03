@@ -32,5 +32,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public DateTime? CreatedAt { get; set; }
         
         public bool IsPrepared { get; set; }
+        public string? SyncId { get; set; }
     }
 }

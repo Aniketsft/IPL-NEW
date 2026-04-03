@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../data/repositories/delivery_repository.dart';
 import '../../domain/usecases/synchronize_logistics_use_case.dart';
 import 'sync_event.dart';
 import 'sync_state.dart';
@@ -20,6 +21,13 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     StartSyncRequested event,
     Emitter<SyncState> emit,
   ) async {
+    // Prevent overlapping sync requests at the Bloc level
+    if (state is SyncInProgress || (_synchronizeLogisticsUseCase.repository is DeliveryRepository && 
+        (_synchronizeLogisticsUseCase.repository as DeliveryRepository).isSyncing)) {
+      print("SyncBloc: Sync already in progress, ignoring request.");
+      return;
+    }
+
     emit(const SyncInProgress(0.0, 'Initializing sync...'));
 
     await _progressSubscription?.cancel();

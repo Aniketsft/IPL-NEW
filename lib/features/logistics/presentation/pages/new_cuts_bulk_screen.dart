@@ -26,8 +26,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
 
 
   String? _selectedCustomerCode;
-  String? _selectedSM1Code;
-  String? _selectedSM2Code;
+  String? _selectedSalesmanCode;
   String? _selectedExistingSO;
   List<Map<String, dynamic>> _selectedProducts = [];
   // Removed _poController as per request
@@ -154,8 +153,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         'customerCode': _selectedCustomerCode,
         'customerName': customer['name'],
         'date': _date?.toIso8601String(),
-        'salesman1Code': _selectedSM1Code,
-        'salesman2Code': _selectedSM2Code,
+        'salesmanCode': _selectedSalesmanCode,
       },
       if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
       // Removed poNumber as per request
@@ -241,38 +239,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                         _buildLabel('Date'),
                         _buildDatePicker(),
                         const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Salesman 1'),
-                                  _buildDropdownTile(
-                                    'Salesman 1',
-                                    _selectedSM1Code,
-                                    _salesRepsList,
-                                    (val) => setState(() => _selectedSM1Code = val),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLabel('Salesman 2'),
-                                  _buildDropdownTile(
-                                    'Salesman 2',
-                                    _selectedSM2Code,
-                                    _salesRepsList,
-                                    (val) => setState(() => _selectedSM2Code = val),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        _buildLabel('Salesman'),
+                        _buildDropdownTile(
+                          'Salesman',
+                          _selectedSalesmanCode,
+                          _salesRepsList,
+                          (val) => setState(() => _selectedSalesmanCode = val),
                         ),
                         const SizedBox(height: 16),
                         // Removed PO Number label and field as per request
@@ -396,8 +368,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             _selectedExistingSO = null;
           } else {
             _selectedCustomerCode = null;
-            _selectedSM1Code = null;
-            _selectedSM2Code = null;
+            _selectedSalesmanCode = null;
           }
         }),
         child: Container(

@@ -25,6 +25,8 @@ import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcod
 
 class DeliveryRepository implements ILogisticsRepository {
   final Dio _dio;
+  bool _isSyncing = false;
+  bool get isSyncing => _isSyncing;
 
   DeliveryRepository({required NetworkService networkService})
     : _dio = networkService.dio;
@@ -435,17 +437,18 @@ class DeliveryRepository implements ILogisticsRepository {
         // Reuse existing SO — only add a new detail line
         entryNo = existingSo;
       } else {
-        // Generate new SO number
+        // Generate new SO number based on type
+        final prefix = entry['type'] == 'Cuts' ? 'CUT-' : 'BLK-';
         final existingCount =
             sqflite.Sqflite.firstIntValue(
               await db.rawQuery(
                 'SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableOrders} WHERE ${LocalDatabaseHelper.colOrderNum} LIKE ?',
-                ['CB-$dateStr%'],
+                ['$prefix$dateStr%'],
               ),
             ) ??
             0;
         entryNo =
-            'CB-$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
+            '$prefix$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
 
         // Insert header for new SO
         await db.insert(LocalDatabaseHelper.tableOrders, {
@@ -490,6 +493,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnQuantity: scan['weight'],
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
@@ -521,6 +525,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnQuantity: scan['weight'],
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
@@ -532,6 +537,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.columnProductCode: productCode,
             LocalDatabaseHelper.columnQuantity: quantity,
             LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
+            LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
             LocalDatabaseHelper.columnIsSynced: 0,
             LocalDatabaseHelper.columnItemStatus: 'A',
             LocalDatabaseHelper.columnSite: 'INTERNAL',
@@ -565,6 +571,11 @@ class DeliveryRepository implements ILogisticsRepository {
 
   @override
   Future<void> synchronize({String? siteCode}) async {
+    if (_isSyncing) {
+      print("Sync: Operation already in progress. Skipping redundant request.");
+      return;
+    }
+    _isSyncing = true;
     final stopwatch = Stopwatch()..start();
     Map<String, int> counts = {};
     final activeSite = siteCode ?? 'IPL';
@@ -586,6 +597,7 @@ class DeliveryRepository implements ILogisticsRepository {
                   'scanAmountKg': s['quantity'],
                   'itemStatus': s['itemStatus'] ?? 'Q',
                   'location': s['location'],
+                  'syncId': s['sync_id'],
                 },
               )
               .toList(),
@@ -703,7 +715,7 @@ class DeliveryRepository implements ILogisticsRepository {
         (db) => db.query(
           LocalDatabaseHelper.tableScans,
           where:
-              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0 AND ${LocalDatabaseHelper.columnSite} != \'INTERNAL\'',
+              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
         ),
       );
       if (syncedScans.isNotEmpty) {
@@ -727,12 +739,23 @@ class DeliveryRepository implements ILogisticsRepository {
         site: activeSite,
         counts: counts.isNotEmpty ? counts : null,
       );
+      print("Sync: Operation failed: $e");
       throw 'Sync failed: $e';
+    } finally {
+      _isSyncing = false;
+      stopwatch.stop();
+      print("Sync: Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts");
     }
   }
 
   @override
   Stream<SyncProgress> synchronizeWithProgress({String? siteCode}) async* {
+    if (_isSyncing) {
+      print("Sync (Progress): Operation already in progress. Skipping redundant request.");
+      yield SyncProgress.error("Synchronization already in progress.");
+      return;
+    }
+    _isSyncing = true;
     final stopwatch = Stopwatch()..start();
     Map<String, int> counts = {};
     final activeSite = siteCode ?? 'IPL';
@@ -869,6 +892,10 @@ class DeliveryRepository implements ILogisticsRepository {
         counts: counts.isNotEmpty ? counts : null,
       );
       yield SyncProgress.error(e.toString());
+    } finally {
+      _isSyncing = false;
+      stopwatch.stop();
+      print("Sync (Progress): Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts");
     }
   }
 
@@ -971,20 +998,15 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.columnSyncId: syncId,
         LocalDatabaseHelper.columnIsSynced: 0,
       };
-
       // 2. Persist to Local DB IMMEDIATELY (offline-first)
       final id = await LocalDatabaseHelper.instance.insertScan(localRow);
       print("Offline-First: Scan saved locally with ID $id. Will sync via Sync/push.");
-
-      // NOTE: No optimistic API call here.
-      // Scans are pushed exclusively through the Sync/push pipeline
-      // during manual sync. This prevents the dual-write race condition
-      // that caused manufactured quantities to double when online.
     } catch (e) {
       print("CRITICAL: Local persistence failed for scan: $e");
       throw 'Failed to save scan: $e';
     }
   }
+
 
   @override
   Future<List<LocationLookup>> getLocationLookups(String site) async {

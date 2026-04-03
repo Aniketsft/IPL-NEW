@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
             localRepository: context.read<LocalRepository>(),
             deliveryRepository: context
                 .read<enterprise_auth_mobile_repo.DeliveryRepository>(),
-          )..startPeriodicSync(),
+          ), // Periodic sync disabled — all syncing goes through Sync/push exclusively
         ),
         RepositoryProvider(
           create: (context) => GetProductionTrackingUseCase(

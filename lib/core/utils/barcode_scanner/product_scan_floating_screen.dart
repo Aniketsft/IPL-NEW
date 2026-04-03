@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'barcode_scanner_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,6 +36,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   String? _selectedSite;
   List<String> _sites = [];
   bool _isLoadingSites = false;
+  bool _isProcessingScan = false;
   
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocationEntity;
@@ -93,6 +95,10 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
              if (found.isNotEmpty) {
                _selectedLocationEntity = found.first;
              }
+          } else if (_locations.isNotEmpty) {
+            // Default to IPLCH if available
+            final iplch = _locations.where((l) => l.location == 'IPLCH');
+            _selectedLocationEntity = iplch.isNotEmpty ? iplch.first : _locations.first;
           }
           _isLoadingLocations = false;
         });
@@ -153,7 +159,19 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
 
   Future<void> _handleScan(String barcode, {bool isManual = false}) async {
     if (barcode.isEmpty) return;
-    if (_pendingScan != null && !isManual) return; // For camera, don't overlap. For manual, we show its own dialog.
+    if (_isProcessingScan && !isManual) return;
+    _isProcessingScan = true;
+
+    if (_pendingScan != null && !isManual) {
+      if (_pendingScan!['barcode'] == barcode) {
+        _isProcessingScan = false;
+        return;
+      }
+      AudioService.instance.playError(); // Scan Pending Reject
+      HapticFeedback.heavyImpact(); // ERROR TACTILE
+      _isProcessingScan = false;
+      return;
+    }
 
     try {
       final repository = context.read<DeliveryRepository>();
@@ -189,16 +207,16 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
         if (result.isValid) {
           // Validate product match if we are in a product-specific screen
           final expectedCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString();
-          if (expectedCode != null && result.itemCode != expectedCode && matchedProduct != null) {
+          if (result.itemCode != expectedCode) {
             AudioService.instance.playError(); // WRONG PRODUCT
-             _showErrorDialog(
+            HapticFeedback.heavyImpact(); // ERROR TACTILE
+            _showErrorDialog(
               'Wrong Product',
               'Scanned: ${result.itemCode}\nExpected: $expectedCode',
             );
             return;
           }
 
-          AudioService.instance.playSuccess(); // VALID SCAN
           setState(() {
             _pendingScan = {
               'barcode': result.processedBarcode,
@@ -212,11 +230,15 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             };
           });
 
+          AudioService.instance.playSuccess(); // VALID SCAN - Synchronized with display
+          HapticFeedback.lightImpact(); // SUCCESS TACTILE
+
           if (isManual) {
             _showConfirmationPrompt(result);
           }
         } else {
           AudioService.instance.playError(); // INVALID FORMAT
+          HapticFeedback.heavyImpact(); // ERROR TACTILE
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid barcode format'),
@@ -225,11 +247,11 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
           );
         }
       }
-    } catch (e) {
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scan error: $e')),
-        );
+        setState(() {
+          _isProcessingScan = false;
+        });
       }
     }
   }

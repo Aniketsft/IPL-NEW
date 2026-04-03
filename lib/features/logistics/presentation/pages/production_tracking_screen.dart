@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,6 +41,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   List<Map<String, dynamic>> _scans = [];
   Map<String, dynamic>? _pendingScan;
   bool _isSaving = false;
+  bool _isProcessingBarcode = false;
   List<String> _sites = [];
   String? _selectedSite;
   List<String> _lots = [];
@@ -94,8 +96,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       if (mounted) {
         setState(() {
           _locations = locations;
-          // If main warehouse not found, default to first available
-          _selectedLocation ??= _locations.isNotEmpty ? _locations.first : null;
+          if (_selectedLocation == null && _locations.isNotEmpty) {
+            final iplch = _locations.where((l) => l.location == 'IPLCH');
+            _selectedLocation = iplch.isNotEmpty ? iplch.first : _locations.first;
+          }
           _isLoadingLocations = false;
         });
       }
@@ -188,8 +192,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   Future<void> _handleScan(String barcode) async {
     if (barcode.isEmpty) return;
+    if (_isProcessingBarcode) return;
+    _isProcessingBarcode = true;
 
     try {
+      if (_pendingScan != null) {
+        if (_pendingScan!['barcode'] == barcode) {
+          _isProcessingBarcode = false;
+          return;
+        }
+        AudioService.instance.playError();
+        HapticFeedback.heavyImpact();
+        _showErrorDialog('Scan Pending', 'Please save or discard the current scan first.');
+        return;
+      }
       final repository = context.read<DeliveryRepository>();
       
       // 1. Lookup Product by Barcode
@@ -223,6 +239,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           // RULE 1: ITEM MATCH (Strict validation against current screen's product)
           if (result.itemCode != widget.product.itemCode) {
             AudioService.instance.playError(); // WRONG PRODUCT
+            HapticFeedback.heavyImpact(); // ERROR TACTILE
             _showErrorDialog(
               'Wrong Product',
               'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}',
@@ -239,6 +256,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
               AudioService.instance.playError(); // LIMIT EXCEEDED
+              HapticFeedback.heavyImpact(); // ERROR TACTILE
               _showErrorDialog(
                 'Limit Exceeded',
                 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit} would exceed the remaining order quantity.',
@@ -246,8 +264,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               return;
             }
           }
-
-          AudioService.instance.playSuccess(); // VALID SCAN
 
           setState(() {
             _pendingScan = {
@@ -260,6 +276,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'timestamp': DateTime.now().toIso8601String(),
             };
           });
+
+          AudioService.instance.playSuccess(); // VALID SCAN - Now synchronized with display
+          HapticFeedback.lightImpact(); // SUCCESS TACTILE
 
           if (!_isScannerVisible) {
             // Confirmation prompt for manual entry
@@ -275,6 +294,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           }
         } else {
           AudioService.instance.playError(); // INVALID FORMAT
+          HapticFeedback.heavyImpact(); // ERROR TACTILE
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid barcode format'),
@@ -288,6 +308,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Scan error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingBarcode = false;
+        });
       }
     }
   }
@@ -864,7 +890,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       }
     }
 
-    AudioService.instance.playSuccess(); // MANUAL ADD SUCCESS
+    // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
 
     setState(() {
       final manualScan = {
@@ -906,12 +932,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             borderRadius: BorderRadius.circular(10),
             child: AppBarcodeScanner(
               onScan: (code) {
-                if (_pendingScan != null) {
-                  // Provide audible feedback that a scan was detected but rejected
-                  // because the previous scan is still pending confirmation.
-                  AudioService.instance.playError();
-                  return;
-                }
                 _handleScan(code);
               },
             ),

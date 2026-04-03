@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'offline_barcode_processor.dart';
 export 'offline_barcode_processor.dart' show ScanResult;
 
@@ -93,8 +92,6 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
 
         _lastScanTime = DateTime.now();
 
-        HapticFeedback.lightImpact(); // Tactile feedback (lighter for high-speed)
-
         if (widget.onScan != null) {
           widget.onScan!(code);
         }
@@ -103,10 +100,8 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
           final result = await _processor.processBarcode(code);
           if (mounted) {
             if (result != null) {
-              AudioService.instance.playSuccess(); // Audible success chime
               widget.onScanSuccess?.call(result);
             } else {
-              AudioService.instance.playError(); // Audible error buzz
               if (widget.onUnknownBarcode != null) {
                 widget.onUnknownBarcode!(code);
               }

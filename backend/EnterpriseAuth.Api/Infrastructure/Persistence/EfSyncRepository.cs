@@ -263,16 +263,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     foreach (var scanDto in request.Scans)
                     {
-                        // Deduplication: Skip if a scan with the same SoNumber, ItemCode, LineNo, and Amount already exists
-                        // This prevents doubling if the app sends the same batch multiple times.
-                        bool exists = await _scanContext.ProductionScans.AnyAsync(s => 
-                            s.SoNumber == scanDto.SoNumber && 
-                            s.ItemCode == scanDto.ItemCode && 
-                            s.LineNo == scanDto.LineNo && 
-                            s.ScanAmountKg == scanDto.ScanAmountKg &&
-                            s.CreatedAt > DateTime.UtcNow.AddHours(-1) && // Within the last hour to be safe
-                            !s.IsDeleted);
-
+                        // ROBUST IDEMPOTENCY: Deduplicate using the mobile-generated SyncId.
+                        // This prevents doubling even if multiple identical payloads hit the server 
+                        // due to Wi-Fi retransmission or parallel UI triggers.
+                        bool exists = !string.IsNullOrEmpty(scanDto.SyncId) && 
+                                     await _scanContext.ProductionScans.AnyAsync(s => 
+                                        s.SyncId == scanDto.SyncId && !s.IsDeleted);
+                        
                         if (exists) continue;
 
                         var entity = new ProductionScan
@@ -286,6 +283,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Location = scanDto.Location ?? "",
                             Lot = scanDto.Lot,
                             IsPrepared = scanDto.IsPrepared,
+                            SyncId = scanDto.SyncId,
                             CreatedBy = scanDto.CreatedBy ?? "system",
                             CreatedAt = DateTime.UtcNow
                         };
