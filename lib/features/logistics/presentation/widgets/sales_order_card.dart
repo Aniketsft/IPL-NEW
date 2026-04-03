@@ -128,7 +128,11 @@ class SalesOrderCard extends StatelessWidget {
               _buildInfoRow(
                 Icons.person_outline,
                 'Salesman',
-                '${order.salesManCode2}${order.salesmanName != null ? " - ${order.salesmanName}" : ""}',
+                order.salesManCode2.isNotEmpty 
+                  ? (order.salesmanName != null && order.salesmanName!.isNotEmpty
+                      ? '${order.salesManCode2} - ${order.salesmanName}'
+                      : order.salesManCode2)
+                  : (order.salesmanName ?? 'N/A'),
               ),
             ],
           ),

@@ -153,7 +153,8 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         'customerCode': _selectedCustomerCode,
         'customerName': customer['name'],
         'date': _date?.toIso8601String(),
-        'salesmanCode': _selectedSalesmanCode,
+        'salesman1Code': _selectedSalesmanCode,
+        'salesman2Code': _selectedSalesmanCode,
       },
       if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
       // Removed poNumber as per request
@@ -399,10 +400,15 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     bool isLoading = false,
   }) {
     String? displayName;
-    if (value != null && items.isNotEmpty) {
+    if (value != null && value.isNotEmpty && items.isNotEmpty) {
       try {
         final item = items.firstWhere((it) => it['code'] == value);
-        displayName = item['name'] ?? value;
+        final name = item['name'];
+        if (name != null && name.trim().isNotEmpty) {
+          displayName = name;
+        } else {
+          displayName = value; // Fallback to code if name is empty
+        }
       } catch (_) {
         displayName = value;
       }
