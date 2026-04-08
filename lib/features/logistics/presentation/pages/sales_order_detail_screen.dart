@@ -56,7 +56,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
     if (widget.order.isClosed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Production is closed and cannot be modified.')),
+        const SnackBar(
+          content: Text('Production is closed and cannot be modified.'),
+        ),
       );
       return;
     }
@@ -65,13 +67,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(item.isPrepared ? 'Remove Prepared Status' : 'Mark as Prepared',
+        title: Text(
+          item.isPrepared ? 'Remove Prepared Status' : 'Mark as Prepared',
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          item.isPrepared 
-            ? 'Are you sure you want to remove the prepared status from this item?'
-            : 'Are you sure you want to mark this item as prepared?',
+          item.isPrepared
+              ? 'Are you sure you want to remove the prepared status from this item?'
+              : 'Are you sure you want to mark this item as prepared?',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -94,11 +97,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       if (mounted) setState(() => _isLoading = true);
       try {
         await context.read<DeliveryRepository>().updateItemPreparationStatus(
-              soNumber: widget.order.orderNumber,
-              itemCode: item.itemCode,
-              isPrepared: !item.isPrepared,
-            );
-        _fetchDetails(); 
+          soNumber: widget.order.orderNumber,
+          itemCode: item.itemCode,
+          isPrepared: !item.isPrepared,
+        );
+        _fetchDetails();
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
@@ -169,11 +172,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         _descFilter.text.toLowerCase(),
       );
       return matchCode && matchDesc;
-    }).toList()
-      ..sort((a, b) {
-        if (a.isPrepared == b.isPrepared) return 0;
-        return a.isPrepared ? 1 : -1;
-      });
+    }).toList()..sort((a, b) {
+      if (a.isPrepared == b.isPrepared) return 0;
+      return a.isPrepared ? 1 : -1;
+    });
   }
 
   bool get _isAllItemsPrepared =>
@@ -426,7 +428,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
     return InkWell(
-      onLongPress: widget.order.isClosed ? null : () => _toggleItemPreparation(item),
+      onLongPress: widget.order.isClosed
+          ? null
+          : () => _toggleItemPreparation(item),
       onTap: () async {
         if (widget.order.isClosed) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -440,7 +444,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         if (item.isPrepared) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Cannot access prepared item. Long-press to remove status.'),
+              content: Text(
+                'Cannot access prepared item. Long-press to remove status.',
+              ),
               duration: Duration(seconds: 2),
             ),
           );
@@ -468,123 +474,130 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
             ),
           ),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.itemCode,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item.description,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                item.barcodeType,
+                                style: const TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        item.itemCode,
+                        '${item.formatQuantity(item.quantity)} ${item.unit}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 16,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              item.description,
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              item.barcodeType,
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${item.formatQuantity(item.quantity)} ${item.unit}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${item.formatQuantity(item.remaining)} ${item.unit}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: item.remaining < 0 ? Colors.green : Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (item.isPrepared)
-                  const Row(
+                  const SizedBox(width: 24),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 16),
-                      SizedBox(width: 4),
-                      Text('Prepared', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Text(
+                        '${item.formatQuantity(item.remaining)} ${item.unit}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: item.remaining < 0 ? Colors.green : Colors.red,
+                        ),
+                      ),
                     ],
-                  )
-                else
-                  const SizedBox(),
-                Text(
-                  'Scanned: ${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: item.progress,
-                backgroundColor: Colors.white10,
-                valueColor: AlwaysStoppedAnimation<Color>(orange),
-                minHeight: 4,
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (item.isPrepared)
+                    const Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Prepared',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const SizedBox(),
+                  Text(
+                    'Scanned: ${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: item.progress,
+                  backgroundColor: Colors.white10,
+                  valueColor: AlwaysStoppedAnimation<Color>(orange),
+                  minHeight: 4,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -629,7 +642,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     onPressed: _isLoading ? null : _closeOrder,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2C2C2E),
-                      disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+                      disabledBackgroundColor: Colors.white.withValues(
+                        alpha: 0.05,
+                      ),
                       foregroundColor: Colors.white,
                       disabledForegroundColor: Colors.white24,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -658,14 +673,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     onPressed: _isLoading
                         ? null
                         : () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ProductionTrackingScanner(
-                                  order: widget.order,
-                                  details: _details,
-                                ),
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductionTrackingScanner(
+                                order: widget.order,
+                                details: _details,
                               ),
-                            ).then((_) => _fetchDetails()), // Refresh on return
+                            ),
+                          ).then((_) => _fetchDetails()), // Refresh on return
                     icon: const Icon(Icons.qr_code_scanner),
                     label: const Text(
                       'Scan Product to Track',

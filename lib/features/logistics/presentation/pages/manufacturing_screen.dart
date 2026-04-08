@@ -4,14 +4,16 @@ import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 
 
-class DeliveryScreen extends StatefulWidget {
-  const DeliveryScreen({super.key});
+class ManufacturingScreen extends StatefulWidget {
+  final List<String> permissions;
+
+  const ManufacturingScreen({super.key, required this.permissions});
 
   @override
-  State<DeliveryScreen> createState() => _DeliveryScreenState();
+  State<ManufacturingScreen> createState() => _ManufacturingScreenState();
 }
 
-class _DeliveryScreenState extends State<DeliveryScreen> {
+class _ManufacturingScreenState extends State<ManufacturingScreen> {
   final TextEditingController _searchController = TextEditingController();
   DateTime? _deliveryDate = DateTime.now();
 
@@ -70,7 +72,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }).toList();
 
     return IndustrialModuleLayout(
-      title: 'DELIVERY SYSTEM',
+      title: 'MANUFACTURING',
       body: Column(
         children: [
           _buildFilterSection(),

@@ -9,8 +9,8 @@ import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
 import 'dart:ui' show ImageFilter;
+import '../../../features/logistics/presentation/widgets/scan_item_card.dart';
 import '../../app_theme.dart';
-
 
 class ProductScanFloatingScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -32,7 +32,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   late List<Map<String, dynamic>> _scans;
   Map<String, dynamic>? _pendingScan;
 
-
   String? _selectedSite;
   List<String> _sites = [];
   bool _isLoadingSites = false;
@@ -44,8 +43,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   String? _selectedLot;
 
   final TextEditingController _lotController = TextEditingController();
-
-  // Location and Lot controllers
 
   @override
   void initState() {
@@ -88,7 +85,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
       if (mounted) {
         setState(() {
           _locations = locations;
-          // Try to restore previous selection if it exists in the new list
           final lastLoc = _selectedLocationEntity?.location;
           if (lastLoc != null) {
              final found = _locations.where((l) => l.location == lastLoc);
@@ -96,7 +92,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                _selectedLocationEntity = found.first;
              }
           } else if (_locations.isNotEmpty) {
-            // Default to IPLCH if available
             final iplch = _locations.where((l) => l.location == 'IPLCH');
             _selectedLocationEntity = iplch.isNotEmpty ? iplch.first : _locations.first;
           }
@@ -114,7 +109,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
       _selectedSite = prefs.getString('scan_site') ?? 'IPL';
       final lastLoc = prefs.getString('scan_location');
       if (lastLoc != null) {
-        // We only have the string, entity will be resolved once locations are fetched
         _selectedLocationEntity = LocationLookup(
           location: lastLoc,
           warehouse: '',
@@ -167,16 +161,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
         _isProcessingScan = false;
         return;
       }
-      AudioService.instance.playError(); // Scan Pending Reject
-      HapticFeedback.heavyImpact(); // ERROR TACTILE
+      AudioService.instance.playError();
+      HapticFeedback.heavyImpact();
       _isProcessingScan = false;
       return;
     }
 
     try {
       final repository = context.read<DeliveryRepository>();
-      
-      // 1. Lookup Product by Barcode (matches tbl_products.barcode)
       final matchedProduct = await repository.getProductByBarcode(barcode);
       
       String targetItemCode;
@@ -188,14 +180,12 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
         targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
         targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
       } else {
-        // Fallback to current selected product metadata
         targetItemCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString() ?? '';
         targetUnit = _unitLabel;
         targetStdWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
                          (widget.product['itemWeight'] as num?)?.toDouble() ?? 0.0;
       }
 
-      // 2. Process with specialised rule-set
       final result = BarcodeProcessor.process(
         barcode: barcode,
         itemCode: targetItemCode,
@@ -205,11 +195,10 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
 
       if (mounted) {
         if (result.isValid) {
-          // Validate product match if we are in a product-specific screen
           final expectedCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString();
           if (result.itemCode != expectedCode) {
-            AudioService.instance.playError(); // WRONG PRODUCT
-            HapticFeedback.heavyImpact(); // ERROR TACTILE
+            AudioService.instance.playError();
+            HapticFeedback.heavyImpact();
             _showErrorDialog(
               'Wrong Product',
               'Scanned: ${result.itemCode}\nExpected: $expectedCode',
@@ -224,21 +213,21 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
               'productCode': result.itemCode,
               'scannedQty': result.scannedQty,
               'manufacturedQty': result.manufacturedQty,
-              'weight': result.manufacturedQty, // For backwards compatibility if needed
+              'weight': result.manufacturedQty,
               'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
             };
           });
 
-          AudioService.instance.playSuccess(); // VALID SCAN - Synchronized with display
-          HapticFeedback.lightImpact(); // SUCCESS TACTILE
+          AudioService.instance.playSuccess();
+          HapticFeedback.lightImpact();
 
           if (isManual) {
             _showConfirmationPrompt(result);
           }
         } else {
-          AudioService.instance.playError(); // INVALID FORMAT
-          HapticFeedback.heavyImpact(); // ERROR TACTILE
+          AudioService.instance.playError();
+          HapticFeedback.heavyImpact();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid barcode format'),
@@ -302,533 +291,445 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
-    // final theme = Theme.of(context);
-    final orange = const Color(0xFFFF9800);
-    final darkBg = const Color(0xFF121212);
-    final darkCard = const Color(0xFF1E1E1E);
+    const orange = Color(0xFFFF9800);
+    const darkBg = Color(0xFF121212);
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-          maxWidth: 600,
-        ),
-        decoration: BoxDecoration(
-          color: darkBg,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Handle
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxWidth: 500,
           ),
-          const SizedBox(height: 16),
-          
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          decoration: BoxDecoration(
+            color: darkBg,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 30,
+                spreadRadius: 10,
+              ),
+            ],
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Column(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.product['name'] ?? widget.product['productName'] ?? 'Product Scan',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: orange.withValues(alpha: 0.3)),
-                            ),
-                            child: Text(
-                              _unitLabel,
-                              style: TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                        Text(
-                          'Product ID: ${widget.product['productId']}',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 10),
-          
-          // Site, Location, Lot Fields
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    // Site Selection
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            dropdownColor: const Color(0xFF1E1E1E),
-                            value: _selectedSite,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            items: _sites.isEmpty 
-                              ? [DropdownMenuItem(value: _selectedSite ?? 'IPL', child: Text(_selectedSite ?? "IPL"))]
-                              : _sites.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                            onChanged: _isLoadingSites ? null : (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _selectedSite = val;
-                                  _selectedLocationEntity = null;
-                                  _savePreferences();
-                                });
-                                _fetchLocations();
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Location selection as a Picker/Dropdown
-                    Expanded(
-                      flex: 3,
-                      child: InkWell(
-                        onTap: _isLoadingLocations ? null : _showLocationPicker,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _isLoadingLocations 
-                                  ? const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange)))
-                                  : Text(
-                                      _selectedLocationEntity?.location ?? 'Location',
-                                      style: TextStyle(
-                                        color: _selectedLocationEntity == null ? Colors.white.withValues(alpha: 0.3) : Colors.white,
-                                        fontSize: 13,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                              ),
-                              Icon(Icons.arrow_drop_down, color: Colors.white.withValues(alpha: 0.5)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Lot
-                TextField(
-                  controller: _lotController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Lot Number',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                    filled: true,
-                    fillColor: const Color(0xFF1E1E1E),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                    ),
-                  ),
-                  onChanged: (val) {
-                    _selectedLot = val;
-                    _savePreferences();
-                  },
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Summary Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _buildSummaryStat('TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
-                const SizedBox(width: 12),
-                _buildSummaryStat('COUNT', '${_scans.length} Items', Colors.white),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-
-          // Scanner and Pending Scan Result Area
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                Stack(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: AppBarcodeScanner(
-                        onScan: _handleScan,
-                        onManualAdd: (weight) {
-                          setState(() {
-                            _scans.insert(0, {
-                              'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-                              'productName': widget.product['productName'],
-                              'weight': weight,
-                              'site': _selectedSite,
-                              'location': _selectedLocationEntity?.location,
-                              'lot': _selectedLot,
-                              'timestamp': DateTime.now().toIso8601String(),
-                              'status': 'A',
-                            });
-                          });
-                        },
-                        manualEntries: const {'1KG': 1.0},
-                        themeColor: orange,
-                      ),
-                    ),
-                    if (_pendingScan != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: AppTheme.darkSurface.withValues(alpha: 0.8),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: AppTheme.primaryAmber.withValues(alpha: 0.3),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  blurRadius: 20,
-                                  spreadRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.primaryAmber.withValues(alpha: 0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryAmber, size: 20),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Text(
-                                      'Scan Result',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: const Text(
-                                        'READY',
-                                        style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildOverlayStat(
-                                        'SCANNED',
-                                        _formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
-                                        _pendingScan!['unit'],
-                                        Colors.white70,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildOverlayStat(
-                                        'MANUFACTURED',
-                                        _formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit']),
-                                        _pendingScan!['unit'],
-                                        AppTheme.primaryAmber,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                Text(
-                                  'Barcode: ${_pendingScan!['barcode']}',
-                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11, fontStyle: FontStyle.italic),
-                                ),
-                                const SizedBox(height: 24),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextButton(
-                                        onPressed: () => setState(() => _pendingScan = null),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: Colors.white54,
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                        ),
-                                        child: const Text('Discard', style: TextStyle(fontWeight: FontWeight.w500)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: _savePendingScan,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppTheme.primaryAmber,
-                                          foregroundColor: Colors.black,
-                                          elevation: 4,
-                                          shadowColor: AppTheme.primaryAmber.withValues(alpha: 0.4),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        ),
-                                        child: const Text('SAVE SCAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _showManualScanDialog,
-                    icon: const Icon(Icons.keyboard_outlined, color: AppTheme.primaryAmber, size: 16),
-                    label: const Text(
-                      'Enter Barcode Manually',
-                      style: TextStyle(
-                        color: AppTheme.primaryAmber,
-                        fontSize: 12,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          
-          const SizedBox(height: 20),
-          
-          // List Header
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'SCANNED HISTORY',
-                style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-
-          // Scanned List
-          Flexible(
-            child: _scans.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.qr_code_2, size: 40, color: Colors.white.withValues(alpha: 0.05)),
-                        const SizedBox(height: 8),
-                        Text('No items scanned yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.2))),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _scans.length,
-                    itemBuilder: (context, index) {
-                      final scan = _scans[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: darkCard,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                        ),
-                        child: Row(
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.white12,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
-                              child: Icon(Icons.qr_code, color: orange, size: 20),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(height: 16),
+                            
+                            // Header
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    scan['barcode'] ?? 'N/A',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                widget.product['name'] ?? widget.product['productName'] ?? 'Product Scan',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: orange.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: orange.withValues(alpha: 0.3)),
+                                              ),
+                                              child: Text(
+                                                _unitLabel,
+                                                style: const TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          'Product ID: ${widget.product['productId']}',
+                                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  Text(
-                                    'Standard Entry',
-                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                                  IconButton(
+                                    icon: const Icon(Icons.close, color: Colors.white54),
+                                    onPressed: () => Navigator.pop(context),
                                   ),
                                 ],
                               ),
                             ),
-                             Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            
+                            const SizedBox(height: 10),
+                            
+                            // Site, Location, Lot Fields
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF1E1E1E),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                          ),
+                                          child: DropdownButtonHideUnderline(
+                                            child: DropdownButton<String>(
+                                              isExpanded: true,
+                                              dropdownColor: const Color(0xFF1E1E1E),
+                                              value: _selectedSite,
+                                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                                              items: _sites.isEmpty 
+                                                ? [DropdownMenuItem(value: _selectedSite ?? 'IPL', child: Text(_selectedSite ?? "IPL"))]
+                                                : _sites.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                                              onChanged: _isLoadingSites ? null : (val) {
+                                                if (val != null) {
+                                                  setState(() {
+                                                    _selectedSite = val;
+                                                    _selectedLocationEntity = null;
+                                                    _savePreferences();
+                                                  });
+                                                  _fetchLocations();
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        flex: 3,
+                                        child: InkWell(
+                                          onTap: _isLoadingLocations ? null : _showLocationPicker,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF1E1E1E),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _selectedLocationEntity?.location ?? 'Select Location',
+                                                    style: TextStyle(
+                                                      color: _selectedLocationEntity == null ? Colors.white38 : Colors.white,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                _isLoadingLocations 
+                                                  ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: orange))
+                                                  : const Icon(Icons.arrow_drop_down, color: Colors.white54),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _lotController,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter Lot ID',
+                                      hintStyle: const TextStyle(color: Colors.white24),
+                                      filled: true,
+                                      fillColor: const Color(0xFF1E1E1E),
+                                      prefixIcon: const Icon(Icons.pin_outlined, color: Colors.white54, size: 18),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ),
+                                    onChanged: (val) {
+                                      _selectedLot = val;
+                                      _savePreferences();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 20),
+                            
+                            // Summary Row
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                children: [
+                                  _buildSummaryStat('TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
+                                  const SizedBox(width: 12),
+                                  _buildSummaryStat('COUNT', '${_scans.length} Items', Colors.white),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 20),
+
+                            // Scanner Area
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Stack(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: AppBarcodeScanner(
+                                      onScan: _handleScan,
+                                      onManualAdd: (weight) {
+                                        setState(() {
+                                          _scans.insert(0, {
+                                            'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
+                                            'productName': widget.product['productName'],
+                                            'weight': weight,
+                                            'site': _selectedSite,
+                                            'location': _selectedLocationEntity?.location,
+                                            'lot': _selectedLot,
+                                            'timestamp': DateTime.now().toIso8601String(),
+                                            'status': 'A',
+                                          });
+                                        });
+                                      },
+                                      manualEntries: const {'1KG': 1.0},
+                                      themeColor: orange,
+                                    ),
+                                  ),
+                                  if (_pendingScan != null)
+                                    Positioned.fill(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                                          child: Container(
+                                            color: AppTheme.darkSurface.withValues(alpha: 0.85),
+                                            padding: const EdgeInsets.all(20),
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Text(
+                                                  'SCAN SUCCESSFUL',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 16,
+                                                    letterSpacing: 1.5,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: _buildOverlayStat(
+                                                        'SCANNED',
+                                                        _formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
+                                                        _pendingScan!['unit'],
+                                                        Colors.white70,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: _buildOverlayStat(
+                                                        'TO MANUFACTURE',
+                                                        _formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit']),
+                                                        _pendingScan!['unit'],
+                                                        AppTheme.primaryAmber,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 24),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: TextButton(
+                                                        onPressed: () => setState(() => _pendingScan = null),
+                                                        child: const Text('DISCARD', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        onPressed: _savePendingScan,
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: AppTheme.primaryAmber,
+                                                          foregroundColor: Colors.black,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                        ),
+                                                        child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 8),
+                            Center(
+                              child: TextButton.icon(
+                                onPressed: _showManualScanDialog,
+                                icon: const Icon(Icons.keyboard_outlined, color: AppTheme.primaryAmber, size: 16),
+                                label: const Text(
+                                  'Enter Barcode Manually',
+                                  style: TextStyle(color: AppTheme.primaryAmber, fontSize: 12, decoration: TextDecoration.underline),
+                                ),
+                              ),
+                            ),
+                            
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
+                              child: Text(
+                                'SCANNED HISTORY',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      if (_scans.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                Icon(Icons.qr_code_2, size: 48, color: Colors.white.withValues(alpha: 0.05)),
+                                const SizedBox(height: 12),
                                 Text(
-                                  'M: ${_formatQuantity(double.tryParse(scan['manufacturedQty']?.toString() ?? scan['weight']?.toString() ?? '0') ?? 0.0, scan['unit'])}',
-                                  style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 14),
+                                  'No items scanned yet',
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 13),
                                 ),
-                                Text(
-                                  'S: ${_formatQuantity(double.tryParse(scan['scannedQty']?.toString() ?? '0') ?? 0.0, scan['unit'])}',
-                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
-                                ),
-                                const SizedBox(height: 4),
-                                GestureDetector(
-                                  onTap: () {
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final scan = _scans[index];
+                                return ScanItemCard(
+                                  lineNumber: _scans.length - index,
+                                  scan: scan,
+                                  unit: _unitLabel,
+                                  onDelete: () {
                                     setState(() {
                                       _scans.removeAt(index);
                                     });
                                   },
-                                  child: const Text('REMOVE', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
+                                );
+                              },
+                              childCount: _scans.length,
                             ),
-                          ],
+                          ),
                         ),
-                      );
-                    },
+                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    ],
                   ),
-          ),
-          
-          // Footer
-          Container(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              bottom: MediaQuery.of(context).padding.bottom + 20,
-              top: 20,
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFF121212),
-              border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      widget.onConfirm(_scans);
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: const Text('CONFIRM AND CLOSE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                
+                // Footer
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                    20, 20, 20, MediaQuery.of(context).padding.bottom + 20
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            widget.onConfirm(_scans);
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: const Text('CONFIRM AND CLOSE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showManualScanDialog() {
     final controller = TextEditingController();
@@ -876,11 +777,11 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.check_circle_outline, color: Colors.orange),
-            const SizedBox(width: 8),
-            const Text('Confirm Scan', style: TextStyle(color: Colors.white)),
+            Icon(Icons.check_circle_outline, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Confirm Scan', style: TextStyle(color: Colors.white)),
           ],
         ),
         content: Column(

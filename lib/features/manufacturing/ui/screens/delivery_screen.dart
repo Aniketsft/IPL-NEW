@@ -10,15 +10,14 @@ import '../../bloc/manufacturing_state.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/sync_progress_dialog.dart';
-import '../widgets/processing_simulator_dialog.dart';
 
-class ManufacturingScreen extends StatefulWidget {
+class DeliveryScreen extends StatefulWidget {
   final List<String> permissions;
 
-  const ManufacturingScreen({super.key, required this.permissions});
+  const DeliveryScreen({super.key, required this.permissions});
 
   @override
-  State<ManufacturingScreen> createState() => _ManufacturingScreenState();
+  State<DeliveryScreen> createState() => _DeliveryScreenState();
 }
 
 class _MenuItem {
@@ -37,7 +36,7 @@ class _MenuItem {
   });
 }
 
-class _ManufacturingScreenState extends State<ManufacturingScreen> {
+class _DeliveryScreenState extends State<DeliveryScreen> {
   String _lastSyncStr = 'Never';
 
   bool _hasAccess(String module, String submodule) {
@@ -113,16 +112,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
 
     if (confirmProceed != true) return;
 
-    // Step 3: Loading screen for 15 seconds
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ProcessingSimulatorDialog(
-        title: 'Processing $selectedWo...',
-        duration: const Duration(seconds: 15),
-      ),
-    );
+    // Step 3: Simulation removed
 
     // Step 4: Error connecting to X3
     if (!mounted) return;
@@ -141,16 +131,8 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
 
     if (retry != true) return;
 
-    // Step 5: Loading screen for 20 seconds
+    // Step 5: Simulation removed
     if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const ProcessingSimulatorDialog(
-        title: 'Retrying Connection...',
-        duration: Duration(seconds: 20),
-      ),
-    );
 
     // Step 6: Final Failure Prompt
     if (!mounted) return;
@@ -167,21 +149,6 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     );
   }
 
-  Future<void> _simulateModuleWork(String title) async {
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ProcessingSimulatorDialog(
-        title: 'Loading $title...',
-        duration: const Duration(seconds: 15),
-      ),
-    );
-
-    if (!mounted) return;
-    // Return to home page (main dashboard)
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +167,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
             _MenuItem(
               title: 'Work order',
               icon: Icons.timer_outlined,
-              onTap: () => _simulateModuleWork('Work order'),
+              onTap: () => Navigator.pop(context),
             ),
           if (_hasAccess('manufacturing', 'view_sales_order'))
             _MenuItem(
@@ -218,13 +185,13 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
             _MenuItem(
               title: 'Component products',
               icon: Icons.account_tree_rounded,
-              onTap: () => _simulateModuleWork('Component products'),
+              onTap: () => Navigator.pop(context),
             ),
           if (_hasAccess('manufacturing', 'products'))
             _MenuItem(
               title: 'Parent product',
               icon: Icons.view_in_ar_rounded,
-              onTap: () => _simulateModuleWork('Parent product'),
+              onTap: () => Navigator.pop(context),
             ),
           _MenuItem(
             title: 'End of Day',
@@ -237,7 +204,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
             menuItems.where((item) => item.title.toLowerCase().contains(query)).toList();
 
         return IndustrialModuleLayout(
-          title: 'Manufacturing',
+          title: 'Delivery',
           body: Column(
             children: [
               _buildFilters(context, state),

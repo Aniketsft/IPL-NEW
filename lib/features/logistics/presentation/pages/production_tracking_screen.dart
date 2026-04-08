@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import 'dart:ui' show ImageFilter;
 
 import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
 import '../../../../core/utils/audio/audio_service.dart';
+import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
 
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
@@ -13,7 +13,6 @@ import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
 import '../widgets/scan_item_card.dart';
 import '../../data/local/local_database_helper.dart';
-import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
 
 const Color orange = Color(0xFFFF9800);
 const Color dark800 = Color(0xFF1E1E1E);
@@ -48,22 +47,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   String? _selectedLot;
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocation;
-  bool _isLoadingLocations = false;
-  bool _isLoadingSites = false;
-  bool _isLoadingLots = false;
   bool _isScannerVisible = false;
-
+  bool _isSettingsExpanded = false;
 
   @override
   void initState() {
     super.initState();
     _selectedSite = widget.product.site;
     _fetchInitialData();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _fetchInitialData() async {
@@ -84,15 +75,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   Future<void> _fetchLocations() async {
     if (_selectedSite == null) return;
-
-    setState(() => _isLoadingLocations = true);
     try {
       final repository = context.read<DeliveryRepository>();
       final locations = await repository.getTargetLocations(
         _selectedSite!,
         widget.product.itemCode,
       );
-
       if (mounted) {
         setState(() {
           _locations = locations;
@@ -100,39 +88,37 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             final iplch = _locations.where((l) => l.location == 'IPLCH');
             _selectedLocation = iplch.isNotEmpty ? iplch.first : _locations.first;
           }
-          _isLoadingLocations = false;
+
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingLocations = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading locations: $e')));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading locations: $e')),
+        );
       }
     }
   }
 
   Future<void> _fetchProductionSites() async {
-    setState(() => _isLoadingSites = true);
     try {
       final repository = context.read<DeliveryRepository>();
       final sites = await repository.getProductionSites();
       if (mounted) {
         setState(() {
           _sites = sites;
-          // Always default to 'IPL' if it exists in the list
           if (_sites.contains('IPL')) {
             _selectedSite = 'IPL';
           } else if (_selectedSite == null || !_sites.contains(_selectedSite)) {
             _selectedSite = _sites.isNotEmpty ? _sites.first : null;
           }
-          _isLoadingSites = false;
+
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingSites = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading production sites: $e')),
         );
@@ -142,7 +128,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   Future<void> _fetchLots() async {
     if (_selectedSite == null) return;
-    setState(() => _isLoadingLots = true);
     try {
       final repository = context.read<DeliveryRepository>();
       final lots = await repository.getLots(
@@ -155,15 +140,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           if (_selectedLot == null || !_lots.contains(_selectedLot)) {
             _selectedLot = _lots.isNotEmpty ? _lots.first : null;
           }
-          _isLoadingLots = false;
+
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingLots = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading lots: $e')));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading lots: $e')),
+        );
       }
     }
   }
@@ -180,15 +165,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     }
   }
 
-  Future<void> _saveLastLocation(String location) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_selected_location', location);
-  }
-
-  Future<void> _toggleScanner() async {
+  void _toggleScanner() {
     setState(() => _isScannerVisible = !_isScannerVisible);
   }
-
 
   Future<void> _handleScan(String barcode) async {
     if (barcode.isEmpty) return;
@@ -206,27 +185,21 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         _showErrorDialog('Scan Pending', 'Please save or discard the current scan first.');
         return;
       }
+
       final repository = context.read<DeliveryRepository>();
-      
-      // 1. Lookup Product by Barcode
       final matchedProduct = await repository.getProductByBarcode(barcode);
       
-      String targetItemCode;
-      String targetUnit;
-      double targetStdWeight;
-
-      if (matchedProduct != null) {
-        targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
-        targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
-        targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
-      } else {
-        // Fallback to current selected product metadata
-        targetItemCode = widget.product.itemCode;
-        targetUnit = widget.product.unit;
-        targetStdWeight = 0.0; // Assume 0 if not in database
+      if (matchedProduct == null) {
+        AudioService.instance.playError();
+        HapticFeedback.heavyImpact();
+        _showErrorDialog('Barcode Not Found', 'This barcode is not registered in the system.');
+        return;
       }
 
-      // 2. Process with specialised rule-set
+      final String targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
+      final String targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
+      final double targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
+
       final result = BarcodeProcessor.process(
         barcode: barcode,
         itemCode: targetItemCode,
@@ -236,31 +209,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
       if (mounted) {
         if (result.isValid) {
-          // RULE 1: ITEM MATCH (Strict validation against current screen's product)
           if (result.itemCode != widget.product.itemCode) {
-            AudioService.instance.playError(); // WRONG PRODUCT
-            HapticFeedback.heavyImpact(); // ERROR TACTILE
-            _showErrorDialog(
-              'Wrong Product',
-              'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}',
-            );
+            AudioService.instance.playError();
+            HapticFeedback.heavyImpact();
+            _showErrorDialog('Wrong Product', 'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}');
             return;
           }
 
-          // RULE 2: RECONCILIATION / OVER-SCAN
           final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
           if (!isCutBulkOrder && _status == 'A') {
-            final remaining =
-                widget.product.quantity -
-                widget.product.manufacturedQuantity -
-                _cumulativeQty;
+            final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
-              AudioService.instance.playError(); // LIMIT EXCEEDED
-              HapticFeedback.heavyImpact(); // ERROR TACTILE
-              _showErrorDialog(
-                'Limit Exceeded',
-                'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit} would exceed the remaining order quantity.',
-              );
+              AudioService.instance.playError();
+              HapticFeedback.heavyImpact();
+              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit.');
               return;
             }
           }
@@ -272,49 +234,24 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'productCode': result.itemCode,
               'scannedQty': result.scannedQty,
               'manufacturedQty': result.manufacturedQty,
-              'weight': result.manufacturedQty, // Compatibility
+              'weight': result.manufacturedQty,
+              'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
             };
           });
 
-          AudioService.instance.playSuccess(); // VALID SCAN - Now synchronized with display
-          HapticFeedback.lightImpact(); // SUCCESS TACTILE
-
-          if (!_isScannerVisible) {
-            // Confirmation prompt for manual entry
-            _showConfirmationPrompt(result);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Detected: ${widget.product.formatQuantity(result.manufacturedQty)} ${widget.product.unit}.'),
-                backgroundColor: orange,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
+          AudioService.instance.playSuccess();
+          HapticFeedback.lightImpact();
         } else {
-          AudioService.instance.playError(); // INVALID FORMAT
-          HapticFeedback.heavyImpact(); // ERROR TACTILE
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid barcode format'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AudioService.instance.playError();
+          HapticFeedback.heavyImpact();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid barcode format'), backgroundColor: Colors.red));
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Scan error: $e')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scan error: $e')));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessingBarcode = false;
-        });
-      }
+      if (mounted) setState(() => _isProcessingBarcode = false);
     }
   }
 
@@ -323,6 +260,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: dark800,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.error_outline, color: Colors.red),
@@ -342,83 +280,97 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
+  void _savePendingScan() {
+    if (_pendingScan == null) return;
+    setState(() {
+      final scanWithMetadata = Map<String, dynamic>.from(_pendingScan!);
+      scanWithMetadata['status'] = _status;
+      scanWithMetadata['siteId'] = _selectedSite;
+      scanWithMetadata['locationCode'] = _selectedLocation?.location;
+
+      _scans.insert(0, scanWithMetadata);
+      if (_status == 'A') {
+        _cumulativeQty += _pendingScan!['manufacturedQty'] as double;
+      }
+      _pendingScan = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Scan saved'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _addManualQty(double qty) {
+    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
+    if (!isCutBulkOrder) {
+      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+      if (qty > remaining + 0.001) {
+        AudioService.instance.playError();
+        HapticFeedback.heavyImpact();
+        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit.');
+        return;
+      }
+    }
+
+    setState(() {
+      final manualScan = {
+        'barcode': 'MANUAL-${qty.toInt()}KG-${DateTime.now().millisecondsSinceEpoch}',
+        'manufacturedQty': qty,
+        'scannedQty': qty,
+        'weight': qty,
+        'productCode': widget.product.itemCode,
+        'status': _status,
+        'siteId': _selectedSite,
+        'locationCode': _selectedLocation?.location,
+        'timestamp': DateTime.now().toIso8601String(),
+        'unit': widget.product.unit,
+      };
+      _scans.insert(0, manualScan);
+      if (_status == 'A') _cumulativeQty += qty;
+    });
+
+    AudioService.instance.playSuccess();
+    HapticFeedback.lightImpact();
+  }
+
   Future<void> _saveAndUpload() async {
-    if (_cumulativeQty <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No quantity scanned to save')),
-      );
+    if (_cumulativeQty <= 0 && _scans.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No scans to save')));
       return;
     }
-
     if (_selectedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a target location')),
-      );
-      return;
-    }
-
-    if (_selectedSite == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a production site')),
-      );
-      return;
-    }
-
-    if (_selectedLot == null && _lots.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a production lot')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select target location')));
       return;
     }
 
     setState(() => _isSaving = true);
     try {
       final repository = context.read<DeliveryRepository>();
-
-      // Production Scan Business Data
       final payload = {
         'batchId': DateTime.now().millisecondsSinceEpoch.toString(),
         'itemCode': widget.product.itemCode,
-        'originalOrderQty': widget.product.quantity,
         'scanAmountKg': _cumulativeQty,
-        'itemStatus': _status, // A, Q, or R
+        'itemStatus': _status,
         'location': _selectedLocation?.location,
         'warehouse': _selectedLocation?.warehouse,
-        'timestamp': DateTime.now().toIso8601String(),
         'soNumber': widget.order.orderNumber,
-        'customerName': widget.order.customerName,
-        'siteId': _selectedSite,
-        'locationCode': _selectedLocation?.location,
         'lotNumber': _selectedLot,
+        'siteId': _selectedSite,
+        'timestamp': DateTime.now().toIso8601String(),
       };
 
       await repository.saveProductionScan(payload);
 
       if (mounted) {
-        final isPartial =
-            (_cumulativeQty +
-                    widget.product.manufacturedQuantity -
-                    widget.product.quantity)
-                .abs() >
-            0.001;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isPartial
-                  ? 'Partial progress saved successfully'
-                  : 'Production scan completed and saved',
-            ),
-            backgroundColor: isPartial ? Colors.blue : Colors.green,
-          ),
-        );
         Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Production batch saved'), backgroundColor: Colors.green));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save log: $e')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -435,38 +387,63 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Production Scan',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Production Scan', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.0)),
       ),
       body: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  _buildHeaderCard(),
-                  const SizedBox(height: 16),
-                  _buildSiteSelector(),
-                  const SizedBox(height: 12),
-                  _buildLotSelector(),
-                  const SizedBox(height: 12),
-                  _buildLocationSelector(),
-                  const SizedBox(height: 16),
-                  _buildStatusAndOrderParams(),
-                  const SizedBox(height: 16),
-                  if (_isScannerVisible)
-                    _buildScannerView()
-                  else
-                    _buildSummaryCard(),
-                  if (_scans.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildScannedItemsList(),
-                  ],
-                ],
-              ),
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        _buildHeaderCard(),
+                        const SizedBox(height: 16),
+                        _buildSettingsCard(),
+                        const SizedBox(height: 16),
+                        _buildProgressAndStatus(),
+                        const SizedBox(height: 20),
+                        _buildScannerOrSummary(),
+                        const SizedBox(height: 24),
+                        if (_scans.isNotEmpty) ...[
+                          _buildHistoryHeader(),
+                          const SizedBox(height: 12),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (_scans.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final scan = _scans[index];
+                          return ScanItemCard(
+                            lineNumber: _scans.length - index,
+                            scan: scan,
+                            unit: widget.product.unit,
+                            onDelete: () {
+                              setState(() {
+                                _scans.removeAt(index);
+                                if (scan['status'] == 'A') {
+                                  _cumulativeQty -= (scan['manufacturedQty'] as num).toDouble();
+                                }
+                              });
+                            },
+                          );
+                        },
+                        childCount: _scans.length,
+                      ),
+                    ),
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              ],
             ),
           ),
           _buildActionFooter(),
@@ -478,28 +455,19 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   Widget _buildHeaderCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: dark800,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.order.customerName,
-            style: const TextStyle(color: orange, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.product.description,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
+          Text(widget.order.customerName, style: const TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Text(widget.product.description, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
           Row(
             children: [
               _infoChip('SKU: ${widget.product.itemCode}'),
@@ -515,350 +483,183 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   Widget _infoChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(color: Colors.grey, fontSize: 11),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w500)),
     );
   }
 
-  Widget _buildSiteSelector() {
+  Widget _buildSettingsCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: dark800,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: darkBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Production Site',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            dropdownColor: dark800,
-            value: _selectedSite,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: darkBorder,
-              prefixIcon: const Icon(Icons.business, color: orange, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 14,
-              ),
-              suffixIcon: _isLoadingSites
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: orange,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            items: _sites
-                .map((site) => DropdownMenuItem(value: site, child: Text(site)))
-                .toList(),
-            onChanged: _onSiteChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLotSelector() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark800,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Production Lot (Search or Select)',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              if (_isLoadingLots)
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: orange,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Autocomplete<String>(
-            initialValue: TextEditingValue(text: _selectedLot ?? ''),
-            optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text.isEmpty) {
-                return _lots;
-              }
-              return _lots.where((String option) {
-                return option.toLowerCase().contains(
-                  textEditingValue.text.toLowerCase(),
-                );
-              });
-            },
-            onSelected: (String selection) {
-              setState(() => _selectedLot = selection);
-              FocusScope.of(context).unfocus();
-            },
-            fieldViewBuilder:
-                (
-                  BuildContext context,
-                  TextEditingController textEditingController,
-                  FocusNode focusNode,
-                  VoidCallback onFieldSubmitted,
-                ) {
-                  return TextFormField(
-                    controller: textEditingController,
-                    focusNode: focusNode,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: darkBorder,
-                      prefixIcon: const Icon(
-                        Icons.layers,
-                        color: orange,
-                        size: 20,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      hintText: 'Type or tap to select lot',
-                      hintStyle: const TextStyle(color: Colors.white38),
-                    ),
-                    onChanged: (value) {
-                      setState(() => _selectedLot = value);
-                    },
-                  );
-                },
-            optionsViewBuilder:
-                (
-                  BuildContext context,
-                  AutocompleteOnSelected<String> onSelected,
-                  Iterable<String> options,
-                ) {
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      color: dark800,
-                      elevation: 4.0,
-                      borderRadius: BorderRadius.circular(8),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: 250,
-                          maxWidth: MediaQuery.of(context).size.width - 64,
-                        ),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            final String option = options.elementAt(index);
-                            return InkWell(
-                              onTap: () => onSelected(option),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(color: darkBorder),
-                                  ),
-                                ),
-                                child: Text(
-                                  option,
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationSelector() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark800,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Target Inventory Location',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
           InkWell(
-            onTap: _isLoadingLocations ? null : () => _showLocationPicker(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(
-                color: darkBorder,
-                borderRadius: BorderRadius.circular(8),
-              ),
+            onTap: () => setState(() => _isSettingsExpanded = !_isSettingsExpanded),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    color: orange,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _isLoadingLocations
-                        ? const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: orange,
-                              ),
-                            ),
-                          )
-                        : Text(
-                            _selectedLocation?.fullInfo ?? 'Select Location...',
-                            style: TextStyle(
-                              color: _selectedLocation == null
-                                  ? Colors.grey
-                                  : Colors.white,
-                            ),
-                          ),
-                  ),
-                  const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                  const Icon(Icons.settings_outlined, color: orange, size: 20),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('PRODUCTION SETTINGS', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.0))),
+                  Icon(_isSettingsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: Colors.grey),
                 ],
               ),
             ),
           ),
+          if (_isSettingsExpanded) ...[
+            const Divider(color: Colors.white10, height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildDropdownField('Production Site', _selectedSite, _sites, _onSiteChanged),
+                  const SizedBox(height: 12),
+                  _buildLotField(),
+                  const SizedBox(height: 12),
+                  _buildLocationField(),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildStatusAndOrderParams() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: dark800,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _statItem('Order Qty', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
-              _statItem(
-                'Already Mfd',
-                '${widget.product.formatQuantity(widget.product.manufacturedQuantity)} ${widget.product.unit}',
-              ),
-              _statItem(
-                'Remaining',
-                '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity)} ${widget.product.unit}',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Text(
-                'Production Status',
-                style: TextStyle(color: Colors.grey),
-              ),
-              const Spacer(),
-              _statusToggle(),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statItem(String label, String value) {
+  Widget _buildDropdownField(String label, String? value, List<String> items, Function(String?) onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: dark900, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              dropdownColor: dark800,
+              value: value,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              onChanged: onChanged,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _statusToggle() {
+  Widget _buildLotField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Production Lot', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Autocomplete<String>(
+          initialValue: TextEditingValue(text: _selectedLot ?? ''),
+          optionsBuilder: (v) => v.text.isEmpty ? _lots : _lots.where((s) => s.contains(v.text)),
+          onSelected: (s) => setState(() => _selectedLot = s),
+          fieldViewBuilder: (ctx, ctrl, node, onSub) => TextField(
+            controller: ctrl,
+            focusNode: node,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: dark900,
+              hintText: 'Enter or search lot',
+              hintStyle: const TextStyle(color: Colors.white24),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Target Location', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _showLocationPicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(color: dark900, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+            child: Row(
+              children: [
+                Expanded(child: Text(_selectedLocation?.location ?? 'Select Location', style: TextStyle(color: _selectedLocation == null ? Colors.white24 : Colors.white, fontSize: 14))),
+                const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressAndStatus() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: dark800, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
+              _statTile('Remaining', '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty)} ${widget.product.unit}', color: orange),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text('STATUS', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+              const Spacer(),
+              _buildStatusToggles(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statTile(String label, String value, {Color color = Colors.white}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+
+  Widget _buildStatusToggles() {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: darkBorder,
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(color: dark900, borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: ['Q', 'A', 'R'].map((s) {
           final isSelected = _status == s;
           return GestureDetector(
             onTap: () => setState(() => _status = s),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected ? dark800 : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                s,
-                style: TextStyle(
-                  color: isSelected ? _getStatusColor(s) : Colors.grey,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(color: isSelected ? dark800 : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              child: Text(s, style: TextStyle(color: isSelected ? _getStatusColor(s) : Colors.white24, fontWeight: FontWeight.bold)),
             ),
           );
         }).toList(),
@@ -866,572 +667,210 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  Color _getStatusColor(String s) {
-    if (s == 'A') return Colors.green;
-    if (s == 'Q') return Colors.blue;
-    return Colors.red;
+  Color _getStatusColor(String s) => s == 'A' ? Colors.greenAccent : (s == 'Q' ? Colors.blueAccent : Colors.redAccent);
+
+  Widget _buildScannerOrSummary() {
+    return _isScannerVisible ? _buildScannerSection() : _buildManualSummaryCard();
   }
 
-  void _addManualOneKg() {
-    // CB (Cut/Bulk) orders have no ordered quantity limit
-    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
-    if (!isCutBulkOrder) {
-      final remaining =
-          widget.product.quantity -
-          widget.product.manufacturedQuantity -
-          _cumulativeQty;
-      if (1.0 > remaining + 0.001) {
-        AudioService.instance.playError(); // LIMIT EXCEEDED (MANUAL)
-        _showErrorDialog(
-          'Limit Exceeded',
-          'Adding 1.000 KG would exceed the remaining order quantity of ${remaining.toStringAsFixed(3)} KG.',
-        );
-        return;
-      }
-    }
-
-    // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
-
-    setState(() {
-      final manualScan = {
-        'barcode': 'MANUAL-1KG-${DateTime.now().millisecondsSinceEpoch}',
-        'manufacturedQty': 1.0,
-        'scannedQty': 1.0,
-        'productCode': widget.product.itemCode,
-        'status': _status,
-        'siteId': _selectedSite,
-        'locationCode': _selectedLocation?.location,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      _scans.add(manualScan);
-      if (_status == 'A') {
-        _cumulativeQty += 1.0;
-      }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Added 1.000 KG manually'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 1),
-      ),
+  Widget _buildScannerSection() {
+    return Stack(
+      children: [
+        Container(
+          height: 320,
+          decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(20), border: Border.all(color: orange, width: 2)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: AppBarcodeScanner(onScan: _handleScan, themeColor: orange),
+          ),
+        ),
+        if (_pendingScan != null) _buildScanSuccessOverlay(),
+        Positioned(top: 12, right: 12, child: IconButton(icon: const Icon(Icons.close, color: Colors.white70), onPressed: _toggleScanner)),
+      ],
     );
   }
 
-  Widget _buildScannerView() {
-    return Container(
-      height: 300,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: orange, width: 2),
-      ),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: AppBarcodeScanner(
-              onScan: (code) {
-                _handleScan(code);
-              },
-            ),
-          ),
-          if (_pendingScan != null)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  margin: const EdgeInsets.symmetric(horizontal: 40),
-                  decoration: BoxDecoration(
-                    color: dark800,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: orange),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Scan Detected',
-                        style: TextStyle(
-                          color: orange,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${widget.product.formatQuantity(_pendingScan!['manufacturedQty'])} ${widget.product.unit}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _pendingScan!['barcode'],
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 10,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _savePendingScan,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 48),
-                        ),
-                        child: const Text('SAVE SCAN'),
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _pendingScan = null;
-                        }),
-
-                        child: const Text(
-                          'Discard',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  ),
+  Widget _buildScanSuccessOverlay() {
+    return Positioned.fill(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+          child: Container(
+            color: darkBgColor.withValues(alpha: 0.85),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('SCAN SUCCESSFUL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2.0)),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(widget.product.formatQuantity(_pendingScan!['scannedQty']), style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Text(widget.product.unit, style: const TextStyle(color: Colors.white38, fontSize: 18)),
+                  ],
                 ),
-              ),
-            ),
-          Positioned(
-            top: 10,
-            right: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: _toggleScanner,
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(child: TextButton(onPressed: () => setState(() => _pendingScan = null), child: const Text('DISCARD', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)))),
+                    const SizedBox(width: 12),
+                    Expanded(child: ElevatedButton(onPressed: _savePendingScan, style: ElevatedButton.styleFrom(backgroundColor: orange, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('SAVE SCAN', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  ],
+                ),
+              ],
             ),
           ),
-          const Center(
-            child: Icon(Icons.qr_code_scanner, color: Colors.white24, size: 80),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildSummaryCard() {
+  static const darkBgColor = Color(0xFF121212);
+
+  Widget _buildManualSummaryCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: dark800,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: dark800, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
       child: Column(
         children: [
-          const Text(
-            'Manufactured Quantity',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
+          const Text('Total Produced (This Batch)', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
             children: [
-              Text(
-                widget.product.formatQuantity(_cumulativeQty),
-                style: const TextStyle(
-                  color: orange,
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.product.unit,
-                style: const TextStyle(color: Colors.grey, fontSize: 20),
-              ),
+              Text(widget.product.formatQuantity(_cumulativeQty), style: const TextStyle(color: orange, fontSize: 56, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 10),
+              Text(widget.product.unit, style: const TextStyle(color: Colors.grey, fontSize: 22, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           Row(
             children: [
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: _toggleScanner,
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Scanner', style: TextStyle(fontSize: 16)),
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('LAUNCH SCANNER', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: orange,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size(0, 64),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 flex: 1,
-                child: ElevatedButton(
-                  onPressed: _addManualOneKg,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white10,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                      side: const BorderSide(color: Colors.white24),
-                    ),
-                  ),
-                  child: const Text(
-                    'SCAN 1KG',
-                    style: TextStyle(height: 1.1, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                child: InkWell(
+                  onTap: () => _addManualQty(1.0),
+                  borderRadius: BorderRadius.circular(32),
+                  child: Container(
+                    height: 64,
+                    decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.white10)),
+                    child: const Center(child: Text('+1 KG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14))),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => _showManualScanDialog(),
-            child: const Text(
-              'Enter Barcode Manually',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
+          TextButton(onPressed: _showManualBarcodeDialog, child: const Text('Manual Barcode Entry', style: TextStyle(color: Colors.white24, fontSize: 12, decoration: TextDecoration.underline))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          const Text('SCAN HISTORY', style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          const Spacer(),
+          Text('${_scans.length} ITEMS', style: const TextStyle(color: orange, fontSize: 11, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
   Widget _buildActionFooter() {
-    final isReconciled =
-        (_cumulativeQty +
-                widget.product.manufacturedQuantity -
-                widget.product.quantity)
-            .abs() <
-        0.001;
-
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white10)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!isReconciled)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                'Remaining: ${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty)} ${widget.product.unit}',
-                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-              ),
-            ),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: (_isSaving || _scans.isEmpty)
-                      ? null
-                      : _saveAndUpload,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isReconciled ? orange : Colors.blueGrey,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                  ),
-                  child: _isSaving
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          isReconciled
-                              ? 'Complete & Log Batch'
-                              : 'Save Progress & Continue',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _savePendingScan() {
-    if (_pendingScan == null) return;
-    setState(() {
-      final scanWithMetadata = Map<String, dynamic>.from(_pendingScan!);
-      scanWithMetadata['status'] = _status;
-      scanWithMetadata['siteId'] = _selectedSite;
-      scanWithMetadata['locationCode'] = _selectedLocation?.location;
-
-      _scans.add(scanWithMetadata);
-      if (_status == 'A') {
-        _cumulativeQty += _pendingScan!['manufacturedQty'] as double;
-      }
-      _pendingScan = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Scan saved'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  Widget _buildScannedItemsList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Individual Scans',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
+      decoration: BoxDecoration(color: dark800, border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05)))),
+      child: ElevatedButton(
+        onPressed: (_isSaving || _scans.isEmpty) ? null : _saveAndUpload,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          minimumSize: const Size(double.infinity, 60),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        const SizedBox(height: 12),
-        ..._scans.indexed
-            .map((indexedScan) {
-              final index = indexedScan.$1;
-              final scan = indexedScan.$2;
-              return ScanItemCard(
-                lineNumber: _scans.length - index,
-                scan: scan,
-                unit: widget.product.unit,
-                onDelete: () {
-                  setState(() {
-                    _scans.removeAt(index);
-                    if (scan['status'] == 'A') {
-                      _cumulativeQty -= scan['weight'] as double;
-                    }
-                  });
-                },
-              );
-            })
-            .toList()
-            .reversed,
-      ],
+        child: _isSaving ? const CircularProgressIndicator(color: Colors.black) : const Text('SAVE ALL AND COMPLETE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
+      ),
     );
   }
 
-  void _showManualScanDialog() {
-    final controller = TextEditingController();
+  void _showManualBarcodeDialog() {
+    final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: dark800,
-        title: const Text(
-          'Manual Entry',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: 'Enter barcode number',
-            hintStyle: TextStyle(color: Colors.grey),
-          ),
-          onSubmitted: (v) {
-            Navigator.pop(context);
-            _handleScan(v);
-          },
-        ),
+        title: const Text('Manual Barcode', style: TextStyle(color: Colors.white)),
+        content: TextField(controller: ctrl, style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Enter 13-digit code', hintStyle: TextStyle(color: Colors.white24))),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _handleScan(controller.text);
-            },
-            child: const Text('Add'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleScan(ctrl.text); }, child: const Text('Process')),
         ],
       ),
-    );
-  }
-
-  void _showConfirmationPrompt(BarcodeModel result) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: dark800,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_outline, color: orange),
-            const SizedBox(width: 8),
-            const Text('Confirm Scan', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPromptRow('Product:', result.itemCode),
-            const SizedBox(height: 8),
-            _buildPromptRow('Barcode:', result.processedBarcode),
-            const SizedBox(height: 8),
-            _buildPromptRow(
-              'Weight:',
-              '${BarcodeProcessor.formatQuantity(result.manufacturedQty, widget.product.unit)} ${widget.product.unit}',
-              isBold: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _pendingScan = null);
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _savePendingScan();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: orange,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPromptRow(String label, String value, {bool isBold = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              color: isBold ? orange : Colors.white,
-              fontSize: 14,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
   Future<void> _showLocationPicker() async {
-    // Re-use logic or similar modal as before
-    // Simplified for this refactor to focus on scanner
     final TextEditingController searchController = TextEditingController();
     List<LocationLookup> filteredLocations = List.from(_locations);
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: dark800,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      backgroundColor: darkBgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Select Target Location',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              const Text('SELECT LOCATION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
+              const SizedBox(height: 20),
               TextField(
                 controller: searchController,
                 style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search locations...',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  filled: true,
-                  fillColor: const Color(0xFF2C2C2E),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                onChanged: (value) {
-                  setModalState(() {
-                    filteredLocations = _locations
-                        .where(
-                          (l) => l.fullInfo.toLowerCase().contains(
-                            value.toLowerCase(),
-                          ),
-                        )
-                        .toList();
-                  });
-                },
+                decoration: InputDecoration(hintText: 'Search...', hintStyle: const TextStyle(color: Colors.white24), prefixIcon: const Icon(Icons.search, color: Colors.white24), filled: true, fillColor: dark800, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                onChanged: (v) { setModalState(() { filteredLocations = _locations.where((l) => l.fullInfo.toLowerCase().contains(v.toLowerCase())).toList(); }); },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Expanded(
                 child: ListView.builder(
                   itemCount: filteredLocations.length,
-                  itemBuilder: (context, index) {
-                    final loc = filteredLocations[index];
-                    final isSelected =
-                        _selectedLocation?.location == loc.location;
+                  itemBuilder: (ctx, idx) {
+                    final l = filteredLocations[idx];
+                    final isSel = _selectedLocation?.location == l.location;
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      title: Text(
-                        loc.location ?? '',
-                        style: TextStyle(
-                          color: isSelected ? orange : Colors.white,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${loc.locationTypeName} - ${loc.warehouseName}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          fontSize: 12,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? Icon(Icons.check, color: orange)
-                          : null,
-                      onTap: () {
-                        setState(() => _selectedLocation = loc);
-                        _saveLastLocation(loc.location!);
-                        Navigator.pop(context);
-                      },
+                      title: Text(l.location ?? '', style: TextStyle(color: isSel ? orange : Colors.white, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
+                      subtitle: Text('${l.warehouseName} | ${l.locationTypeName}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      trailing: isSel ? const Icon(Icons.check_circle, color: orange) : null,
+                      onTap: () { setState(() => _selectedLocation = l); Navigator.pop(context); },
                     );
                   },
                 ),

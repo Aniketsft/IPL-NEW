@@ -104,8 +104,9 @@ class BarcodeProcessor {
   }
 
   static bool isValidBarcode(String barcode) {
-    if (barcode.trim().length < 7) return false;
     final b = barcode.trim();
-    return b.startsWith('2') || b.startsWith('6');
+    if (b.length != 13) return false;
+    if (!RegExp(r'^[0-9]+$').hasMatch(b)) return false;
+    return b.startsWith('0') || b.startsWith('2') || b.startsWith('6');
   }
 }

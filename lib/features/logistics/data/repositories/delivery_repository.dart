@@ -491,6 +491,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnSoNumber: entryNo,
               LocalDatabaseHelper.columnProductCode: productCode,
               LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
@@ -523,6 +524,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnSoNumber: entryNo,
               LocalDatabaseHelper.columnProductCode: scan['productCode'],
               LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
@@ -536,6 +538,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.columnSoNumber: entryNo,
             LocalDatabaseHelper.columnProductCode: productCode,
             LocalDatabaseHelper.columnQuantity: quantity,
+            LocalDatabaseHelper.columnManufacturedQuantity: quantity,
             LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
             LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
             LocalDatabaseHelper.columnIsSynced: 0,

@@ -3,11 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/by_identifier_screen.dart';
-import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufacturing_screen.dart';
+import 'package:enterprise_auth_mobile/features/inventory/ui/screens/picking_screen.dart';
+import 'package:enterprise_auth_mobile/features/inventory/ui/screens/stock_control_screen.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_modules_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/receipt_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/manufacturing_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
-import 'package:enterprise_auth_mobile/features/manufacturing/ui/widgets/processing_simulator_dialog.dart';
 
 class HomeScreen extends StatelessWidget {
   final String username;
@@ -89,27 +93,24 @@ class HomeScreen extends StatelessWidget {
     }
 
     final List<Widget> menuItems = [
-      if (_hasAccess('logistics', 'receipt'))
         _buildMenuButton(
           context,
           'Receipt',
           Icons.receipt_long_rounded,
-          null, //const ReceiptScreen(),
-          onTapOverride: () => _simulateModuleWork(context, 'Receipt'),
+          const ReceiptScreen(),
         ),
       if (_hasAccess('logistics', 'delivery'))
         _buildMenuButton(
           context,
-          'Delivery',
-          Icons.local_shipping_rounded,
-          null, //const DeliveryScreen(),
-          onTapOverride: () => _simulateModuleWork(context, 'Delivery'),
+          'Manufacturing',
+          Icons.precision_manufacturing_rounded,
+          DeliveryScreen(permissions: permissions),
         ),
       if (_hasAccess('manufacturing', 'dashboard'))
         _buildMenuButton(
           context,
-          'Manufacturing',
-          Icons.precision_manufacturing_rounded,
+          'Delivery',
+          Icons.local_shipping_rounded,
           ManufacturingScreen(permissions: permissions),
         ),
       if (_hasAccess('inventory', 'stock_control'))
@@ -117,16 +118,14 @@ class HomeScreen extends StatelessWidget {
           context,
           'Stock control',
           Icons.grid_view_rounded,
-          null, //const StockControlScreen(),
-          onTapOverride: () => _simulateModuleWork(context, 'Stock control'),
+          const StockControlScreen(),
         ),
       if (_hasAccess('inventory', 'picking'))
         _buildMenuButton(
           context,
           'Picking',
           Icons.pan_tool_alt_rounded,
-          null, //const PickingScreen(),
-          onTapOverride: () => _simulateModuleWork(context, 'Picking'),
+          const PickingScreen(),
         ),
       if (_hasAccess('settings', 'general'))
         _buildMenuButton(
@@ -140,8 +139,7 @@ class HomeScreen extends StatelessWidget {
           context,
           'Transfer',
           Icons.swap_horiz_rounded,
-          null, //const TransferScreen(),
-          onTapOverride: () => _simulateModuleWork(context, 'Transfer'),
+          const TransferScreen(),
         ),
       if (_hasAccess('administration', 'user_management'))
         _buildMenuButton(
@@ -183,20 +181,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _simulateModuleWork(BuildContext context, String title) async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ProcessingSimulatorDialog(
-        title: 'Loading $title...',
-        duration: const Duration(seconds: 15),
-      ),
-    );
-
-    // After loading, stay on home screen (the dialog closing is enough if we use it from home)
-    // The user also mentioned "parent product componet product work order in manufacturing... these all should return to the home page"
-    // So for Manufacturing, they should return home. For Home screen, staying on home is "returning home".
-  }
 
   Widget _buildRestrictedUI(String title, String message) {
     return Center(

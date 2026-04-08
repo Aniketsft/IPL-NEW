@@ -85,8 +85,7 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
             _showSnackBar('Product "${detail.itemCode}" is already marked as PREPARED.');
           } else {
              // Redirect to tracking screen
-            Navigator.pop(context); // Close scanner modal
-            Navigator.push(
+            final result = await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => ProductionTrackingScreen(
@@ -95,6 +94,10 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
                 ),
               ),
             );
+            
+            if (mounted) {
+              Navigator.pop(context, result); // Close scanner and return tracking result (true if saved)
+            }
           }
         } else {
           _showSnackBar('No product code "$itemCode" in this order.');

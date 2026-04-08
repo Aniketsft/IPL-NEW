@@ -13,6 +13,7 @@ class LocalRepository {
       LocalDatabaseHelper.columnSoNumber: soNumber,
       LocalDatabaseHelper.columnProductCode: productCode,
       LocalDatabaseHelper.columnQuantity: quantity,
+      LocalDatabaseHelper.columnManufacturedQuantity: quantity,
       LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnSite: siteCode,
