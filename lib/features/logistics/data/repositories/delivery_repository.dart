@@ -1161,6 +1161,47 @@ class DeliveryRepository implements ILogisticsRepository {
 
     return null;
   }
+
+  @override
+  Future<List<Site>> getFilteredSites({required DateTime date}) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final maps = await LocalDatabaseHelper.instance.getFilteredSites(dateStr);
+    return maps.map((m) => Site(
+      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+    )).toList();
+  }
+
+  @override
+  Future<List<SalesRep>> getFilteredSalesReps({
+    required DateTime date,
+    String? siteCode,
+  }) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final maps = await LocalDatabaseHelper.instance.getFilteredSalesReps(dateStr, siteCode);
+    return maps.map((m) => SalesRep(
+      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+    )).toList();
+  }
+
+  @override
+  Future<List<Customer>> getFilteredCustomers({
+    required DateTime date,
+    String? siteCode,
+    String? salesmanCode,
+  }) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final maps = await LocalDatabaseHelper.instance.getFilteredCustomers(
+      dateStr,
+      siteCode,
+      salesmanCode,
+    );
+    return maps.map((m) => Customer(
+      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+    )).toList();
+  }
 }
 
 /// Top-level background function for Isolate-based data processing.

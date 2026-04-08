@@ -40,6 +40,19 @@ abstract class ILogisticsRepository {
   Future<List<SalesRep>> getSalesReps();
   Future<List<String>> getProductionSites();
   Future<List<String>> getLots(String itemCode, String siteCode);
+
+  // Filtered Lookups
+  Future<List<Site>> getFilteredSites({required DateTime date});
+  Future<List<SalesRep>> getFilteredSalesReps({
+    required DateTime date,
+    String? siteCode,
+  });
+  Future<List<Customer>> getFilteredCustomers({
+    required DateTime date,
+    String? siteCode,
+    String? salesmanCode,
+  });
+
   Future<String> saveCutBulkEntry(Map<String, dynamic> entry);
   Future<void> updateItemPreparationStatus({
     required String soNumber,

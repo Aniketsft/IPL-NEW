@@ -91,43 +91,85 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     }
   }
 
-  Future<void> _loadLookups() async {
+  Future<void> _reloadSites() async {
+    if (_selectedDate == null) return;
     setState(() => _isLoadingLookups = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      final customers = await repository.getCustomers();
-      final reps = await repository.getSalesReps();
-      final sites = await repository.getSites();
-
+      final sites = await repository.getFilteredSites(date: _selectedDate!);
       setState(() {
-        _customersList = customers
-            .map((c) => {'code': c.code, 'name': c.name})
-            .toList();
-        _salesRepsList = reps
-            .map((r) => {'code': r.code, 'name': r.name})
-            .toList();
-        _sitesList = sites
-            .map((s) => {'code': s.code, 'name': s.name})
-            .toList();
-
+        _sitesList = sites.map((s) => {'code': s.code, 'name': s.name}).toList();
         _isLoadingLookups = false;
       });
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingLookups = false);
+    }
+  }
 
-      // After sites are loaded, if a site is already selected (e.g. from previous state), load locations
-      if (_selectedSite != null) {
-        final locs = await repository.getLocationLookups(_selectedSite!.code);
+  Future<void> _reloadSalesReps() async {
+    if (_selectedDate == null) return;
+    setState(() => _isLoadingLookups = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final reps = await repository.getFilteredSalesReps(
+        date: _selectedDate!,
+        siteCode: _selectedSite?.code,
+      );
+      setState(() {
+        _salesRepsList = reps.map((r) => {'code': r.code, 'name': r.name}).toList();
+        _isLoadingLookups = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingLookups = false);
+    }
+  }
+
+  Future<void> _reloadCustomers() async {
+    if (_selectedDate == null) return;
+    setState(() => _isLoadingLookups = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final customers = await repository.getFilteredCustomers(
+        date: _selectedDate!,
+        siteCode: _selectedSite?.code,
+        salesmanCode: _selectedSalesmanCode,
+      );
+      setState(() {
+        _customersList = customers.map((c) => {'code': c.code, 'name': c.name}).toList();
+        _isLoadingLookups = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingLookups = false);
+    }
+  }
+
+  Future<void> _loadLookups() async {
+    // Initial load of everything if no filters active, or keep it lazy
+    setState(() => _isLoadingLookups = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      
+      // If date is null, load all for starting point
+      if (_selectedDate == null) {
+        final customers = await repository.getCustomers();
+        final reps = await repository.getSalesReps();
+        final sites = await repository.getSites();
         setState(() {
-          _locationsList = locs
-              .map((l) => {'code': l.location ?? '', 'name': l.locationTypeName ?? 'Unknown'})
-              .toList();
+          _customersList = customers.map((c) => {'code': c.code, 'name': c.name}).toList();
+          _salesRepsList = reps.map((r) => {'code': r.code, 'name': r.name}).toList();
+          _sitesList = sites.map((s) => {'code': s.code, 'name': s.name}).toList();
+          _isLoadingLookups = false;
         });
+      } else {
+        await _reloadSites();
+        await _reloadSalesReps();
+        await _reloadCustomers();
+        setState(() => _isLoadingLookups = false);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingLookups = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
       }
     }
   }
@@ -305,7 +347,17 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                 ),
                               );
                               if (picked != null) {
-                                setState(() => _selectedDate = picked);
+                                setState(() {
+                                  _selectedDate = picked;
+                                  // Reset children
+                                  _selectedSite = null;
+                                  _selectedSalesmanCode = null;
+                                  _selectedCustomerCode = null;
+                                  _selectedLocationCode = null;
+                                });
+                                // Cascading reload
+                                await _reloadSites();
+                                setModalState(() {}); 
                               }
                             },
                           ),
@@ -314,10 +366,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             label: 'Site',
                             value: _selectedSite?.name,
                             icon: Icons.location_on_outlined,
-                            onTap: () => _showSearchPicker(
+                            onTap: _selectedDate == null 
+                             ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Date first')))
+                             : () => _showSearchPicker(
                               'Site',
                               _sitesList,
-                              (code) {
+                              (code) async {
                                 final site = _sitesList.firstWhere(
                                   (s) => s['code'] == code,
                                   orElse: () => {},
@@ -329,27 +383,25 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                           name: site['name']!,
                                         )
                                       : null;
-                                  // Reset location when site changes
+                                  // Reset children
+                                  _selectedSalesmanCode = null;
+                                  _selectedCustomerCode = null;
                                   _selectedLocationCode = null;
                                   _locationsList = [];
                                 });
+                                
                                 if (_selectedSite != null) {
-                                  final repository =
-                                      context.read<DeliveryRepository>();
-                                  repository
-                                      .getLocationLookups(_selectedSite!.code)
-                                      .then((locs) {
+                                  // Load locations for this site (always available)
+                                  final repository = context.read<DeliveryRepository>();
+                                  repository.getLocationLookups(_selectedSite!.code).then((locs) {
                                     setModalState(() {
-                                      _locationsList = locs
-                                          .map((l) => {
-                                                'code': l.location ?? '',
-                                                'name': l.locationTypeName ??
-                                                    'Unknown'
-                                              })
-                                          .toList();
+                                      _locationsList = locs.map((l) => {'code': l.location ?? '', 'name': l.locationTypeName ?? 'Unknown'}).toList();
                                     });
                                   });
+                                  // Cascading reload of salesreps
+                                  await _reloadSalesReps();
                                 }
+                                setModalState(() {});
                               },
                             ),
                           ),
@@ -363,19 +415,37 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             value: _selectedLocationCode,
                             icon: Icons.place_outlined,
                             onTap: _selectedSite == null
-                                ? () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Please select a site first')),
-                                    );
-                                  }
+                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Site first')))
                                 : () => _showSearchPicker(
                                       'Location',
                                       _locationsList,
                                       (code) {
-                                        setState(() =>
-                                            _selectedLocationCode = code);
+                                        setState(() => _selectedLocationCode = code);
+                                        setModalState(() {});
+                                      },
+                                    ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          FilterPickerTile(
+                            label: 'Salesman',
+                            value: _selectedSalesmanCode,
+                            icon: Icons.person_outline,
+                            onTap: _selectedSite == null
+                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Site first')))
+                                : () => _showSearchPicker(
+                                      'Salesman',
+                                      _salesRepsList,
+                                      (code) async {
+                                        setState(() {
+                                          _selectedSalesmanCode = code;
+                                          _selectedCustomerCode = null;
+                                        });
+                                        await _reloadCustomers();
+                                        setModalState(() {});
                                       },
                                     ),
                           ),
@@ -388,30 +458,16 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             label: 'Customer',
                             value: _selectedCustomerCode,
                             icon: Icons.business,
-                            onTap: () => _showSearchPicker(
-                              'Customer',
-                              _customersList,
-                              (code) {
-                                setState(() => _selectedCustomerCode = code);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          FilterPickerTile(
-                            label: 'Salesman',
-                            value: _selectedSalesmanCode,
-                            icon: Icons.person_outline,
-                            onTap: () => _showSearchPicker(
-                              'Salesman',
-                              _salesRepsList,
-                              (code) {
-                                setState(() => _selectedSalesmanCode = code);
-                              },
-                            ),
+                            onTap: _selectedSalesmanCode == null
+                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Salesman first')))
+                                : () => _showSearchPicker(
+                                      'Customer',
+                                      _customersList,
+                                      (code) {
+                                        setState(() => _selectedCustomerCode = code);
+                                        setModalState(() {});
+                                      },
+                                    ),
                           ),
                         ],
                       ),

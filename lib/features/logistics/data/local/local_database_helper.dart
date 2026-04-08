@@ -861,4 +861,66 @@ class LocalDatabaseHelper {
     }
     await batch.commit(noResult: true);
   }
+
+  // --- INTERLINKED FILTER LOOKUPS ---
+
+  Future<List<Map<String, dynamic>>> getFilteredSites(String dateStr) async {
+    final db = await instance.database;
+    // We join with tableSites to get the site name
+    return await db.rawQuery('''
+      SELECT DISTINCT s.$colCode, s.$colName
+      FROM $tableOrders o
+      INNER JOIN $tableSites s ON o.$colSite = s.$colCode
+      WHERE o.$colDeliveryDate LIKE ?
+      ORDER BY s.$colName
+    ''', ['$dateStr%']);
+  }
+
+  Future<List<Map<String, dynamic>>> getFilteredSalesReps(String dateStr, String? siteCode) async {
+    final db = await instance.database;
+    String whereClause = 'o.$colDeliveryDate LIKE ?';
+    List<dynamic> args = ['$dateStr%'];
+
+    if (siteCode != null && siteCode.isNotEmpty) {
+      whereClause += ' AND o.$colSite = ?';
+      args.add(siteCode);
+    }
+
+    // We join with tableReps to get the salesman name
+    return await db.rawQuery('''
+      SELECT DISTINCT r.$colCode, r.$colName
+      FROM $tableOrders o
+      INNER JOIN $tableReps r ON o.$colRep1 = r.$colCode
+      WHERE $whereClause
+      ORDER BY r.$colName
+    ''', args);
+  }
+
+  Future<List<Map<String, dynamic>>> getFilteredCustomers(
+    String dateStr,
+    String? siteCode,
+    String? salesmanCode,
+  ) async {
+    final db = await instance.database;
+    String whereClause = 'o.$colDeliveryDate LIKE ?';
+    List<dynamic> args = ['$dateStr%'];
+
+    if (siteCode != null && siteCode.isNotEmpty) {
+      whereClause += ' AND o.$colSite = ?';
+      args.add(siteCode);
+    }
+
+    if (salesmanCode != null && salesmanCode.isNotEmpty) {
+      whereClause += ' AND o.$colRep1 = ?';
+      args.add(salesmanCode);
+    }
+
+    // Customer name is already in the orders table
+    return await db.rawQuery('''
+      SELECT DISTINCT o.$colCustomerCode AS $colCode, o.$colCustomerName AS $colName
+      FROM $tableOrders o
+      WHERE $whereClause
+      ORDER BY o.$colCustomerName
+    ''', args);
+  }
 }
