@@ -163,31 +163,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             onTap: _triggerSync,
             subtitle: 'Last: $_lastSyncStr',
           ),
-          if (_hasAccess('manufacturing', 'work_order'))
+          if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Work order',
               icon: Icons.timer_outlined,
               onTap: () => Navigator.pop(context),
             ),
-          if (_hasAccess('manufacturing', 'view_sales_order'))
+          if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'View sales order',
               icon: Icons.show_chart_rounded,
               targetScreen: const ViewSalesOrderScreen(),
             ),
-          if (_hasAccess('manufacturing', 'tracking'))
+          if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Production order tracking',
               icon: Icons.description_outlined,
               targetScreen: const ProductionTrackingProductListScreen(),
             ),
-          if (_hasAccess('manufacturing', 'components'))
+          if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Component products',
               icon: Icons.account_tree_rounded,
               onTap: () => Navigator.pop(context),
             ),
-          if (_hasAccess('manufacturing', 'products'))
+          if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Parent product',
               icon: Icons.view_in_ar_rounded,
@@ -204,7 +204,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             menuItems.where((item) => item.title.toLowerCase().contains(query)).toList();
 
         return IndustrialModuleLayout(
-          title: 'Delivery',
+          title: 'MANUFACTURING',
           body: Column(
             children: [
               _buildFilters(context, state),

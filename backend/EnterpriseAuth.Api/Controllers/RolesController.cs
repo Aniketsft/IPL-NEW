@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
+using EnterpriseAuth.Api.Core.Application.DTOs;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -19,22 +20,48 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<IActionResult> GetAll()
         {
             var roles = await _roleRepository.GetAllAsync();
-            return Ok(roles);
+            var dtos = roles.Select(r => new RoleDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Description = r.Description,
+                Permissions = r.Permissions.Select(p => new PermissionDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description
+                }).ToList()
+            });
+            return Ok(dtos);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(Guid id)
         {
-            var role = await _roleRepository.GetByIdAsync(id);
-            if (role == null) return NotFound();
-            return Ok(role);
+            var r = await _roleRepository.GetByIdAsync(id);
+            if (r == null) return NotFound();
+            
+            var dto = new RoleDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Description = r.Description,
+                Permissions = r.Permissions.Select(p => new PermissionDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description
+                }).ToList()
+            };
+            return Ok(dto);
         }
 
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] Role role)
         {
             await _roleRepository.AddAsync(role);
-            return CreatedAtAction(nameof(GetById), new { id = role.Id }, role);
+            // Return only the ID or a flat DTO to avoid loops
+            return CreatedAtAction(nameof(GetById), new { id = role.Id }, new { id = role.Id, name = role.Name });
         }
 
         [HttpPut("{id}")]

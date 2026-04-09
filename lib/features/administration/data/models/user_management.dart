@@ -54,7 +54,7 @@ class UserRole extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, name, permissions];
+  List<Object?> get props => [id];
 }
 
 /// Represents a user in the system.
@@ -76,14 +76,7 @@ class User extends Equatable {
   });
 
   @override
-  List<Object?> get props => [
-    id,
-    username,
-    email,
-    isActive,
-    userGroupId,
-    permissions,
-  ];
+  List<Object?> get props => [id];
 }
 
 /// Represents a organizational group that shares a common [UserRole].
@@ -95,5 +88,5 @@ class UserGroup extends Equatable {
   const UserGroup({required this.id, required this.name, required this.roleId});
 
   @override
-  List<Object?> get props => [id, name, roleId];
+  List<Object?> get props => [id];
 }

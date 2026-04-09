@@ -58,77 +58,18 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Define the permission tree structure based on Home Screen order
+  // Define the permission tree structure based on Home Screen modules
   final List<PermissionNode> _permissionTree = [
-    PermissionNode(
-      label: 'LOGISTICS',
-      moduleId: 'logistics',
-      children: [
-        PermissionNode(label: 'Receipt', moduleId: 'logistics.receipt'),
-        PermissionNode(label: 'Transfer', moduleId: 'logistics.transfer'),
-        PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
-      ],
-    ),
-    PermissionNode(
-      label: 'MANUFACTURING',
-      moduleId: 'manufacturing',
-      children: [
-        PermissionNode(label: 'Dashboard', moduleId: 'manufacturing.dashboard'),
-        PermissionNode(
-          label: 'View Sales Order',
-          moduleId: 'manufacturing.view_sales_order',
-          children: [
-            PermissionNode(
-              label: 'Sales Order',
-              moduleId: 'manufacturing.view_sales_order.sales_order',
-            ),
-          ],
-        ),
-        PermissionNode(
-          label: 'Work Order',
-          moduleId: 'manufacturing.work_order',
-        ),
-        PermissionNode(label: 'Tracking', moduleId: 'manufacturing.tracking'),
-        PermissionNode(
-          label: 'Components',
-          moduleId: 'manufacturing.components',
-        ),
-        PermissionNode(label: 'Products', moduleId: 'manufacturing.products'),
-      ],
-    ),
-    PermissionNode(
-      label: 'INVENTORY',
-      moduleId: 'inventory',
-      children: [
-        PermissionNode(
-          label: 'Stock Control',
-          moduleId: 'inventory.stock_control',
-        ),
-        PermissionNode(label: 'Picking', moduleId: 'inventory.picking'),
-        PermissionNode(
-          label: 'By Identifier',
-          moduleId: 'inventory.by_identifier',
-        ),
-      ],
-    ),
-    PermissionNode(
-      label: 'ADMINISTRATION',
-      moduleId: 'administration',
-      children: [
-        PermissionNode(
-          label: 'User Management',
-          moduleId: 'administration.user_management',
-        ),
-      ],
-    ),
-    PermissionNode(
-      label: 'SETTINGS',
-      moduleId: 'settings',
-      children: [
-        PermissionNode(label: 'General', moduleId: 'settings.general'),
-        PermissionNode(label: 'Printer', moduleId: 'settings.printer'),
-      ],
-    ),
+    PermissionNode(label: 'Receipt', moduleId: 'logistics.receipt'),
+    PermissionNode(label: 'Delivery', moduleId: 'manufacturing.all'),
+    PermissionNode(label: 'Manufacturing', moduleId: 'logistics.delivery'),
+    PermissionNode(label: 'Stock Control', moduleId: 'inventory.stock_control'),
+    PermissionNode(label: 'Picking', moduleId: 'inventory.picking'),
+    PermissionNode(label: 'Settings', moduleId: 'settings.general'),
+    PermissionNode(label: 'Transfer', moduleId: 'logistics.transfer'),
+    PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
+    PermissionNode(label: 'By Identifiyer', moduleId: 'inventory.by_identifier'),
+    PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
   ];
 
   @override

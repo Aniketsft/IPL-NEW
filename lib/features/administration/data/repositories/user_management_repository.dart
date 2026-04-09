@@ -103,10 +103,10 @@ class UserManagementRepository {
       // Flatten ModuleAccess into permission strings expected by backend
       final List<String> permStrings = [];
       for (var access in permissions) {
-        if (access.canCreate) permStrings.add('${access.moduleId}.Create');
-        if (access.canRead) permStrings.add('${access.moduleId}.Read');
-        if (access.canUpdate) permStrings.add('${access.moduleId}.Update');
-        if (access.canDelete) permStrings.add('${access.moduleId}.Delete');
+        if (access.canCreate) permStrings.add('${access.moduleId}.create');
+        if (access.canRead) permStrings.add('${access.moduleId}.read');
+        if (access.canUpdate) permStrings.add('${access.moduleId}.update');
+        if (access.canDelete) permStrings.add('${access.moduleId}.delete');
       }
 
       await _dio.post(
@@ -146,10 +146,10 @@ class UserManagementRepository {
       // Flatten ModuleAccess into permission strings expected by backend
       final List<String> permStrings = [];
       for (var access in permissions) {
-        if (access.canCreate) permStrings.add('${access.moduleId}.Create');
-        if (access.canRead) permStrings.add('${access.moduleId}.Read');
-        if (access.canUpdate) permStrings.add('${access.moduleId}.Update');
-        if (access.canDelete) permStrings.add('${access.moduleId}.Delete');
+        if (access.canCreate) permStrings.add('${access.moduleId}.create');
+        if (access.canRead) permStrings.add('${access.moduleId}.read');
+        if (access.canUpdate) permStrings.add('${access.moduleId}.update');
+        if (access.canDelete) permStrings.add('${access.moduleId}.delete');
       }
 
       await _dio.put(
@@ -230,12 +230,12 @@ class UserManagementRepository {
     final List<Map<String, dynamic>> permissions = [];
     for (var access in role.permissions) {
       if (access.canCreate)
-        permissions.add({'name': '${access.moduleId}.Create'});
-      if (access.canRead) permissions.add({'name': '${access.moduleId}.Read'});
+        permissions.add({'name': '${access.moduleId}.create'});
+      if (access.canRead) permissions.add({'name': '${access.moduleId}.read'});
       if (access.canUpdate)
-        permissions.add({'name': '${access.moduleId}.Update'});
+        permissions.add({'name': '${access.moduleId}.update'});
       if (access.canDelete)
-        permissions.add({'name': '${access.moduleId}.Delete'});
+        permissions.add({'name': '${access.moduleId}.delete'});
     }
     return {'id': role.id, 'name': role.name, 'permissions': permissions};
   }

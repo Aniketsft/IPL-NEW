@@ -72,7 +72,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     }).toList();
 
     return IndustrialModuleLayout(
-      title: 'MANUFACTURING',
+      title: 'DELIVERY',
       body: Column(
         children: [
           _buildFilterSection(),

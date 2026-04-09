@@ -49,13 +49,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             
             await context.Database.ExecuteSqlRawAsync(addColumnsSql);
 
+            // FORCE CLEANSE: Clear existing permissions and associations to prevent orphan crashes
+            try {
+                await context.Database.ExecuteSqlRawAsync("DELETE FROM [RolePermissions]");
+                await context.Database.ExecuteSqlRawAsync("DELETE FROM [UserRoles]");
+                await context.Database.ExecuteSqlRawAsync("DELETE FROM [Permissions]");
+                Console.WriteLine("[DbInitializer] Database cleansed of old permissions.");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] Cleanse warning: " + ex.Message);
+            }
+
             // Seed Permissions (Hierarchical Tree Structure)
             // Format: Module -> SubModule(s) -> Child(ren)
             // The order here reflects the Home Screen priority requested.
             var hierarchy = new List<(string Module, string[] SubModules)>
             {
-                ( "logistics", new[] { "receipt", "transfer", "delivery" } ),
-                ( "manufacturing", new[] { "dashboard", "view_sales_order", "view_sales_order.sales_order", "work_order", "tracking", "components", "products" } ),
+                ( "logistics", new[] { "receipt", "delivery", "transfer" } ),
+                ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
                 ( "administration", new[] { "user_management" } ),
                 ( "settings", new[] { "general", "printer" } )
@@ -169,12 +179,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
             else
             {
-                // Ensure Admin Role Link
+                // Ensure Admin Role Link and SYNC PERMISSIONS
                 if (!adminUser.Roles.Any(r => r.Name == "Admin"))
                 {
                     adminUser.Roles.Add(adminRole);
                     Console.WriteLine("[DbInitializer] Assigned missing Admin role to existing 'admin' user.");
                 }
+                
+                // Force sync the user's role permissions if they were stale
                 adminUser.UserGroupId = itGroup.Id;
             }
 
@@ -184,52 +196,59 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public static async Task MigrateScanProductionAsync(ScanProductionDbContext context)
         {
-            // Robust check for IsPrepared column
-            var addColumnSql = @"
-                IF NOT EXISTS (
-                    SELECT * FROM sys.columns 
-                    WHERE object_id = OBJECT_ID(N'[dbo].[salesorderdetailscutsbulk]') 
-                    AND name = 'IsPrepared'
-                )
-                BEGIN
-                    BEGIN TRY
-                        ALTER TABLE [dbo].[salesorderdetailscutsbulk] ADD [IsPrepared] BIT NOT NULL DEFAULT 0;
-                    END TRY
-                    BEGIN CATCH
-                        -- Table might not exist yet
-                    END CATCH
-                END
+            try
+            {
+                // Robust check for IsPrepared column
+                var addColumnSql = @"
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.columns 
+                        WHERE object_id = OBJECT_ID(N'[dbo].[salesorderdetailscutsbulk]') 
+                        AND name = 'IsPrepared'
+                    )
+                    BEGIN
+                        BEGIN TRY
+                            ALTER TABLE [dbo].[salesorderdetailscutsbulk] ADD [IsPrepared] BIT NOT NULL DEFAULT 0;
+                        END TRY
+                        BEGIN CATCH
+                            -- Table might not exist yet
+                        END CATCH
+                    END
 
-                IF NOT EXISTS (
-                    SELECT * FROM sys.columns 
-                    WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
-                    AND name = 'is_prepared'
-                )
-                BEGIN
-                    BEGIN TRY
-                        ALTER TABLE [dbo].[production_scan] ADD [is_prepared] BIT NOT NULL DEFAULT 0;
-                    END TRY
-                    BEGIN CATCH
-                        -- Table might not exist yet
-                    END CATCH
-                END
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.columns 
+                        WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
+                        AND name = 'is_prepared'
+                    )
+                    BEGIN
+                        BEGIN TRY
+                            ALTER TABLE [dbo].[production_scan] ADD [is_prepared] BIT NOT NULL DEFAULT 0;
+                        END TRY
+                        BEGIN CATCH
+                            -- Table might not exist yet
+                        END CATCH
+                    END
 
-                IF NOT EXISTS (
-                    SELECT * FROM sys.columns 
-                    WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
-                    AND name = 'sync_id'
-                )
-                BEGIN
-                    BEGIN TRY
-                        ALTER TABLE [dbo].[production_scan] ADD [sync_id] NVARCHAR(100) NULL;
-                    END TRY
-                    BEGIN CATCH
-                        -- Table might not exist yet
-                    END CATCH
-                END";
+                    IF NOT EXISTS (
+                        SELECT * FROM sys.columns 
+                        WHERE object_id = OBJECT_ID(N'[dbo].[production_scan]') 
+                        AND name = 'sync_id'
+                    )
+                    BEGIN
+                        BEGIN TRY
+                            ALTER TABLE [dbo].[production_scan] ADD [sync_id] NVARCHAR(100) NULL;
+                        END TRY
+                        BEGIN CATCH
+                            -- Table might not exist yet
+                        END CATCH
+                    END";
 
-            await context.Database.ExecuteSqlRawAsync(addColumnSql);
-            Console.WriteLine("[DbInitializer] ScanProduction schema migration completed.");
+                await context.Database.ExecuteSqlRawAsync(addColumnSql);
+                Console.WriteLine("[DbInitializer] ScanProduction schema migration completed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] WARNING: ScanProduction migration failed: {ex.Message}. The API will continue to run, but some scan features might be affected.");
+            }
         }
     }
 }

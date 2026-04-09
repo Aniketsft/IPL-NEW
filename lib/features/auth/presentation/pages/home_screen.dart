@@ -93,11 +93,19 @@ class HomeScreen extends StatelessWidget {
     }
 
     final List<Widget> menuItems = [
+      if (_hasAccess('logistics', 'receipt'))
         _buildMenuButton(
           context,
           'Receipt',
           Icons.receipt_long_rounded,
           const ReceiptScreen(),
+        ),
+      if (_hasAccess('manufacturing', 'all'))
+        _buildMenuButton(
+          context,
+          'Delivery',
+          Icons.local_shipping_rounded,
+          ManufacturingScreen(permissions: permissions),
         ),
       if (_hasAccess('logistics', 'delivery'))
         _buildMenuButton(
@@ -105,13 +113,6 @@ class HomeScreen extends StatelessWidget {
           'Manufacturing',
           Icons.precision_manufacturing_rounded,
           DeliveryScreen(permissions: permissions),
-        ),
-      if (_hasAccess('manufacturing', 'dashboard'))
-        _buildMenuButton(
-          context,
-          'Delivery',
-          Icons.local_shipping_rounded,
-          ManufacturingScreen(permissions: permissions),
         ),
       if (_hasAccess('inventory', 'stock_control'))
         _buildMenuButton(

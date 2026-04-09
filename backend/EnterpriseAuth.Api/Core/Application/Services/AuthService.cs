@@ -54,8 +54,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             var permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).Distinct().ToList();
             
+            // Log login success quietly
             Console.WriteLine($"AuthService: User {user.Username} logged in with {permissions.Count} permissions.");
-            foreach(var p in permissions.Take(10)) Console.WriteLine($" - {p}");
 
             return new AuthResponse
             {
