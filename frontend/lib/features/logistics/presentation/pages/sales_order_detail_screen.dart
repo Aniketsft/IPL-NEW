@@ -674,14 +674,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (item.isPrepared)
+                  if (!widget.isDeliveryMode && item.isPrepared)
                     Row(
                       children: [
                         const Icon(Icons.check_circle, color: Colors.green, size: 16),
                         const SizedBox(width: 4),
-                        Text(
-                          widget.isDeliveryMode ? 'Validated' : 'Prepared',
-                          style: const TextStyle(
+                        const Text(
+                          'Prepared',
+                          style: TextStyle(
                             color: Colors.green,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -936,10 +936,6 @@ class _StatusBadge extends StatelessWidget {
           ),
         ),
       );
-    }
-
-    if (isDeliveryMode && isClosed) {
-      return const SizedBox.shrink();
     }
 
     return Container(

@@ -66,12 +66,6 @@ class SalesOrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.cloud_done_rounded,
-                          size: 14,
-                          color: Colors.green.withValues(alpha: 0.5),
-                        ),
                       ],
                     ),
                   ),
