@@ -171,20 +171,18 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
       final repository = context.read<DeliveryRepository>();
       final matchedProduct = await repository.getProductByBarcode(barcode);
       
-      String targetItemCode;
-      String targetUnit;
-      double targetStdWeight;
-
-      if (matchedProduct != null) {
-        targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
-        targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
-        targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
-      } else {
-        targetItemCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString() ?? '';
-        targetUnit = _unitLabel;
-        targetStdWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
-                         (widget.product['itemWeight'] as num?)?.toDouble() ?? 0.0;
+      if (matchedProduct == null) {
+        AudioService.instance.playError();
+        HapticFeedback.heavyImpact();
+        if (mounted) {
+          _showErrorDialog('Barcode Not Found', 'This barcode is not registered in the system.');
+        }
+        return;
       }
+
+      final String targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
+      final String targetUnit = matchedProduct[LocalDatabaseHelper.colProdSau] ?? 'KG';
+      final double targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
 
       final result = BarcodeProcessor.process(
         barcode: barcode,

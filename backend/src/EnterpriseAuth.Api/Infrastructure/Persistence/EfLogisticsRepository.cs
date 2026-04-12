@@ -11,6 +11,9 @@ using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 
+using Microsoft.Extensions.Options;
+using EnterpriseAuth.Api.Core.Application.Common;
+
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
     public class EfLogisticsRepository : ILogisticsRepository
@@ -18,20 +21,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly string _connectionString;
         private readonly ApplicationDbContext _context;
         private readonly ScanProductionDbContext _scanContext;
+        private readonly SyncSettings _syncSettings;
 
-        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
             _context = context;
             _scanContext = scanContext;
+            _syncSettings = syncSettings.Value;
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             
-            var sql = @"
+            var sql = $@"
                 SELECT TOP 300
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as SoNumber,
                     f1.STOFCY_0 COLLATE DATABASE_DEFAULT as Site,
@@ -42,11 +47,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f1.LOC_0 COLLATE DATABASE_DEFAULT as Location,
                     f0.BPCORD_0 COLLATE DATABASE_DEFAULT as CustomerCode,
                     c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as CustomerName
-                FROM InnodisTestDB.INLPROD.SORDER f0
-                JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                LEFT JOIN InnodisTestDB.INLPROD.BPCUSTOMER c on f0.BPCORD_0 = c.BPCNUM_0
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER c on f0.BPCORD_0 = c.BPCNUM_0
                 WHERE 1=1";
 
             var parameters = new DynamicParameters();
@@ -114,7 +119,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             using IDbConnection db = new SqlConnection(_connectionString);
 
-            var sql = @"
+            var sql = $@"
                 SELECT 
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
                     f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
@@ -127,9 +132,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f0.SALFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     f0.ORDSTA_0 as [Status],
                     CAST('External' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
-                FROM InnodisTestDB.INLPROD.SORDER f0
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
-                JOIN InnodisTestDB.INLPROD.BPCUSTOMER c ON f0.BPCORD_0 = c.BPCNUM_0
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER c ON f0.BPCORD_0 = c.BPCNUM_0
                 WHERE 1=1";
 
             var parameters = new DynamicParameters();
@@ -172,7 +177,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     CAST('INTERNAL' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Site],
                     1 as [Status],
                     CAST('Internal' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
-                FROM [ScanProduction].[dbo].[cut_bulk_entries]
+                FROM [{_syncSettings.AppDatabaseName}].[dbo].[cut_bulk_entries]
                 WHERE 1=1";
 
             if (date.HasValue)
@@ -228,7 +233,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            string sql = $@"
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
                     f2.ITMREF_0 as ItemCode,
@@ -239,10 +244,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     0.0 as Remaining, 
                     0.0 as Manufactured,
                     CAST(0 AS BIT) as IsPrepared
-                FROM InnodisTestDB.INLPROD.SORDER f0
-                JOIN InnodisTestDB.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 = @SoNumber
                 
                 UNION ALL
@@ -257,7 +262,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     0.0 as Remaining,
                     0.0 as Manufactured,
                     IsPrepared
-                FROM [ScanProduction].[dbo].[salesorderdetailscutsbulk]
+                FROM [{_syncSettings.AppDatabaseName}].[dbo].[salesorderdetailscutsbulk]
                 WHERE SoNumber = @SoNumber";
 
             var details = (await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber })).ToList();
@@ -294,11 +299,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync()
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            string sql = $@"
                 SELECT DISTINCT 
                     LTRIM(RTRIM(BPCNUM_0)) as Code, 
                     LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name 
-                FROM InnodisTestDB.INLPROD.BPCUSTOMER
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER
                 WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''
                 ORDER BY Name";
             return await db.QueryAsync<CustomerLookupDto>(sql);
@@ -307,11 +312,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync()
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            string sql = $@"
                 SELECT DISTINCT 
                     LTRIM(RTRIM(REPNUM_0)) as Code, 
                     LTRIM(RTRIM(REPNAM_0)) as Name 
-                FROM InnodisTestDB.INLPROD.SALESREP
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SALESREP
                 WHERE REPNAM_0 IS NOT NULL AND REPNAM_0 <> ''
                 ORDER BY Name";
             return await db.QueryAsync<SalesRepLookupDto>(sql);
@@ -320,16 +325,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<string>> GetProductionSitesAsync()
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = "SELECT DISTINCT STOFCY_0 FROM InnodisTestDB.INLPROD.STOLOC ORDER BY STOFCY_0";
+            string sql = $"SELECT DISTINCT STOFCY_0 FROM {_syncSettings.X3DatabaseName}.INLPROD.STOLOC ORDER BY STOFCY_0";
             return await db.QueryAsync<string>(sql);
         }
 
         public async Task<IEnumerable<string>> GetLotsAsync(string itemCode, string siteCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            const string sql = @"
+            string sql = $@"
                 SELECT DISTINCT LOT_0 
-                FROM InnodisTestDB.INLPROD.STOCK 
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.STOCK 
                 WHERE ITMREF_0 = @ItemCode AND STOFCY_0 = @SiteCode AND QTYPCU_0 > 0
                 ORDER BY LOT_0";
             return await db.QueryAsync<string>(sql, new { ItemCode = itemCode, SiteCode = siteCode });
@@ -347,7 +352,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             // For now, keeping consistent with previous logic but ensuring it compiles.
             
             const string sql = @"
-                INSERT INTO [EnterpriseAuthDb].[dbo].[MobileAppScans] 
+                INSERT INTO [{_syncSettings.AppDatabaseName}].[dbo].[MobileAppScans] 
                 (SoNumber, ItemCode, ScannedQuantity, ScannedAt, ScannedBy, DeviceId)
                 VALUES (@SoNumber, @ItemCode, @ScannedQuantity, @ScannedAt, @ScannedBy, @DeviceId)";
 
@@ -493,11 +498,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         STOL.WRH_0,
                         WRH.WRHNAM_0,
                         STOL.LOCTYP_0
-                    FROM InnodisTestDB.INLPROD.STOLOC STOL 
-                    LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0 
+                    FROM {_syncSettings.X3DatabaseName}.INLPROD.STOLOC STOL 
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.WAREHOUSE WRH on WRH.WRH_0 = STOL.WRH_0 
                     WHERE STOL.STOFCY_0 = @Site
                 ) AS T1 
-                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA on T1.STOFCY_0 = ATRA.IDENT1_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.[ATEXTRA] ATRA on T1.STOFCY_0 = ATRA.IDENT1_0 
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' 
                     and ATRA.LANGUE_0 = 'BRI' 
@@ -526,9 +531,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         f0.LOC_0 as [Location],
                         f0.LOCTYP_0 as [LocationType],
                         f0.WRH_0 as [Warehouse]
-                    from InnodisTestDB.INLPROD.STOCK f0
-                    JOIN InnodisTestDB.INLPROD.ITMMASTER f1 ON f0.ITMREF_0 = f1.ITMREF_0
-                    LEFT JOIN InnodisTestDB.INLPROD.STOLOT f2 ON f0.LOT_0 = f2.LOT_0
+                    from {_syncSettings.X3DatabaseName}.INLPROD.STOCK f0
+                    JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f1 ON f0.ITMREF_0 = f1.ITMREF_0
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.STOLOT f2 ON f0.LOT_0 = f2.LOT_0
                 ) as T1
                 WHERE T1.Site = @Site AND T1.Product = @ItemCode";
             
@@ -573,6 +578,30 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             await _scanContext.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<IEnumerable<BarcodeMappingDto>> GetBarcodeMappingsAsync(string siteCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var sql = $@"
+                SELECT DISTINCT
+                    f1.STOFCY_0 AS [Site],
+                    f0.TCLCOD_0 AS [Category],
+                    LTRIM(RTRIM(f0.ITMREF_0)) AS [Product],
+                    LTRIM(RTRIM(f0.ITMDES1_0)) AS [Description],
+                    f0.STU_0 AS [Unit],
+                    f0.ITMWEI_0 AS [StandardWeight],
+                    LTRIM(RTRIM(f0.EANCOD_0)) AS [Barcode],
+                    ISNULL(f1.DEFSTOLOC_0, '') AS [Location],
+                    '' AS [LocationType],
+                    '' AS [Warehouse]
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f0 WITH (NOLOCK)
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
+                WHERE f1.STOFCY_0 = @Site
+                  AND f0.EANCOD_0 <> ''
+                  AND f0.TCLCOD_0 NOT IN ('ADMIN','CONSU','TECHN')";
+
+            return await db.QueryAsync<BarcodeMappingDto>(sql, new { Site = siteCode });
         }
 
         public async Task<bool> CloseOrderAsync(string soNumber, string closedBy)

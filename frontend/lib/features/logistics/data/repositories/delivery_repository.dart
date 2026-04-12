@@ -1196,38 +1196,19 @@ class DeliveryRepository implements ILogisticsRepository {
 
   @override
   Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
-    final db = await LocalDatabaseHelper.instance.database;
+    final processor = OfflineBarcodeProcessor();
+    final result = await processor.processBarcode(barcode);
 
-    // Case 1 & 2: Prefix 2 or 0 (Identification by first 6 digits)
-    if (barcode.startsWith('2') || barcode.startsWith('0')) {
-      final prefix = barcode.substring(0, 6);
-      final results = await db.query(
-        LocalDatabaseHelper.tableProducts,
-        where: '${LocalDatabaseHelper.colProdBarcode} LIKE ?',
-        whereArgs: ['$prefix%'],
-      );
-      if (results.isNotEmpty) return results.first;
-    }
+    if (result == null) return null;
 
-    // Case 3 & 4: Prefix 6 (Identification by full barcode)
-    if (barcode.startsWith('6')) {
-      final results = await db.query(
-        LocalDatabaseHelper.tableProducts,
-        where: '${LocalDatabaseHelper.colProdBarcode} = ?',
-        whereArgs: [barcode],
-      );
-      if (results.isNotEmpty) return results.first;
-    }
-
-    // Final fallback to exact match on item code if barcode fails
-    final fallbackCode = await db.query(
-      LocalDatabaseHelper.tableProducts,
-      where: '${LocalDatabaseHelper.colProdCode} = ?',
-      whereArgs: [barcode],
-    );
-    if (fallbackCode.isNotEmpty) return fallbackCode.first;
-
-    return null;
+    // Map ScanResult back to the legacy product map format expected by callers
+    return {
+      LocalDatabaseHelper.colProdCode: result.itemCode,
+      LocalDatabaseHelper.colProdDesc: result.description,
+      LocalDatabaseHelper.colProdBarcode: result.barcode,
+      LocalDatabaseHelper.colProdStu: 'KG', // Default to KG for variable weight
+      LocalDatabaseHelper.colProdStandardWeight: 0.0, // Processor handles actual weight
+    };
   }
 
   @override

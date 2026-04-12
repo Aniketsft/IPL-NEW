@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import 'offline_barcode_processor.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_order_detail.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/production_tracking_screen.dart';
@@ -22,7 +23,11 @@ class ProductionTrackingScanner extends StatefulWidget {
 
 class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
   final MobileScannerController _controller = MobileScannerController(
-    formats: [BarcodeFormat.ean13],
+    formats: [
+      BarcodeFormat.ean13,
+      BarcodeFormat.code128,
+      BarcodeFormat.qrCode,
+    ],
   );
   bool _isProcessing = false;
   DateTime? _lastScanTime;
@@ -49,13 +54,13 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
     setState(() => _isProcessing = true);
 
     try {
-      final repository = context.read<DeliveryRepository>();
-      final productInfo = await repository.getProductByBarcode(barcode);
+      final processor = OfflineBarcodeProcessor();
+      final result = await processor.processBarcode(barcode);
 
       if (!mounted) return;
 
-      if (productInfo != null) {
-        final String itemCode = (productInfo['productCode'] as String?) ?? '';
+      if (result != null) {
+        final String itemCode = result.itemCode;
         
         if (itemCode.isEmpty) {
           _showSnackBar('Product found but item code is missing.');

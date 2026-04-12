@@ -108,6 +108,19 @@ public class LogisticsService : ILogisticsService
         }
     }
 
+    public async Task<Result<IEnumerable<BarcodeMappingDto>>> GetBarcodeMappingsAsync(string siteCode)
+    {
+        try
+        {
+            var mappings = await _logisticsRepository.GetBarcodeMappingsAsync(siteCode);
+            return Result<IEnumerable<BarcodeMappingDto>>.Success(mappings);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<BarcodeMappingDto>>.Failure($"Failed to fetch barcode mappings: {ex.Message}");
+        }
+    }
+
     public async Task<Result<IEnumerable<LocationLookupDto>>> GetTargetLocationsAsync(string site, string itemCode)
     {
         try

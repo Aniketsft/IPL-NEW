@@ -1,5 +1,5 @@
-import 'db_helper.dart';
 import 'barcode_processor.dart';
+import '../../../../features/logistics/data/local/local_database_helper.dart';
 
 class ScanResult {
   final String barcode;
@@ -18,41 +18,68 @@ class ScanResult {
 }
 
 class OfflineBarcodeProcessor {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-
   Future<ScanResult?> processBarcode(String rawBarcode) async {
     if (rawBarcode.isEmpty) return null;
 
-    // 1. Initial Lookup to get metadata for calculation
-    String lookupBarcode = rawBarcode.startsWith('2') ? '0$rawBarcode' : rawBarcode;
-    final mapping = await _dbHelper.getMappingByBarcode(lookupBarcode);
+    final db = await LocalDatabaseHelper.instance.database;
+    Map<String, dynamic>? product;
 
-    // 2. Process using specialized rules
+    // 1. Identify Prefix and Prepare Lookup Key
+    if (rawBarcode.startsWith('2')) {
+      // Logic: Prefix 2, take first 6 digits and prepend '0' (Total 7 digits)
+      final searchCode = "0${rawBarcode.substring(0, 6)}";
+      
+      final results = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdCode} = ? OR ${LocalDatabaseHelper.colProdBarcode} = ?',
+        whereArgs: [searchCode, searchCode],
+      );
+      if (results.isNotEmpty) product = results.first;
+      
+    } else if (rawBarcode.startsWith('02') && rawBarcode.length >= 7) {
+      // Logic: Prefix 02, those starting with 02 must map first 7 digits
+      final searchCode = rawBarcode.substring(0, 7);
+      
+      final results = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdCode} = ? OR ${LocalDatabaseHelper.colProdBarcode} = ?',
+        whereArgs: [searchCode, searchCode],
+      );
+      if (results.isNotEmpty) product = results.first;
+
+    } else {
+      // Logic: Full barcode search (Prefix 6 or other standard codes)
+      final results = await db.query(
+        LocalDatabaseHelper.tableProducts,
+        where: '${LocalDatabaseHelper.colProdBarcode} = ? OR ${LocalDatabaseHelper.colProdCode} = ?',
+        whereArgs: [rawBarcode, rawBarcode],
+      );
+      if (results.isNotEmpty) product = results.first;
+    }
+
+    // 2. Critical: If no product found in Master Table, fail here
+    if (product == null) return null;
+
+    final String itemCode = product[LocalDatabaseHelper.colProdCode] as String;
+    final String unit = product[LocalDatabaseHelper.colProdSau] as String? ?? 'KG';
+    final double stdWeight = (product[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 1.0;
+    final String description = product[LocalDatabaseHelper.colProdDesc] as String? ?? 'Product';
+
+    // 3. Calculate weights/quantities using specialized business rules
     final model = BarcodeProcessor.process(
       barcode: rawBarcode,
-      itemCode: mapping?.itemCode ?? 'UNKNOWN',
-      unit: mapping?.unit ?? 'KG',
-      standardWeight: mapping?.unitFactor ?? 1.0,
+      itemCode: itemCode,
+      unit: unit,
+      standardWeight: stdWeight,
     );
 
     if (model.isValid) {
       return ScanResult(
         barcode: rawBarcode,
         itemCode: model.itemCode == 'BATCH' ? rawBarcode : model.itemCode,
-        description: mapping?.description ?? 'Product ${model.itemCode}',
+        description: description,
         weight: model.manufacturedQty,
-        lotNumber: null, // Batch logic moved out
-      );
-    }
-
-    // Exact Match Fallback
-    final exactMatch = await _dbHelper.getMappingByBarcode(rawBarcode);
-    if (exactMatch != null) {
-      return ScanResult(
-        barcode: rawBarcode,
-        itemCode: exactMatch.itemCode,
-        description: exactMatch.description,
-        weight: 1.0,
+        lotNumber: null,
       );
     }
 

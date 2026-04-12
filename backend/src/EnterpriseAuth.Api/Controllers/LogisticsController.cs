@@ -72,6 +72,14 @@ public class LogisticsController : ControllerBase
         var result = await _logisticsService.GetTargetLocationsAsync(site, itemCode);
         return ToActionResult(result);
     }
+
+    [HttpGet("barcode-mappings")]
+    public async Task<IActionResult> GetBarcodeMappings([FromQuery] string siteCode = "IPL")
+    {
+        var result = await _logisticsService.GetBarcodeMappingsAsync(siteCode);
+        return ToActionResult(result);
+    }
+
     [HttpPost("sync-scans")]
     public async Task<IActionResult> SyncScans([FromBody] List<ScanDto> scans)
     {

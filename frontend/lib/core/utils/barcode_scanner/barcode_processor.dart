@@ -69,21 +69,17 @@ class BarcodeProcessor {
         scannedQty = 1.0;
         manufacturedQty = standardWeight;
       }
-    } else if (barcode.startsWith('6')) {
-      // Case 3 & 4 (Prefix 6)
+    } else {
+      // Case 5 & 6 (Standard EAN-13 / Other Prefixes)
+      // Logic: Generic fallback for any other barcode found in master table.
+      // We treat them like Case 3 & 4 (Prefix 6) - using standard weight.
       if (isKG) {
-        // Case 3: scanned qty = standard weight x no of scan.
         scannedQty = standardWeight;
         manufacturedQty = standardWeight;
       } else if (isEA) {
-        // Case 4: scanned qty = number of scans.
-        // manufactured qty = standard weight of product x no of scan.
         scannedQty = 1.0;
         manufacturedQty = standardWeight;
       }
-    } else {
-      // Invalid Prefix
-      return BarcodeModel.invalid(originalBarcode);
     }
 
     return BarcodeModel(
@@ -107,6 +103,9 @@ class BarcodeProcessor {
     final b = barcode.trim();
     if (b.length != 13) return false;
     if (!RegExp(r'^[0-9]+$').hasMatch(b)) return false;
-    return b.startsWith('0') || b.startsWith('2') || b.startsWith('6');
+    // Standard EAN-13 is usually 13 digits.
+    // We allow any prefix as long as it's the correct length, 
+    // because prefix-specific math is handled but fallback is standard lookup.
+    return true;
   }
 }

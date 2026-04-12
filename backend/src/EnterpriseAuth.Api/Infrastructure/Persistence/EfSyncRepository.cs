@@ -37,7 +37,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var package = new SyncPackageDto();
 
             // Define fetching tasks with separate connections for parallel execution
-            var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>(@"
+            var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>($@"
                 SELECT TOP 300
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
                     f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
@@ -50,12 +50,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]
-                FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
-                JOIN InnodisTestDB.INLPROD.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0 WITH (NOLOCK)
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 ORDER BY f0.ORDDAT_0 DESC");
 
-            var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>(@"
+            var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
                     f2.ITMREF_0 as ItemCode,
@@ -64,36 +64,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f1.QTY_0 as Quantity,
                     f2.SAU_0 as Unit,
                     f1.STOFCY_0 as Site
-                FROM InnodisTestDB.INLPROD.SORDER f0 WITH (NOLOCK)
-                JOIN InnodisTestDB.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN InnodisTestDB.INLPROD.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN InnodisTestDB.INLPROD.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0 WITH (NOLOCK)
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
+                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 IN (
                     SELECT TOP 300 s.SOHNUM_0 
-                    FROM InnodisTestDB.INLPROD.SORDER s WITH (NOLOCK) 
-                    JOIN InnodisTestDB.INLPROD.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
-                    JOIN InnodisTestDB.INLPROD.BPCUSTOMER bc WITH (NOLOCK) ON s.BPCORD_0 = bc.BPCNUM_0
+                    FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER s WITH (NOLOCK) 
+                    JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
+                    JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER bc WITH (NOLOCK) ON s.BPCORD_0 = bc.BPCNUM_0
                     ORDER BY s.ORDDAT_0 DESC
                 )");
 
-            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>("SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM InnodisTestDB.INLPROD.BPCUSTOMER WITH (NOLOCK)");
-            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>("SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM InnodisTestDB.INLPROD.SALESREP WITH (NOLOCK)");
-            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>("SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM InnodisTestDB.INLPROD.FACILITY WITH (NOLOCK)");
+            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER WITH (NOLOCK)");
+            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.INLPROD.SALESREP WITH (NOLOCK)");
+            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.INLPROD.FACILITY WITH (NOLOCK)");
             
-            var locSql = @"
+            var locSql = $@"
                 SELECT 
                     T1.STOFCY_0 as Site, T1.LOC_0 as Location, T1.WRH_0 as Warehouse,
                     WRH.WRHNAM_0 as WarehouseName, T1.LOCTYP_0 as LocationType,
                     ATRA.TEXTE_0 as LocationTypeName
-                FROM InnodisTestDB.INLPROD.STOLOC T1 WITH (NOLOCK)
-                LEFT JOIN InnodisTestDB.INLPROD.WAREHOUSE WRH WITH (NOLOCK) on WRH.WRH_0 = T1.WRH_0 
-                LEFT JOIN InnodisTestDB.INLPROD.[ATEXTRA] ATRA WITH (NOLOCK) on T1.STOFCY_0 = ATRA.IDENT1_0 
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.STOLOC T1 WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.WAREHOUSE WRH WITH (NOLOCK) on WRH.WRH_0 = T1.WRH_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.[ATEXTRA] ATRA WITH (NOLOCK) on T1.STOFCY_0 = ATRA.IDENT1_0 
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' and ATRA.LANGUE_0 = 'BRI' and ATRA.ZONE_0 = 'TYPDESAXX'
                 WHERE T1.STOFCY_0 = @Site";
             var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
 
-            var productsSql = @"
+            var productsSql = $@"
                 SELECT T1.*
                 FROM (
                     SELECT DISTINCT
@@ -105,16 +105,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         f0.SAU_0 AS [SalesUnit],
                         f0.ITMWEI_0 AS [StandardWeight],
                         f0.EANCOD_0 AS [Barcode]
-                    FROM InnodisTestDB.INLPROD.ITMMASTER f0 WITH (NOLOCK)
-                    JOIN InnodisTestDB.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
+                    FROM {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f0 WITH (NOLOCK)
+                    JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
                 ) AS T1
                 WHERE T1.Site = @Site
                   AND T1.Category NOT IN ('ADMIN','CONSU','TECHN')";
             var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
-            var lotsSql = @"
+            var lotsSql = $@"
                 SELECT DISTINCT ITMREF_0 as ItemCode, STOFCY_0 as SiteCode, LOT_0 as Lot
-                FROM InnodisTestDB.INLPROD.STOCK WITH (NOLOCK)
+                FROM {_syncSettings.X3DatabaseName}.INLPROD.STOCK WITH (NOLOCK)
                 WHERE STOFCY_0 = @Site AND QTYPCU_0 > 0";
             var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
 
