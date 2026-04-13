@@ -210,4 +210,30 @@ public class LogisticsService : ILogisticsService
             return Result<bool>.Failure($"Failed to update item preparation status: {ex.Message}");
         }
     }
+
+    public async Task<Result<bool>> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated)
+    {
+        try
+        {
+            var result = await _logisticsRepository.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to update item validation status: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> BulkUpdateItemStatusAsync(BulkStatusUpdateDto dto)
+    {
+        try
+        {
+            var result = await _logisticsRepository.BulkUpdateItemStatusAsync(dto.SoNumber, dto.ItemCodes, dto.Status, dto.IsValidation);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to bulk update item statuses: {ex.Message}");
+        }
+    }
 }

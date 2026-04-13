@@ -18,7 +18,7 @@ class NewCutsBulkScreen extends StatefulWidget {
 }
 
 class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
-  String _mode = 'cuts'; // 'cuts' or 'bulks'
+  String _mode = 'cuts'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO
   bool _soDetailsExpanded = false;
@@ -147,7 +147,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         : <String, String>{};
 
     final entry = {
-      'type': _mode == 'cuts' ? 'Cuts' : 'Bulks',
+      'type': _mode == 'cuts' ? 'Cuts' : (_mode == 'bulks' ? 'Bulks' : 'Frozen'),
       'products': _selectedProducts,
       if (_isNewSO) ...{
         'customerCode': _selectedCustomerCode,
@@ -187,7 +187,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     const orange = Color(0xFFFF9800);
 
     return IndustrialModuleLayout(
-      title: 'LOGISTICS | BULK SCAN',
+      title: 'LOGISTICS | EXCESS',
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -312,6 +312,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         children: [
           _buildToggleButton('cuts', 'Cuts', orange),
           _buildToggleButton('bulks', 'Bulks', orange),
+          _buildToggleButton('frozen', 'Frozen', orange),
         ],
       ),
     );

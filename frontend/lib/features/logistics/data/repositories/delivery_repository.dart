@@ -259,21 +259,23 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<void> closeOrder(String soNumber, String closedBy) async {
     try {
-      await _dio.post(
-        'Logistics/close-order/$soNumber',
-        queryParameters: {'closedBy': closedBy},
-      );
-
-      // Also update local DB so the status change reflects immediately
-      final db = await LocalDatabaseHelper.instance.database;
-      await db.update(
-        LocalDatabaseHelper.tableOrders,
-        {LocalDatabaseHelper.colStatus: 2, LocalDatabaseHelper.colStatusLabel: 'Closed'},
-        where: '${LocalDatabaseHelper.colOrderNum} = ?',
-        whereArgs: [soNumber],
-      );
+      // 1. Update local DB FIRST (Offline-First)
+      await LocalDatabaseHelper.instance.updateOrderStatus(soNumber, 2);
+      
+      // 2. Optimistic API call
+      try {
+        await _dio.post(
+          'Logistics/close-order/$soNumber',
+          queryParameters: {'closedBy': closedBy},
+        );
+        // If success, mark as synced immediately
+        await LocalDatabaseHelper.instance.markOrdersAsSynced([soNumber]);
+      } catch (apiError) {
+        // Log but don't throw - it will be synced later via global sync
+        debugPrint('Sync: Optimistic close-order API failed for $soNumber. Order remains dirty for later sync. Error: $apiError');
+      }
     } catch (e) {
-      throw 'Failed to close order: $e';
+      throw 'Failed to close order locally: $e';
     }
   }
 
@@ -443,7 +445,7 @@ class DeliveryRepository implements ILogisticsRepository {
         entryNo = existingSo;
       } else {
         // Generate new SO number based on type
-        final prefix = entry['type'] == 'Cuts' ? 'CUT-' : 'BLK-';
+        final prefix = entry['type'] == 'Cuts' ? 'CUT-' : (entry['type'] == 'Bulks' ? 'BLK-' : 'FRZ-');
         final existingCount =
             sqflite.Sqflite.firstIntValue(
               await db.rawQuery(
@@ -612,6 +614,10 @@ class DeliveryRepository implements ILogisticsRepository {
           'shipmentPreparationUpdates': (await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation()).map((o) => {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
             'isPreparedForShipment': o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
+          }).toList(),
+          'orderStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures()).map((o) => {
+            'soNumber': o[LocalDatabaseHelper.colOrderNum],
+            'status': o[LocalDatabaseHelper.colStatus],
           }).toList(),
           'cutBulkEntries': (await Future.wait(
             unsyncedOrders.map((o) async {
@@ -829,6 +835,10 @@ class DeliveryRepository implements ILogisticsRepository {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
             'isPreparedForShipment': o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
           }).toList(),
+          'orderStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures()).map((o) => {
+            'soNumber': o[LocalDatabaseHelper.colOrderNum],
+            'status': o[LocalDatabaseHelper.colStatus],
+          }).toList(),
           'deviceId': 'mobile-terminal',
         };
 
@@ -986,6 +996,7 @@ class DeliveryRepository implements ILogisticsRepository {
       locationType: row[LocalDatabaseHelper.colDetLocationType],
       locationTypeName: row[LocalDatabaseHelper.colDetLocationTypeName],
       isPrepared: row[LocalDatabaseHelper.colDetIsPrepared] == 1,
+      isValidated: row[LocalDatabaseHelper.colDetIsValidated] == 1,
       unit: row[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
     );
   }
@@ -1152,11 +1163,13 @@ class DeliveryRepository implements ILogisticsRepository {
       // Immediate Sync with server
       try {
         final endpoint = isValidation
-            ? 'Logistics/update-validation-status' // New endpoint for validation
+            ? 'Logistics/update-validation-status'
             : 'Logistics/update-preparation-status';
+        
+        final paramName = isValidation ? 'isValidated' : 'isPrepared';
             
         await _dio.post(
-          '$endpoint/$soNumber/$itemCode?isPrepared=$isPrepared',
+          '$endpoint/$soNumber/$itemCode?$paramName=$isPrepared',
         );
         
         await db.update(
@@ -1170,6 +1183,45 @@ class DeliveryRepository implements ILogisticsRepository {
       }
     } catch (e) {
       throw 'Failed to update item status: $e';
+    }
+  }
+
+  Future<void> bulkUpdateItemStatus({
+    required String soNumber,
+    required List<String> itemCodes,
+    required bool status,
+    bool isValidation = false,
+  }) async {
+    try {
+      // 1. Offline Update First
+      await LocalDatabaseHelper.instance.bulkUpdateItemStatus(
+        soNumber: soNumber,
+        itemCodes: itemCodes,
+        status: status,
+        isValidation: isValidation,
+      );
+
+      // 2. Immediate Background Push Attempt
+      try {
+        await _dio.post(
+          'Logistics/bulk-update-status',
+          data: {
+            'soNumber': soNumber,
+            'itemCodes': itemCodes,
+            'status': status,
+            'isValidation': isValidation,
+          },
+        );
+
+        // Mark as synced if successful
+        final updates = itemCodes.map((c) => {'soNumber': soNumber, 'itemCode': c}).toList();
+        await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
+      } catch (e) {
+        debugPrint("Failed to push bulk status update to server (immediate): $e");
+        // We don't throw here as the data is already persisted locally (isSynced=0)
+      }
+    } catch (e) {
+      throw 'Failed to bulk update status: $e';
     }
   }
 

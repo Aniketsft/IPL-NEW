@@ -28,6 +28,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   String? _errorMessage;
   final TextEditingController _codeFilter = TextEditingController();
   final TextEditingController _descFilter = TextEditingController();
+  final Set<String> _selectedItemCodes = {};
 
   @override
   void initState() {
@@ -137,6 +138,82 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           isValidation: widget.isDeliveryMode,
         );
         _fetchDetails();
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update status: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _toggleSelection(String itemCode) {
+    setState(() {
+      if (_selectedItemCodes.contains(itemCode)) {
+        _selectedItemCodes.remove(itemCode);
+      } else {
+        _selectedItemCodes.add(itemCode);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    final filtered = _filteredDetails;
+    // Only select items that aren't already locked
+    final selectables = filtered.where((item) {
+      final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
+      return !(itemStatus ||
+          widget.order.isPreparedForShipment ||
+          (!widget.isDeliveryMode && widget.order.isClosed));
+    }).map((e) => e.itemCode).toList();
+
+    setState(() {
+      if (_selectedItemCodes.length >= selectables.length && selectables.every((code) => _selectedItemCodes.contains(code))) {
+        _selectedItemCodes.clear();
+      } else {
+        _selectedItemCodes.addAll(selectables);
+      }
+    });
+  }
+
+  Future<void> _bulkUpdateStatus() async {
+    if (_selectedItemCodes.isEmpty) return;
+
+    final String title = widget.isDeliveryMode ? 'Bulk Validate' : 'Bulk Prepare';
+    final String content = 'Are you sure you want to ${widget.isDeliveryMode ? 'validate' : 'prepare'} ${_selectedItemCodes.length} selected items?';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        content: Text(content, style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (mounted) setState(() => _isLoading = true);
+      try {
+        await context.read<DeliveryRepository>().bulkUpdateItemStatus(
+          soNumber: widget.order.orderNumber,
+          itemCodes: _selectedItemCodes.toList(),
+          status: true,
+          isValidation: widget.isDeliveryMode,
+        );
+        _selectedItemCodes.clear();
+        await _fetchDetails();
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
@@ -373,20 +450,35 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               );
             },
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                SizedBox(
+                  width: 30,
+                  child: Checkbox(
+                    value: _selectedItemCodes.length == _filteredDetails.where((item) {
+                      final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
+                      return !(itemStatus || widget.order.isPreparedForShipment || (!widget.isDeliveryMode && widget.order.isClosed));
+                    }).length && _selectedItemCodes.isNotEmpty,
+                    onChanged: (val) => _toggleSelectAll(),
+                    activeColor: orange,
+                    checkColor: Colors.black,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
                   'Product',
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-                Text(
+                const Spacer(),
+                const Text(
                   'Ordered',
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-                Text(
+                const SizedBox(width: 24),
+                const Text(
                   'Remaining',
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
@@ -591,6 +683,21 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (!isLocked)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 8),
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _selectedItemCodes.contains(item.itemCode),
+                          onChanged: (val) => _toggleSelection(item.itemCode),
+                          activeColor: orange,
+                          checkColor: Colors.black,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,41 +710,35 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                item.description,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 13,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        Text(
+                          item.description,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.3),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.orange.withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: Text(
-                                item.barcodeType,
-                                style: const TextStyle(
-                                  color: Colors.orange,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                          ),
+                          child: Text(
+                            item.barcodeType.toLowerCase().contains('variable') ? 'VW' : 'FW',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -674,14 +775,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (!widget.isDeliveryMode && item.isPrepared)
+                  if (itemStatus)
                     Row(
                       children: [
                         const Icon(Icons.check_circle, color: Colors.green, size: 16),
                         const SizedBox(width: 4),
-                        const Text(
-                          'Prepared',
-                          style: TextStyle(
+                        Text(
+                          widget.isDeliveryMode ? 'Validated' : 'Prepared',
+                          style: const TextStyle(
                             color: Colors.green,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -766,6 +867,29 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     }
 
     final isAllPrepared = _isAllItemsPrepared;
+
+    if (_selectedItemCodes.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isLoading ? null : _bulkUpdateStatus,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(
+              '${widget.isDeliveryMode ? 'VALIDATE' : 'PREPARE'} (${_selectedItemCodes.length}) SELECTED',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.all(16.0),

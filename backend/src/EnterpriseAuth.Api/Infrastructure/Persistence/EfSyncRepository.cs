@@ -497,6 +497,43 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 totalCount += request.ShipmentPreparationUpdates.Count;
             }
 
+            // 5. Process Order Status Updates (Header level status for Closing orders)
+            if (request.OrderStatusUpdates != null && request.OrderStatusUpdates.Any())
+            {
+                foreach (var update in request.OrderStatusUpdates)
+                {
+                    // Check if a sentinel record or any scan exists for this order
+                    var existingScans = await _scanContext.ProductionScans
+                        .Where(s => s.SoNumber == update.SoNumber && !s.IsDeleted)
+                        .ToListAsync();
+
+                    if (existingScans.Any())
+                    {
+                        foreach (var scan in existingScans)
+                        {
+                            scan.OrderStatus = "2"; // 2 = Closed
+                        }
+                    }
+                    else if (update.Status == 2)
+                    {
+                        // Create sentinel record to persist the Closed status
+                        _scanContext.ProductionScans.Add(new ProductionScan
+                        {
+                            SoNumber = update.SoNumber,
+                            ItemCode = "CLOSE_SENTINEL",
+                            ScanAmountKg = 0m,
+                            LineNo = 0,
+                            OrderStatus = "2",
+                            CreatedAt = DateTime.UtcNow,
+                            CreatedBy = "sync-push-close-sentinel"
+                        });
+                    }
+                }
+
+                await _scanContext.SaveChangesAsync();
+                totalCount += request.OrderStatusUpdates.Count;
+            }
+
             return totalCount;
         }
     }

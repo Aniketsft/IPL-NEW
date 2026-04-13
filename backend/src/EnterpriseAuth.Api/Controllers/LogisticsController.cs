@@ -141,6 +141,20 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("update-validation-status/{soNumber}/{itemCode}")]
+    public async Task<IActionResult> UpdateValidationStatus(string soNumber, string itemCode, [FromQuery] bool isValidated)
+    {
+        var result = await _logisticsService.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("bulk-update-status")]
+    public async Task<IActionResult> BulkUpdateStatus([FromBody] BulkStatusUpdateDto dto)
+    {
+        var result = await _logisticsService.BulkUpdateItemStatusAsync(dto);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

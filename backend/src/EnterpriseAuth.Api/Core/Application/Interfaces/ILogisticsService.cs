@@ -24,5 +24,7 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto dto);
         Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scanDto);
         Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared);
+        Task<Result<bool>> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated);
+        Task<Result<bool>> BulkUpdateItemStatusAsync(BulkStatusUpdateDto dto);
     }
 }

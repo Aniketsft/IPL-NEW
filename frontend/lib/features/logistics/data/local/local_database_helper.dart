@@ -679,6 +679,29 @@ class LocalDatabaseHelper {
     );
   }
 
+  Future<int> updateOrderStatus(String soNumber, int status) async {
+    final db = await instance.database;
+    return await db.update(
+      tableOrders,
+      {
+        colStatus: status,
+        columnIsSynced: 0,
+      },
+      where: '$colOrderNum = ?',
+      whereArgs: [soNumber],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedOrderClosures() async {
+    final db = await instance.database;
+    // status = 2 is "Closed"
+    return await db.query(
+      tableOrders,
+      columns: [colOrderNum, colStatus],
+      where: '$columnIsSynced = 0 AND $colStatus = 2',
+    );
+  }
+
   // Clear specific table
   Future<void> clearTable(String tableName) async {
     Database db = await instance.database;
@@ -765,9 +788,10 @@ class LocalDatabaseHelper {
           final soNum = record[colOrderNum];
 
           if (dirtyOrdersMap.containsKey(soNum)) {
-            // MERGE: Preserve local dirty isPreparedForShipment and isSynced status
+            // MERGE: Preserve local dirty isPreparedForShipment, status and isSynced status
             final local = dirtyOrdersMap[soNum]!;
             record[colIsPreparedForShipment] = local[colIsPreparedForShipment];
+            record[colStatus] = local[colStatus];
             record[columnIsSynced] = 0;
           }
 
@@ -934,6 +958,33 @@ class LocalDatabaseHelper {
       );
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> bulkUpdateItemStatus({
+    required String soNumber,
+    required List<String> itemCodes,
+    required bool status,
+    bool isValidation = false,
+  }) async {
+    final db = await instance.database;
+    final column = isValidation ? colDetIsValidated : colDetIsPrepared;
+    final value = status ? 1 : 0;
+
+    await db.transaction((txn) async {
+      Batch batch = txn.batch();
+      for (var itemCode in itemCodes) {
+        batch.update(
+          tableDetails,
+          {
+            column: value,
+            columnIsSynced: 0,
+          },
+          where: '$colDetSoNum = ? AND $colDetItemCode = ?',
+          whereArgs: [soNumber, itemCode],
+        );
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   // --- INTERLINKED FILTER LOOKUPS ---

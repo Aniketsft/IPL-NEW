@@ -542,13 +542,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
         {
+            return await UpdateItemStatusInternalAsync(soNumber, itemCode, isPrepared, false);
+        }
+
+        public async Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated)
+        {
+            return await UpdateItemStatusInternalAsync(soNumber, itemCode, isValidated, true);
+        }
+
+        public async Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation)
+        {
+            foreach (var itemCode in itemCodes)
+            {
+                await UpdateItemStatusInternalAsync(soNumber, itemCode, status, isValidation, false);
+            }
+            await _scanContext.SaveChangesAsync();
+            return true;
+        }
+
+        private async Task<bool> UpdateItemStatusInternalAsync(string soNumber, string itemCode, bool status, bool isValidation, bool autoSave = true)
+        {
             // 1. Update Internal Detail if exists
             var detail = await _scanContext.SalesOrderDetailCutsBulk
                 .FirstOrDefaultAsync(d => d.SoNumber == soNumber && d.ItemCode == itemCode);
 
             if (detail != null)
             {
-                detail.IsPrepared = isPrepared;
+                if (isValidation) detail.IsPreparedForShipment = status;
+                else detail.IsPrepared = status;
             }
 
             // 2. Update all existing scans for this item
@@ -558,11 +579,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             foreach (var scan in scans)
             {
-                scan.IsPrepared = isPrepared;
+                if (isValidation) scan.IsPreparedForShipment = status;
+                else scan.IsPrepared = status;
             }
 
-            // 3. If external order and no scans exist yet, create a sentinel record to persist status
-            if (detail == null && !scans.Any() && isPrepared)
+            // 3. If no scans exist yet and marking as true, create a sentinel record to persist status
+            if (detail == null && !scans.Any() && status)
             {
                 _scanContext.ProductionScans.Add(new ProductionScan
                 {
@@ -570,13 +592,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ItemCode = itemCode,
                     ScanAmountKg = 0m,
                     LineNo = 0,
-                    IsPrepared = true,
+                    IsPrepared = !isValidation && status,
+                    IsPreparedForShipment = isValidation && status,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = "status-update-sentinel"
                 });
             }
 
-            await _scanContext.SaveChangesAsync();
+            if (autoSave)
+            {
+                await _scanContext.SaveChangesAsync();
+            }
+            
             return true;
         }
 

@@ -24,6 +24,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
         public List<PreparationStatusUpdateDto> PreparationStatusUpdates { get; set; } = new();
         public List<ShipmentPreparationUpdateDto> ShipmentPreparationUpdates { get; set; } = new();
+        public List<OrderStatusUpdateDto> OrderStatusUpdates { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
     }
 
@@ -38,5 +39,11 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string SoNumber { get; set; } = string.Empty;
         public bool IsPreparedForShipment { get; set; }
+    }
+
+    public class OrderStatusUpdateDto
+    {
+        public string SoNumber { get; set; } = string.Empty;
+        public int Status { get; set; }
     }
 }
