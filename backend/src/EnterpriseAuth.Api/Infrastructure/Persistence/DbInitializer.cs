@@ -624,6 +624,26 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         PRINT 'Created ProductionLineStates table';
                     END
 
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Excesses]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[Excesses] (
+                            [Id]                        UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+                            [SourceBulkSoNumber]        NVARCHAR(100) NOT NULL,
+                            [ItemCode]                  NVARCHAR(100) NOT NULL,
+                            [DeliveryDate]              DATETIME NOT NULL,
+                            [TotalManufacturedQuantity] DECIMAL(18, 5) NOT NULL DEFAULT 0,
+                            [AllocatedQuantity]         DECIMAL(18, 5) NOT NULL DEFAULT 0,
+                            [RemainingExcess]           DECIMAL(18, 5) NOT NULL DEFAULT 0,
+                            [CreatedAt]                 DATETIME NOT NULL DEFAULT GETUTCDATE(),
+                            [CreatedBy]                 NVARCHAR(200) NULL,
+                            [UpdatedAt]                 DATETIME NULL,
+                            [UpdatedBy]                 NVARCHAR(200) NULL
+                        );
+                        CREATE UNIQUE INDEX [UQ_Excess_BulkSO_Item] ON [dbo].[Excesses] ([SourceBulkSoNumber], [ItemCode]);
+                        CREATE INDEX [IX_Excess_Date_Item] ON [dbo].[Excesses] ([DeliveryDate], [ItemCode]);
+                        PRINT 'Created Excesses table';
+                    END
+
                     -- 2. DATA PORTING (Idempotent)
                     -- A. Port Orders
                     IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderHeaders]') AND type in (N'U'))

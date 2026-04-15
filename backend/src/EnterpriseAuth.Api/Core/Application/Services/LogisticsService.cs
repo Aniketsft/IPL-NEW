@@ -262,4 +262,30 @@ public class LogisticsService : ILogisticsService
             return Result<bool>.Failure($"Failed to bulk update item statuses: {ex.Message}");
         }
     }
+
+    public async Task<Result<IEnumerable<ExcessDto>>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode)
+    {
+        try
+        {
+            var result = await _logisticsRepository.GetExcessByDateAndItemAsync(deliveryDate, itemCode);
+            return Result<IEnumerable<ExcessDto>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<ExcessDto>>.Failure($"Failed to fetch excess data: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> AllocateExcessAsync(AllocateExcessDto dto)
+    {
+        try
+        {
+            var result = await _logisticsRepository.AllocateExcessAsync(dto);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to allocate excess: {ex.Message}");
+        }
+    }
 }

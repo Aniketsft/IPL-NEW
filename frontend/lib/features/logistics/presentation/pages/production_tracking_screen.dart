@@ -51,6 +51,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   LocationLookup? _selectedLocation;
   bool _isScannerVisible = false;
   bool _isSettingsExpanded = false;
+  List<Map<String, dynamic>> _excessPools = [];
+  bool _isLoadingExcess = false;
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     _selectedSite = widget.product.site;
     _fetchInitialData();
     _fetchHistoricalScans();
+    _fetchExcessPools();
   }
 
   Future<void> _fetchInitialData() async {
@@ -111,6 +114,35 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       debugPrint('Failed to load historical scans: $e');
     } finally {
       if (mounted) setState(() => _isLoadingHistory = false);
+    }
+  }
+
+  Future<void> _fetchExcessPools() async {
+    if (widget.order.orderNumber.startsWith('BLK-') || 
+        widget.order.orderNumber.startsWith('CUTS-') || 
+        widget.order.orderNumber.startsWith('FRZ-')) {
+      return; // Can't allocate from bulk into bulk (for now)
+    }
+
+    setState(() => _isLoadingExcess = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final pools = await repository.getExcessByDateAndItem(
+        widget.order.date,
+        widget.product.itemCode,
+      );
+      if (mounted) {
+        setState(() {
+          _excessPools = pools.where((p) {
+            final double available = (p['poolQty'] as num).toDouble() - (p['allocatedQty'] as num).toDouble();
+            return available > 0.001;
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load excess pools: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingExcess = false);
     }
   }
 
@@ -709,9 +741,271 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               _buildStatusToggles(),
             ],
           ),
+          if (_excessPools.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white10, height: 1),
+            const SizedBox(height: 16),
+            _buildExcessAllocationButton(),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _buildExcessAllocationButton() {
+    // Total available across all pools
+    double totalAvailable = 0;
+    for (var pool in _excessPools) {
+      totalAvailable += (pool['poolQty'] as num).toDouble() - (pool['allocatedQty'] as num).toDouble();
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: orange.withOpacity(0.3)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showAllocationDialog,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.layers_outlined, color: orange, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'ALLOCATE FROM BULK POOL',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Total Excess Available: ${widget.product.formatQuantity(totalAvailable)} ${widget.product.unit}',
+                        style: TextStyle(
+                          color: orange.withOpacity(0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios, color: orange, size: 14),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAllocationDialog() {
+    final TextEditingController amountController = TextEditingController();
+    Map<String, dynamic> selectedPool = _excessPools.first;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final double poolAvailable = (selectedPool['poolQty'] as num).toDouble() - 
+                                     (selectedPool['allocatedQty'] as num).toDouble();
+          
+          final remainingOrder = widget.product.quantity - 
+                                widget.product.manufacturedQuantity - 
+                                _baseSessionScannedQty - 
+                                _cumulativeQty;
+
+          return AlertDialog(
+            backgroundColor: dark800,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.layers_outlined, color: orange),
+                SizedBox(width: 12),
+                Text('Manual Allocation', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Select Source Pool:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: dark900,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Map<String, dynamic>>(
+                        isExpanded: true,
+                        dropdownColor: dark800,
+                        value: selectedPool,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        items: _excessPools.map((p) => DropdownMenuItem(
+                          value: p,
+                          child: Text('${p['soNumber']} (${widget.product.formatQuantity((p['poolQty'] as num).toDouble() - (p['allocatedQty'] as num).toDouble())} left)'),
+                        )).toList(),
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => selectedPool = val);
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Amount to Allocate (KG):', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      Text('Max: ${widget.product.formatQuantity(poolAvailable < remainingOrder ? poolAvailable : remainingOrder)}', 
+                        style: const TextStyle(color: orange, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: dark900,
+                      hintText: '0.000',
+                      hintStyle: const TextStyle(color: Colors.white24),
+                      suffixText: widget.product.unit,
+                      suffixStyle: const TextStyle(color: Colors.white38),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.blueAccent, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Allocation will draw from ${selectedPool['soNumber']} pool and add to current order.',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final amount = double.tryParse(amountController.text) ?? 0;
+                  if (amount <= 0) return;
+                  
+                  if (amount > poolAvailable + 0.001) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not enough excess available')));
+                    return;
+                  }
+                  
+                  if (amount > remainingOrder + 0.001) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exceeds target order limit')));
+                    return;
+                  }
+
+                  Navigator.pop(context);
+                  _performAllocation(selectedPool['soNumber'], amount);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: orange,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('ALLOCATE', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _performAllocation(String sourcePool, double amount) async {
+    setState(() => _isSaving = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      
+      // 1. Perform allocation via repository (saves local scan + notifies server)
+      await repository.allocateExcess(
+        sourceBulkSoNumber: sourcePool,
+        targetSoNumber: widget.order.orderNumber,
+        itemCode: widget.product.itemCode,
+        amount: amount,
+      );
+
+      // 2. Add as a "virtual" scan in current list so it reflects immediately
+      setState(() {
+        _scans.insert(0, {
+          'barcode': 'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
+          'originalBarcode': 'ALLOC-$sourcePool',
+          'productCode': widget.product.itemCode,
+          'scannedQty': amount,
+          'manufacturedQty': amount,
+          'weight': amount,
+          'unit': widget.product.unit,
+          'timestamp': DateTime.now().toIso8601String(),
+          'status': 'A',
+          'siteId': _selectedSite,
+          'locationCode': 'BULK-ALLOC',
+          'lot': _selectedLot,
+          'soNumber': widget.order.orderNumber,
+          'isSaved': true, // Marked as saved because allocateExcess already wrote to DB
+        });
+        _baseSessionScannedQty += amount;
+      });
+
+      // 3. Refresh pools
+      await _fetchExcessPools();
+
+      AudioService.instance.playSuccess();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully allocated ${widget.product.formatQuantity(amount)} KG from $sourcePool'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Allocation Failed', e.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   Widget _statTile(String label, String value, {Color color = Colors.white}) {

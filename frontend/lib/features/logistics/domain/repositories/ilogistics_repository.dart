@@ -18,6 +18,7 @@ abstract class ILogisticsRepository {
   Future<void> updateSalesOrder(SalesOrder order);
   Future<void> syncScans(List<Map<String, dynamic>> scans, {String? siteCode});
   Future<void> saveProductionScan(Map<String, dynamic> scan);
+  Future<void> saveProductionScansBatch(List<Map<String, dynamic>> scans);
   Future<bool> isValidProduct(String code);
   Future<List<SalesOrder>> fetchSalesOrderHeaders({
     String status = 'all',
@@ -64,5 +65,12 @@ abstract class ILogisticsRepository {
     required bool isPrepared,
   });
   Future<Map<String, dynamic>?> getProductByBarcode(String barcode);
+  Future<List<Map<String, dynamic>>> getExcessByDateAndItem(DateTime deliveryDate, String itemCode);
+  Future<void> allocateExcess({
+    required String sourceBulkSoNumber,
+    required String targetSoNumber,
+    required String itemCode,
+    required double amount,
+  });
 }
 

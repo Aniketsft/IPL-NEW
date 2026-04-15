@@ -1358,6 +1358,57 @@ class DeliveryRepository implements ILogisticsRepository {
       name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
     )).toList();
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> getExcessByDateAndItem(DateTime deliveryDate, String itemCode) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(deliveryDate);
+    return await LocalDatabaseHelper.instance.getExcessPools(
+      dateStr: dateStr,
+      itemCode: itemCode,
+    );
+  }
+
+  @override
+  Future<void> allocateExcess({
+    required String sourceBulkSoNumber,
+    required String targetSoNumber,
+    required String itemCode,
+    required double amount,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('user_username') ?? 'system';
+    
+    // 1. Save locally with a special location identifier
+    final scanRecord = {
+      LocalDatabaseHelper.columnSoNumber: targetSoNumber,
+      LocalDatabaseHelper.columnProductCode: itemCode,
+      LocalDatabaseHelper.columnQuantity: amount,
+      LocalDatabaseHelper.columnManufacturedQuantity: amount,
+      LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
+      LocalDatabaseHelper.columnItemStatus: 'A',
+      LocalDatabaseHelper.columnLocationCode: 'ALLOC-$sourceBulkSoNumber',
+      LocalDatabaseHelper.columnIsSynced: 0,
+      LocalDatabaseHelper.columnIsReflected: 0,
+    };
+
+    await LocalDatabaseHelper.instance.insertScan(scanRecord);
+
+    // 2. Attempt online allocation if connected
+    try {
+      await _dio.post('/api/Logistics/allocate-excess', data: {
+        'SourceBulkSoNumber': sourceBulkSoNumber,
+        'TargetSoNumber': targetSoNumber,
+        'ItemCode': itemCode,
+        'AllocateAmountKg': amount,
+        'AllocatedBy': username,
+      });
+      // If server allocation succeeds, we don't necessarily need to mark THIS scan as synced 
+      // because the standard sync process will handle it normally, 
+      // but to be clean we could.
+    } catch (e) {
+      debugPrint('Online allocation failed, relying on offline sync: $e');
+    }
+  }
 }
 
 /// Top-level background function for Isolate-based data processing.

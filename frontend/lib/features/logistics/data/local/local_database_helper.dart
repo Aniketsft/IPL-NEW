@@ -1048,4 +1048,32 @@ class LocalDatabaseHelper {
       ORDER BY o.$colCustomerName
     ''', args);
   }
+
+  /// Calculates available excess from virtual orders (BLK, CUTS, FRZ) matching the delivery date.
+  Future<List<Map<String, dynamic>>> getExcessPools({
+    required String dateStr,
+    required String itemCode,
+  }) async {
+    final db = await instance.database;
+    // We look for orders starting with BLK, CUTS, or FRZ matching the same delivery date.
+    // poolQty: Total quantity scanned into the bulk order.
+    // allocatedQty: Total quantity already "drawn" from this bulk order into real orders.
+    return await db.rawQuery('''
+      SELECT 
+        o.$colOrderNum AS soNumber,
+        (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
+         FROM $tableScans s 
+         WHERE s.$columnSoNumber = o.$colOrderNum 
+           AND s.$columnProductCode = ?) AS poolQty,
+        (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
+         FROM $tableScans s 
+         WHERE s.$columnLocationCode = 'ALLOC-' || o.$colOrderNum 
+           AND s.$columnProductCode = ?) AS allocatedQty
+      FROM $tableOrders o
+      WHERE (o.$colOrderNum LIKE 'BLK-%' 
+          OR o.$colOrderNum LIKE 'CUTS-%' 
+          OR o.$colOrderNum LIKE 'FRZ-%')
+        AND o.$colDeliveryDate LIKE ?
+    ''', [itemCode, itemCode, '$dateStr%']);
+  }
 }

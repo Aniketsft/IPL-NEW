@@ -169,6 +169,20 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("excess/{deliveryDate}/{itemCode}")]
+    public async Task<IActionResult> GetExcess(DateTime deliveryDate, string itemCode)
+    {
+        var result = await _logisticsService.GetExcessByDateAndItemAsync(deliveryDate, itemCode);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("allocate-excess")]
+    public async Task<IActionResult> AllocateExcess([FromBody] AllocateExcessDto dto)
+    {
+        var result = await _logisticsService.AllocateExcessAsync(dto);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

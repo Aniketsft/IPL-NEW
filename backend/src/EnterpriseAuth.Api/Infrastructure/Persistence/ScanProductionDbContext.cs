@@ -17,6 +17,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<OrderShipmentStatus> OrderShipmentStatuses { get; set; }
         public DbSet<OrderStatusHistory> OrderStatusHistories { get; set; }
 
+        // --- EXCESS / BULK POOL ---
+        public DbSet<Excess> Excesses { get; set; }
+
         // --- AUDIT ---
         public DbSet<AuditLog> AuditLogs { get; set; }
 
@@ -83,6 +86,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.SoNumber)
                     .HasDatabaseName("IX_OrderStatusHistory_SoNumber");
+            });
+
+            // Excess (Bulk Pool Tracking)
+            modelBuilder.Entity<Excess>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.TotalManufacturedQuantity).HasPrecision(18, 5);
+                entity.Property(e => e.AllocatedQuantity).HasPrecision(18, 5);
+                entity.Property(e => e.RemainingExcess).HasPrecision(18, 5);
+                entity.HasIndex(e => new { e.SourceBulkSoNumber, e.ItemCode })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_Excess_BulkSO_Item");
+                entity.HasIndex(e => new { e.DeliveryDate, e.ItemCode })
+                    .HasDatabaseName("IX_Excess_Date_Item");
             });
 
             // AuditLogs

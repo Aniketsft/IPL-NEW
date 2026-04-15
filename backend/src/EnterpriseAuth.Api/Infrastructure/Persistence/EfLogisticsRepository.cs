@@ -462,6 +462,59 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     await _scanContext.SaveChangesAsync();
                 }
 
+                // AUTO-POPULATE EXCESS TABLE for BLK/CUTS/FRZ orders
+                if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-"))
+                {
+                    var order = await _scanContext.SalesOrders
+                        .FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
+                    
+                    if (order != null)
+                    {
+                        var excess = await _scanContext.Excesses
+                            .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == itemCode);
+                        
+                        if (excess == null)
+                        {
+                            excess = new Excess
+                            {
+                                SourceBulkSoNumber = soNumber,
+                                ItemCode = itemCode,
+                                DeliveryDate = order.DeliveryDate ?? DateTime.UtcNow,
+                                TotalManufacturedQuantity = totalNewManufactured,
+                                AllocatedQuantity = 0,
+                                RemainingExcess = totalNewManufactured,
+                                CreatedBy = scans.First().CreatedBy ?? "system"
+                            };
+                            _scanContext.Excesses.Add(excess);
+                        }
+                        else
+                        {
+                            excess.TotalManufacturedQuantity += totalNewManufactured;
+                            excess.RemainingExcess += totalNewManufactured;
+                            excess.UpdatedAt = DateTime.UtcNow;
+                            excess.UpdatedBy = scans.First().CreatedBy ?? "system";
+                        }
+                    await _scanContext.SaveChangesAsync();
+                }
+            }
+
+            // HANDLE ALLOCATIONS FROM POOLS (OFFLINE SYNC)
+                var allocations = scans.Where(s => !string.IsNullOrEmpty(s.Location) && s.Location.StartsWith("ALLOC-")).ToList();
+                foreach (var alloc in allocations)
+                {
+                    var sourceSo = alloc.Location.Replace("ALLOC-", "");
+                    var excess = await _scanContext.Excesses
+                        .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == sourceSo && e.ItemCode == alloc.ItemCode);
+                    
+                    if (excess != null)
+                    {
+                        excess.AllocatedQuantity += alloc.ScanAmountKg;
+                        excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
+                        excess.UpdatedAt = DateTime.UtcNow;
+                        excess.UpdatedBy = alloc.CreatedBy ?? "system-sync";
+                    }
+                }
+
                 await transaction.CommitAsync();
 
                 return scans.Count;
@@ -699,6 +752,107 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             await _scanContext.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<IEnumerable<ExcessDto>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode)
+        {
+            var results = await _scanContext.Excesses
+                .Where(e => e.DeliveryDate.Date == deliveryDate.Date && e.ItemCode == itemCode && e.RemainingExcess > 0)
+                .Select(e => new ExcessDto
+                {
+                    Id = e.Id,
+                    SourceBulkSoNumber = e.SourceBulkSoNumber,
+                    ItemCode = e.ItemCode,
+                    DeliveryDate = e.DeliveryDate,
+                    TotalManufacturedQuantity = e.TotalManufacturedQuantity,
+                    AllocatedQuantity = e.AllocatedQuantity,
+                    RemainingExcess = e.RemainingExcess
+                })
+                .ToListAsync();
+
+            return results;
+        }
+
+        public async Task<bool> AllocateExcessAsync(AllocateExcessDto dto)
+        {
+            using var transaction = await _scanContext.Database.BeginTransactionAsync();
+            try
+            {
+                // 1. Find the Excess pool row
+                var excess = await _scanContext.Excesses
+                    .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == dto.SourceBulkSoNumber && e.ItemCode == dto.ItemCode);
+
+                if (excess == null)
+                    throw new Exception($"Excess pool not found: {dto.SourceBulkSoNumber} / {dto.ItemCode}");
+
+                if (dto.AllocateAmountKg > excess.RemainingExcess)
+                    throw new Exception($"Insufficient excess. Requested: {dto.AllocateAmountKg}, Available: {excess.RemainingExcess}");
+
+                // 2. Deduct from excess pool
+                excess.AllocatedQuantity += dto.AllocateAmountKg;
+                excess.RemainingExcess -= dto.AllocateAmountKg;
+                excess.UpdatedAt = DateTime.UtcNow;
+                excess.UpdatedBy = dto.AllocatedBy ?? "system";
+
+                // 3. Insert a production scan against the REAL target order
+                var targetLine = await _scanContext.SalesOrderLines
+                    .Include(l => l.Order)
+                    .FirstOrDefaultAsync(l => l.Order.SourceOrderId == dto.TargetSoNumber && l.ItemCode == dto.ItemCode);
+
+                if (targetLine == null)
+                    throw new Exception($"Target order line not found: {dto.TargetSoNumber} / {dto.ItemCode}");
+
+                var scan = new ProductionScanTransaction
+                {
+                    SalesOrderLineId = targetLine.Id,
+                    ScanAmountKg = dto.AllocateAmountKg,
+                    Barcode = $"ALLOC-{dto.SourceBulkSoNumber}-{DateTime.UtcNow.Ticks}",
+                    LotNumber = null,
+                    Location = "BULK-ALLOC",
+                    ItemStatus = "A",
+                    SyncId = Guid.NewGuid().ToString(),
+                    CreatedBy = dto.AllocatedBy ?? "system",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _scanContext.ProductionScanTransactions.Add(scan);
+
+                // 4. Update target line state
+                var targetState = await _scanContext.ProductionLineStates.FindAsync(targetLine.Id);
+                if (targetState == null)
+                {
+                    targetState = new ProductionLineState { SalesOrderLineId = targetLine.Id };
+                    _scanContext.ProductionLineStates.Add(targetState);
+                }
+                targetState.TotalManufacturedQty += dto.AllocateAmountKg;
+                targetState.UpdatedAt = DateTime.UtcNow;
+
+                // 5. Audit trail
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName = "ExcessAllocation",
+                    EntityId = 0,
+                    ActionType = "ALLOCATE",
+                    Payload = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        dto.SourceBulkSoNumber,
+                        dto.TargetSoNumber,
+                        dto.ItemCode,
+                        dto.AllocateAmountKg,
+                        ExcessRemainingAfter = excess.RemainingExcess
+                    }),
+                    PerformedBy = dto.AllocatedBy ?? "system",
+                    PerformedAt = DateTime.UtcNow
+                });
+
+                await _scanContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }
