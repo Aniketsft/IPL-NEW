@@ -113,6 +113,8 @@ using (var scope = app.Services.CreateScope())
     var scanContext = scope.ServiceProvider.GetRequiredService<ScanProductionDbContext>();
     scanContext.Database.EnsureCreated();
     await DbInitializer.MigrateScanProductionAsync(scanContext);
+    await DbInitializer.MigrateEnterpriseRedesignAsync(scanContext);
+    await DbInitializer.MigrateFinalDecommissionAsync(scanContext);
 }
 
 // Configure the HTTP request pipeline.

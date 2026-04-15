@@ -39,6 +39,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string SoNumber { get; set; } = string.Empty;
         public bool IsPreparedForShipment { get; set; }
+        public bool? IsValidated { get; set; }
     }
 
     public class OrderStatusUpdateDto

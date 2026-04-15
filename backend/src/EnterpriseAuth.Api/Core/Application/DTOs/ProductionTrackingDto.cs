@@ -19,5 +19,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Lot { get; set; } = string.Empty;
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
+        public string? PoNumber { get; set; }
+        public string? Salesman { get; set; }
+        public bool IsPrepared { get; set; }
     }
 }

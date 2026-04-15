@@ -7,43 +7,89 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
     {
         public ScanProductionDbContext(DbContextOptions<ScanProductionDbContext> options) : base(options) { }
 
-        public DbSet<ProductionScan> ProductionScans { get; set; }
-        public DbSet<CutBulkEntry> CutBulkEntries { get; set; }
-        public DbSet<SalesOrderDetailCutsBulk> SalesOrderDetailCutsBulk { get; set; }
+        // --- ENTERPRISE TABLES ---
+        public DbSet<SalesOrder> SalesOrders { get; set; }
+        public DbSet<SalesOrderLine> SalesOrderLines { get; set; }
+        public DbSet<ProductionScanTransaction> ProductionScanTransactions { get; set; }
+        public DbSet<ProductionLineState> ProductionLineStates { get; set; }
+
+        // --- TRANSACTION / STATUS TABLES (Kept Separately) ---
+        public DbSet<OrderShipmentStatus> OrderShipmentStatuses { get; set; }
+        public DbSet<OrderStatusHistory> OrderStatusHistories { get; set; }
+
+        // --- AUDIT ---
         public DbSet<AuditLog> AuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
             
-            // Ensures the precision matches our plan
-            modelBuilder.Entity<ProductionScan>()
-                .Property(e => e.ScanAmountKg)
-                .HasPrecision(18, 2);
-
-            // Configure CutBulkEntry in ScanProduction (v12 Optimized Meta-Mapping)
-            modelBuilder.Entity<CutBulkEntry>(entity =>
+            // SalesOrders
+            modelBuilder.Entity<SalesOrder>(entity =>
             {
-                entity.ToTable("cut_bulk_entries");
                 entity.HasKey(e => e.Id);
-                
-                // PERFORMANCE: Optimized indexes for Atomic Overwrite and Sync tracking
-                entity.HasIndex(e => e.EntryNumber).IsUnique();
-                entity.HasIndex(e => new { e.DeviceId, e.SyncStatus }); 
-                
-                entity.Property(e => e.AmountKg).HasPrecision(18, 2);
+                entity.HasIndex(e => e.SourceOrderId).IsUnique();
+                entity.HasIndex(e => new { e.SourceSystem, e.Status, e.IsArchived });
             });
 
-            // Configure SalesOrderDetailCutsBulk in ScanProduction (v13 Isolation)
-            modelBuilder.Entity<SalesOrderDetailCutsBulk>(entity =>
+            // SalesOrderLines
+            modelBuilder.Entity<SalesOrderLine>(entity =>
             {
-                entity.ToTable("salesorderdetailscutsbulk");
                 entity.HasKey(e => e.Id);
+                entity.Property(e => e.OrderedQuantity).HasPrecision(18, 5);
+                entity.HasIndex(e => new { e.SalesOrderId, e.ItemCode });
                 
-                // PERFORMANCE: Optimized composite index for detail reconciliation
-                entity.HasIndex(e => new { e.SoNumber, e.ItemCode });
+                entity.HasOne(d => d.Order)
+                    .WithMany(p => p.Lines)
+                    .HasForeignKey(d => d.SalesOrderId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ProductionScanTransactions
+            modelBuilder.Entity<ProductionScanTransaction>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ScanAmountKg).HasPrecision(18, 5);
+                entity.HasIndex(e => e.SyncId).IsUnique();
+                entity.HasIndex(e => new { e.SalesOrderLineId, e.IsDeleted, e.IsArchived });
+            });
+
+            // ProductionLineStates
+            modelBuilder.Entity<ProductionLineState>(entity =>
+            {
+                entity.HasKey(e => e.SalesOrderLineId);
+                entity.Property(e => e.TotalManufacturedQty).HasPrecision(18, 5);
+                entity.Property(e => e.TotalPreparedQty).HasPrecision(18, 5);
+                entity.Property(e => e.TotalValidatedQty).HasPrecision(18, 5);
                 
-                entity.Property(e => e.Quantity).HasPrecision(18, 2);
+                entity.HasOne(d => d.OrderLine)
+                    .WithOne()
+                    .HasForeignKey<ProductionLineState>(d => d.SalesOrderLineId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // OrderShipmentStatus (Kept as separate table)
+            modelBuilder.Entity<OrderShipmentStatus>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.SoNumber)
+                    .IsUnique()
+                    .HasDatabaseName("UQ_OrderShipmentStatus_SoNumber");
+            });
+
+            // OrderStatusHistory (Kept as separate table)
+            modelBuilder.Entity<OrderStatusHistory>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.SoNumber)
+                    .HasDatabaseName("IX_OrderStatusHistory_SoNumber");
+            });
+
+            // AuditLogs
+            modelBuilder.Entity<AuditLog>(entity =>
+            {
+                entity.HasIndex(e => new { e.EntityName, e.EntityId })
+                    .HasDatabaseName("IX_AuditLogs_EntityLookup");
             });
         }
     }

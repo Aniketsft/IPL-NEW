@@ -34,266 +34,129 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode)
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
-            
-            var sql = $@"
-                SELECT TOP 300
-                    f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as SoNumber,
-                    f1.STOFCY_0 COLLATE DATABASE_DEFAULT as Site,
-                    LTRIM(RTRIM(f2.ITMREF_0)) COLLATE DATABASE_DEFAULT as ItemCode,
-                    LTRIM(RTRIM(f2.ITMDES1_0)) COLLATE DATABASE_DEFAULT as Description,
-                    'Variable Weight' COLLATE DATABASE_DEFAULT as BarcodeType,
-                    f1.QTY_0 as Quantity,
-                    f1.LOC_0 COLLATE DATABASE_DEFAULT as Location,
-                    f0.BPCORD_0 COLLATE DATABASE_DEFAULT as CustomerCode,
-                    c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as CustomerName
-                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER c on f0.BPCORD_0 = c.BPCNUM_0
-                WHERE 1=1";
+            // Read from optimized aggregated states
+            var query = _scanContext.ProductionLineStates
+                .Include(s => s.OrderLine)
+                .ThenInclude(l => l.Order)
+                .AsNoTracking();
 
-            var parameters = new DynamicParameters();
-            
             if (!string.IsNullOrEmpty(siteCode))
             {
-                sql += " AND f1.STOFCY_0 = @SiteCode";
-                parameters.Add("SiteCode", siteCode);
+                query = query.Where(s => s.OrderLine.Order.Site == siteCode);
             }
 
-            sql += " ORDER BY f0.ORDDAT_0 DESC";
+            // Exclude closed orders from active production tracking
+            query = query.Where(s => s.OrderLine.Order.Status != 2);
 
-            var sageItems = (await db.QueryAsync<ProductionTrackingDto>(sql, parameters)).ToList();
+            var states = await query
+                .OrderByDescending(s => s.OrderLine.Order.OrderDate)
+                .Take(500) // Performance safety
+                .ToListAsync();
 
-            // Fetch Local Bulk/Cuts and map them individually
-            var localEntries = await _scanContext.CutBulkEntries.ToListAsync();
-            var localDetails = await _scanContext.SalesOrderDetailCutsBulk.ToListAsync();
-
-            var localItems = localDetails.Select(d => {
-                var header = localEntries.FirstOrDefault(e => e.EntryNumber == d.SoNumber);
-                return new ProductionTrackingDto
-                {
-                    SoNumber = d.SoNumber ?? string.Empty,
-                    ItemCode = d.ItemCode ?? string.Empty,
-                    Description = d.Description ?? string.Empty,
-                    Quantity = d.Quantity,
-                    Site = "IPL",
-                    Location = "PROD",
-                    CustomerCode = header?.CustomerCode ?? "",
-                    CustomerName = header?.CustomerName ?? ""
-                };
+            var results = states.Select(s => new ProductionTrackingDto
+            {
+                SoNumber = s.OrderLine.Order.SourceOrderId,
+                ItemCode = s.OrderLine.ItemCode,
+                Description = s.OrderLine.Description,
+                Quantity = s.OrderLine.OrderedQuantity,
+                Manufactured = s.TotalManufacturedQty,
+                Remaining = Math.Max(0m, s.OrderLine.OrderedQuantity - s.TotalManufacturedQty),
+                Site = s.OrderLine.Order.Site ?? "IPL",
+                Location = "PROD",
+                CustomerCode = s.OrderLine.Order.CustomerCode,
+                CustomerName = s.OrderLine.Order.CustomerName,
+                PoNumber = s.OrderLine.Order.PoNumber,
+                Salesman = s.OrderLine.Order.Salesman,
+                IsPrepared = s.IsPrepared || s.IsLineCompleted
             })
-            .Where(item => string.IsNullOrEmpty(siteCode) || item.Site == siteCode)
+            .OrderByDescending(x => x.Quantity)
             .ToList();
 
-            var combinedItems = localItems.Concat(sageItems).ToList();
-
-            // Calculate Manufactured for each item
-            var soNumbers = combinedItems.Select(x => x.SoNumber).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
-            var itemCodes = combinedItems.Select(x => x.ItemCode).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
-
-            var scans = new List<ProductionScan>();
-            if (soNumbers.Any() && itemCodes.Any())
-            {
-                scans = await _scanContext.ProductionScans
-                    .Where(s => soNumbers.Contains(s.SoNumber) && itemCodes.Contains(s.ItemCode) && !s.IsDeleted && s.ItemStatus == "A")
-                    .ToListAsync();
-            }
-
-            foreach (var item in combinedItems)
-            {
-                var manufactured = scans
-                    .Where(s => s.SoNumber == item.SoNumber && s.ItemCode == item.ItemCode)
-                    .Sum(s => s.ScanAmountKg);
-
-                item.Manufactured = manufactured;
-                item.Remaining = (item.Quantity ?? 0m) - manufactured;
-                if (string.IsNullOrEmpty(item.Site)) item.Site = "IPL"; // Default
-            }
-
-            return combinedItems.OrderByDescending(x => x.Quantity);
+            return results;
         }
 
         public async Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1)
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
+            // Read from centralized SalesOrder table
+            var query = _scanContext.SalesOrders.AsNoTracking();
 
-            var sql = $@"
-                SELECT 
-                    f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
-                    f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
-                    f0.ORDDAT_0 as [OrderDate],
-                    f0.SHIDAT_0 as [DeliveryDate],
-                    f0.BPCORD_0 COLLATE DATABASE_DEFAULT as [CustomerCode],
-                    c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as [CustomerName],
-                    LTRIM(RTRIM(f0.REP_0)) COLLATE DATABASE_DEFAULT as [Rep0],
-                    LTRIM(RTRIM(f0.REP_1)) COLLATE DATABASE_DEFAULT as [Rep1],
-                    f0.SALFCY_0 COLLATE DATABASE_DEFAULT as [Site],
-                    f0.ORDSTA_0 as [Status],
-                    CAST('External' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
-                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f2 ON f0.SOHNUM_0 = f2.ORISONO_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.BPCUSTOMER c ON f0.BPCORD_0 = c.BPCNUM_0
-                WHERE 1=1";
-
-            var parameters = new DynamicParameters();
-
-            if (date.HasValue)
-            {
-                sql += " AND f0.SHIDAT_0 = @Date";
-                parameters.Add("Date", date.Value.Date);
-            }
-
-            if (!string.IsNullOrEmpty(customerCode))
-            {
-                sql += " AND f0.BPCORD_0 = @CustomerCode";
-                parameters.Add("CustomerCode", customerCode);
-            }
-
-            if (!string.IsNullOrEmpty(rep0))
-            {
-                sql += " AND f0.REP_0 = @Rep0";
-                parameters.Add("Rep0", rep0);
-            }
-
-            if (!string.IsNullOrEmpty(rep1))
-            {
-                sql += " AND f0.REP_1 = @Rep1";
-                parameters.Add("Rep1", rep1);
-            }
-
-            sql += @"
-                UNION ALL
-                SELECT 
-                    EntryNumber COLLATE DATABASE_DEFAULT as [SohNum],
-                    ISNULL(PoNumber, '') COLLATE DATABASE_DEFAULT as [PoNo],
-                    Date as [OrderDate],
-                    Date as [DeliveryDate],
-                    CustomerCode COLLATE DATABASE_DEFAULT as [CustomerCode],
-                    CustomerName COLLATE DATABASE_DEFAULT as [CustomerName],
-                    ISNULL(Salesman1Code, '') COLLATE DATABASE_DEFAULT as [Rep0],
-                    ISNULL(Salesman2Code, '') COLLATE DATABASE_DEFAULT as [Rep1],
-                    CAST('INTERNAL' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Site],
-                    1 as [Status],
-                    CAST('Internal' AS NVARCHAR(20)) COLLATE DATABASE_DEFAULT as [Source]
-                FROM [{_syncSettings.AppDatabaseName}].[dbo].[cut_bulk_entries]
-                WHERE 1=1";
-
-            if (date.HasValue)
-            {
-                sql += " AND CAST(Date as DATE) = @Date";
-            }
-
-            if (!string.IsNullOrEmpty(customerCode))
-            {
-                sql += " AND CustomerCode = @CustomerCode";
-            }
-
-            if (!string.IsNullOrEmpty(rep0))
-            {
-                sql += " AND Salesman1Code = @Rep0";
-            }
-
-            if (!string.IsNullOrEmpty(rep1))
-            {
-                sql += " AND Salesman2Code = @Rep1";
-            }
-
-            sql += " ORDER BY [OrderDate] DESC";
-
-            var allHeaders = (await db.QueryAsync<SalesOrderHeaderDto>(sql, parameters)).ToList();
-
-            // Override status from ScanProduction table (a locally closed order has OrderStatus = "2")
-            var allSoNumbers = allHeaders.Select(h => h.SohNum).ToList();
-            if (allSoNumbers.Any())
-            {
-                var closedSoNumbers = await _scanContext.ProductionScans
-                    .Where(s => allSoNumbers.Contains(s.SoNumber) && s.OrderStatus == "2" && !s.IsDeleted)
-                    .Select(s => s.SoNumber)
-                    .Distinct()
-                    .ToListAsync();
-
-                foreach (var header in allHeaders)
-                {
-                    if (closedSoNumbers.Contains(header.SohNum))
-                        header.Status = 2;
-                }
-            }
-
-            // Apply status filter after merge
             if (status.HasValue)
             {
-                allHeaders = allHeaders.Where(h => h.Status == status.Value).ToList();
+                query = query.Where(o => o.Status == status.Value);
             }
 
-            return allHeaders.OrderByDescending(h => h.OrderDate);
+            if (date.HasValue)
+            {
+                var targetDate = date.Value.Date;
+                query = query.Where(o => o.DeliveryDate >= targetDate && o.DeliveryDate < targetDate.AddDays(1));
+            }
+
+            if (!string.IsNullOrEmpty(customerCode))
+            {
+                query = query.Where(o => o.CustomerCode == customerCode);
+            }
+
+            if (!string.IsNullOrEmpty(rep0))
+            {
+                query = query.Where(o => o.Salesman.Contains(rep0));
+            }
+
+            if (!string.IsNullOrEmpty(rep1))
+            {
+                query = query.Where(o => o.Salesman.Contains(rep1));
+            }
+
+            var orders = await query
+                .OrderByDescending(o => o.OrderDate)
+                .Take(500)
+                .ToListAsync();
+
+            // Fetch shipment preparation statuses from OrderShipmentStatus (KEPT table)
+            var soNumbers = orders.Select(o => o.SourceOrderId).ToList();
+            var shipmentStatuses = await _scanContext.OrderShipmentStatuses
+                .Where(s => soNumbers.Contains(s.SoNumber) && s.IsPreparedForShipment)
+                .Select(s => s.SoNumber)
+                .ToListAsync();
+
+            return orders.Select(o => new SalesOrderHeaderDto
+            {
+                SohNum = o.SourceOrderId,
+                PoNo = o.PoNumber ?? "",
+                OrderDate = o.OrderDate,
+                DeliveryDate = o.DeliveryDate,
+                CustomerCode = o.CustomerCode,
+                CustomerName = o.CustomerName,
+                Rep0 = o.Salesman,
+                Rep1 = "",
+                Site = o.Site,
+                Status = o.Status,
+                Source = o.SourceSystem,
+                IsPreparedForShipment = shipmentStatuses.Contains(o.SourceOrderId)
+            });
         }
 
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
-            string sql = $@"
-                SELECT 
-                    f0.SOHNUM_0 as SoNumber,
-                    f2.ITMREF_0 as ItemCode,
-                    f2.ITMDES1_0 as Description,
-                    'Variable Weight' as BarcodeType,
-                    f1.QTY_0 as Quantity,
-                    f1.STOFCY_0 as Site,
-                    0.0 as Remaining, 
-                    0.0 as Manufactured,
-                    CAST(0 AS BIT) as IsPrepared
-                FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDERQ f1 on f0.SOHNUM_0 = f1.SOHNUM_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER f2 on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 on f0.SOHNUM_0 = f3.ORISONO_0
-                WHERE f0.SOHNUM_0 = @SoNumber
-                
-                UNION ALL
-                
-                SELECT 
-                    SoNumber COLLATE DATABASE_DEFAULT as SoNumber,
-                    ItemCode COLLATE DATABASE_DEFAULT as ItemCode,
-                    Description COLLATE DATABASE_DEFAULT as Description,
-                    BarcodeType COLLATE DATABASE_DEFAULT as BarcodeType,
-                    Quantity,
-                    CAST('INTERNAL' AS NVARCHAR(20)) as Site,
-                    0.0 as Remaining,
-                    0.0 as Manufactured,
-                    IsPrepared
-                FROM [{_syncSettings.AppDatabaseName}].[dbo].[salesorderdetailscutsbulk]
-                WHERE SoNumber = @SoNumber";
-
-            var details = (await db.QueryAsync<SalesOrderDetailDto>(sql, new { SoNumber = soNumber })).ToList();
-
-            // Fetch Scans from separate context and join in memory to avoid cross-DB permission issues
-            var scanStats = await _scanContext.ProductionScans
-                .Where(s => s.SoNumber == soNumber && !s.IsDeleted && s.ItemStatus == "A")
-                .GroupBy(s => s.ItemCode)
-                .Select(g => new { 
-                    ItemCode = g.Key ?? string.Empty, 
-                    TotalAmount = g.Sum(x => x.ScanAmountKg),
-                    AnyPrepared = g.Any(x => x.IsPrepared)
-                })
+            // Read from optimized aggregated states linked to unified lines
+            var states = await _scanContext.ProductionLineStates
+                .Include(s => s.OrderLine)
+                .ThenInclude(l => l.Order)
+                .Where(s => s.OrderLine.Order.SourceOrderId == soNumber)
+                .AsNoTracking()
                 .ToListAsync();
 
-            foreach (var detail in details)
+            return states.Select(s => new SalesOrderDetailDto
             {
-                var stat = scanStats.FirstOrDefault(s => s.ItemCode == detail.ItemCode);
-                var scanSum = stat?.TotalAmount ?? 0m;
-                detail.Remaining = (detail.Quantity ?? 0m) - scanSum;
-                detail.Manufactured = scanSum;
-                
-                // For external orders, we derive IsPrepared from scans.
-                // For internal orders, it's already selected from the database in the UNION.
-                if (detail.Site != "INTERNAL")
-                {
-                    detail.IsPrepared = stat?.AnyPrepared ?? false;
-                }
-            }
-
-            return details;
+                SoNumber = s.OrderLine.Order.SourceOrderId,
+                ItemCode = s.OrderLine.ItemCode,
+                Description = s.OrderLine.Description,
+                BarcodeType = "Variable Weight",
+                Quantity = s.OrderLine.OrderedQuantity,
+                Site = s.OrderLine.Order.Site,
+                Remaining = Math.Max(0m, s.OrderLine.OrderedQuantity - s.TotalManufacturedQty),
+                Manufactured = s.TotalManufacturedQty,
+                IsPrepared = s.IsPrepared || s.IsLineCompleted
+            });
         }
 
         public async Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync()
@@ -346,11 +209,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             using IDbConnection db = new SqlConnection(_connectionString);
             
-            // Note: We use EnterpriseAuthDb for scans if it's the sync destination
-            // However, the connection string used here is "Innodis".
-            // If scans go to EnterpriseAuthDb, we might need a different connection.
-            // For now, keeping consistent with previous logic but ensuring it compiles.
-            
             const string sql = @"
                 INSERT INTO [{_syncSettings.AppDatabaseName}].[dbo].[MobileAppScans] 
                 (SoNumber, ItemCode, ScannedQuantity, ScannedAt, ScannedBy, DeviceId)
@@ -363,6 +221,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
             return totalRows;
         }
+
         public async Task<string> SaveCutBulkEntryAsync(CutBulkEntryDto dto, bool skipScan = false)
         {
             string soNumber = dto.ExistingSoNumber ?? string.Empty;
@@ -373,59 +232,57 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var today = DateTime.Now;
                 var dateStr = today.ToString("yyyyMMdd");
                 
-                // Simple unique ID logic: count today's entries
-                int count = _scanContext.CutBulkEntries.Count(e => e.EntryNumber.StartsWith($"CB-{dateStr}"));
+                int count = _scanContext.SalesOrders.Count(e => e.SourceOrderId.StartsWith($"CB-{dateStr}"));
                 soNumber = $"CB-{dateStr}-{(count + 1):D4}";
 
-                var entryEntity = new EnterpriseAuth.Api.Core.Domain.Entities.CutBulkEntry
+                // 1. Unified SalesOrder
+                var order = new SalesOrder
                 {
-                    EntryNumber = soNumber,
-                    Type = dto.Type ?? string.Empty,
+                    SourceOrderId = soNumber,
+                    SourceSystem = "Internal",
                     CustomerCode = dto.CustomerCode ?? string.Empty,
                     CustomerName = dto.CustomerName ?? string.Empty,
-                    Date = dto.Date ?? DateTime.Now,
+                    OrderDate = dto.Date ?? DateTime.Now,
+                    DeliveryDate = dto.Date ?? DateTime.Now,
                     PoNumber = dto.PoNumber,
-                    Salesman1Code = dto.Salesman1Code,
-                    Salesman2Code = dto.Salesman2Code,
-                    AmountKg = dto.AmountKg,
-                    SyncStatus = "Local",
-                    SyncTimestamp = DateTime.UtcNow
+                    Salesman = string.IsNullOrEmpty(dto.Salesman2Code) ? dto.Salesman1Code : $"{dto.Salesman1Code} / {dto.Salesman2Code}",
+                    Site = "IPL",
+                    Status = 1
                 };
+                _scanContext.SalesOrders.Add(order);
 
-                var detailEntity = new SalesOrderDetailCutsBulk
+                // 2. Unified SalesOrderLine
+                var itemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK");
+                var line = new SalesOrderLine
                 {
-                    SoNumber = soNumber,
-                    ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                    Order = order,
+                    ItemCode = itemCode,
                     Description = !string.IsNullOrEmpty(dto.ProductName) ? dto.ProductName : (dto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
-                    Quantity = 0m, // Ordered amount must always be zero for Cut/Bulk entries
-                    SyncStatus = "Local",
-                    CreatedAt = DateTime.UtcNow
+                    OrderedQuantity = 0m,
+                    LineNumber = 1,
+                    LineStatus = 1
                 };
+                _scanContext.SalesOrderLines.Add(line);
 
-                _scanContext.CutBulkEntries.Add(entryEntity);
-                _scanContext.SalesOrderDetailCutsBulk.Add(detailEntity);
+                // 3. Initialize ProductionLineState
+                var state = new ProductionLineState { OrderLine = line };
+                _scanContext.ProductionLineStates.Add(state);
+
                 await _scanContext.SaveChangesAsync();
             }
 
-            // Only create an automatic production scan if skipScan is false
             if (!skipScan)
             {
-                var scan = new ProductionScan
+                await SaveProductionScanAsync(new ProductionScanDto
                 {
                     SoNumber = soNumber,
                     ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
                     ScanAmountKg = dto.AmountKg,
-                    LineNo = 1,
-                    OrderStatus = "1", // Open
-                    ItemStatus = "A",   // Accepted
+                    ItemStatus = "A",
                     Location = "PROD",
                     Lot = "INTERNAL",
-                    CreatedBy = "mobile-user",
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _scanContext.ProductionScans.Add(scan);
-                await _scanContext.SaveChangesAsync();
+                    CreatedBy = "mobile-user"
+                });
             }
 
             return soNumber;
@@ -436,29 +293,48 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using var transaction = await _scanContext.Database.BeginTransactionAsync();
             try
             {
-                var entity = new ProductionScan
+                // Resolve the Order Line GUID
+                var line = await _scanContext.SalesOrderLines
+                    .Include(l => l.Order)
+                    .FirstOrDefaultAsync(l => l.Order.SourceOrderId == scanDto.SoNumber && l.ItemCode == scanDto.ItemCode);
+
+                if (line == null) throw new Exception($"Order Line not found: {scanDto.SoNumber} / {scanDto.ItemCode}");
+
+                // 1. Insert Transaction (Append-Only)
+                var entity = new ProductionScanTransaction
                 {
-                    ItemCode = scanDto.ItemCode ?? string.Empty,
-                    LineNo = scanDto.LineNo,
+                    SalesOrderLineId = line.Id,
                     ScanAmountKg = scanDto.ScanAmountKg,
-                    SoNumber = scanDto.SoNumber ?? string.Empty,
-                    OrderStatus = scanDto.OrderStatus ?? "1",
-                    ItemStatus = scanDto.ItemStatus ?? "Q",
+                    Barcode = scanDto.Barcode,
+                    LotNumber = scanDto.Lot,
                     Location = scanDto.Location ?? string.Empty,
-                    Lot = scanDto.Lot,
-                    IsPrepared = scanDto.IsPrepared,
+                    ItemStatus = scanDto.ItemStatus ?? "Q",
+                    SyncId = Guid.NewGuid().ToString(),
                     CreatedBy = scanDto.CreatedBy ?? "system",
                     CreatedAt = DateTime.UtcNow
                 };
 
-                _scanContext.ProductionScans.Add(entity);
+                _scanContext.ProductionScanTransactions.Add(entity);
+
+                // 2. Update Aggregated State (ProductionLineState)
+                var state = await _scanContext.ProductionLineStates.FindAsync(line.Id);
+                if (state == null)
+                {
+                    state = new ProductionLineState { SalesOrderLineId = line.Id };
+                    _scanContext.ProductionLineStates.Add(state);
+                }
+                
+                state.TotalManufacturedQty += scanDto.ScanAmountKg;
+                state.LastScanId = entity.Id;
+                state.UpdatedAt = DateTime.UtcNow;
+
                 await _scanContext.SaveChangesAsync();
 
                 // Generate Audit Log
                 var audit = new AuditLog
                 {
-                    EntityName = "production_scan",
-                    EntityId = entity.ScanId,
+                    EntityName = "ProductionScanTransactions",
+                    EntityId = 0,
                     ActionType = "INSERT",
                     Payload = System.Text.Json.JsonSerializer.Serialize(entity),
                     PerformedBy = entity.CreatedBy ?? "system",
@@ -469,7 +345,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 await transaction.CommitAsync();
 
-                scanDto.ScanId = entity.ScanId;
+                scanDto.ScanId = 0;
                 scanDto.CreatedAt = entity.CreatedAt;
                 return scanDto;
             }
@@ -540,62 +416,105 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<LocationLookupDto>(sql, new { Site = site, ItemCode = itemCode });
         }
 
+        // ===== STATUS METHODS =====
+
         public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
         {
-            return await UpdateItemStatusInternalAsync(soNumber, itemCode, isPrepared, false);
+            return await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, isPrepared);
+        }
+
+        public async Task<bool> UpdateOrderShipmentPreparationStatusAsync(string soNumber, bool isPrepared)
+        {
+            return await UpsertOrderShipmentStatusAsync(soNumber, isPreparedForShipment: isPrepared);
+        }
+
+        public async Task<bool> UpdateOrderValidationStatusAsync(string soNumber, bool isValidated)
+        {
+            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated);
         }
 
         public async Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated)
         {
-            return await UpdateItemStatusInternalAsync(soNumber, itemCode, isValidated, true);
+            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated);
         }
 
         public async Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation)
         {
+            if (isValidation)
+            {
+                return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: status);
+            }
+
             foreach (var itemCode in itemCodes)
             {
-                await UpdateItemStatusInternalAsync(soNumber, itemCode, status, isValidation, false);
+                await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, status, autoSave: false);
             }
             await _scanContext.SaveChangesAsync();
             return true;
         }
 
-        private async Task<bool> UpdateItemStatusInternalAsync(string soNumber, string itemCode, bool status, bool isValidation, bool autoSave = true)
+        /// <summary>
+        /// Upserts IsPrepared on ProductionLineState (replaces ItemPreparationStatus table).
+        /// </summary>
+        private async Task<bool> UpsertProductionLineStatePreparationAsync(
+            string soNumber, string itemCode, bool isPrepared, bool autoSave = true)
         {
-            // 1. Update Internal Detail if exists
-            var detail = await _scanContext.SalesOrderDetailCutsBulk
-                .FirstOrDefaultAsync(d => d.SoNumber == soNumber && d.ItemCode == itemCode);
+            var line = await _scanContext.SalesOrderLines
+                .Include(l => l.Order)
+                .FirstOrDefaultAsync(l => l.Order.SourceOrderId == soNumber && l.ItemCode == itemCode);
 
-            if (detail != null)
+            if (line == null) return false;
+
+            var state = await _scanContext.ProductionLineStates.FindAsync(line.Id);
+            if (state != null)
             {
-                if (isValidation) detail.IsPreparedForShipment = status;
-                else detail.IsPrepared = status;
+                state.IsPrepared = isPrepared;
+                state.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _scanContext.ProductionLineStates.Add(new ProductionLineState
+                {
+                    SalesOrderLineId = line.Id,
+                    IsPrepared = isPrepared,
+                    UpdatedAt = DateTime.UtcNow
+                });
             }
 
-            // 2. Update all existing scans for this item
-            var scans = await _scanContext.ProductionScans
-                .Where(s => s.SoNumber == soNumber && s.ItemCode == itemCode && !s.IsDeleted)
-                .ToListAsync();
-
-            foreach (var scan in scans)
+            if (autoSave)
             {
-                if (isValidation) scan.IsPreparedForShipment = status;
-                else scan.IsPrepared = status;
+                await _scanContext.SaveChangesAsync();
             }
+            
+            return true;
+        }
 
-            // 3. If no scans exist yet and marking as true, create a sentinel record to persist status
-            if (detail == null && !scans.Any() && status)
+        /// <summary>
+        /// Upserts OrderShipmentStatus (KEPT as separate table).
+        /// </summary>
+        private async Task<bool> UpsertOrderShipmentStatusAsync(
+            string soNumber, 
+            bool? isPreparedForShipment = null, 
+            bool? isValidated = null,
+            bool autoSave = true)
+        {
+            var existing = await _scanContext.OrderShipmentStatuses
+                .FirstOrDefaultAsync(s => s.SoNumber == soNumber);
+
+            if (existing != null)
             {
-                _scanContext.ProductionScans.Add(new ProductionScan
+                if (isPreparedForShipment.HasValue) existing.IsPreparedForShipment = isPreparedForShipment.Value;
+                if (isValidated.HasValue) existing.IsValidated = isValidated.Value;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _scanContext.OrderShipmentStatuses.Add(new OrderShipmentStatus
                 {
                     SoNumber = soNumber,
-                    ItemCode = itemCode,
-                    ScanAmountKg = 0m,
-                    LineNo = 0,
-                    IsPrepared = !isValidation && status,
-                    IsPreparedForShipment = isValidation && status,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "status-update-sentinel"
+                    IsPreparedForShipment = isPreparedForShipment ?? false,
+                    IsValidated = isValidated ?? false,
+                    UpdatedAt = DateTime.UtcNow
                 });
             }
 
@@ -631,33 +550,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<BarcodeMappingDto>(sql, new { Site = siteCode });
         }
 
+        /// <summary>
+        /// Closes an order by inserting into OrderStatusHistory (KEPT table).
+        /// </summary>
         public async Task<bool> CloseOrderAsync(string soNumber, string closedBy)
         {
-            // Check if there's already a close record for this SO
-            var existing = await _scanContext.ProductionScans
-                .FirstOrDefaultAsync(s => s.SoNumber == soNumber && s.OrderStatus == "2" && !s.IsDeleted);
+            var existing = await _scanContext.OrderStatusHistories
+                .FirstOrDefaultAsync(h => h.SoNumber == soNumber && h.Status == 2);
 
             if (existing != null)
                 return true; // Already closed
 
-            // Insert a sentinel scan record marking the order as closed
-            var entity = new ProductionScan
+            _scanContext.OrderStatusHistories.Add(new OrderStatusHistory
             {
-                ItemCode = "ORDER-CLOSE",
-                LineNo = 0,
-                ScanAmountKg = 0m,
                 SoNumber = soNumber,
-                OrderStatus = "2",
-                ItemStatus = "A",
-                CreatedBy = closedBy,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _scanContext.ProductionScans.Add(entity);
+                Status = 2,
+                ChangedBy = closedBy,
+                ChangedAt = DateTime.UtcNow
+            });
 
             var audit = new AuditLog
             {
-                EntityName = "production_scan",
+                EntityName = "OrderStatusHistory",
                 EntityId = 0,
                 ActionType = "CLOSE_ORDER",
                 Payload = $"{{\"soNumber\":\"{soNumber}\",\"closedBy\":\"{closedBy}\"}}",

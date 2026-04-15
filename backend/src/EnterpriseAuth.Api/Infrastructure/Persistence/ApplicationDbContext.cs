@@ -11,7 +11,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<Role> Roles { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<UserGroup> UserGroups { get; set; }
-        public DbSet<CutBulkEntry> CutBulkEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -54,13 +53,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             modelBuilder.Entity<Role>().HasIndex(r => r.Name).IsUnique();
             modelBuilder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
             modelBuilder.Entity<UserGroup>().HasIndex(g => g.Name).IsUnique();
-
-            modelBuilder.Entity<CutBulkEntry>()
-                .HasIndex(e => e.EntryNumber).IsUnique();
-
-            modelBuilder.Entity<CutBulkEntry>()
-                .Property(e => e.AmountKg)
-                .HasPrecision(18, 2);
         }
     }
 }

@@ -4,35 +4,35 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EnterpriseAuth.Api.Core.Domain.Entities
 {
-    [Table("audit_log")]
+    [Table("AuditLogs")]
     public class AuditLog
     {
         [Key]
-        [Column("audit_id")]
+        [Column("AuditId")]
         public int AuditId { get; set; }
 
         [Required]
         [MaxLength(100)]
-        [Column("entity_name")]
+        [Column("EntityName")]
         public string EntityName { get; set; } = string.Empty;
 
         [Required]
-        [Column("entity_id")]
+        [Column("EntityId")]
         public int EntityId { get; set; }
 
         [Required]
         [MaxLength(20)]
-        [Column("action_type")]
+        [Column("ActionType")]
         public string ActionType { get; set; } = string.Empty; // INSERT, UPDATE, DELETE
 
-        [Column("payload")]
+        [Column("Payload")]
         public string? Payload { get; set; }
 
         [MaxLength(100)]
-        [Column("performed_by")]
+        [Column("PerformedBy")]
         public string? PerformedBy { get; set; }
 
-        [Column("performed_at")]
+        [Column("PerformedAt")]
         public DateTime PerformedAt { get; set; } = DateTime.UtcNow;
     }
 }

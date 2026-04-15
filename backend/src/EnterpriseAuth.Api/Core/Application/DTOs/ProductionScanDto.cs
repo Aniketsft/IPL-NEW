@@ -19,8 +19,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         [Required]
         public string SoNumber { get; set; } = string.Empty;
         
-        public string? OrderStatus { get; set; }
-        
         public string? ItemStatus { get; set; }
         
         public string? Location { get; set; }
@@ -31,7 +29,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         
         public DateTime? CreatedAt { get; set; }
         
-        public bool IsPrepared { get; set; }
         public string? SyncId { get; set; }
+
+        public string? Barcode { get; set; }
     }
 }
