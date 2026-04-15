@@ -1389,6 +1389,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnLocationCode: 'ALLOC-$sourceBulkSoNumber',
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
+      LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
     };
 
     await LocalDatabaseHelper.instance.insertScan(scanRecord);

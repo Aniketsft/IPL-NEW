@@ -450,8 +450,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 state.TotalManufacturedQty += totalNewManufactured;
                 state.UpdatedAt = DateTime.UtcNow;
-
-                await _scanContext.SaveChangesAsync();
                 
                 // If there are scans, the last one gets its ID set in state.
                 // But we don't strictly need to set LastScanId correctly if there are many.
@@ -459,61 +457,61 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (logsToInsert.Any())
                 {
                     _scanContext.AuditLogs.AddRange(logsToInsert);
-                    await _scanContext.SaveChangesAsync();
                 }
 
-                // AUTO-POPULATE EXCESS TABLE for BLK/CUTS/FRZ orders
+                // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
                 if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-"))
                 {
-                    var order = await _scanContext.SalesOrders
-                        .FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
-                    
-                    if (order != null)
-                    {
-                        var excess = await _scanContext.Excesses
-                            .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == itemCode);
-                        
-                        if (excess == null)
-                        {
-                            excess = new Excess
-                            {
-                                SourceBulkSoNumber = soNumber,
-                                ItemCode = itemCode,
-                                DeliveryDate = order.DeliveryDate ?? DateTime.UtcNow,
-                                TotalManufacturedQuantity = totalNewManufactured,
-                                AllocatedQuantity = 0,
-                                RemainingExcess = totalNewManufactured,
-                                CreatedBy = scans.First().CreatedBy ?? "system"
-                            };
-                            _scanContext.Excesses.Add(excess);
-                        }
-                        else
-                        {
-                            excess.TotalManufacturedQuantity += totalNewManufactured;
-                            excess.RemainingExcess += totalNewManufactured;
-                            excess.UpdatedAt = DateTime.UtcNow;
-                            excess.UpdatedBy = scans.First().CreatedBy ?? "system";
-                        }
-                    await _scanContext.SaveChangesAsync();
-                }
-            }
-
-            // HANDLE ALLOCATIONS FROM POOLS (OFFLINE SYNC)
-                var allocations = scans.Where(s => !string.IsNullOrEmpty(s.Location) && s.Location.StartsWith("ALLOC-")).ToList();
-                foreach (var alloc in allocations)
-                {
-                    var sourceSo = alloc.Location.Replace("ALLOC-", "");
                     var excess = await _scanContext.Excesses
-                        .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == sourceSo && e.ItemCode == alloc.ItemCode);
+                        .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == itemCode);
                     
-                    if (excess != null)
+                    if (excess == null)
                     {
-                        excess.AllocatedQuantity += alloc.ScanAmountKg;
+                        excess = new Excess
+                        {
+                            SourceBulkSoNumber = soNumber,
+                            ItemCode = itemCode,
+                            DeliveryDate = line.Order.DeliveryDate ?? DateTime.UtcNow,
+                            TotalManufacturedQuantity = totalNewManufactured,
+                            AllocatedQuantity = 0,
+                            RemainingExcess = totalNewManufactured,
+                            CreatedBy = scans.First().CreatedBy ?? "system"
+                        };
+                        _scanContext.Excesses.Add(excess);
+                    }
+                    else
+                    {
+                        excess.TotalManufacturedQuantity += totalNewManufactured;
                         excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
                         excess.UpdatedAt = DateTime.UtcNow;
-                        excess.UpdatedBy = alloc.CreatedBy ?? "system-sync";
+                        excess.UpdatedBy = scans.First().CreatedBy ?? "system";
                     }
                 }
+
+                // --- HANDLE ALLOCATIONS FROM POOLS (AGGREGATED) ---
+                var allocations = scans.Where(s => !string.IsNullOrEmpty(s.Location) && s.Location.StartsWith("ALLOC-")).ToList();
+                if (allocations.Any())
+                {
+                    // Group allocations by source pool in case this batch has mixed sources (though unlikely per line 394)
+                    var groupedAllocations = allocations.GroupBy(a => a.Location.Replace("ALLOC-", ""));
+                    foreach (var group in groupedAllocations)
+                    {
+                        var sourceBulkSo = group.Key;
+                        var excess = await _scanContext.Excesses
+                            .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == sourceBulkSo && e.ItemCode == itemCode);
+                        
+                        if (excess != null)
+                        {
+                            var totalAllocatedInBatch = group.Sum(a => a.ScanAmountKg);
+                            excess.AllocatedQuantity += totalAllocatedInBatch;
+                            excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
+                            excess.UpdatedAt = DateTime.UtcNow;
+                            excess.UpdatedBy = scans.First().CreatedBy ?? "system-sync";
+                        }
+                    }
+                }
+
+                await _scanContext.SaveChangesAsync();
 
                 await transaction.CommitAsync();
 

@@ -234,23 +234,42 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     // Batch resolve Order Line GUIDs for performance
                     var soNumbers = request.Scans.Select(s => s.SoNumber).Distinct().ToList();
                     var itemCodes = request.Scans.Select(s => s.ItemCode).Distinct().ToList();
+                    var syncIds = request.Scans.Select(s => s.SyncId).ToList();
 
                     var lines = await _scanContext.SalesOrderLines
                         .Include(l => l.Order)
                         .Where(l => soNumbers.Contains(l.Order.SourceOrderId) && itemCodes.Contains(l.ItemCode))
                         .ToListAsync();
 
+                    // Pre-fetch check for existing scans (Idempotency)
+                    var existingSyncIds = await _scanContext.ProductionScanTransactions
+                        .Where(s => syncIds.Contains(s.SyncId))
+                        .Select(s => s.SyncId)
+                        .ToListAsync();
+
+                    // Pre-fetch existing States
+                    var lineIds = lines.Select(l => l.Id).ToList();
+                    var states = await _scanContext.ProductionLineStates
+                        .Where(s => lineIds.Contains(s.SalesOrderLineId))
+                        .ToDictionaryAsync(s => s.SalesOrderLineId);
+
+                    // Pre-fetch existing Excess pools
+                    var existingExcesses = await _scanContext.Excesses
+                        .Where(e => soNumbers.Contains(e.SourceBulkSoNumber) && itemCodes.Contains(e.ItemCode))
+                        .ToListAsync();
+                    
+                    // Dictionary for tracking new/updated Excess records in this batch
+                    var excessTracker = existingExcesses.ToDictionary(e => (e.SourceBulkSoNumber, e.ItemCode));
+
                     foreach (var scanDto in request.Scans)
                     {
+                        if (existingSyncIds.Contains(scanDto.SyncId)) continue;
+
                         var line = lines.FirstOrDefault(l => 
                             l.Order.SourceOrderId == scanDto.SoNumber && 
                             l.ItemCode == scanDto.ItemCode);
                         
                         if (line == null) continue;
-
-                        // Idempotency check
-                        bool exists = await _scanContext.ProductionScanTransactions.AnyAsync(s => s.SyncId == scanDto.SyncId);
-                        if (exists) continue;
 
                         // Insert Transaction (Append-Only)
                         var transaction = new ProductionScanTransaction
@@ -260,7 +279,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Barcode = scanDto.Barcode, 
                             LotNumber = scanDto.Lot,
                             Location = scanDto.Location,
-                            SyncId = scanDto.SyncId,
+                            SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
                             DeviceId = request.DeviceId,
                             CreatedBy = scanDto.CreatedBy ?? "system",
@@ -268,20 +287,84 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         };
                         _scanContext.ProductionScanTransactions.Add(transaction);
 
-                        // Update Aggregated State (ProductionLineState)
-                        var state = await _scanContext.ProductionLineStates.FindAsync(line.Id);
-                        if (state == null)
+                        // Update Aggregated State (In-Memory)
+                        if (!states.TryGetValue(line.Id, out var state))
                         {
                             state = new ProductionLineState { SalesOrderLineId = line.Id };
                             _scanContext.ProductionLineStates.Add(state);
+                            states[line.Id] = state;
                         }
                         
                         state.TotalManufacturedQty += scanDto.ScanAmountKg;
                         state.LastScanId = transaction.Id;
                         state.UpdatedAt = DateTime.UtcNow;
+
+                        // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
+                        if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-") || scanDto.SoNumber.StartsWith("FRZ-"))
+                        {
+                            if (!excessTracker.TryGetValue((scanDto.SoNumber, scanDto.ItemCode), out var excess))
+                            {
+                                excess = new Excess
+                                {
+                                    SourceBulkSoNumber = scanDto.SoNumber,
+                                    ItemCode = scanDto.ItemCode,
+                                    DeliveryDate = line.Order.DeliveryDate ?? DateTime.UtcNow,
+                                    TotalManufacturedQuantity = 0,
+                                    AllocatedQuantity = 0,
+                                    RemainingExcess = 0,
+                                    CreatedBy = scanDto.CreatedBy ?? "system-sync"
+                                };
+                                _scanContext.Excesses.Add(excess);
+                                excessTracker[(scanDto.SoNumber, scanDto.ItemCode)] = excess;
+                            }
+                            
+                            excess.TotalManufacturedQuantity += scanDto.ScanAmountKg;
+                            excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
+                            excess.UpdatedAt = DateTime.UtcNow;
+                            excess.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                        }
+
+                        // --- HANDLE ALLOCATIONS FROM POOLS (AGGREGATED) ---
+                        if (!string.IsNullOrEmpty(scanDto.Location) && scanDto.Location.StartsWith("ALLOC-"))
+                        {
+                            var sourceBulkSo = scanDto.Location.Replace("ALLOC-", "");
+                            if (excessTracker.TryGetValue((sourceBulkSo, scanDto.ItemCode), out var poolExcess))
+                            {
+                                poolExcess.AllocatedQuantity += scanDto.ScanAmountKg;
+                                poolExcess.RemainingExcess = poolExcess.TotalManufacturedQuantity - poolExcess.AllocatedQuantity;
+                                poolExcess.UpdatedAt = DateTime.UtcNow;
+                                poolExcess.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                            }
+                            else
+                            {
+                                // We might need to fetch it if it wasn't in the initial pre-fetch 
+                                // (because pre-fetch only looked at soNumbers of current scans)
+                                var poolExcessFromDb = await _scanContext.Excesses
+                                    .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == sourceBulkSo && e.ItemCode == scanDto.ItemCode);
+                                
+                                if (poolExcessFromDb != null)
+                                {
+                                    poolExcessFromDb.AllocatedQuantity += scanDto.ScanAmountKg;
+                                    poolExcessFromDb.RemainingExcess = poolExcessFromDb.TotalManufacturedQuantity - poolExcessFromDb.AllocatedQuantity;
+                                    poolExcessFromDb.UpdatedAt = DateTime.UtcNow;
+                                    poolExcessFromDb.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                                    excessTracker[(sourceBulkSo, scanDto.ItemCode)] = poolExcessFromDb;
+                                }
+                            }
+                        }
                     }
 
-                    await _scanContext.SaveChangesAsync();
+                    try 
+                    {
+                        await _scanContext.SaveChangesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"DB SAVE ERROR in Sync: {ex.Message}");
+                        if (ex.InnerException != null) Console.WriteLine($"INNER ERROR: {ex.InnerException.Message}");
+                        throw;
+                    }
+                    
                     await scanTransaction.CommitAsync();
                     totalCount += request.Scans.Count;
                 }
