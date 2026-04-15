@@ -318,29 +318,35 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     -- RECONCILIATION: Add missing sync columns to existing tables
                     -- 1. CutBulkEntries
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'DeviceId')
-                        ALTER TABLE CutBulkEntries ADD DeviceId NVARCHAR(100) NULL;
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'SyncStatus')
-                        ALTER TABLE CutBulkEntries ADD SyncStatus NVARCHAR(50) NULL;
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'SyncTimestamp')
-                        ALTER TABLE CutBulkEntries ADD SyncTimestamp DATETIME NULL;
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CutBulkEntries]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'DeviceId')
+                            EXEC('ALTER TABLE CutBulkEntries ADD DeviceId NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'SyncStatus')
+                            EXEC('ALTER TABLE CutBulkEntries ADD SyncStatus NVARCHAR(50) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CutBulkEntries' AND COLUMN_NAME = 'SyncTimestamp')
+                            EXEC('ALTER TABLE CutBulkEntries ADD SyncTimestamp DATETIME NULL;');
+                    END
 
                     -- 2. SalesOrderDetails
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'SyncStatus')
-                        ALTER TABLE SalesOrderDetails ADD SyncStatus NVARCHAR(10) NOT NULL DEFAULT 'Synced';
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'CreatedAt')
-                        ALTER TABLE SalesOrderDetails ADD CreatedAt DATETIME NULL;
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'BarcodeType')
-                        ALTER TABLE SalesOrderDetails ADD BarcodeType NVARCHAR(50) NOT NULL DEFAULT 'Variable Weight';
-                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'ManufacturedQuantity')
-                        ALTER TABLE SalesOrderDetails ADD ManufacturedQuantity DECIMAL(18,2) NOT NULL DEFAULT 0;
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderDetails]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'SyncStatus')
+                            EXEC('ALTER TABLE SalesOrderDetails ADD SyncStatus NVARCHAR(10) NOT NULL DEFAULT ''Synced'';');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'CreatedAt')
+                            EXEC('ALTER TABLE SalesOrderDetails ADD CreatedAt DATETIME NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'BarcodeType')
+                            EXEC('ALTER TABLE SalesOrderDetails ADD BarcodeType NVARCHAR(50) NOT NULL DEFAULT ''Variable Weight'';');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrderDetails' AND COLUMN_NAME = 'ManufacturedQuantity')
+                            EXEC('ALTER TABLE SalesOrderDetails ADD ManufacturedQuantity DECIMAL(18,2) NOT NULL DEFAULT 0;');
+                    END
 
                     -- RECONCILIATION: Move IsValidated from ItemPreparationStatus to OrderShipmentStatus if needed
                     IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ItemPreparationStatus' AND COLUMN_NAME = 'IsValidated')
                     BEGIN
                         -- Ensure IsValidated exists on target
                         IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'OrderShipmentStatus' AND COLUMN_NAME = 'IsValidated')
-                            ALTER TABLE OrderShipmentStatus ADD IsValidated BIT NOT NULL DEFAULT 0;
+                            EXEC('ALTER TABLE OrderShipmentStatus ADD IsValidated BIT NOT NULL DEFAULT 0;');
 
                         -- Move data (if any was set to true)
                         EXEC('UPDATE oss
@@ -363,7 +369,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     END
                     ELSE IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'OrderShipmentStatus' AND COLUMN_NAME = 'IsValidated')
                     BEGIN
-                        ALTER TABLE OrderShipmentStatus ADD IsValidated BIT NOT NULL DEFAULT 0;
+                        EXEC('ALTER TABLE OrderShipmentStatus ADD IsValidated BIT NOT NULL DEFAULT 0;');
                         PRINT 'Added IsValidated to OrderShipmentStatus';
                     END
 
@@ -398,6 +404,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     -- 3. Backfill SalesOrderHeaders from SalesOrderDetails
                     IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderHeaders]') AND type in (N'U'))
+                       AND EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderDetails]') AND type in (N'U'))
                     BEGIN
                         EXEC('INSERT INTO SalesOrderHeaders (SoNumber, CreatedAt)
                              SELECT DISTINCT SoNumber, GETUTCDATE()
@@ -496,11 +503,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         EXEC('ALTER TABLE dbo.SalesOrderDetails DROP COLUMN IsPreparedForShipment;');
 
                     -- 7. Add performance indexes
-                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ProductionScans_SoItemDeleted')
-                        CREATE INDEX IX_ProductionScans_SoItemDeleted ON ProductionScans (SoNumber, ItemCode, IsDeleted);
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ProductionScans]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ProductionScans_SoItemDeleted')
+                            EXEC('CREATE INDEX IX_ProductionScans_SoItemDeleted ON ProductionScans (SoNumber, ItemCode, IsDeleted);');
 
-                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ProductionScans_SyncId')
-                        CREATE UNIQUE INDEX IX_ProductionScans_SyncId ON ProductionScans (SyncId) WHERE SyncId IS NOT NULL;
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ProductionScans_SyncId')
+                            EXEC('CREATE UNIQUE INDEX IX_ProductionScans_SyncId ON ProductionScans (SyncId) WHERE SyncId IS NOT NULL;');
+                    END
 
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_AuditLogs_EntityLookup')
                         CREATE INDEX IX_AuditLogs_EntityLookup ON AuditLogs (EntityName, EntityId);
@@ -616,28 +626,37 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     -- 2. DATA PORTING (Idempotent)
                     -- A. Port Orders
-                    INSERT INTO SalesOrders (SourceOrderId, PoNumber, DeliveryDate, Salesman, CustomerCode, CustomerName, Site, Status, CreatedAt)
-                    SELECT SoNumber, PoNumber, DeliveryDate, Salesman, CustomerCode, CustomerName, Site, Status, CreatedAt
-                    FROM dbo.SalesOrderHeaders soh
-                    WHERE NOT EXISTS (SELECT 1 FROM SalesOrders so WHERE so.SourceOrderId = soh.SoNumber);
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderHeaders]') AND type in (N'U'))
+                    BEGIN
+                        EXEC('INSERT INTO SalesOrders (SourceOrderId, PoNumber, DeliveryDate, Salesman, CustomerCode, CustomerName, Site, Status, CreatedAt)
+                        SELECT SoNumber, PoNumber, DeliveryDate, Salesman, CustomerCode, CustomerName, Site, Status, CreatedAt
+                        FROM dbo.SalesOrderHeaders soh
+                        WHERE NOT EXISTS (SELECT 1 FROM SalesOrders so WHERE so.SourceOrderId = soh.SoNumber);');
+                    END
 
                     -- B. Port Lines
-                    INSERT INTO SalesOrderLines (SalesOrderId, ItemCode, Description, OrderedQuantity, Unit, CreatedAt)
-                    SELECT so.Id, sod.ItemCode, sod.Description, sod.Quantity, 'KG', ISNULL(sod.CreatedAt, GETUTCDATE())
-                    FROM dbo.SalesOrderDetails sod
-                    JOIN dbo.SalesOrders so ON sod.SoNumber = so.SourceOrderId
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM SalesOrderLines sol 
-                        WHERE sol.SalesOrderId = so.Id AND sol.ItemCode = sod.ItemCode
-                    );
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderDetails]') AND type in (N'U'))
+                    BEGIN
+                        EXEC('INSERT INTO SalesOrderLines (SalesOrderId, ItemCode, Description, OrderedQuantity, Unit, CreatedAt)
+                        SELECT so.Id, sod.ItemCode, sod.Description, sod.Quantity, ''KG'', ISNULL(sod.CreatedAt, GETUTCDATE())
+                        FROM dbo.SalesOrderDetails sod
+                        JOIN dbo.SalesOrders so ON sod.SoNumber = so.SourceOrderId
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM SalesOrderLines sol 
+                            WHERE sol.SalesOrderId = so.Id AND sol.ItemCode = sod.ItemCode
+                        );');
+                    END
 
                     -- C. Port Transactions
-                    INSERT INTO ProductionScanTransactions (SalesOrderLineId, ScanAmountKg, Barcode, LotNumber, Location, SyncId, ItemStatus, DeviceId, CreatedBy, CreatedAt, IsDeleted)
-                    SELECT sol.Id, ps.ScanAmountKg, NULL, ps.Lot, ps.Location, ps.SyncId, ps.ItemStatus, 'migration', ps.CreatedBy, ps.CreatedAt, ps.IsDeleted
-                    FROM dbo.ProductionScans ps
-                    JOIN dbo.SalesOrderLines sol ON ps.ItemCode = sol.ItemCode
-                    JOIN dbo.SalesOrders so ON ps.SoNumber = so.SourceOrderId AND sol.SalesOrderId = so.Id
-                    WHERE NOT EXISTS (SELECT 1 FROM ProductionScanTransactions pst WHERE pst.SyncId = ps.SyncId);
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ProductionScans]') AND type in (N'U'))
+                    BEGIN
+                        EXEC('INSERT INTO ProductionScanTransactions (SalesOrderLineId, ScanAmountKg, Barcode, LotNumber, Location, SyncId, ItemStatus, DeviceId, CreatedBy, CreatedAt, IsDeleted)
+                        SELECT sol.Id, ps.ScanAmountKg, NULL, ps.Lot, ps.Location, ps.SyncId, ps.ItemStatus, ''migration'', ps.CreatedBy, ps.CreatedAt, ps.IsDeleted
+                        FROM dbo.ProductionScans ps
+                        JOIN dbo.SalesOrderLines sol ON ps.ItemCode = sol.ItemCode
+                        JOIN dbo.SalesOrders so ON ps.SoNumber = so.SourceOrderId AND sol.SalesOrderId = so.Id
+                        WHERE NOT EXISTS (SELECT 1 FROM ProductionScanTransactions pst WHERE pst.SyncId = ps.SyncId);');
+                    END
 
                     -- D. Recalculate Aggregates (ProductionLineStates)
                     INSERT INTO ProductionLineStates (SalesOrderLineId, TotalManufacturedQty, UpdatedAt)
@@ -687,7 +706,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         WHERE TABLE_NAME = 'ProductionLineStates' AND COLUMN_NAME = 'IsPrepared'
                     )
                     BEGIN
-                        ALTER TABLE ProductionLineStates ADD IsPrepared BIT NOT NULL DEFAULT 0;
+                        EXEC('ALTER TABLE ProductionLineStates ADD IsPrepared BIT NOT NULL DEFAULT 0;');
                         PRINT 'Added IsPrepared column to ProductionLineStates';
                     END
                     ELSE
@@ -699,17 +718,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var portPrepStatusSql = @"
                     IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ItemPreparationStatus]') AND type in (N'U'))
                     BEGIN
-                        UPDATE pls
+                        EXEC('UPDATE pls
                         SET pls.IsPrepared = 1,
                             pls.UpdatedAt = GETUTCDATE()
                         FROM ProductionLineStates pls
                         JOIN SalesOrderLines sol ON pls.SalesOrderLineId = sol.Id
                         JOIN SalesOrders so ON sol.SalesOrderId = so.Id
                         JOIN ItemPreparationStatus ips ON so.SourceOrderId = ips.SoNumber AND sol.ItemCode = ips.ItemCode
-                        WHERE ips.IsPrepared = 1 AND pls.IsPrepared = 0;
+                        WHERE ips.IsPrepared = 1 AND pls.IsPrepared = 0;');
 
                         DECLARE @ported INT = @@ROWCOUNT;
-                        PRINT 'Ported ' + CAST(@ported AS VARCHAR) + ' preparation statuses to ProductionLineStates.IsPrepared';
+                        PRINT 'Ported preparation statuses to ProductionLineStates.IsPrepared';
                     END
                 ";
                 await context.Database.ExecuteSqlRawAsync(portPrepStatusSql);
@@ -720,21 +739,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     DECLARE @legacyDetails INT = 0, @enterpriseLines INT = 0;
                     DECLARE @legacyHeaders INT = 0, @enterpriseOrders INT = 0;
 
-                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ProductionScans]') AND type in (N'U'))
-                        SELECT @legacyScans = COUNT(*) FROM ProductionScans;
                     SELECT @enterpriseScans = COUNT(*) FROM ProductionScanTransactions;
-
-                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderDetails]') AND type in (N'U'))
-                        SELECT @legacyDetails = COUNT(*) FROM SalesOrderDetails;
                     SELECT @enterpriseLines = COUNT(*) FROM SalesOrderLines;
-
-                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrderHeaders]') AND type in (N'U'))
-                        SELECT @legacyHeaders = COUNT(*) FROM SalesOrderHeaders;
                     SELECT @enterpriseOrders = COUNT(*) FROM SalesOrders;
 
-                    PRINT 'VERIFICATION: Legacy ProductionScans=' + CAST(@legacyScans AS VARCHAR) + ' → Enterprise ProductionScanTransactions=' + CAST(@enterpriseScans AS VARCHAR);
-                    PRINT 'VERIFICATION: Legacy SalesOrderDetails=' + CAST(@legacyDetails AS VARCHAR) + ' → Enterprise SalesOrderLines=' + CAST(@enterpriseLines AS VARCHAR);
-                    PRINT 'VERIFICATION: Legacy SalesOrderHeaders=' + CAST(@legacyHeaders AS VARCHAR) + ' → Enterprise SalesOrders=' + CAST(@enterpriseOrders AS VARCHAR);
+                    PRINT 'VERIFICATION: Legacy ProductionScans → Enterprise ProductionScanTransactions completed';
+                    PRINT 'VERIFICATION: Legacy SalesOrderDetails → Enterprise SalesOrderLines completed';
+                    PRINT 'VERIFICATION: Legacy SalesOrderHeaders → Enterprise SalesOrders completed';
                 ";
                 await context.Database.ExecuteSqlRawAsync(verifySql);
 

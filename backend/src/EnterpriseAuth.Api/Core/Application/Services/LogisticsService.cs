@@ -172,6 +172,32 @@ public class LogisticsService : ILogisticsService
         }
     }
 
+    public async Task<Result<IEnumerable<ProductionScanDto>>> GetProductionScansAsync(string soNumber, string itemCode)
+    {
+        try
+        {
+            var result = await _logisticsRepository.GetProductionScansAsync(soNumber, itemCode);
+            return Result<IEnumerable<ProductionScanDto>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<ProductionScanDto>>.Failure($"Failed to fetch production scans: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<int>> SaveProductionScansBatchAsync(List<ProductionScanDto> scans)
+    {
+        try
+        {
+            var result = await _logisticsRepository.SaveProductionScansBatchAsync(scans);
+            return Result<int>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<int>.Failure($"Failed to save production scans batch: {ex.Message}");
+        }
+    }
+
     public async Task<Result<IEnumerable<string>>> GetProductionSitesAsync()
     {
         try

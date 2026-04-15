@@ -23,6 +23,8 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<bool>> CloseOrderAsync(string soNumber, string closedBy);
         Task<Result<string>> SaveCutBulkAsync(CutBulkEntryDto dto);
         Task<Result<ProductionScanDto>> SaveProductionScanAsync(ProductionScanDto scanDto);
+        Task<Result<IEnumerable<ProductionScanDto>>> GetProductionScansAsync(string soNumber, string itemCode);
+        Task<Result<int>> SaveProductionScansBatchAsync(List<ProductionScanDto> scans);
         Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared);
         Task<Result<bool>> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated);
         Task<Result<bool>> BulkUpdateItemStatusAsync(BulkStatusUpdateDto dto);

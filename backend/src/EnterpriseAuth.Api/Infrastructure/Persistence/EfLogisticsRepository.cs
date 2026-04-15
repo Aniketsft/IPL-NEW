@@ -356,6 +356,123 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
         }
 
+        public async Task<IEnumerable<ProductionScanDto>> GetProductionScansAsync(string soNumber, string itemCode)
+        {
+            var line = await _scanContext.SalesOrderLines
+                .Include(l => l.Order)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Order.SourceOrderId == soNumber && l.ItemCode == itemCode);
+
+            if (line == null) return new List<ProductionScanDto>();
+
+            var transactions = await _scanContext.ProductionScanTransactions
+                .Where(t => t.SalesOrderLineId == line.Id)
+                .OrderByDescending(t => t.CreatedAt)
+                .AsNoTracking()
+                .ToListAsync();
+
+            return transactions.Select(t => new ProductionScanDto
+            {
+                ScanId = null, // Id is Guid on entity; not mapped to int? ScanId
+                SoNumber = soNumber,
+                ItemCode = itemCode,
+                ScanAmountKg = t.ScanAmountKg,
+                Barcode = t.Barcode,
+                Lot = t.LotNumber,
+                Location = t.Location,
+                ItemStatus = t.ItemStatus,
+                CreatedBy = t.CreatedBy,
+                CreatedAt = t.CreatedAt,
+                SyncId = t.SyncId
+            });
+        }
+
+        public async Task<int> SaveProductionScansBatchAsync(List<ProductionScanDto> scans)
+        {
+            if (scans == null || scans.Count == 0) return 0;
+            
+            // Assume all scans belong to the same SO and ItemCode for batch efficiency
+            var firstScan = scans.First();
+            var soNumber = firstScan.SoNumber;
+            var itemCode = firstScan.ItemCode;
+
+            using var transaction = await _scanContext.Database.BeginTransactionAsync();
+            try
+            {
+                var line = await _scanContext.SalesOrderLines
+                    .Include(l => l.Order)
+                    .FirstOrDefaultAsync(l => l.Order.SourceOrderId == soNumber && l.ItemCode == itemCode);
+
+                if (line == null) throw new Exception($"Order Line not found: {soNumber} / {itemCode}");
+
+                var state = await _scanContext.ProductionLineStates.FindAsync(line.Id);
+                if (state == null)
+                {
+                    state = new ProductionLineState { SalesOrderLineId = line.Id };
+                    _scanContext.ProductionLineStates.Add(state);
+                }
+
+                decimal totalNewManufactured = 0m;
+                var logsToInsert = new List<AuditLog>();
+
+                foreach (var scanDto in scans)
+                {
+                    var entity = new ProductionScanTransaction
+                    {
+                        SalesOrderLineId = line.Id,
+                        ScanAmountKg = scanDto.ScanAmountKg,
+                        Barcode = scanDto.Barcode,
+                        LotNumber = scanDto.Lot,
+                        Location = scanDto.Location ?? string.Empty,
+                        ItemStatus = scanDto.ItemStatus ?? "A",
+                        SyncId = Guid.NewGuid().ToString(),
+                        CreatedBy = scanDto.CreatedBy ?? "system",
+                        CreatedAt = scanDto.CreatedAt ?? DateTime.UtcNow
+                    };
+
+                    _scanContext.ProductionScanTransactions.Add(entity);
+
+                    if (entity.ItemStatus == "A")
+                    {
+                        totalNewManufactured += entity.ScanAmountKg;
+                    }
+
+                    logsToInsert.Add(new AuditLog
+                    {
+                        EntityName = "ProductionScanTransactions",
+                        EntityId = 0,
+                        ActionType = "INSERT_BATCH",
+                        Payload = System.Text.Json.JsonSerializer.Serialize(new { entity.SalesOrderLineId, entity.Barcode, entity.ScanAmountKg }),
+                        PerformedBy = entity.CreatedBy ?? "system",
+                        PerformedAt = DateTime.UtcNow
+                    });
+                }
+
+                state.TotalManufacturedQty += totalNewManufactured;
+                state.UpdatedAt = DateTime.UtcNow;
+
+                await _scanContext.SaveChangesAsync();
+                
+                // If there are scans, the last one gets its ID set in state.
+                // But we don't strictly need to set LastScanId correctly if there are many.
+                
+                if (logsToInsert.Any())
+                {
+                    _scanContext.AuditLogs.AddRange(logsToInsert);
+                    await _scanContext.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                return scans.Count;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
         public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
         {
             using IDbConnection db = new SqlConnection(_connectionString);

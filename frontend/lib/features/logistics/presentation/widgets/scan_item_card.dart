@@ -8,14 +8,16 @@ class ScanItemCard extends StatelessWidget {
   final int lineNumber;
   final Map<String, dynamic> scan;
   final String unit;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
+  final bool canDelete;
 
   const ScanItemCard({
     super.key,
     required this.lineNumber,
     required this.scan,
     required this.unit,
-    required this.onDelete,
+    this.onDelete,
+    this.canDelete = true,
   });
 
   @override
@@ -25,13 +27,19 @@ class ScanItemCard extends StatelessWidget {
     final status = scan['status'] ?? 'A'; // Default to 'A' if not present
     final productName = scan['productName'] as String?;
 
+    final bool isSaved = scan['isSaved'] == true;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: dark800,
+        color: isSaved ? const Color(0xFF1A2A1A) : dark800,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: darkBorder),
+        border: Border.all(
+          color: isSaved
+              ? Colors.green.withValues(alpha: 0.25)
+              : darkBorder,
+        ),
       ),
       child: Row(
         children: [
@@ -116,13 +124,19 @@ class ScanItemCard extends StatelessWidget {
             ],
           ),
           const SizedBox(width: 4),
-          // Delete Action
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
-            onPressed: onDelete,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
+          // Delete / Saved Action
+          if (canDelete)
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
+              onPressed: onDelete,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Icon(Icons.cloud_done_outlined, color: Colors.green.withValues(alpha: 0.6), size: 18),
+            ),
         ],
       ),
     );

@@ -602,12 +602,12 @@ class DeliveryRepository implements ILogisticsRepository {
           'scans': unsyncedScans
               .map(
                 (s) => {
-                  'soNumber': s['soNumber'],
-                  'itemCode': s['productCode'],
+                  'soNumber': s['soNumber']?.toString(),
+                  'itemCode': s['productCode']?.toString(),
                   'scanAmountKg': s['quantity'],
                   'itemStatus': s['itemStatus'] ?? 'Q',
-                  'location': s['location'],
-                  'syncId': s['sync_id'],
+                  'location': s['location']?.toString(),
+                  'syncId': s['sync_id']?.toString(),
                 },
               )
               .toList(),
@@ -1056,6 +1056,61 @@ class DeliveryRepository implements ILogisticsRepository {
     } catch (e) {
       debugPrint("CRITICAL: Local persistence failed for scan: $e");
       throw 'Failed to save scan: $e';
+    }
+  }
+
+  /// Fetches the full history of saved production scans for a given SO line from the backend.
+  Future<List<Map<String, dynamic>>> getProductionScans(String soNumber, String itemCode) async {
+    try {
+      final response = await _dio.get(
+        'Logistics/production-scans/$soNumber/$itemCode',
+      );
+      final data = response.data as List;
+      return data.map((json) => Map<String, dynamic>.from(json as Map)).toList();
+    } catch (e) {
+      debugPrint('getProductionScans: Failed to fetch history from API: $e');
+      return [];
+    }
+  }
+
+  /// Saves each scan individually to the backend in a single batch request.
+  /// Scans are sent as a list of [ProductionScanDto] and are persisted line-by-line in the DB.
+  Future<void> saveProductionScansBatch(List<Map<String, dynamic>> scans) async {
+    final payload = scans.map((scan) => {
+      'soNumber': scan['soNumber']?.toString(),
+      'itemCode': scan['productCode']?.toString(),
+      'scanAmountKg': (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+      'barcode': scan['barcode']?.toString(),
+      'itemStatus': scan['status'] ?? 'A',
+      'location': scan['locationCode']?.toString(),
+      'lot': scan['lot']?.toString(),
+      'createdBy': 'mobile-user',
+      'createdAt': scan['timestamp'],
+    }).toList();
+
+    await _dio.post('Logistics/production-scans/batch', data: payload);
+
+    // Persist to Local DB immediately as 'synced' but 'unreflected'
+    // This allows getReconciledDetails to query it natively out of SQLite before the next Master Sync cycle.
+    for (final scan in scans) {
+      try {
+        final localRow = {
+          LocalDatabaseHelper.columnSoNumber: scan['soNumber']?.toString(),
+          LocalDatabaseHelper.columnProductCode: scan['productCode']?.toString(),
+          LocalDatabaseHelper.columnQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnTimestamp: scan['timestamp'],
+          LocalDatabaseHelper.columnItemStatus: scan['status'] ?? 'A',
+          LocalDatabaseHelper.columnLocationCode: scan['locationCode']?.toString(),
+          LocalDatabaseHelper.columnSite: scan['siteId']?.toString(),
+          LocalDatabaseHelper.columnIsSynced: 1, // Already server-pushed via batch POST
+          LocalDatabaseHelper.columnIsReflected: 0,
+          LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
+          LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+        };
+        await LocalDatabaseHelper.instance.insertScan(localRow);
+      } catch (e) {
+        debugPrint("CRITICAL: Local persistence failed for batch scan background cache: $e");
+      }
     }
   }
 

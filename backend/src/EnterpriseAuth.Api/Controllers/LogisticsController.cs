@@ -109,6 +109,20 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("production-scans/{soNumber}/{itemCode}")]
+    public async Task<IActionResult> GetProductionScans(string soNumber, string itemCode)
+    {
+        var result = await _logisticsService.GetProductionScansAsync(soNumber, itemCode);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("production-scans/batch")]
+    public async Task<IActionResult> SaveProductionScansBatch([FromBody] List<ProductionScanDto> scans)
+    {
+        var result = await _logisticsService.SaveProductionScansBatchAsync(scans);
+        return ToActionResult(result);
+    }
+
     [HttpGet("production-sites")]
     public async Task<IActionResult> GetProductionSites()
     {

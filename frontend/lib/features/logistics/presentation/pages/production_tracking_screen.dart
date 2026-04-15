@@ -36,11 +36,13 @@ class ProductionTrackingScreen extends StatefulWidget {
 
 class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   String _status = 'A'; // A: Approved, Q: Quality, R: Rejected
-  double _cumulativeQty = 0.0;
+  double _cumulativeQty = 0.0; // Qty of pending (unsaved) scans this session
+  double _baseSessionScannedQty = 0.0; // Qty of successfully saved batch scans this session.
   List<Map<String, dynamic>> _scans = [];
   Map<String, dynamic>? _pendingScan;
   bool _isSaving = false;
   bool _isProcessingBarcode = false;
+  bool _isLoadingHistory = false;
   List<String> _sites = [];
   String? _selectedSite;
   List<String> _lots = [];
@@ -55,6 +57,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     super.initState();
     _selectedSite = widget.product.site;
     _fetchInitialData();
+    _fetchHistoricalScans();
   }
 
   Future<void> _fetchInitialData() async {
@@ -70,6 +73,44 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           SnackBar(content: Text('Error loading initial data: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _fetchHistoricalScans() async {
+    if (_isLoadingHistory) return;
+    setState(() => _isLoadingHistory = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final historicalScans = await repository.getProductionScans(
+        widget.order.orderNumber,
+        widget.product.itemCode,
+      );
+      if (mounted && historicalScans.isNotEmpty) {
+        final mappedScans = historicalScans.map((s) => {
+          'barcode': s['barcode'] ?? s['syncId'] ?? 'SAVED',
+          'originalBarcode': s['barcode'] ?? '',
+          'productCode': s['itemCode'] ?? widget.product.itemCode,
+          'scannedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+          'manufacturedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+          'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+          'unit': widget.product.unit,
+          'timestamp': s['createdAt'] ?? DateTime.now().toIso8601String(),
+          'status': s['itemStatus'] ?? 'A',
+          'siteId': _selectedSite,
+          'locationCode': s['location'],
+          'lot': s['lot'],
+          'soNumber': widget.order.orderNumber,
+          'isSaved': true,
+        }).toList();
+        setState(() {
+          // Append historical at the end (pending scans stay at top)
+          _scans = [..._scans.where((s) => s['isSaved'] != true), ...mappedScans];
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load historical scans: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingHistory = false);
     }
   }
 
@@ -287,6 +328,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       scanWithMetadata['status'] = _status;
       scanWithMetadata['siteId'] = _selectedSite;
       scanWithMetadata['locationCode'] = _selectedLocation?.location;
+      scanWithMetadata['lot'] = _selectedLot;
+      scanWithMetadata['soNumber'] = widget.order.orderNumber;
+      scanWithMetadata['productCode'] = widget.product.itemCode;
+      scanWithMetadata['isSaved'] = false;
 
       _scans.insert(0, scanWithMetadata);
       if (_status == 'A') {
@@ -307,7 +352,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   void _addManualQty(double qty) {
     final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
     if (!isCutBulkOrder) {
-      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty;
       if (qty > remaining + 0.001) {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
@@ -323,11 +368,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         'scannedQty': qty,
         'weight': qty,
         'productCode': widget.product.itemCode,
+        'soNumber': widget.order.orderNumber,
         'status': _status,
         'siteId': _selectedSite,
         'locationCode': _selectedLocation?.location,
+        'lot': _selectedLot,
         'timestamp': DateTime.now().toIso8601String(),
         'unit': widget.product.unit,
+        'isSaved': false,
       };
       _scans.insert(0, manualScan);
       if (_status == 'A') _cumulativeQty += qty;
@@ -338,8 +386,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Future<void> _saveAndUpload() async {
-    if (_cumulativeQty <= 0 && _scans.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No scans to save')));
+    final pendingScans = _scans.where((s) => s['isSaved'] != true).toList();
+    if (pendingScans.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No new scans to save')));
       return;
     }
     if (_selectedLocation == null) {
@@ -350,24 +399,39 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     setState(() => _isSaving = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      final payload = {
-        'batchId': DateTime.now().millisecondsSinceEpoch.toString(),
-        'itemCode': widget.product.itemCode,
-        'scanAmountKg': _cumulativeQty,
-        'itemStatus': _status,
-        'location': _selectedLocation?.location,
-        'warehouse': _selectedLocation?.warehouse,
-        'soNumber': widget.order.orderNumber,
-        'lotNumber': _selectedLot,
-        'siteId': _selectedSite,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
 
-      await repository.saveProductionScan(payload);
+      // Enrich all pending scans with current location/lot before saving
+      final enrichedScans = pendingScans.map((s) {
+        final copy = Map<String, dynamic>.from(s);
+        copy['locationCode'] = _selectedLocation?.location;
+        copy['lot'] = _selectedLot;
+        copy['soNumber'] = widget.order.orderNumber;
+        copy['productCode'] = widget.product.itemCode;
+        return copy;
+      }).toList();
+
+      await repository.saveProductionScansBatch(enrichedScans);
 
       if (mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Production batch saved'), backgroundColor: Colors.green));
+        setState(() {
+          // Mark all pending scans as saved in place
+          for (int i = 0; i < _scans.length; i++) {
+            if (_scans[i]['isSaved'] != true) {
+              _scans[i] = Map<String, dynamic>.from(_scans[i])..
+                ['isSaved'] = true;
+            }
+          }
+          // Shift the pending quantity naturally into the core persistent memory for this screen session
+          _baseSessionScannedQty += _cumulativeQty;
+          _cumulativeQty = 0.0;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All scans saved to database ✓'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
@@ -378,14 +442,21 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: dark900,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, dynamic) {
+        if (!didPop) {
+          Navigator.pop(context, _baseSessionScannedQty > 0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: dark900,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, _baseSessionScannedQty > 0),
         ),
         title: const Text('Production Scan', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.0)),
       ),
@@ -424,11 +495,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final scan = _scans[index];
+                          final bool isSaved = scan['isSaved'] == true;
                           return ScanItemCard(
                             lineNumber: _scans.length - index,
                             scan: scan,
                             unit: widget.product.unit,
-                            onDelete: () {
+                            canDelete: !isSaved,
+                            onDelete: isSaved ? null : () {
                               setState(() {
                                 _scans.removeAt(index);
                                 if (scan['status'] == 'A') {
@@ -449,6 +522,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           _buildActionFooter(),
         ],
       ),
+    ),
     );
   }
 
@@ -618,7 +692,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
-              _statTile('Remaining', '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty)} ${widget.product.unit}', color: orange),
+              _statTile('Remaining', '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', color: orange),
             ],
           ),
           const SizedBox(height: 16),
@@ -737,14 +811,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       decoration: BoxDecoration(color: dark800, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
       child: Column(
         children: [
-          const Text('Total Produced (This Batch)', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
+          const Text('Total Produced (All Time)', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             textBaseline: TextBaseline.alphabetic,
             crossAxisAlignment: CrossAxisAlignment.baseline,
             children: [
-              Text(widget.product.formatQuantity(_cumulativeQty), style: const TextStyle(color: orange, fontSize: 56, fontWeight: FontWeight.w900)),
+              Text(
+                widget.product.formatQuantity(widget.product.manufacturedQuantity + _baseSessionScannedQty + _cumulativeQty),
+                style: const TextStyle(color: orange, fontSize: 56, fontWeight: FontWeight.w900),
+              ),
               const SizedBox(width: 10),
               Text(widget.product.unit, style: const TextStyle(color: Colors.grey, fontSize: 22, fontWeight: FontWeight.bold)),
             ],
@@ -806,7 +883,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
       decoration: BoxDecoration(color: dark800, border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05)))),
       child: ElevatedButton(
-        onPressed: (_isSaving || _scans.isEmpty) ? null : _saveAndUpload,
+        onPressed: (_isSaving || _scans.every((s) => s['isSaved'] == true)) ? null : _saveAndUpload,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
