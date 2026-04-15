@@ -210,21 +210,22 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     setState(() => _isScannerVisible = !_isScannerVisible);
   }
 
-  Future<void> _handleScan(String barcode) async {
-    if (barcode.isEmpty) return;
-    if (_isProcessingBarcode) return;
+  Future<bool> _handleScan(String rawString) async {
+    final barcode = rawString.trim();
+    if (barcode.isEmpty) return false;
+    if (_isProcessingBarcode) return false;
     _isProcessingBarcode = true;
 
     try {
       if (_pendingScan != null) {
         if (_pendingScan!['barcode'] == barcode) {
           _isProcessingBarcode = false;
-          return;
+          return true;
         }
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
         _showErrorDialog('Scan Pending', 'Please save or discard the current scan first.');
-        return;
+        return false;
       }
 
       final repository = context.read<DeliveryRepository>();
@@ -234,7 +235,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
         _showErrorDialog('Barcode Not Found', 'This barcode is not registered in the system.');
-        return;
+        return false;
       }
 
       final String targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
@@ -254,7 +255,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             AudioService.instance.playError();
             HapticFeedback.heavyImpact();
             _showErrorDialog('Wrong Product', 'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}');
-            return;
+            return false;
           }
 
           final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
@@ -264,7 +265,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               AudioService.instance.playError();
               HapticFeedback.heavyImpact();
               _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit.');
-              return;
+              return false;
             }
           }
 
@@ -286,11 +287,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         } else {
           AudioService.instance.playError();
           HapticFeedback.heavyImpact();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid barcode format'), backgroundColor: Colors.red));
+          _showErrorDialog('Invalid Barcode', 'Invalid barcode format.');
+          return false;
         }
       }
+      return true;
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scan error: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      return false;
     } finally {
       if (mounted) setState(() => _isProcessingBarcode = false);
     }
@@ -905,7 +909,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         content: TextField(controller: ctrl, style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Enter 13-digit code', hintStyle: TextStyle(color: Colors.white24))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleScan(ctrl.text); }, child: const Text('Process')),
+          ElevatedButton(onPressed: () async { 
+             final code = ctrl.text.trim();
+             if (code.length != 13) {
+                 _showErrorDialog('Invalid Barcode', 'Barcode must be exactly 13 digits.');
+                 return;
+             }
+             final success = await _handleScan(code); 
+             if (success && mounted) {
+                 Navigator.pop(ctx);
+                 if (_pendingScan != null) {
+                     _savePendingScan();
+                 }
+             }
+          }, child: const Text('Process')),
         ],
       ),
     );

@@ -1314,7 +1314,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.colProdDesc: result.description,
       LocalDatabaseHelper.colProdBarcode: result.barcode,
       LocalDatabaseHelper.colProdStu: 'KG', // Default to KG for variable weight
-      LocalDatabaseHelper.colProdStandardWeight: 0.0, // Processor handles actual weight
+      LocalDatabaseHelper.colProdStandardWeight: result.weight,
     };
   }
 
