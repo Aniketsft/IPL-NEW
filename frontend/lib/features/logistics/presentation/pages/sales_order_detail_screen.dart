@@ -162,9 +162,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             await LabelPrintingHandler.showLabelPreview(
               context: context,
               item: item,
-              onPrintRequested: (item) => LabelPrintingHandler.printLabel(
+              onPrintRequested: (item, auditId) => LabelPrintingHandler.printLabel(
                 context: context,
                 item: item,
+                auditId: auditId,
               ),
             );
           } else if (choice == 'print') {

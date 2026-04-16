@@ -70,7 +70,6 @@ class PrinterService {
       final List<dynamic> decoded = jsonDecode(data);
       _printers = decoded.map((p) => NetPrinter.fromJson(p)).toList();
       
-      // Set active printer
       try {
         _activePrinter = _printers.firstWhere((p) => p.isDefault);
       } catch (_) {
@@ -87,14 +86,13 @@ class PrinterService {
     await prefs.setString(_prefPrintersKey, encoded);
   }
 
-  /// Adds a new printer to the list.
   Future<void> addPrinter(String name, String ip, int port) async {
     final newPrinter = NetPrinter(
       id: const Uuid().v4(),
       name: name,
       ip: ip,
       port: port,
-      isDefault: _printers.isEmpty, // First printer is default
+      isDefault: _printers.isEmpty,
     );
     
     _printers.add(newPrinter);
@@ -104,7 +102,6 @@ class PrinterService {
     await _savePrinters();
   }
 
-  /// Removes a printer and updates default if necessary.
   Future<void> removePrinter(String id) async {
     final wasDefault = _printers.any((p) => p.id == id && p.isDefault);
     _printers.removeWhere((p) => p.id == id);
@@ -119,7 +116,6 @@ class PrinterService {
     await _savePrinters();
   }
 
-  /// Sets a printer as the default for the app.
   Future<void> setPrimaryPrinter(String id) async {
     _printers = _printers.map((p) {
       final isNowDefault = p.id == id;
@@ -133,7 +129,6 @@ class PrinterService {
     await _savePrinters();
   }
 
-  /// Tests connectivity to a specific IP/Port without saving.
   Future<bool> testConnection(String ip, int port) async {
     try {
       final socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 3));
@@ -150,7 +145,21 @@ class PrinterService {
   }
 
   Future<void> disconnect() async {
-    // TCP sockets are managed per-print job.
+  }
+
+  Future<void> _sendBytes(List<int> bytes) async {
+    if (_activePrinter == null) {
+      throw 'No printer selected. Please configure a printer in Settings.';
+    }
+    try {
+      final socket = await Socket.connect(_activePrinter!.ip, _activePrinter!.port, timeout: const Duration(seconds: 5));
+      socket.add(bytes);
+      await socket.flush();
+      await socket.close();
+    } catch (e) {
+      print('Network transmission failed: $e');
+      rethrow;
+    }
   }
 
   Future<void> printLabel({
@@ -160,51 +169,144 @@ class PrinterService {
     required double weight,
     required String unit,
     required String qrData,
+    String? auditId,
   }) async {
-    if (_activePrinter == null) {
-      throw 'No printer selected. Please configure a printer in Settings.';
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(PaperSize.mm80, profile);
+    List<int> bytes = [];
+
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.text("ITEM: $productCode", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+    
+    bytes += generator.text("CUSTOMER: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
+    bytes += generator.text("SO NUMBER: $soNumber");
+    
+    bytes += generator.feed(1);
+    bytes += generator.text("WEIGHT: ${weight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+
+    bytes += generator.qrcode(qrData, size: QRSize.size4);
+    
+    bytes += generator.feed(1);
+    bytes += generator.feed(1);
+    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
+    if (auditId != null) {
+      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
     }
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.feed(3);
+    bytes += generator.cut();
 
-    try {
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(PaperSize.mm80, profile);
-      List<int> bytes = [];
+    await _sendBytes(bytes);
+  }
 
-      bytes += generator.text("--------------------------------");
-      bytes += generator.text("SALES ORDER", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-      bytes += generator.feed(1);
-      
-      bytes += generator.text("SO NUMBER: $soNumber");
-      
-      String displayCust = customerName;
-      if (displayCust.length > 25) {
-        displayCust = displayCust.substring(0, 22) + "...";
-      }
-      bytes += generator.text("CUSTOMER: $displayCust");
-      bytes += generator.text("PRODUCT: $productCode");
-      
-      bytes += generator.feed(1);
-      bytes += generator.text("WEIGHT: ${weight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-      bytes += generator.feed(1);
+  Future<void> printCrateLabel({
+    required String soNumber,
+    required String customerName,
+    required String deliveryDate,
+    required List<Map<String, String>> items,
+    required String unit,
+    required String qrData,
+    String? auditId,
+  }) async {
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(PaperSize.mm80, profile);
+    List<int> bytes = [];
 
-      bytes += generator.text("   LABEL QR DATA:");
-      bytes += generator.qrcode(qrData, size: QRSize.size4);
-      
-      bytes += generator.feed(2);
-      bytes += generator.text("Enterprise Auth Project", styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.text("--------------------------------", styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.feed(3);
-      bytes += generator.cut();
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.text("CRATE LABEL", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+    
+    bytes += generator.text("CUSTOMER: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
+    bytes += generator.text("SO REF: $soNumber");
+    bytes += generator.text("DELIVERY: $deliveryDate");
+    bytes += generator.feed(1);
 
-      // Transmission
-      final socket = await Socket.connect(_activePrinter!.ip, _activePrinter!.port, timeout: const Duration(seconds: 5));
-      socket.add(bytes);
-      await socket.flush();
-      await socket.close();
-      
-    } catch (e) {
-      print('Network printing failed: $e');
-      rethrow;
+    bytes += generator.text("PRODUCT          WEIGHT", styles: const PosStyles(bold: true));
+    bytes += generator.text("--------------------------------");
+    for (var item in items) {
+        String prod = (item['itemCode'] ?? 'N/A').padRight(19);
+        String wgt = '${item['weight'] ?? '0.00'} $unit'.padLeft(13);
+        bytes += generator.text("$prod$wgt");
     }
+    
+    bytes += generator.feed(1);
+    double total = items.fold(0.0, (val, item) => val + (double.tryParse(item['weight'] ?? '0') ?? 0.0));
+    bytes += generator.text("TOTAL WEIGHT", styles: const PosStyles(align: PosAlign.center));
+    bytes += generator.text("${total.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+
+    bytes += generator.qrcode(qrData, size: QRSize.size4);
+    
+    bytes += generator.feed(1);
+    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
+    if (auditId != null) {
+      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
+    }
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.feed(3);
+    bytes += generator.cut();
+
+    await _sendBytes(bytes);
+  }
+
+  Future<void> printPaletteLabel({
+    required int soCount,
+    required double totalWeight,
+    required String unit,
+    required String qrData,
+    required Map<String, Map<String, dynamic>> manifest,
+    String customerName = "MULTIPLE",
+    String deliveryDate = "MULTIPLE",
+    String? auditId,
+  }) async {
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(PaperSize.mm80, profile);
+    List<int> bytes = [];
+
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.text("PALETTE MASTER", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+    
+    bytes += generator.text("MASTER CUST: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
+    bytes += generator.text("TOTAL SOs: $soCount");
+    bytes += generator.text("DELIVERY: $deliveryDate");
+    bytes += generator.feed(1);
+
+    bytes += generator.text("EXPLODED MANIFEST", styles: const PosStyles(bold: true, align: PosAlign.center));
+    bytes += generator.text("--------------------------------");
+    manifest.forEach((so, data) {
+        final List<Map<String, String>> items = List<Map<String, String>>.from(data['items'] ?? []);
+        final String cust = (data['customer'] ?? 'N/A').toUpperCase();
+        
+        bytes += generator.text("SO: $so", styles: const PosStyles(bold: true));
+        bytes += generator.text("CUST: $cust");
+        
+        for (var item in items) {
+            String prod = (item['itemCode'] ?? 'N/A').padRight(19);
+            String wgt = '${item['weight'] ?? '0.00'} $unit'.padLeft(13);
+            bytes += generator.text("  $prod$wgt");
+        }
+        bytes += generator.feed(1);
+    });
+
+    bytes += generator.feed(1);
+    bytes += generator.text("PALETTE TOTAL WEIGHT", styles: const PosStyles(align: PosAlign.center));
+    bytes += generator.text("${totalWeight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    bytes += generator.feed(1);
+
+    bytes += generator.qrcode(qrData, size: QRSize.size4);
+    
+    bytes += generator.feed(1);
+    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
+    if (auditId != null) {
+      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
+    }
+    bytes += generator.text("================================", styles: const PosStyles(bold: true));
+    bytes += generator.feed(3);
+    bytes += generator.cut();
+
+    await _sendBytes(bytes);
   }
 }

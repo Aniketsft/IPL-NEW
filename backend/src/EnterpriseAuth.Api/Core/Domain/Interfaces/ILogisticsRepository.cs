@@ -29,5 +29,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation);
         Task<IEnumerable<ExcessDto>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode);
         Task<bool> AllocateExcessAsync(AllocateExcessDto dto);
+        Task<LabelAuditDto> LogLabelAuditAsync(LabelAuditDto auditDto);
     }
 }

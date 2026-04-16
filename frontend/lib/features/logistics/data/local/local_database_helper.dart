@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 25;
+  static const _databaseVersion = 26;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -20,6 +20,7 @@ class LocalDatabaseHelper {
   static const tableProducts = 'tbl_products';
   static const tableSites = 'tbl_sites';
   static const tableLots = 'tbl_lots';
+  static const tableLabelAudits = 'tbl_label_audits';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -108,6 +109,14 @@ class LocalDatabaseHelper {
   static const colSyncMessage = 'message';
   static const colSyncCounts = 'recordCounts'; // JSON string of counts
   static const colSyncSite = 'site';
+
+  static const colLabelId = 'labelId';
+  static const colReferenceNumber = 'referenceNumber';
+  static const colLabelType = 'labelType';
+  static const colProductCode = 'productCode';
+  static const colManifestJson = 'manifestJson';
+  static const colPrintedBy = 'printedBy';
+  static const colCreatedAt = 'createdAt';
 
   LocalDatabaseHelper._privateConstructor();
   static final LocalDatabaseHelper instance =
@@ -399,6 +408,25 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v25: $e");
       }
     }
+
+    if (oldVersion < 26) {
+      debugPrint('DB Upgrade: Creating Label Audits table (v26)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableLabelAudits (
+          $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+          $colLabelId TEXT UNIQUE,
+          $colReferenceNumber TEXT,
+          $colLabelType TEXT,
+          $colProductCode TEXT,
+          $colCustomerName TEXT,
+          $columnQuantity REAL,
+          $colManifestJson TEXT,
+          $colPrintedBy TEXT,
+          $colCreatedAt TEXT,
+          $columnIsSynced INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -555,6 +583,22 @@ class LocalDatabaseHelper {
         $colLotSiteCode TEXT,
         $colLotNumber TEXT,
         PRIMARY KEY ($colLotItemCode, $colLotSiteCode, $colLotNumber)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableLabelAudits (
+        $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colLabelId TEXT UNIQUE,
+        $colReferenceNumber TEXT,
+        $colLabelType TEXT,
+        $colProductCode TEXT,
+        $colCustomerName TEXT,
+        $columnQuantity REAL,
+        $colManifestJson TEXT,
+        $colPrintedBy TEXT,
+        $colCreatedAt TEXT,
+        $columnIsSynced INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -1102,5 +1146,37 @@ class LocalDatabaseHelper {
       }
     }
     return summaries;
+  }
+
+  // --- LABEL AUDIT METHODS ---
+
+  Future<int> insertLabelAudit(Map<String, dynamic> audit) async {
+    final db = await instance.database;
+    return await db.insert(
+      tableLabelAudits,
+      audit,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedLabelAudits() async {
+    final db = await instance.database;
+    return await db.query(
+      tableLabelAudits,
+      where: '$columnIsSynced = ?',
+      whereArgs: [0],
+    );
+  }
+
+  Future<int> markLabelAuditsSynced(List<String> labelIds) async {
+    if (labelIds.isEmpty) return 0;
+    final db = await instance.database;
+    final placeholders = List.generate(labelIds.length, (index) => '?').join(', ');
+    return await db.update(
+      tableLabelAudits,
+      {columnIsSynced: 1},
+      where: '$colLabelId IN ($placeholders)',
+      whereArgs: labelIds,
+    );
   }
 }

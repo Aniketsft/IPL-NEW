@@ -183,6 +183,13 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("labels/audit")]
+    public async Task<IActionResult> LogLabelAudit([FromBody] LabelAuditDto audit)
+    {
+        var result = await _logisticsService.LogLabelAuditAsync(audit);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

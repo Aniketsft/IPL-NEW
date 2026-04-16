@@ -22,6 +22,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         // --- AUDIT ---
         public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<LabelAudit> LabelAudits { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -107,6 +108,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 entity.HasIndex(e => new { e.EntityName, e.EntityId })
                     .HasDatabaseName("IX_AuditLogs_EntityLookup");
+            });
+
+            // LabelAudits
+            modelBuilder.Entity<LabelAudit>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.LabelId).IsUnique();
+                entity.Property(e => e.TotalWeight).HasPrecision(18, 5);
             });
         }
     }

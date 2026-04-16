@@ -22,14 +22,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ApplicationDbContext _context;
         private readonly ScanProductionDbContext _scanContext;
         private readonly SyncSettings _syncSettings;
+        private readonly ILogisticsRepository _logisticsRepository;
 
-        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings)
+        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, ILogisticsRepository logisticsRepository)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
             _context = context;
             _scanContext = scanContext;
             _syncSettings = syncSettings.Value;
+            _logisticsRepository = logisticsRepository;
         }
 
         public async Task<SyncPackageDto> GetRefreshPackageAsync(string site)
@@ -508,6 +510,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 await _scanContext.SaveChangesAsync();
                 totalCount += request.OrderStatusUpdates.Count;
+            }
+
+            // 6. Process Label Audits (Sync from Offline)
+            if (request.LabelAudits != null && request.LabelAudits.Any())
+            {
+                foreach (var audit in request.LabelAudits)
+                {
+                    // Reuse the LogLabelAuditAsync logic to ensure consistent sequence/duplicate handling
+                    await _logisticsRepository.LogLabelAuditAsync(audit);
+                }
+                totalCount += request.LabelAudits.Count;
             }
 
             return totalCount;

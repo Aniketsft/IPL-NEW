@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
-import 'package:enterprise_auth_mobile/features/inventory/ui/screens/by_identifier_screen.dart';
+import 'package:enterprise_auth_mobile/features/inventory/ui/screens/qr_label_screen.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/picking_screen.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/stock_control_screen.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufacturing_screen.dart';
@@ -152,9 +152,9 @@ class HomeScreen extends StatelessWidget {
       if (_hasAccess('inventory', 'by_identifier'))
         _buildMenuButton(
           context,
-          'By identifier',
+          'QR Label',
           Icons.qr_code_scanner_rounded,
-          const ByIdentifierScreen(),
+          const QrLabelScreen(),
         ),
       if (_hasAccess('settings', 'printer'))
         _buildMenuButton(

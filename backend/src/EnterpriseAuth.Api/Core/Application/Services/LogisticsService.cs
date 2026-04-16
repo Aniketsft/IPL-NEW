@@ -288,4 +288,17 @@ public class LogisticsService : ILogisticsService
             return Result<bool>.Failure($"Failed to allocate excess: {ex.Message}");
         }
     }
+
+    public async Task<Result<LabelAuditDto>> LogLabelAuditAsync(LabelAuditDto auditDto)
+    {
+        try
+        {
+            var result = await _logisticsRepository.LogLabelAuditAsync(auditDto);
+            return Result<LabelAuditDto>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<LabelAuditDto>.Failure($"Failed to log label audit: {ex.Message}");
+        }
+    }
 }

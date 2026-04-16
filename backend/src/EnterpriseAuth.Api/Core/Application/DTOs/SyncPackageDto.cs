@@ -25,7 +25,22 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<PreparationStatusUpdateDto> PreparationStatusUpdates { get; set; } = new();
         public List<ShipmentPreparationUpdateDto> ShipmentPreparationUpdates { get; set; } = new();
         public List<OrderStatusUpdateDto> OrderStatusUpdates { get; set; } = new();
+        public List<LabelAuditDto> LabelAudits { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
+    }
+
+    public class LabelAuditDto
+    {
+        public string LabelId { get; set; } = string.Empty;
+        public string? ReferenceNumber { get; set; }
+        public string? LabelType { get; set; }
+        public string? ProductCode { get; set; }
+        public string? CustomerName { get; set; }
+        public decimal TotalWeight { get; set; }
+        public string? ManifestJson { get; set; }
+        public string? PrintedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public bool IsOfflineCreated { get; set; }
     }
 
     public class PreparationStatusUpdateDto

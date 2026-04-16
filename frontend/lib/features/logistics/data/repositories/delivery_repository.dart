@@ -602,8 +602,10 @@ class DeliveryRepository implements ILogisticsRepository {
           .getUnsyncedScans();
       final unsyncedOrders = await LocalDatabaseHelper.instance
           .getUnsyncedInternalOrders();
+      final unsyncedLabels = await LocalDatabaseHelper.instance
+          .getUnsyncedLabelAudits();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty) {
         final payload = {
           'scans': unsyncedScans
               .map(
@@ -663,6 +665,18 @@ class DeliveryRepository implements ILogisticsRepository {
             'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
             'isPreparedForShipment': u[LocalDatabaseHelper.colDetIsValidated] == 1, // Validation status
           }).toList(),
+          'labelAudits': unsyncedLabels.map((l) => {
+            'labelId': l[LocalDatabaseHelper.colLabelId],
+            'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
+            'labelType': l[LocalDatabaseHelper.colLabelType],
+            'productCode': l[LocalDatabaseHelper.colProductCode],
+            'customerName': l[LocalDatabaseHelper.colCustomerName],
+            'totalWeight': l[LocalDatabaseHelper.columnQuantity],
+            'manifestJson': l[LocalDatabaseHelper.colManifestJson],
+            'printedBy': l[LocalDatabaseHelper.colPrintedBy],
+            'createdAt': l[LocalDatabaseHelper.colCreatedAt],
+            'isOfflineCreated': true,
+          }).toList(),
           'deviceId': 'mobile-terminal',
         };
 
@@ -687,6 +701,11 @@ class DeliveryRepository implements ILogisticsRepository {
               .map((o) => o[LocalDatabaseHelper.colOrderNum] as String)
               .toList();
           await LocalDatabaseHelper.instance.markOrdersAsSynced(soNums);
+        }
+        if (unsyncedLabels.isNotEmpty) {
+          final labelIds = unsyncedLabels.map((l) => l[LocalDatabaseHelper.colLabelId] as String).toList();
+          await LocalDatabaseHelper.instance.markLabelAuditsSynced(labelIds);
+          debugPrint("Sync: Pushed and marked ${labelIds.length} label audits as synced.");
         }
 
         // Preparation statuses (Item level) and Shipment statuses (Order level)
@@ -1420,6 +1439,76 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     return await LocalDatabaseHelper.instance.getExcessPoolSummaries(dateStr);
+  }
+
+  @override
+  Future<String> logLabelAudit(Map<String, dynamic> auditData) async {
+    try {
+      // 1. Ensure printedBy is set
+      final prefs = await SharedPreferences.getInstance();
+      final username = prefs.getString('username') ?? 'unknown';
+      auditData['printedBy'] = username;
+      auditData['createdAt'] = DateTime.now().toIso8601String();
+
+      // 2. Try online audit FIRST
+      try {
+        final response = await _dio.post('Logistics/labels/audit', data: auditData);
+        if (response.data != null && response.data['labelId'] != null) {
+          final serverId = response.data['labelId'].toString();
+          
+          // Also save locally as SYNCED for immediate local manifest history if needed
+          await LocalDatabaseHelper.instance.insertLabelAudit({
+            LocalDatabaseHelper.colLabelId: serverId,
+            LocalDatabaseHelper.colReferenceNumber: auditData['referenceNumber'],
+            LocalDatabaseHelper.colLabelType: auditData['labelType'],
+            LocalDatabaseHelper.colProductCode: auditData['productCode'],
+            LocalDatabaseHelper.colCustomerName: auditData['customerName'],
+            LocalDatabaseHelper.columnQuantity: auditData['totalWeight'],
+            LocalDatabaseHelper.colManifestJson: auditData['manifestJson'],
+            LocalDatabaseHelper.colPrintedBy: auditData['printedBy'],
+            LocalDatabaseHelper.colCreatedAt: auditData['createdAt'],
+            LocalDatabaseHelper.columnIsSynced: 1, // Already on server
+          });
+          
+          return serverId;
+        }
+      } catch (apiError) {
+        debugPrint("Offline-Audit: API call failed, falling back to local persistence. Error: $apiError");
+      }
+
+      // 3. OFFLINE FALLBACK: Save locally with offline ID
+      final todayStr = DateFormat('yyMMdd').format(DateTime.now());
+      
+      // Get today's local audit count for sequence
+      final db = await LocalDatabaseHelper.instance.database;
+      final count = sqflite.Sqflite.firstIntValue(await db.rawQuery(
+        "SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableLabelAudits} WHERE ${LocalDatabaseHelper.colCreatedAt} LIKE ?",
+        ["${DateTime.now().toIso8601String().substring(0, 10)}%"]
+      )) ?? 0;
+
+      // Unique Offline ID: OFF-LBL-260416-U1-S1 (Date-User-Seq)
+      final offlineId = "OFF-LBL-$todayStr-$username-${count + 1}";
+      
+      await LocalDatabaseHelper.instance.insertLabelAudit({
+        LocalDatabaseHelper.colLabelId: offlineId,
+        LocalDatabaseHelper.colReferenceNumber: auditData['referenceNumber'],
+        LocalDatabaseHelper.colLabelType: auditData['labelType'],
+        LocalDatabaseHelper.colProductCode: auditData['productCode'],
+        LocalDatabaseHelper.colCustomerName: auditData['customerName'],
+        LocalDatabaseHelper.columnQuantity: auditData['totalWeight'],
+        LocalDatabaseHelper.colManifestJson: auditData['manifestJson'],
+        LocalDatabaseHelper.colPrintedBy: auditData['printedBy'],
+        LocalDatabaseHelper.colCreatedAt: auditData['createdAt'],
+        LocalDatabaseHelper.columnIsSynced: 0,
+      });
+
+      debugPrint("Offline-Audit: Saved audit $offlineId locally for later sync.");
+      return offlineId;
+    } catch (e) {
+      debugPrint("CRITICAL: Failed to log label audit: $e");
+      // Fallback to a dumb timestamp ID if even SQLite fails
+      return "TMP-${DateTime.now().millisecondsSinceEpoch}";
+    }
   }
 }
 
