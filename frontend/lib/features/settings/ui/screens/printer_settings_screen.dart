@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
-
-import 'package:flutter/material.dart';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
-import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 
 class PrinterSettingsScreen extends StatefulWidget {
@@ -15,40 +11,106 @@ class PrinterSettingsScreen extends StatefulWidget {
 
 class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   final PrinterService _printerService = PrinterService.instance;
-  List<BluetoothInfo> _devices = [];
   bool _isLoading = false;
-  bool _isConnected = false;
 
   @override
   void initState() {
     super.initState();
-    _refreshDevices();
     _checkStatus();
   }
 
   Future<void> _checkStatus() async {
-    final connected = await _printerService.isConnected();
-    if (mounted) {
-      setState(() => _isConnected = connected);
-    }
+    // Just refresh the UI to show current active/printers
+    setState(() {});
   }
 
-  Future<void> _refreshDevices() async {
-    setState(() => _isLoading = true);
-    try {
-      final devices = await _printerService.getDevices();
-      setState(() {
-        _devices = devices;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error scanning devices: $e')),
-        );
-      }
-    }
+  void _showAddPrinterDialog() {
+    final nameController = TextEditingController();
+    final ipController = TextEditingController();
+    final portController = TextEditingController(text: '9100');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'REGISTER NEW PRINTER',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            _buildDialogInput(nameController, 'DISPLAY NAME', 'e.g. Warehouse 1', Icons.label_outline),
+            const SizedBox(height: 16),
+            _buildDialogInput(ipController, 'IP ADDRESS', 'e.g. 192.168.1.100', Icons.lan_outlined),
+            const SizedBox(height: 16),
+            _buildDialogInput(portController, 'PORT', '9100', Icons.settings_ethernet, isNumeric: true),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  final ip = ipController.text.trim();
+                  final portStr = portController.text.trim();
+                  
+                  if (name.isEmpty || ip.isEmpty) return;
+                  
+                  final port = int.tryParse(portStr) ?? 9100;
+                  
+                  Navigator.pop(context);
+                  setState(() => _isLoading = true);
+                  await _printerService.addPrinter(name, ip, port);
+                  setState(() => _isLoading = false);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF9800),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('SAVE PRINTER'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialogInput(TextEditingController controller, String label, String hint, IconData icon, {bool isNumeric = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white10),
+            prefixIcon: Icon(icon, color: Colors.white24, size: 20),
+            filled: true,
+            fillColor: Colors.white.withAlpha(13),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -57,163 +119,75 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     const dark800 = Color(0xFF1E1E1E);
 
     return IndustrialModuleLayout(
-      title: 'PRINTER SETTINGS',
+      title: 'PRINTER MANAGEMENT',
       body: Column(
         children: [
-          // ── Header Section ──────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: dark800,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _isConnected ? Colors.green.withValues(alpha: 0.3) : Colors.white10,
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: _isConnected ? Colors.green.withValues(alpha: 0.1) : Colors.white10,
-                  child: Icon(
-                    _isConnected ? Icons.print : Icons.print_disabled,
-                    color: _isConnected ? Colors.green : Colors.grey,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _isConnected ? 'PRINTER CONNECTED' : 'NOT CONNECTED',
-                        style: TextStyle(
-                          color: _isConnected ? Colors.green : Colors.white70,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      if (_isConnected && _printerService.connectedDeviceName != null)
-                        Text(
-                          _printerService.connectedDeviceName!,
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
-                    ],
-                  ),
-                ),
-                if (_isConnected)
-                  TextButton(
-                    onPressed: () async {
-                      await _printerService.disconnect();
-                      _checkStatus();
-                    },
-                    child: const Text('DISCONNECT', style: TextStyle(color: Colors.redAccent)),
-                  ),
-              ],
-            ),
-          ),
+          // ── Active Status ──────────────────────────────────────────────
+          if (_printerService.activePrinter != null)
+            _buildActivePrinterSummary(dark800, orange),
 
-          // ── Device List ──────────────────────────────────────────────────
+          // ── Printer List Header ────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'PAIRED DEVICES',
+                  'SAVED PRINTERS',
                   style: TextStyle(color: Colors.grey, fontSize: 11, letterSpacing: 1),
                 ),
-                IconButton(
-                  onPressed: _isLoading ? null : _refreshDevices,
-                  icon: Icon(Icons.refresh, color: orange.withValues(alpha: 0.7), size: 18),
+                TextButton.icon(
+                  onPressed: _showAddPrinterDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('ADD NEW', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: orange),
                 ),
               ],
             ),
           ),
 
+          // ── Printer List ───────────────────────────────────────────────
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: orange))
-                : _devices.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No paired devices found.\nPlease pair your printer in Android Settings.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white24, fontSize: 13),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _devices.length,
-                        itemBuilder: (context, index) {
-                          final device = _devices[index];
-                          final isThisDevice = _printerService.connectedDeviceName == device.name && _isConnected;
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: dark800,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isThisDevice ? orange.withValues(alpha: 0.5) : Colors.transparent,
-                              ),
-                            ),
-                            child: ListTile(
-                              leading: const Icon(Icons.bluetooth, color: Colors.blueAccent),
-                              title: Text(
-                                device.name,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                device.macAdress,
-                                style: const TextStyle(color: Colors.white38, fontSize: 11),
-                              ),
-                              trailing: isThisDevice
-                                  ? const Icon(Icons.check_circle, color: orange)
-                                  : ElevatedButton(
-                                      onPressed: () async {
-                                        setState(() => _isLoading = true);
-                                        final success = await _printerService.connect(device.name, device.macAdress);
-                                        setState(() => _isLoading = false);
-                                        _checkStatus();
-                                        if (success && mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Printer connected!')),
-                                          );
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white10,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      child: const Text('CONNECT'),
-                                    ),
-                            ),
-                          );
-                        },
-                      ),
+            child: _printerService.printers.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No printers saved.\nTap "ADD NEW" to register a printer.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white24, fontSize: 13),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _printerService.printers.length,
+                    itemBuilder: (context, index) {
+                      final printer = _printerService.printers[index];
+                      final isActive = _printerService.activePrinter?.id == printer.id;
+                      
+                      return _buildPrinterTile(printer, isActive, dark800, orange);
+                    },
+                  ),
           ),
           
-          if (_isConnected)
+          // ── Test Label Action ──────────────────────────────────────────
+          if (_printerService.activePrinter != null)
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () => _printerService.printLabel(
-                    soNumber: "TEST-12345",
-                    customerName: "TEST CUSTOMER",
-                    productCode: "PRD-001",
-                    weight: 12.5,
+                    soNumber: "TEST-BATCH-00x",
+                    customerName: "MANAGEMENT TEST",
+                    productCode: "MULTI-PRNT",
+                    weight: 1.0,
                     unit: "KG",
-                    qrData: "TEST-SO|TEST-CUST|PRD-001|12.5|KG"
+                    qrData: "MULTI|TEST|DATA"
                   ),
                   icon: const Icon(Icons.receipt_long),
-                  label: const Text('PRINT TEST LABEL'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: orange,
+                  label: const Text('PRINT TEST ON PRIMARY'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white10),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -221,6 +195,97 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActivePrinterSummary(Color bgColor, Color accentColor) {
+    final active = _printerService.activePrinter!;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withAlpha(75)),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            backgroundColor: Colors.green,
+            child: Icon(Icons.print, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SYSTEM PRIMARY',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1),
+                ),
+                Text(
+                  active.name.toUpperCase(),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  '${active.ip}:${active.port}',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrinterTile(NetPrinter printer, bool isActive, Color bgColor, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isActive ? accentColor.withAlpha(127) : Colors.transparent),
+      ),
+      child: ListTile(
+        onTap: () => _printerService.setPrimaryPrinter(printer.id).then((_) => setState(() {})),
+        leading: Icon(
+          isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+          color: isActive ? accentColor : Colors.white24,
+        ),
+        title: Text(
+          printer.name,
+          style: TextStyle(color: Colors.white, fontWeight: isActive ? FontWeight.bold : FontWeight.normal),
+        ),
+        subtitle: Text(
+          '${printer.ip}:${printer.port}',
+          style: const TextStyle(color: Colors.white38, fontSize: 11),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.flash_on, size: 18),
+              onPressed: () async {
+                final success = await _printerService.testConnection(printer.ip, printer.port);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success ? 'Printer Online ✓' : 'Printer Offline ✗'),
+                      backgroundColor: success ? Colors.green : Colors.redAccent,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+              onPressed: () => _printerService.removePrinter(printer.id).then((_) => setState(() {})),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,55 +1,156 @@
 import 'dart:convert';
-import 'dart:typed_data';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'dart:io';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+
+class NetPrinter {
+  final String id;
+  final String name;
+  final String ip;
+  final int port;
+  final bool isDefault;
+
+  NetPrinter({
+    required this.id,
+    required this.name,
+    required this.ip,
+    this.port = 9100,
+    this.isDefault = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'ip': ip,
+    'port': port,
+    'isDefault': isDefault,
+  };
+
+  factory NetPrinter.fromJson(Map<String, dynamic> json) => NetPrinter(
+    id: json['id'],
+    name: json['name'],
+    ip: json['ip'],
+    port: json['port'],
+    isDefault: json['isDefault'] ?? false,
+  );
+
+  NetPrinter copyWith({bool? isDefault, String? name, String? ip, int? port}) {
+    return NetPrinter(
+      id: this.id,
+      name: name ?? this.name,
+      ip: ip ?? this.ip,
+      port: port ?? this.port,
+      isDefault: isDefault ?? this.isDefault,
+    );
+  }
+}
 
 class PrinterService {
   static final PrinterService instance = PrinterService._internal();
   PrinterService._internal();
 
-  static const String _prefSelectedDeviceAddress = 'selected_printer_address';
-  static const String _prefSelectedDeviceName = 'selected_printer_name';
+  static const String _prefPrintersKey = 'saved_network_printers';
 
-  String? _connectedAddress;
-  String? _connectedName;
-
-  String? get connectedDeviceName => _connectedName;
+  List<NetPrinter> _printers = [];
+  NetPrinter? _activePrinter;
+  
+  List<NetPrinter> get printers => _printers;
+  NetPrinter? get activePrinter => _activePrinter;
 
   Future<void> init() async {
+    await _loadPrinters();
+  }
+
+  Future<void> _loadPrinters() async {
     final prefs = await SharedPreferences.getInstance();
-    _connectedAddress = prefs.getString(_prefSelectedDeviceAddress);
-    _connectedName = prefs.getString(_prefSelectedDeviceName);
-  }
-
-  Future<List<BluetoothInfo>> getDevices() async {
-    return await PrintBluetoothThermal.pairedBluetooths;
-  }
-
-  Future<bool> connect(String name, String address) async {
-    try {
-      final bool result = await PrintBluetoothThermal.connect(macPrinterAddress: address);
-      if (result) {
-        _connectedAddress = address;
-        _connectedName = name;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_prefSelectedDeviceAddress, address);
-        await prefs.setString(_prefSelectedDeviceName, name);
+    final String? data = prefs.getString(_prefPrintersKey);
+    
+    if (data != null) {
+      final List<dynamic> decoded = jsonDecode(data);
+      _printers = decoded.map((p) => NetPrinter.fromJson(p)).toList();
+      
+      // Set active printer
+      try {
+        _activePrinter = _printers.firstWhere((p) => p.isDefault);
+      } catch (_) {
+        if (_printers.isNotEmpty) {
+          _activePrinter = _printers.first;
+        }
       }
-      return result;
-    } catch (e) {
-      print('Printer connection error: $e');
+    }
+  }
+
+  Future<void> _savePrinters() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded = jsonEncode(_printers.map((p) => p.toJson()).toList());
+    await prefs.setString(_prefPrintersKey, encoded);
+  }
+
+  /// Adds a new printer to the list.
+  Future<void> addPrinter(String name, String ip, int port) async {
+    final newPrinter = NetPrinter(
+      id: const Uuid().v4(),
+      name: name,
+      ip: ip,
+      port: port,
+      isDefault: _printers.isEmpty, // First printer is default
+    );
+    
+    _printers.add(newPrinter);
+    if (newPrinter.isDefault) {
+      _activePrinter = newPrinter;
+    }
+    await _savePrinters();
+  }
+
+  /// Removes a printer and updates default if necessary.
+  Future<void> removePrinter(String id) async {
+    final wasDefault = _printers.any((p) => p.id == id && p.isDefault);
+    _printers.removeWhere((p) => p.id == id);
+    
+    if (wasDefault && _printers.isNotEmpty) {
+      _printers[0] = _printers[0].copyWith(isDefault: true);
+      _activePrinter = _printers[0];
+    } else if (_printers.isEmpty) {
+      _activePrinter = null;
+    }
+    
+    await _savePrinters();
+  }
+
+  /// Sets a printer as the default for the app.
+  Future<void> setPrimaryPrinter(String id) async {
+    _printers = _printers.map((p) {
+      final isNowDefault = p.id == id;
+      final updated = p.copyWith(isDefault: isNowDefault);
+      if (isNowDefault) {
+        _activePrinter = updated;
+      }
+      return updated;
+    }).toList();
+    
+    await _savePrinters();
+  }
+
+  /// Tests connectivity to a specific IP/Port without saving.
+  Future<bool> testConnection(String ip, int port) async {
+    try {
+      final socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 3));
+      socket.destroy();
+      return true;
+    } catch (_) {
       return false;
     }
   }
 
-  Future<void> disconnect() async {
-    await PrintBluetoothThermal.disconnect;
-    _connectedAddress = null;
-    _connectedName = null;
+  Future<bool> isConnected() async {
+    if (_activePrinter == null) return false;
+    return await testConnection(_activePrinter!.ip, _activePrinter!.port);
   }
 
-  Future<bool> isConnected() async {
-    return await PrintBluetoothThermal.connectionStatus;
+  Future<void> disconnect() async {
+    // TCP sockets are managed per-print job.
   }
 
   Future<void> printLabel({
@@ -60,59 +161,50 @@ class PrinterService {
     required String unit,
     required String qrData,
   }) async {
-    if (!(await isConnected())) {
-      print('Printer not connected');
-      return;
+    if (_activePrinter == null) {
+      throw 'No printer selected. Please configure a printer in Settings.';
     }
 
-    // Print Header
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "--------------------------------\n", size: 1)
-    );
-    
-    // Body details
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "SO NUMBER: $soNumber\n", size: 1)
-    );
-        
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "CUSTOMER: ${customerName.length > 20 ? customerName.substring(0, 18) + '..' : customerName}\n", size: 1)
-    );
+    try {
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
 
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "PRODUCT: $productCode\n", size: 1)
-    );
-        
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "WEIGHT: ${weight.toStringAsFixed(2)} $unit\n", size: 3)
-    );
-    
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "\n", size: 1)
-    );
+      bytes += generator.text("--------------------------------");
+      bytes += generator.text("SALES ORDER", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.feed(1);
+      
+      bytes += generator.text("SO NUMBER: $soNumber");
+      
+      String displayCust = customerName;
+      if (displayCust.length > 25) {
+        displayCust = displayCust.substring(0, 22) + "...";
+      }
+      bytes += generator.text("CUSTOMER: $displayCust");
+      bytes += generator.text("PRODUCT: $productCode");
+      
+      bytes += generator.feed(1);
+      bytes += generator.text("WEIGHT: ${weight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += generator.feed(1);
 
-    // QR Code
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "   LABEL QR DATA:\n", size: 1)
-    ); 
-    
-    // We print the raw QR data string. Thermal printers often handle QR better as raw text 
-    // if the library doesn't have a direct helper, or we can use the library's QR logic if available.
-    // Given the current usage, we print the data string which is machine-readable once scanned.
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "$qrData\n", size: 1)
-    );
+      bytes += generator.text("   LABEL QR DATA:");
+      bytes += generator.qrcode(qrData, size: QRSize.size4);
+      
+      bytes += generator.feed(2);
+      bytes += generator.text("Enterprise Auth Project", styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text("--------------------------------", styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.feed(3);
+      bytes += generator.cut();
 
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "\n\n", size: 1)
-    );
-    
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "Enterprise Auth Project\n", size: 1)
-    );
-
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "--------------------------------\n\n\n", size: 1)
-    );
+      // Transmission
+      final socket = await Socket.connect(_activePrinter!.ip, _activePrinter!.port, timeout: const Duration(seconds: 5));
+      socket.add(bytes);
+      await socket.flush();
+      await socket.close();
+      
+    } catch (e) {
+      print('Network printing failed: $e');
+      rethrow;
+    }
   }
 }

@@ -28,12 +28,14 @@ import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Pre-initialize AudioService to pre-warm the engine
+  // Initialize core services
   AudioService.instance;
+  await PrinterService.instance.init();
   
   runApp(const MyApp());
 }
