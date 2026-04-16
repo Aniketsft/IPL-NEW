@@ -49,6 +49,9 @@ dependencies:
   mobile_scanner: ^7.0.0
   permission_handler: ^11.4.0
   audioplayers: ^6.6.0
+  print_bluetooth_thermal: ^1.1.9
+  qr_flutter: ^4.1.0
+  screenshot: ^3.0.0
 
 dev_dependencies:
   flutter_test:

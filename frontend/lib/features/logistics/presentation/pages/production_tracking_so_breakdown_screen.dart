@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../widgets/label_printing_handler.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../../manufacturing/bloc/manufacturing_bloc.dart';
 import '../../../manufacturing/bloc/manufacturing_event.dart';
@@ -32,6 +33,8 @@ class _ProductionTrackingSoBreakdownScreenState
     _currentItems = List.from(widget.soItems);
   }
 
+
+
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
     // Check header locks
     if (item.headerIsPreparedForShipment) {
@@ -48,48 +51,80 @@ class _ProductionTrackingSoBreakdownScreenState
       return;
     }
 
-    final String title = item.isPrepared ? 'Remove Prepared Status' : 'Mark as Prepared';
-    final String content = item.isPrepared
-        ? 'Are you sure you want to remove the prepared status from this item?'
-        : 'Are you sure you want to mark this item as prepared?';
+    if (item.isPrepared) {
+      // Logic for REMOVING prepared status (Simpler flow)
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: const Text('Remove Prepared Status', style: TextStyle(color: Colors.white)),
+          content: const Text('Remove the prepared status for this item?', style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('CONFIRM', style: TextStyle(color: Color(0xFFFF9800))),
+            ),
+          ],
+        ),
+      );
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(content, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm', style: TextStyle(color: Color(0xFFFF9800))),
-          ),
-        ],
-      ),
-    );
+      if (confirmed == true) {
+        _applyPreparationUpdate(item, false);
+      }
+    } else {
+      // Logic for MARKING AS PREPARED (Consolidated with Printing Options)
+      final choice = await LabelPrintingHandler.showPreparationPrompt(
+        context: context,
+        item: item,
+      );
 
-    if (confirmed == true) {
-      HapticFeedback.mediumImpact();
-      context.read<ManufacturingBloc>().add(
-            UpdateItemPreparationStatus(
-              soNumber: item.soNumber,
-              itemCode: item.itemCode,
-              isPrepared: !item.isPrepared,
+      if (choice != null && choice != 'cancel') {
+        // Step 1: Apply the status update
+        _applyPreparationUpdate(item, true);
+
+        // Step 2: Handle follow-up action
+        if (choice == 'preview') {
+          await LabelPrintingHandler.showLabelPreview(
+            context: context,
+            item: item,
+            onPrintRequested: (item) => LabelPrintingHandler.printLabel(
+              context: context,
+              item: item,
             ),
           );
-
-      setState(() {
-        final index = _currentItems.indexWhere((i) => i.soNumber == item.soNumber);
-        if (index != -1) {
-          _currentItems[index] = _currentItems[index].copyWith(isPrepared: !item.isPrepared);
+        } else if (choice == 'print') {
+          await LabelPrintingHandler.printLabel(
+            context: context,
+            item: item,
+          );
         }
-      });
+      }
     }
   }
+
+  void _applyPreparationUpdate(SalesOrderDetail item, bool willBePrepared) {
+    HapticFeedback.mediumImpact();
+    
+    context.read<ManufacturingBloc>().add(
+          UpdateItemPreparationStatus(
+            soNumber: item.soNumber,
+            itemCode: item.itemCode,
+            isPrepared: willBePrepared,
+          ),
+        );
+
+    setState(() {
+      final index = _currentItems.indexWhere((i) => i.soNumber == item.soNumber);
+      if (index != -1) {
+        _currentItems[index] = _currentItems[index].copyWith(isPrepared: willBePrepared);
+      }
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {

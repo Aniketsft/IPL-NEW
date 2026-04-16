@@ -465,9 +465,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SnackBar(
             content: Text('All scans saved to database ✓'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 1),
           ),
         );
+
+        // Auto-navigate back after success
+        Future.delayed(const Duration(milliseconds: 1200), () {
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));

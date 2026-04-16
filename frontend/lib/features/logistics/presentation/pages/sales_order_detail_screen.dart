@@ -5,6 +5,7 @@ import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
+import '../widgets/label_printing_handler.dart';
 import 'production_tracking_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart';
 
@@ -84,59 +85,96 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     }
 
     final bool currentStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
-    final String title = widget.isDeliveryMode
-        ? (currentStatus ? 'Remove Validation' : 'Validate for Shipment')
-        : (currentStatus ? 'Remove Prepared Status' : 'Mark as Prepared');
+    String? choice;
 
-    final String content = widget.isDeliveryMode
-        ? (currentStatus
-            ? 'Are you sure you want to remove the shipment validation from this item?'
-            : 'Are you sure you want to validate this item for shipment?')
-        : (currentStatus
-            ? 'Are you sure you want to remove the prepared status from this item?'
-            : 'Are you sure you want to mark this item as prepared?');
-
-    final String confirmBtn = widget.isDeliveryMode
-        ? (currentStatus ? 'Remove Validation' : 'Validate Item')
-        : (currentStatus ? 'Remove Status' : 'Mark Prepared');
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          content,
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              confirmBtn,
-              style: const TextStyle(color: Colors.orange),
+    if (currentStatus) {
+      // Removing status logic (Simple Confirmation)
+      final String title = widget.isDeliveryMode ? 'Remove Validation' : 'Remove Prepared Status';
+      final String content = widget.isDeliveryMode
+          ? 'Are you sure you want to remove the shipment validation from this item?'
+          : 'Are you sure you want to remove the prepared status from this item?';
+      
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(content, style: const TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) choice = 'just_mark';
+    } else {
+      // Adding status logic
+      if (widget.isDeliveryMode) {
+        // Validation flow (Simple Confirmation for now)
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text('Validate for Shipment', style: TextStyle(color: Colors.white)),
+            content: const Text('Are you sure you want to validate this item for shipment?', style: TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+        if (confirmed == true) choice = 'just_mark';
+      } else {
+        // Preparation flow (CONSOLIDATED PROMPT)
+        choice = await LabelPrintingHandler.showPreparationPrompt(
+          context: context,
+          item: item,
+        );
+      }
+    }
 
-    if (confirmed == true) {
+    if (choice != null && choice != 'cancel') {
       if (mounted) setState(() => _isLoading = true);
       try {
+        // Step 1: Update status in repository
         await context.read<DeliveryRepository>().updateItemPreparationStatus(
           soNumber: widget.order.orderNumber,
           itemCode: item.itemCode,
           isPrepared: !currentStatus,
           isValidation: widget.isDeliveryMode,
         );
+
+        // Step 2: Handle Printing/Preview if adding prepared status
+        if (!currentStatus && !widget.isDeliveryMode) {
+          if (choice == 'preview') {
+            await LabelPrintingHandler.showLabelPreview(
+              context: context,
+              item: item,
+              onPrintRequested: (item) => LabelPrintingHandler.printLabel(
+                context: context,
+                item: item,
+              ),
+            );
+          } else if (choice == 'print') {
+            await LabelPrintingHandler.printLabel(
+              context: context,
+              item: item,
+            );
+          }
+        }
+
         _fetchDetails();
       } catch (e) {
         if (mounted) {
