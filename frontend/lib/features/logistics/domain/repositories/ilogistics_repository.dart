@@ -72,5 +72,6 @@ abstract class ILogisticsRepository {
     required String itemCode,
     required double amount,
   });
+  Future<Map<String, double>> getExcessPoolSummaries(DateTime date);
 }
 

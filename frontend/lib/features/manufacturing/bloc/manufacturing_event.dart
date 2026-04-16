@@ -9,11 +9,12 @@ abstract class ManufacturingEvent extends Equatable {
 
 class LoadProductionTrackingRequested extends ManufacturingEvent {
   final String? siteCode;
+  final DateTime? date;
 
-  const LoadProductionTrackingRequested({this.siteCode});
+  const LoadProductionTrackingRequested({this.siteCode, this.date});
 
   @override
-  List<Object?> get props => [siteCode];
+  List<Object?> get props => [siteCode, date];
 }
 
 class SiteFilterChanged extends ManufacturingEvent {

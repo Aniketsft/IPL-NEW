@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../../manufacturing/bloc/manufacturing_bloc.dart';
 import '../../../manufacturing/bloc/manufacturing_event.dart';
+import '../../../manufacturing/bloc/manufacturing_state.dart';
 class ProductionTrackingSoBreakdownScreen extends StatefulWidget {
   final String itemCode;
   final String description;
@@ -131,13 +132,32 @@ class _ProductionTrackingSoBreakdownScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.description,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.description,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    BlocBuilder<ManufacturingBloc, ManufacturingState>(
+                      builder: (context, state) {
+                        if (state is ProductionTrackingLoaded &&
+                            state.excessPools[widget.itemCode] != null) {
+                          return _buildPoolBadge(
+                            state.excessPools[widget.itemCode]!,
+                            widget.soItems.first.unit,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 ClipRRect(
@@ -373,6 +393,33 @@ class _ProductionTrackingSoBreakdownScreenState
           overflow: TextOverflow.ellipsis,
         ),
       ],
+    );
+  }
+
+  Widget _buildPoolBadge(double amount, String unit) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.inventory_2_outlined, color: Colors.blueAccent, size: 12),
+          const SizedBox(width: 6),
+          Text(
+            'POOL: ${amount.toStringAsFixed(1)} $unit',
+            style: const TextStyle(
+              color: Colors.blueAccent,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

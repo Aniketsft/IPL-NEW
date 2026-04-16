@@ -562,7 +562,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
+  double get totalAvailableExcess {
+    if (_excessPools.isEmpty) return 0.0;
+    return _excessPools.fold(0.0, (sum, p) {
+      final double pool = (p['poolQty'] as num).toDouble();
+      final double allocated = (p['allocatedQty'] as num).toDouble();
+      return sum + (pool - allocated);
+    });
+  }
+
   Widget _buildHeaderCard() {
+    final double availablePool = totalAvailableExcess;
+    
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -574,7 +585,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.order.customerName, style: const TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(widget.order.customerName, style: const TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+              if (availablePool > 0) _bulkPoolBadge(availablePool),
+            ],
+          ),
           const SizedBox(height: 6),
           Text(widget.product.description, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
@@ -584,6 +601,32 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               const SizedBox(width: 8),
               _infoChip('SO: ${widget.order.orderNumber}'),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bulkPoolBadge(double amount) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade900, Colors.blue.shade600],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.inventory_2_outlined, color: Colors.white, size: 12),
+          const SizedBox(width: 6),
+          Text(
+            'POOL: ${amount.toStringAsFixed(2)} ${widget.product.unit}',
+            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5),
           ),
         ],
       ),

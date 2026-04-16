@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
@@ -81,6 +82,79 @@ class _ProductionTrackingProductListScreenState
               ),
             ),
           ),
+          
+          // Date selection filter
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                BlocBuilder<ManufacturingBloc, ManufacturingState>(
+                  builder: (context, state) {
+                    final selectedDate = state.selectedDate ?? DateTime.now();
+                    final dateStr = DateFormat('EEE, d MMM yyyy').format(selectedDate);
+                    
+                    return GestureDetector(
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: orange,
+                                  onPrimary: Colors.white,
+                                  surface: dark800,
+                                  onSurface: Colors.white,
+                                ),
+                                dialogBackgroundColor: dark900,
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (pickedDate != null && mounted) {
+                          context.read<ManufacturingBloc>().add(
+                            LoadProductionTrackingRequested(date: pickedDate)
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: orange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_today, color: orange, size: 14),
+                            const SizedBox(width: 8),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(
+                                color: orange,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const Icon(Icons.arrow_drop_down, color: orange),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const Spacer(),
+                const Text(
+                  'Filtering by Delivery Date',
+                  style: TextStyle(color: Colors.white24, fontSize: 10, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           Expanded(
             child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
@@ -129,7 +203,7 @@ class _ProductionTrackingProductListScreenState
                       final code = filteredKeys[index];
                       final soItems = grouped[code]!;
                       return _buildProductCard(
-                          context, code, soItems, dark800, orange);
+                          context, code, soItems, dark800, orange, state);
                     },
                   );
                 }
@@ -153,6 +227,7 @@ class _ProductionTrackingProductListScreenState
     List<SalesOrderDetail> soItems,
     Color dark,
     Color orange,
+    ManufacturingState state,
   ) {
     final description = soItems.first.description;
     final totalOrdered = soItems.fold<double>(0, (s, i) => s + i.quantity);
@@ -189,20 +264,34 @@ class _ProductionTrackingProductListScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row
             Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        itemCode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            itemCode,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (state is ProductionTrackingLoaded &&
+                              (state as ProductionTrackingLoaded)
+                                      .excessPools[itemCode] !=
+                                  null) ...[
+                            const SizedBox(width: 8),
+                            _buildPoolBadge(
+                              (state as ProductionTrackingLoaded)
+                                  .excessPools[itemCode]!,
+                              soItems.first.unit,
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -318,6 +407,32 @@ class _ProductionTrackingProductListScreenState
           overflow: TextOverflow.ellipsis,
         ),
       ],
+    );
+  }
+
+  Widget _buildPoolBadge(double amount, String unit) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.inventory_2_outlined, color: Colors.blueAccent, size: 10),
+          const SizedBox(width: 4),
+          Text(
+            'POOL: ${amount.toStringAsFixed(1)} $unit',
+            style: const TextStyle(
+              color: Colors.blueAccent,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import '../../domain/usecases/get_production_tracking_use_case.dart';
 import '../../domain/usecases/get_sites_use_case.dart';
 import '../../domain/usecases/get_customers_use_case.dart';
 import '../../domain/usecases/get_sales_reps_use_case.dart';
+import '../../domain/entities/sales_order_detail.dart';
 import 'order_event.dart';
 import 'order_state.dart';
 
@@ -62,12 +63,13 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     final currentItemsState = state is SalesOrderItemsLoaded ? state as SalesOrderItemsLoaded : null;
     emit(OrderLoadInProgress());
     try {
-      final items = await _getProductionTrackingUseCase.execute(
+      final result = await _getProductionTrackingUseCase.execute(
         siteCode: event.site,
         customerCode: event.customerCode,
         salesRepCode: event.salesRepCode,
         date: event.date,
       );
+      final items = result['items'] as List<SalesOrderDetail>;
       
       if (currentItemsState != null) {
         emit(currentItemsState.copyWith(

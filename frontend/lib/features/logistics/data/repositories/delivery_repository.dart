@@ -82,7 +82,7 @@ class DeliveryRepository implements ILogisticsRepository {
       }
       if (date != null) {
         final dateStr = DateFormat('yyyy-MM-dd').format(date);
-        filters.add('DATE(ord.${LocalDatabaseHelper.colOrderDate}) = "$dateStr"');
+        filters.add('ord.${LocalDatabaseHelper.colDeliveryDate} LIKE "$dateStr%"');
       }
 
       String filterClause = filters.isNotEmpty ? 'WHERE ${filters.join(' AND ')}' : '';
@@ -1407,8 +1407,13 @@ class DeliveryRepository implements ILogisticsRepository {
       // because the standard sync process will handle it normally, 
       // but to be clean we could.
     } catch (e) {
-      debugPrint('Online allocation failed, relying on offline sync: $e');
     }
+  }
+
+  @override
+  Future<Map<String, double>> getExcessPoolSummaries(DateTime date) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return await LocalDatabaseHelper.instance.getExcessPoolSummaries(dateStr);
   }
 }
 

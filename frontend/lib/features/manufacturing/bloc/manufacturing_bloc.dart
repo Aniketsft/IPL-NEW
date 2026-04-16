@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../logistics/domain/usecases/get_production_tracking_use_case.dart';
 import '../../logistics/domain/usecases/synchronize_logistics_use_case.dart';
 import '../../logistics/domain/usecases/set_preparation_status_use_case.dart';
+import '../../logistics/domain/entities/sales_order_detail.dart';
 import 'manufacturing_event.dart';
 import 'manufacturing_state.dart';
 
@@ -57,14 +58,24 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
     LoadProductionTrackingRequested event,
     Emitter<ManufacturingState> emit,
   ) async {
-    emit(ManufacturingLoadInProgress());
+    final targetDate = event.date ?? state.selectedDate ?? DateTime.now();
+    emit(ManufacturingLoadInProgress(
+      currentSiteCode: event.siteCode ?? state.currentSiteCode,
+      dashboardSearchQuery: state.dashboardSearchQuery,
+      selectedDate: targetDate,
+    ));
     try {
-      final items = await _getProductionTracking.execute(siteCode: event.siteCode);
+      final result = await _getProductionTracking.execute(
+        siteCode: event.siteCode ?? state.currentSiteCode,
+        date: targetDate,
+      );
       emit(
         ProductionTrackingLoaded(
-          items: items,
-          currentSiteCode: event.siteCode,
+          items: result['items'] as List<SalesOrderDetail>,
+          excessPools: result['excessPools'] as Map<String, double>,
+          currentSiteCode: event.siteCode ?? state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedDate: targetDate,
         ),
       );
     } catch (e) {
@@ -78,48 +89,67 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   ) async {
     try {
       emit(
-        const ManufacturingSyncProgress(
+        ManufacturingSyncProgress(
           phase: SyncPhase.pushing,
           progress: 0.1,
           message: 'Preparing data update...',
+          selectedDate: state.selectedDate,
+          currentSiteCode: state.currentSiteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
         ),
       );
 
       // Step 1: Pushing
       emit(
-        const ManufacturingSyncProgress(
+        ManufacturingSyncProgress(
           phase: SyncPhase.pushing,
           progress: 0.3,
           message: 'Pushing local scans to server...',
+          selectedDate: state.selectedDate,
+          currentSiteCode: state.currentSiteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
         ),
       );
 
       // Step 2: Full Sync (Push + Pull handled in UseCase/Repo)
       await _synchronizeLogistics.execute(siteCode: event.siteCode);
 
+      final targetDate = state.selectedDate ?? DateTime.now();
+      
       emit(
-        const ManufacturingSyncProgress(
+        ManufacturingSyncProgress(
           phase: SyncPhase.pulling,
           progress: 0.7,
           message: 'Refreshing local mirrors...',
+          selectedDate: targetDate,
+          currentSiteCode: state.currentSiteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
         ),
       );
 
       emit(
-        const ManufacturingSyncProgress(
+        ManufacturingSyncProgress(
           phase: SyncPhase.success,
           progress: 1.0,
           message: 'Sync completed successfully!',
+          selectedDate: targetDate,
+          currentSiteCode: state.currentSiteCode,
+          dashboardSearchQuery: state.dashboardSearchQuery,
         ),
       );
 
       // Reload local data after sync
-      final items = await _getProductionTracking.execute(siteCode: event.siteCode);
+      final result = await _getProductionTracking.execute(
+        siteCode: event.siteCode ?? state.currentSiteCode,
+        date: targetDate,
+      );
       emit(
         ProductionTrackingLoaded(
-          items: items,
-          currentSiteCode: event.siteCode,
+          items: result['items'] as List<SalesOrderDetail>,
+          excessPools: result['excessPools'] as Map<String, double>,
+          currentSiteCode: event.siteCode ?? state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedDate: targetDate,
         ),
       );
     } catch (e) {

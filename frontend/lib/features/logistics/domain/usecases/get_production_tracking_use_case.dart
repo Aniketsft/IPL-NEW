@@ -6,17 +6,24 @@ class GetProductionTrackingUseCase {
 
   GetProductionTrackingUseCase(this.repository);
 
-  Future<List<SalesOrderDetail>> execute({
+  Future<Map<String, dynamic>> execute({
     String? siteCode,
     String? customerCode,
     String? salesRepCode,
     DateTime? date,
-  }) {
-    return repository.getProductionTracking(
+  }) async {
+    final items = await repository.getProductionTracking(
       siteCode: siteCode,
       customerCode: customerCode,
       salesRepCode: salesRepCode,
       date: date,
     );
+
+    final excessPools = await repository.getExcessPoolSummaries(date ?? DateTime.now());
+
+    return {
+      'items': items,
+      'excessPools': excessPools,
+    };
   }
 }

@@ -1076,4 +1076,29 @@ class LocalDatabaseHelper {
         AND o.$colDeliveryDate LIKE ?
     ''', [itemCode, itemCode, '$dateStr%']);
   }
+  /// Calculates aggregated availability (Produced - Allocated) for all bulk products on a date.
+  Future<Map<String, double>> getExcessPoolSummaries(String dateStr) async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT 
+        s.$columnProductCode,
+        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%' OR s.$columnSoNumber LIKE 'FRZ-%') AND s.$columnLocationCode NOT LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS poolQty,
+        SUM(CASE WHEN s.$columnLocationCode LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS allocatedQty
+      FROM $tableScans s
+      INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
+      WHERE o.$colDeliveryDate LIKE ?
+      GROUP BY s.$columnProductCode
+    ''', ['$dateStr%']);
+
+    final Map<String, double> summaries = {};
+    for (var row in results) {
+      final double pool = (row['poolQty'] as num).toDouble();
+      final double allocated = (row['allocatedQty'] as num).toDouble();
+      final double available = pool - allocated;
+      if (available > 0.001) {
+        summaries[row[columnProductCode] as String] = available;
+      }
+    }
+    return summaries;
+  }
 }
