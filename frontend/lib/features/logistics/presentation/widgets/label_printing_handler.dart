@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import '../../domain/entities/sales_order_detail.dart';
+import 'label_qr_generator.dart';
 
 class LabelPrintingHandler {
   /// Shows the consolidated dialog for marking as prepared and choosing a printing action.
@@ -89,7 +90,7 @@ class LabelPrintingHandler {
     required SalesOrderDetail item,
     required Function(SalesOrderDetail) onPrintRequested,
   }) async {
-    final qrData = item.soNumber;
+    final qrData = LabelQrGenerator.generate(item);
     
     await showDialog(
       context: context,
@@ -110,11 +111,6 @@ class LabelPrintingHandler {
               color: Colors.white,
               child: Column(
                 children: [
-                  const Text(
-                    'SALES ORDER LABEL',
-                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const Divider(color: Colors.black45),
                   QrImageView(
                     data: qrData,
                     version: QrVersions.auto,
@@ -184,6 +180,7 @@ class LabelPrintingHandler {
         productCode: item.itemCode,
         weight: item.manufacturedQuantity,
         unit: item.unit,
+        qrData: LabelQrGenerator.generate(item),
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

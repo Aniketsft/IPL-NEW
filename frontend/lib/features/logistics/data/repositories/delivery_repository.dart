@@ -53,6 +53,8 @@ class DeliveryRepository implements ILogisticsRepository {
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
           headerIsClosed: map['headerStatus'] == 2,
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
+          customerName: map['customerName'] as String?,
+          customerCode: map['customerCode'] as String?,
         );
       }).toList();
     } catch (e) {
@@ -90,6 +92,8 @@ class DeliveryRepository implements ILogisticsRepository {
       final query = '''
         SELECT 
           det.*,
+          ord.${LocalDatabaseHelper.colCustomerName} as customerName,
+          ord.${LocalDatabaseHelper.colCustomerCode} as customerCode,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalScannedQty, 0)) as reconciledProduced,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
           (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining
@@ -124,6 +128,8 @@ class DeliveryRepository implements ILogisticsRepository {
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
+          customerName: map['customerName'] as String?,
+          customerCode: map['customerCode'] as String?,
         );
       }).toList();
     } catch (e) {

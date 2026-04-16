@@ -626,6 +626,8 @@ class LocalDatabaseHelper {
         ord.$colStatus as headerStatus,
         ord.$colStatusLabel as headerStatusLabel,
         ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
+        ord.$colCustomerName as customerName,
+        ord.$colCustomerCode as customerCode,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
         (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining

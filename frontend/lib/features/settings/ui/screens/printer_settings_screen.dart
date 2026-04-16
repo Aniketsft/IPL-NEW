@@ -207,7 +207,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                     customerName: "TEST CUSTOMER",
                     productCode: "PRD-001",
                     weight: 12.5,
-                    unit: "KG"
+                    unit: "KG",
+                    qrData: "TEST-SO|TEST-CUST|PRD-001|12.5|KG"
                   ),
                   icon: const Icon(Icons.receipt_long),
                   label: const Text('PRINT TEST LABEL'),

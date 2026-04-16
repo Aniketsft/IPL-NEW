@@ -58,35 +58,18 @@ class PrinterService {
     required String productCode,
     required double weight,
     required String unit,
+    required String qrData,
   }) async {
     if (!(await isConnected())) {
       print('Printer not connected');
       return;
     }
 
-    // Prepare QR Data
-    final qrDataArr = {
-      'so': soNumber,
-      'cust': customerName,
-      'item': productCode,
-      'wgt': weight,
-      'u': unit,
-    };
-    final String qrJson = jsonEncode(qrDataArr);
-
     // Print Header
     await PrintBluetoothThermal.writeString(
       printText: PrintTextSize(text: "--------------------------------\n", size: 1)
     );
     
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "SALES ORDER LABEL\n", size: 3)
-    );
-    
-    await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "\n", size: 1)
-    );
-
     // Body details
     await PrintBluetoothThermal.writeString(
       printText: PrintTextSize(text: "SO NUMBER: $soNumber\n", size: 1)
@@ -109,15 +92,15 @@ class PrinterService {
     );
 
     // QR Code
-    // Library has a specific method for QR
-    await PrintBluetoothThermal.writeBytes(
-      await PrintBluetoothThermal.writeString(printText: PrintTextSize(text: "   QR CODE DATA:\n", size: 1)) == true ? [] : [] 
-    ); // Just a spacer if needed
-    
-    // Note: The library version 1.1.9 might not have a direct qrHelper in the same way.
-    // We will print the JSON text and some padding.
     await PrintBluetoothThermal.writeString(
-      printText: PrintTextSize(text: "$qrJson\n", size: 1)
+      printText: PrintTextSize(text: "   LABEL QR DATA:\n", size: 1)
+    ); 
+    
+    // We print the raw QR data string. Thermal printers often handle QR better as raw text 
+    // if the library doesn't have a direct helper, or we can use the library's QR logic if available.
+    // Given the current usage, we print the data string which is machine-readable once scanned.
+    await PrintBluetoothThermal.writeString(
+      printText: PrintTextSize(text: "$qrData\n", size: 1)
     );
 
     await PrintBluetoothThermal.writeString(
