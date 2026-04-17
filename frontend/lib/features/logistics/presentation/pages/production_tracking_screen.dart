@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'dart:ui' show ImageFilter;
 
 import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
@@ -207,18 +208,35 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         widget.product.itemCode,
         _selectedSite!,
       );
+      
+      // Integrate Global Daily Lot Number
+      final settings = await repository.getAppSettings();
+      final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      String? globalLot;
+      
+      if (settings.dailyLotNumber != null && 
+          settings.dailyLotNumber!.isNotEmpty && 
+          settings.lastLotDate == todayStr) {
+        globalLot = settings.dailyLotNumber;
+      }
+
       if (mounted) {
         setState(() {
           _lots = lots;
-          if (_selectedLot == null || !_lots.contains(_selectedLot)) {
+          
+          // If global lot is available and not in the list, add it (or prioritize it)
+          if (globalLot != null) {
+            if (!_lots.contains(globalLot)) {
+              _lots.insert(0, globalLot!);
+            }
+            _selectedLot = globalLot;
+          } else if (_selectedLot == null || !_lots.contains(_selectedLot)) {
             _selectedLot = _lots.isNotEmpty ? _lots.first : null;
           }
-
         });
       }
     } catch (e) {
       if (mounted) {
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading lots: $e')),
         );

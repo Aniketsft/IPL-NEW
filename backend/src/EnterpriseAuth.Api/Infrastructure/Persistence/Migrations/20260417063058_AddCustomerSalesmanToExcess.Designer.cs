@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260417063058_AddCustomerSalesmanToExcess")]
+    partial class AddCustomerSalesmanToExcess
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -131,28 +134,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.GlobalSetting", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("Action");
+                    b.Property<string>("SettingKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("SettingKey");
 
                     b.Property<string>("LastUpdatedBy")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("LastUpdatedBy");
-
-                    b.Property<string>("SettingKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("SettingKey");
 
                     b.Property<string>("SettingValue")
                         .IsRequired()
@@ -165,7 +155,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnName("UpdatedAt")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.HasKey("Id");
+                    b.HasKey("SettingKey");
 
                     b.ToTable("GlobalSettings");
                 });

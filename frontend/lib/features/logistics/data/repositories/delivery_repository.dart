@@ -21,15 +21,25 @@ import '../local/local_database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
+import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
+import 'package:enterprise_auth_mobile/features/settings/data/models/company.dart';
+import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart' as settings_site;
 
 class DeliveryRepository implements ILogisticsRepository {
-  final Dio _dio;
+  final NetworkService _networkService;
+  final SecureStorageService _storageService;
   bool _isSyncing = false;
   bool get isSyncing => _isSyncing;
 
-  DeliveryRepository({required NetworkService networkService})
-    : _dio = networkService.dio;
+  DeliveryRepository({
+    required NetworkService networkService,
+    required SecureStorageService storageService,
+  }) : _networkService = networkService,
+       _storageService = storageService;
+
+  Dio get _dio => _networkService.dio;
 
   @override
   Future<List<SalesOrderDetail>> getSalesOrderDetails(String soNumber) async {
@@ -604,8 +614,16 @@ class DeliveryRepository implements ILogisticsRepository {
           .getUnsyncedInternalOrders();
       final unsyncedLabels = await LocalDatabaseHelper.instance
           .getUnsyncedLabelAudits();
+      final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty) {
+        // Transform settings rows into authoritative author payload structure
+        final settingsPayload = unsyncedSettingsRows.map((row) => {
+          'settingKey': row[LocalDatabaseHelper.colSettingKey],
+          'settingValue': row[LocalDatabaseHelper.colSettingValue],
+          'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
+        }).toList();
+
         final payload = {
           'scans': unsyncedScans
               .map(
@@ -678,6 +696,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'isOfflineCreated': true,
           }).toList(),
           'deviceId': 'mobile-terminal',
+          'globalSettingsUpdates': settingsPayload,
         };
 
         // Note: Refined sync payload construction
@@ -706,6 +725,12 @@ class DeliveryRepository implements ILogisticsRepository {
           final labelIds = unsyncedLabels.map((l) => l[LocalDatabaseHelper.colLabelId] as String).toList();
           await LocalDatabaseHelper.instance.markLabelAuditsSynced(labelIds);
           debugPrint("Sync: Pushed and marked ${labelIds.length} label audits as synced.");
+        }
+
+        if (unsyncedSettingsRows.isNotEmpty) {
+          final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+          await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
+          debugPrint("Sync: ${keys.length} global settings marked as synced.");
         }
 
         // Preparation statuses (Item level) and Shipment statuses (Order level)
@@ -741,6 +766,11 @@ class DeliveryRepository implements ILogisticsRepository {
         'products': products.length,
         'sites': sites.length,
       };
+
+      // 2.1 Handle Synchronized Global Settings
+      if (rawData['globalSettingsMap'] != null) {
+        await _saveGlobalSettingsFromSync(Map<String, String>.from(rawData['globalSettingsMap']));
+      }
 
       await LocalDatabaseHelper.instance.refreshLogisticsData(
         orders: orders,
@@ -820,16 +850,21 @@ class DeliveryRepository implements ILogisticsRepository {
     final activeSite = siteCode ?? 'IPL';
 
     try {
-      yield SyncProgress(status: 'Initializing sync...', progress: 0.05);
-
-      // 1. Push Unsynced Work
       yield SyncProgress(status: 'Pushing local changes...', progress: 0.1);
       final unsyncedScans = await LocalDatabaseHelper.instance.getUnsyncedScans();
       final unsyncedOrders = await LocalDatabaseHelper.instance.getUnsyncedInternalOrders();
       final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
       final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
+      final unsyncedLabels = await LocalDatabaseHelper.instance.getUnsyncedLabelAudits();
+      final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty) {
+        final settingsPayload = unsyncedSettingsRows.map((row) => {
+          'settingKey': row[LocalDatabaseHelper.colSettingKey],
+          'settingValue': row[LocalDatabaseHelper.colSettingValue],
+          'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
+        }).toList();
+
         final payload = {
           'scans': unsyncedScans.map((s) => {
             'soNumber': s['soNumber'],
@@ -855,6 +890,8 @@ class DeliveryRepository implements ILogisticsRepository {
               'amountKg': amount,
             };
           }))),
+          'labelAudits': unsyncedLabels,
+          'globalSettingsUpdates': settingsPayload,
           'preparationStatusUpdates': unsyncedStatuses,
           'shipmentPreparationUpdates': unsyncedShipments.map((o) => {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
@@ -874,6 +911,14 @@ class DeliveryRepository implements ILogisticsRepository {
         }
         if (unsyncedOrders.isNotEmpty) {
           await LocalDatabaseHelper.instance.markOrdersAsSynced(unsyncedOrders.map((o) => o[LocalDatabaseHelper.colOrderNum] as String).toList());
+        }
+        if (unsyncedLabels.isNotEmpty) {
+          final labelIds = unsyncedLabels.map((l) => l[LocalDatabaseHelper.colLabelId] as String).toList();
+          await LocalDatabaseHelper.instance.markLabelAuditsSynced(labelIds);
+        }
+        if (unsyncedSettingsRows.isNotEmpty) {
+          final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+          await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
         }
       }
 
@@ -921,6 +966,12 @@ class DeliveryRepository implements ILogisticsRepository {
 
       // 3. Mark preparation status updates as synced AFTER refresh
       // We re-fetch from DB to get the current list of what was dirty BEFORE refresh (and preserved)
+      if (unsyncedSettingsRows.isNotEmpty) {
+        final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+        await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
+        debugPrint("Sync (Progress): ${keys.length} global settings marked as synced.");
+      }
+
       if (unsyncedStatuses.isNotEmpty) {
         await LocalDatabaseHelper.instance.markDetailsAsSynced(unsyncedStatuses);
         debugPrint("Sync (Progress): ${unsyncedStatuses.length} preparation status updates marked as synced after refresh.");
@@ -1508,6 +1559,83 @@ class DeliveryRepository implements ILogisticsRepository {
       debugPrint("CRITICAL: Failed to log label audit: $e");
       // Fallback to a dumb timestamp ID if even SQLite fails
       return "TMP-${DateTime.now().millisecondsSinceEpoch}";
+    }
+  }
+
+  // --- APP SETTINGS REPOSITORY IMPLEMENTATION ---
+
+  Future<AppSettings> getAppSettings() async {
+    final localData = await LocalDatabaseHelper.instance.getAllGlobalSettings();
+    final Map<String, String> localMap = {
+      for (var row in localData)
+        row[LocalDatabaseHelper.colSettingKey] as String: row[LocalDatabaseHelper.colSettingValue]?.toString() ?? ''
+    };
+
+    return AppSettings(
+      availableCompanies: Company.mockCompanies,
+      availableSites: settings_site.Site.mockSites,
+      decimalOptions: [0, 1, 2, 3],
+      selectedCompanyId: Company.mockCompanies.first.id,
+      selectedSiteId: settings_site.Site.mockSites.first.id,
+      selectedQuantityDecimals: 2,
+      dailyLotNumber: localMap['DailyLotNumber'],
+      lastLotDate: localMap['LotNumberSetDate'],
+      excessDefaultCustomer: localMap['ExcessDefaultCustomer'],
+      excessDefaultSalesman: localMap['ExcessDefaultSalesman'],
+      tolerancePercentage: double.tryParse(localMap['TolerancePercentage'] ?? '0.0') ?? 0.0,
+    );
+  }
+
+  Future<void> updateAppSettings(AppSettings settings) async {
+    try {
+      final username = await _storageService.getUsername();
+      
+      if (settings.excessDefaultCustomer != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'ExcessDefaultCustomer',
+          settings.excessDefaultCustomer!,
+          updatedBy: username,
+        );
+      }
+      if (settings.excessDefaultSalesman != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'ExcessDefaultSalesman',
+          settings.excessDefaultSalesman!,
+          updatedBy: username,
+        );
+      }
+      if (settings.dailyLotNumber != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'DailyLotNumber',
+          settings.dailyLotNumber!,
+          updatedBy: username,
+        );
+      }
+      if (settings.lastLotDate != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'LotNumberSetDate',
+          settings.lastLotDate!,
+          updatedBy: username,
+        );
+      }
+      if (settings.tolerancePercentage != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'TolerancePercentage',
+          settings.tolerancePercentage.toString(),
+          updatedBy: username,
+        );
+      }
+    } catch (e) {
+      debugPrint("Failed to update app settings in SQLite: $e");
+      throw 'Failed to update app settings: $e';
+    }
+  }
+
+
+  Future<void> _saveGlobalSettingsFromSync(Map<String, String> map) async {
+    final db = LocalDatabaseHelper.instance;
+    for (final entry in map.entries) {
+      await db.updateGlobalSetting(entry.key, entry.value, isSynced: true);
     }
   }
 }

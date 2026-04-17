@@ -10,6 +10,13 @@ class AppSettings {
   final String selectedSiteId;
   final int selectedQuantityDecimals;
 
+  // Global Synchronized Settings
+  final String? dailyLotNumber;
+  final String? lastLotDate; // YYYY-MM-DD
+  final String? excessDefaultCustomer;
+  final String? excessDefaultSalesman;
+  final double? tolerancePercentage;
+
   AppSettings({
     required this.availableCompanies,
     required this.availableSites,
@@ -17,6 +24,11 @@ class AppSettings {
     required this.selectedCompanyId,
     required this.selectedSiteId,
     required this.selectedQuantityDecimals,
+    this.dailyLotNumber,
+    this.lastLotDate,
+    this.excessDefaultCustomer,
+    this.excessDefaultSalesman,
+    this.tolerancePercentage,
   });
 
   factory AppSettings.mock() {
@@ -39,6 +51,11 @@ class AppSettings {
     String? selectedCompanyId,
     String? selectedSiteId,
     int? selectedQuantityDecimals,
+    String? dailyLotNumber,
+    String? lastLotDate,
+    String? excessDefaultCustomer,
+    String? excessDefaultSalesman,
+    double? tolerancePercentage,
   }) {
     return AppSettings(
       availableCompanies: availableCompanies ?? this.availableCompanies,
@@ -48,6 +65,11 @@ class AppSettings {
       selectedSiteId: selectedSiteId ?? this.selectedSiteId,
       selectedQuantityDecimals:
           selectedQuantityDecimals ?? this.selectedQuantityDecimals,
+      dailyLotNumber: dailyLotNumber ?? this.dailyLotNumber,
+      lastLotDate: lastLotDate ?? this.lastLotDate,
+      excessDefaultCustomer: excessDefaultCustomer ?? this.excessDefaultCustomer,
+      excessDefaultSalesman: excessDefaultSalesman ?? this.excessDefaultSalesman,
+      tolerancePercentage: tolerancePercentage ?? this.tolerancePercentage,
     );
   }
 }

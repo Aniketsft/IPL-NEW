@@ -14,7 +14,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<SiteLookupDto> Sites { get; set; } = new();
         public List<LotLookupDto> Lots { get; set; } = new();
         public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
-        public List<ProductionScanDto> RecentScans { get; set; } = new();
+        public Dictionary<string, string> GlobalSettingsMap { get; set; } = new();
         public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
     }
 
@@ -26,7 +26,15 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<ShipmentPreparationUpdateDto> ShipmentPreparationUpdates { get; set; } = new();
         public List<OrderStatusUpdateDto> OrderStatusUpdates { get; set; } = new();
         public List<LabelAuditDto> LabelAudits { get; set; } = new();
+        public List<GlobalSettingUpdateDto>? GlobalSettingsUpdates { get; set; }
         public string DeviceId { get; set; } = string.Empty;
+    }
+
+    public class GlobalSettingUpdateDto
+    {
+        public string SettingKey { get; set; } = string.Empty;
+        public string SettingValue { get; set; } = string.Empty;
+        public string UpdatedBy { get; set; } = string.Empty;
     }
 
     public class LabelAuditDto

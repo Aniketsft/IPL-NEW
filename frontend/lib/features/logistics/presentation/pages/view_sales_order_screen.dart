@@ -25,12 +25,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
   List<Map<String, String>> _sitesList = [];
-  List<Map<String, String>> _locationsList = [];
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   String? _selectedCustomerCode;
   String? _selectedSalesmanCode;
-  String? _selectedLocationCode;
   Site? _selectedSite;
 
   bool _isLoading = false;
@@ -190,7 +188,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        locationCode: _selectedLocationCode,
         rep0: null, // Removed per request
         rep1: _selectedSalesmanCode,
         limit: 100,
@@ -227,7 +224,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        locationCode: _selectedLocationCode,
         rep0: null, // Removed per request
         rep1: _selectedSalesmanCode,
         limit: 100,
@@ -295,14 +291,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                     _selectedDate != null ||
                     _selectedCustomerCode != null ||
                     _selectedSalesmanCode != null ||
-                    _selectedLocationCode != null ||
                     _selectedSite != null ||
                     (_status != 'all' && _status != 'open'),
                 onReset: () {
                   setState(() {
                     _selectedCustomerCode = null;
                     _selectedSalesmanCode = null;
-                    _selectedLocationCode = null;
                     _selectedSite = null;
                     _selectedDate = null;
                     _status = 'all';
@@ -353,7 +347,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                   _selectedSite = null;
                                   _selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
-                                  _selectedLocationCode = null;
                                 });
                                 // Cascading reload
                                 await _reloadSites();
@@ -386,44 +379,15 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                   // Reset children
                                   _selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
-                                  _selectedLocationCode = null;
-                                  _locationsList = [];
                                 });
                                 
                                 if (_selectedSite != null) {
-                                  // Load locations for this site (always available)
-                                  final repository = context.read<DeliveryRepository>();
-                                  repository.getLocationLookups(_selectedSite!.code).then((locs) {
-                                    setModalState(() {
-                                      _locationsList = locs.map((l) => {'code': l.location ?? '', 'name': l.locationTypeName ?? 'Unknown'}).toList();
-                                    });
-                                  });
                                   // Cascading reload of salesreps
                                   await _reloadSalesReps();
                                 }
                                 setModalState(() {});
                               },
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          FilterPickerTile(
-                            label: 'Location',
-                            value: _selectedLocationCode,
-                            icon: Icons.place_outlined,
-                            onTap: _selectedSite == null
-                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Site first')))
-                                : () => _showSearchPicker(
-                                      'Location',
-                                      _locationsList,
-                                      (code) {
-                                        setState(() => _selectedLocationCode = code);
-                                        setModalState(() {});
-                                      },
-                                    ),
                           ),
                         ],
                       ),

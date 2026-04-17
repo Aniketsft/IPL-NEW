@@ -23,6 +23,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         // --- AUDIT ---
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<LabelAudit> LabelAudits { get; set; }
+        public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -116,6 +117,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.LabelId).IsUnique();
                 entity.Property(e => e.TotalWeight).HasPrecision(18, 5);
+            });
+
+            // GlobalSettings
+            modelBuilder.Entity<GlobalSetting>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
             });
         }
     }

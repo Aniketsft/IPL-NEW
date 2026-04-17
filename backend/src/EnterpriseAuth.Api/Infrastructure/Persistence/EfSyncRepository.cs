@@ -214,6 +214,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 });
             }
 
+            // Fetch Global Settings for Sync (Latest Version from Ledger)
+            var globalSettingsList = await _scanContext.GlobalSettings.ToListAsync();
+            package.GlobalSettingsMap = globalSettingsList
+                .GroupBy(s => s.SettingKey)
+                .Select(g => g.OrderByDescending(x => x.UpdatedAt).First())
+                .ToDictionary(s => s.SettingKey, s => s.SettingValue);
+
+            package.SyncTimestamp = DateTime.UtcNow;
             return package;
         }
 
@@ -512,15 +520,111 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 totalCount += request.OrderStatusUpdates.Count;
             }
 
-            // 6. Process Label Audits (Sync from Offline)
+            // 6. Process Label Audits
             if (request.LabelAudits != null && request.LabelAudits.Any())
             {
-                foreach (var audit in request.LabelAudits)
+                var labelIds = request.LabelAudits.Select(a => a.LabelId).Distinct().ToList();
+                var existingLabels = await _scanContext.LabelAudits
+                    .Where(l => labelIds.Contains(l.LabelId))
+                    .Select(l => l.LabelId)
+                    .ToListAsync();
+
+                foreach (var auditDto in request.LabelAudits)
                 {
-                    // Reuse the LogLabelAuditAsync logic to ensure consistent sequence/duplicate handling
-                    await _logisticsRepository.LogLabelAuditAsync(audit);
+                    if (existingLabels.Contains(auditDto.LabelId)) continue;
+
+                    _scanContext.LabelAudits.Add(new LabelAudit
+                    {
+                        LabelId = auditDto.LabelId,
+                        ReferenceNumber = auditDto.ReferenceNumber,
+                        LabelType = auditDto.LabelType,
+                        ProductCode = auditDto.ProductCode,
+                        CustomerName = auditDto.CustomerName,
+                        TotalWeight = auditDto.TotalWeight,
+                        ManifestJson = auditDto.ManifestJson,
+                        PrintedBy = auditDto.PrintedBy,
+                        CreatedAt = auditDto.CreatedAt,
+                        IsOfflineCreated = auditDto.IsOfflineCreated
+                    });
                 }
+                await _scanContext.SaveChangesAsync();
                 totalCount += request.LabelAudits.Count;
+            }
+
+            // 7. Process Global Settings Updates (Sync from Device)
+            if (request.GlobalSettingsUpdates != null && request.GlobalSettingsUpdates.Any())
+            {
+                var keys = request.GlobalSettingsUpdates.Select(u => u.SettingKey).ToList();
+                // To maintain the ledger correctly and generate AuditLog entries, we get the LATEST setting for each key.
+                var existingSettings = await _scanContext.GlobalSettings
+                    .Where(s => keys.Contains(s.SettingKey))
+                    .OrderByDescending(s => s.UpdatedAt)
+                    .ToListAsync();
+
+                foreach (var updateDto in request.GlobalSettingsUpdates)
+                {
+                    var existing = existingSettings.FirstOrDefault(s => s.SettingKey == updateDto.SettingKey);
+                    
+                    // If the value hasn't changed from the absolute latest, we could skip it to avoid blowing up the ledger.
+                    // But if it's identical, maybe we do skip, or do we log an update? Usually ledger doesn't append if nothing changes.
+                    if (existing != null && existing.SettingValue == updateDto.SettingValue)
+                    {
+                        continue; // No actual change
+                    }
+
+                    string oldValue = existing?.SettingValue ?? "NOT_SET";
+                    string author = !string.IsNullOrEmpty(updateDto.UpdatedBy) ? updateDto.UpdatedBy : request.DeviceId;
+
+                    // ALWAYS INSERT A NEW RECORD (Append-Only Ledger)
+                    _scanContext.GlobalSettings.Add(new GlobalSetting
+                    {
+                        SettingKey = updateDto.SettingKey,
+                        SettingValue = updateDto.SettingValue,
+                        LastUpdatedBy = author,
+                        UpdatedAt = DateTime.UtcNow,
+                        Action = existing == null ? "INSERT" : "UPDATE"
+                    });
+
+                    // Create Audit Entry
+                    _scanContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "GlobalSetting",
+                        EntityId = 0,
+                        ActionType = existing == null ? "INSERT" : "UPDATE",
+                        Payload = $"{{\"key\":\"{updateDto.SettingKey}\",\"old\":\"{oldValue}\",\"new\":\"{updateDto.SettingValue}\"}}",
+                        PerformedBy = author,
+                        PerformedAt = DateTime.UtcNow
+                    });
+
+                    // --- CASCADE TO EXCESS TABLE ---
+                    if (updateDto.SettingKey == "ExcessDefaultCustomer" || updateDto.SettingKey == "ExcessDefaultSalesman")
+                    {
+                        var today = DateTime.UtcNow.Date;
+                        var activeExcesses = await _scanContext.Excesses
+                            .Where(e => e.DeliveryDate >= today)
+                            .ToListAsync();
+
+                        foreach (var excess in activeExcesses)
+                        {
+                            string oldVal = updateDto.SettingKey == "ExcessDefaultCustomer" ? excess.CustomerCode : excess.Salesman;
+                            
+                            if (updateDto.SettingKey == "ExcessDefaultCustomer") excess.CustomerCode = updateDto.SettingValue;
+                            if (updateDto.SettingKey == "ExcessDefaultSalesman") excess.Salesman = updateDto.SettingValue;
+
+                            _scanContext.AuditLogs.Add(new AuditLog
+                            {
+                                EntityName = "Excess",
+                                EntityId = 0,
+                                ActionType = "CASCADE_UPDATE",
+                                Payload = $"{{\"excessId\":\"{excess.Id}\",\"triggeredBySetting\":\"{updateDto.SettingKey}\",\"old\":\"{oldVal ?? "NULL"}\",\"new\":\"{updateDto.SettingValue}\"}}",
+                                PerformedBy = author,
+                                PerformedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+                await _scanContext.SaveChangesAsync();
+                totalCount += request.GlobalSettingsUpdates.Count;
             }
 
             return totalCount;

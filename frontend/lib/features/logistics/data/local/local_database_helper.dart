@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 26;
+  static const _databaseVersion = 29;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -21,6 +21,7 @@ class LocalDatabaseHelper {
   static const tableSites = 'tbl_sites';
   static const tableLots = 'tbl_lots';
   static const tableLabelAudits = 'tbl_label_audits';
+  static const tableGlobalSettings = 'tbl_global_settings';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -117,6 +118,14 @@ class LocalDatabaseHelper {
   static const colManifestJson = 'manifestJson';
   static const colPrintedBy = 'printedBy';
   static const colCreatedAt = 'createdAt';
+  
+  // tbl_global_settings columns
+  static const colSettingKey = 'key';
+  static const colSettingValue = 'value';
+  static const colSettingIsSynced = 'isSynced';
+  static const colSettingLastUpdated = 'lastUpdated';
+  static const colSettingUpdatedBy = 'updatedBy';
+  static const colSettingAction = 'action';
 
   LocalDatabaseHelper._privateConstructor();
   static final LocalDatabaseHelper instance =
@@ -427,6 +436,50 @@ class LocalDatabaseHelper {
         )
       ''');
     }
+
+    if (oldVersion < 27) {
+      debugPrint('DB Upgrade: Creating Global Settings table (v27)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableGlobalSettings (
+          $colSettingKey TEXT PRIMARY KEY,
+          $colSettingValue TEXT,
+          $colSettingIsSynced INTEGER NOT NULL DEFAULT 0,
+          $colSettingLastUpdated TEXT,
+          $colSettingUpdatedBy TEXT
+        )
+      ''');
+    }
+
+    if (oldVersion < 28) {
+      debugPrint('DB Upgrade: Adding UpdatedBy to Global Settings (v28)');
+      try {
+        await db.execute('ALTER TABLE $tableGlobalSettings ADD COLUMN $colSettingUpdatedBy TEXT');
+      } catch (e) {
+        debugPrint(e.toString());
+      }
+    }
+
+    if (oldVersion < 29) {
+      debugPrint('DB Upgrade: Converting Global Settings to append-only ledger (v29)');
+      await db.execute('ALTER TABLE $tableGlobalSettings RENAME TO ${tableGlobalSettings}_old');
+      await db.execute('''
+        CREATE TABLE $tableGlobalSettings (
+          $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+          $colSettingKey TEXT,
+          $colSettingValue TEXT,
+          $colSettingIsSynced INTEGER NOT NULL DEFAULT 0,
+          $colSettingLastUpdated TEXT,
+          $colSettingUpdatedBy TEXT,
+          $colSettingAction TEXT
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO $tableGlobalSettings ($colSettingKey, $colSettingValue, $colSettingIsSynced, $colSettingLastUpdated, $colSettingUpdatedBy, $colSettingAction)
+        SELECT $colSettingKey, $colSettingValue, $colSettingIsSynced, $colSettingLastUpdated, $colSettingUpdatedBy, 'INSERT'
+        FROM ${tableGlobalSettings}_old
+      ''');
+      await db.execute('DROP TABLE ${tableGlobalSettings}_old');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -599,6 +652,18 @@ class LocalDatabaseHelper {
         $colPrintedBy TEXT,
         $colCreatedAt TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableGlobalSettings (
+        $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colSettingKey TEXT,
+        $colSettingValue TEXT,
+        $colSettingIsSynced INTEGER NOT NULL DEFAULT 0,
+        $colSettingLastUpdated TEXT,
+        $colSettingUpdatedBy TEXT,
+        $colSettingAction TEXT
       )
     ''');
   }
@@ -1177,6 +1242,54 @@ class LocalDatabaseHelper {
       {columnIsSynced: 1},
       where: '$colLabelId IN ($placeholders)',
       whereArgs: labelIds,
+    );
+  }
+
+  // --- GLOBAL SETTINGS HELPERS ---
+
+  Future<List<Map<String, dynamic>>> getAllGlobalSettings() async {
+    final db = await instance.database;
+    // Returns the most recent record for each setting key
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT * FROM $tableGlobalSettings ORDER BY $colSettingLastUpdated DESC
+      ) GROUP BY $colSettingKey
+    ''');
+  }
+
+  Future<void> updateGlobalSetting(String key, String value, {bool isSynced = false, String? updatedBy}) async {
+    final db = await instance.database;
+    await db.insert(
+      tableGlobalSettings,
+      {
+        colSettingKey: key,
+        colSettingValue: value,
+        colSettingIsSynced: isSynced ? 1 : 0,
+        colSettingLastUpdated: DateTime.now().toIso8601String(),
+        colSettingUpdatedBy: updatedBy,
+        colSettingAction: 'INSERT',
+      },
+      // Removed conflict algorithm to ensure it always inserts a new row (ledger)
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedGlobalSettings() async {
+    final db = await instance.database;
+    return await db.query(
+      tableGlobalSettings,
+      where: '$colSettingIsSynced = 0',
+    );
+  }
+
+  Future<void> markSettingsAsSynced(List<String> keys) async {
+    if (keys.isEmpty) return;
+    final db = await instance.database;
+    final placeholders = List.generate(keys.length, (i) => '?').join(', ');
+    await db.update(
+      tableGlobalSettings,
+      {colSettingIsSynced: 1},
+      where: '$colSettingKey IN ($placeholders)',
+      whereArgs: keys,
     );
   }
 }

@@ -62,6 +62,7 @@ class MyApp extends StatelessWidget {
         RepositoryProvider(
           create: (context) => enterprise_auth_mobile_repo.DeliveryRepository(
             networkService: context.read<NetworkService>(),
+            storageService: context.read<SecureStorageService>(),
           ),
         ),
         RepositoryProvider(create: (_) => LocalRepository()),

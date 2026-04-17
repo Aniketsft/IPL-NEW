@@ -7,6 +7,7 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 
 
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
 
 
@@ -34,8 +35,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
   List<Map<String, String>> _productsList = [];
-  List<Map<String, String>> _existingSOsList = [];
-  bool _isLoadingSOs = false;
+  AppSettings? _settings;
 
 
   
@@ -60,8 +60,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       final customers = await repository.getCustomers();
       final reps = await repository.getSalesReps();
       final products = await repository.getProducts();
-      setState(() => _isLoadingSOs = true);
-      final existingSOs = await repository.getExistingCutBulkSOs();
+      final settings = await repository.getAppSettings();
 
       setState(() {
         _customersList = customers
@@ -71,8 +70,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             .map((r) => {'code': r.code, 'name': r.name})
             .toList();
         _productsList = products;
-        _existingSOsList = existingSOs;
-        _isLoadingSOs = false;
+        _settings = settings;
       });
     } catch (e) {
       if (mounted) {
@@ -122,41 +120,28 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       return;
     }
 
-    if (_isNewSO) {
-      // New SO: require customer
-      if (_selectedCustomerCode == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a customer')),
-        );
-        return;
-      }
-    } else {
-      // Existing SO: require SO selection
-      if (_selectedExistingSO == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select an existing SO')),
-        );
-        return;
-      }
+    if (_settings?.excessDefaultCustomer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Default Customer not set. Please update Logistics Settings.')),
+      );
+      return;
     }
 
-    final customer = _isNewSO
-        ? _customersList.firstWhere(
-            (c) => c['code'] == _selectedCustomerCode,
-          )
-        : <String, String>{};
+    final customerCode = _settings!.excessDefaultCustomer!;
+    final salesmanCode = _settings?.excessDefaultSalesman;
+    final customerName = _customersList.firstWhere(
+      (c) => c['code'] == customerCode,
+      orElse: () => {'name': customerCode},
+    )['name'];
 
     final entry = {
       'type': _mode == 'cuts' ? 'Cuts' : (_mode == 'bulks' ? 'Bulks' : 'Frozen'),
       'products': _selectedProducts,
-      if (_isNewSO) ...{
-        'customerCode': _selectedCustomerCode,
-        'customerName': customer['name'],
-        'date': _date?.toIso8601String(),
-        'salesman1Code': _selectedSalesmanCode,
-        'salesman2Code': _selectedSalesmanCode,
-      },
-      if (!_isNewSO) 'existingSoNumber': _selectedExistingSO,
+      'customerCode': customerCode,
+      'customerName': customerName,
+      'date': _date?.toIso8601String(),
+      'salesman1Code': salesmanCode,
+      'salesman2Code': salesmanCode,
       // Removed poNumber as per request
       'amount': amount,
       'amountKg': amount,
@@ -197,71 +182,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
               children: [
                 _buildModeToggle(orange),
                 const SizedBox(height: 24),
-                _buildSOToggle(orange),
-                const SizedBox(height: 32),
 
-                // SO Details Section
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    dividerColor: Colors.transparent,
-                    splashColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                  ),
-                  child: ExpansionTile(
-                    initiallyExpanded: _soDetailsExpanded,
-                    onExpansionChanged: (expanded) => setState(() => _soDetailsExpanded = expanded),
-                    tilePadding: EdgeInsets.zero,
-                    title: Row(
-                      children: [
-                        Icon(_isNewSO ? Icons.assignment_outlined : Icons.inventory_2_outlined, color: Colors.grey, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isNewSO ? 'SO DETAILS' : 'SELECT EXISTING SO',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                    children: [
-                      const SizedBox(height: 16),
-                      if (_isNewSO) ...[
-                        _buildLabel('Customer'),
-                        _buildDropdownTile(
-                          'Customer',
-                          _selectedCustomerCode,
-                          _customersList,
-                          (val) => setState(() => _selectedCustomerCode = val),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildLabel('Date'),
-                        _buildDatePicker(),
-                        const SizedBox(height: 16),
-                        _buildLabel('Salesman'),
-                        _buildDropdownTile(
-                          'Salesman',
-                          _selectedSalesmanCode,
-                          _salesRepsList,
-                          (val) => setState(() => _selectedSalesmanCode = val),
-                        ),
-                        const SizedBox(height: 16),
-                        // Removed PO Number label and field as per request
-                      ] else ...[
-                        _buildLabel('Existing SO'),
-                        _buildDropdownTile(
-                          'Existing SO',
-                          _selectedExistingSO,
-                          _existingSOsList,
-                          (val) => setState(() => _selectedExistingSO = val),
-                          isLoading: _isLoadingSOs,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                // Defaults Info Banner
+                _buildDefaultsBanner(orange),
+                const SizedBox(height: 32),
                 const SizedBox(height: 32),
 
                 // Section Header: SCANNED PRODUCTS
@@ -312,23 +236,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         children: [
           _buildToggleButton('cuts', 'Cuts', orange),
           _buildToggleButton('bulks', 'Bulks', orange),
-          _buildToggleButton('frozen', 'Frozen', orange),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSOToggle(Color orange) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          _buildSOToggleButton(true, 'New SO', orange),
-          _buildSOToggleButton(false, 'Existing SO', orange),
         ],
       ),
     );
@@ -359,36 +266,76 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     );
   }
 
-  Widget _buildSOToggleButton(bool isNew, String label, Color orange) {
-    final isSelected = _isNewSO == isNew;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() {
-          _isNewSO = isNew;
-          // Reset selection when toggling
-          if (isNew) {
-            _selectedExistingSO = null;
-          } else {
-            _selectedCustomerCode = null;
-            _selectedSalesmanCode = null;
-          }
-        }),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2C2C2E) : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? orange : Colors.white38,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  Widget _buildDefaultsBanner(Color orange) {
+    if (_settings == null) return const SizedBox.shrink();
+    
+    final customerCode = _settings?.excessDefaultCustomer ?? 'NOT SET';
+    final salesmanCode = _settings?.excessDefaultSalesman ?? 'NOT SET';
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.white38, size: 16),
+              const SizedBox(width: 8),
+              const Text(
+                'USING GLOBAL DEFAULTS',
+                style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
               ),
-            ),
+              const Spacer(),
+              _buildDatePickerIcon(),
+            ],
           ),
-        ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildMiniDefault('CUSTOMER', customerCode),
+              const SizedBox(width: 16),
+              _buildMiniDefault('SALESMAN', salesmanCode),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniDefault(String label, String value) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatePickerIcon() {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _date ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2101),
+        );
+        if (picked != null) setState(() => _date = picked);
+      },
+      child: Row(
+        children: [
+          Text(intl.DateFormat('dd/MM').format(_date!), style: const TextStyle(color: Color(0xFFFF9800), fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          const Icon(Icons.calendar_month, color: Color(0xFFFF9800), size: 16),
+        ],
       ),
     );
   }
