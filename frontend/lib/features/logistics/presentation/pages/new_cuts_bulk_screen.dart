@@ -9,6 +9,8 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_scanner_widget.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 
 class NewCutsBulkScreen extends StatefulWidget {
@@ -208,12 +210,21 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                  if (_productsExpanded) ...[
                    for (int i = 0; i < _selectedProducts.length; i++)
                      _buildProductItemCard(_selectedProducts[i], i),
-                   Center(
-                     child: TextButton.icon(
-                       onPressed: _addProduct,
-                       icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
-                       label: const Text('Add Product', style: TextStyle(color: Color(0xFFFF9800))),
-                     ),
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       TextButton.icon(
+                         onPressed: _addProduct,
+                         icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
+                         label: const Text('Add Product', style: TextStyle(color: Color(0xFFFF9800))),
+                       ),
+                       const SizedBox(width: 16),
+                       TextButton.icon(
+                         onPressed: _scanProduct,
+                         icon: const Icon(Icons.qr_code_scanner, color: Color(0xFFFF9800)),
+                         label: const Text('Scan Product', style: TextStyle(color: Color(0xFFFF9800))),
+                       ),
+                     ],
                    ),
                  ],
               ],
@@ -403,19 +414,95 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   void _addProduct() {
     _showSearchPicker('Product', _productsList, (code) {
       if (code != null) {
-        final product = _productsList.firstWhere((p) => p['code'] == code);
-        setState(() {
-          _selectedProducts.add({
-            'code': product['code'],
-            'name': product['name'],
-            'unit': product['unit'] ?? 'KG',
-            'sku': 'SKU-${product['code']}', // Placeholder
-            'qty': 0.0,
-            'scans': [],
-          });
-        });
+        _processScannedProductCode(code);
       }
     });
+  }
+
+  void _scanProduct() {
+     showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          top: 24,
+          left: 16,
+          right: 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Scan Product Barcode/SKU', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            AppBarcodeScanner(
+              height: 250,
+              onScan: (code) {
+                Navigator.pop(context); // Close the scanner
+                _processScannedProductCode(code);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processScannedProductCode(String code) async {
+    try {
+      // Step 1: Decode barcode directly via our processor logic to extract the exact base item code
+      final processor = OfflineBarcodeProcessor();
+      final result = await processor.processBarcode(code);
+      
+      String targetItemCode = code;
+      
+      if (result != null && result.itemCode.isNotEmpty) {
+        targetItemCode = result.itemCode;
+      }
+      
+      // Step 2: Grab the matching UI dictionary product
+      final product = _productsList.firstWhere(
+        (p) => p['code'] == targetItemCode || 'SKU-${p['code']}' == targetItemCode,
+        orElse: () => throw Exception('Product base code $targetItemCode not loaded in dropdowns'),
+      );
+
+      // Check if already added
+      final exists = _selectedProducts.any((p) => p['code'] == product['code']);
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('${product['name']} is already added'))
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _selectedProducts.add({
+          'code': product['code'],
+          'name': product['name'],
+          'unit': product['unit'] ?? 'KG',
+          'sku': 'SKU-${product['code']}',
+          'qty': 0.0,
+          'scans': [],
+        });
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added: ${product['name']}'))
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Product not found in lookups'))
+        );
+      }
+    }
   }
 
   Future<void> _navigateToScan(Map<String, dynamic> product, int index) async {
