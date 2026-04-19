@@ -272,6 +272,69 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  /// SCAN-TO-LOAD MANIFEST LOGIC
+  /// ----------------------------------------
+  
+  Future<void> addDeliveryScan(List<String> soNumbers, String rawData) async {
+    final db = await LocalDatabaseHelper.instance.database;
+    
+    for (var so in soNumbers) {
+      so = so.trim();
+      if (so.isEmpty) continue;
+      
+      final res = await db.query(
+        LocalDatabaseHelper.tableOrders, 
+        where: '${LocalDatabaseHelper.colOrderNum} = ?', 
+        whereArgs: [so]
+      );
+      
+      if (res.isEmpty) {
+        throw 'Order $so not found on this device. Sync required.';
+      }
+      
+      final status = res.first[LocalDatabaseHelper.colStatus] as int?;
+      if (status != 2) {
+        throw 'Order $so is still open in production and cannot be dispatched.';
+      }
+    }
+    
+    // If all are valid, push to SQLite table
+    await LocalDatabaseHelper.instance.insertDeliveryScan(rawData, soNumbers);
+  }
+
+  Future<List<String>> getScannedDeliveryOrderNumbers() async {
+    return await LocalDatabaseHelper.instance.getScannedDeliveryOrders();
+  }
+
+  Future<void> clearDeliveryScans() async {
+    await LocalDatabaseHelper.instance.clearDeliveryScans();
+  }
+
+  Future<List<SalesOrder>> fetchSalesOrderHeadersByNumbers(List<String> soNumbers) async {
+    if (soNumbers.isEmpty) return [];
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
+      final String orderTable = LocalDatabaseHelper.tableOrders;
+      final String repTable = LocalDatabaseHelper.tableReps;
+      
+      final placeholders = List.filled(soNumbers.length, '?').join(',');
+      
+      String sql = '''
+        SELECT o.*, r.${LocalDatabaseHelper.colName} AS salesmanName
+        FROM $orderTable o
+        LEFT JOIN $repTable r ON o.${LocalDatabaseHelper.colRep1} = r.${LocalDatabaseHelper.colCode}
+        WHERE o.${LocalDatabaseHelper.colOrderNum} IN ($placeholders)
+        GROUP BY o.${LocalDatabaseHelper.colOrderNum}
+        ORDER BY o.${LocalDatabaseHelper.colOrderDate} DESC
+      ''';
+
+      final maps = await db.rawQuery(sql, soNumbers);
+      return maps.map((m) => _mapLocalHeaderToEntity(m)).toList();
+    } catch (e) {
+      throw 'Failed to fetch delivery sales orders: $e';
+    }
+  }
+
   @override
   Future<void> closeOrder(String soNumber, String closedBy) async {
     try {

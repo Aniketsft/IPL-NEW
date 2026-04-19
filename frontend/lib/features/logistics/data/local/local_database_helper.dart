@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 29;
+  static const _databaseVersion = 30;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -22,6 +22,7 @@ class LocalDatabaseHelper {
   static const tableLots = 'tbl_lots';
   static const tableLabelAudits = 'tbl_label_audits';
   static const tableGlobalSettings = 'tbl_global_settings';
+  static const tableDeliveryScans = 'tbl_delivery_scans';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -127,6 +128,11 @@ class LocalDatabaseHelper {
   static const colSettingUpdatedBy = 'updatedBy';
   static const colSettingAction = 'action';
 
+  // tbl_delivery_scans columns
+  static const colDelScanPayload = 'qrPayload';
+  static const colDelScanSoNumber = 'soNumber';
+  static const colDelScanTimestamp = 'timestamp';
+
   LocalDatabaseHelper._privateConstructor();
   static final LocalDatabaseHelper instance =
       LocalDatabaseHelper._privateConstructor();
@@ -150,6 +156,17 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 30) {
+      debugPrint('DB Upgrade: Creating Delivery Scans table (v30)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableDeliveryScans (
+          $colDelScanPayload TEXT,
+          $colDelScanSoNumber TEXT,
+          $colDelScanTimestamp TEXT,
+          PRIMARY KEY ($colDelScanPayload, $colDelScanSoNumber)
+        )
+      ''');
+    }
     if (oldVersion < 2) {
       try {
         await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0');
@@ -1271,6 +1288,56 @@ class LocalDatabaseHelper {
       },
       // Removed conflict algorithm to ensure it always inserts a new row (ledger)
     );
+  }
+
+  Future<int> getGlobalSettingsUnsyncedCount() async {
+    final db = await instance.database;
+    try {
+      final count = Sqflite.firstIntValue(
+        await db.rawQuery('SELECT COUNT(*) FROM $tableGlobalSettings WHERE $colSettingIsSynced = 0')
+      );
+      return count ?? 0;
+    } catch (e) {
+      debugPrint("Error getting settings unsynced count: $e");
+      return 0;
+    }
+  }
+
+  // ==========================================
+  // DELIVERY SCAN METHODS
+  // ==========================================
+
+  Future<bool> insertDeliveryScan(String qrPayload, List<String> soNumbers) async {
+    final db = await instance.database;
+    bool anyInserted = false;
+    final timestamp = DateTime.now().toIso8601String();
+    
+    await db.transaction((txn) async {
+      for (var so in soNumbers) {
+        final id = await txn.insert(
+          tableDeliveryScans,
+          {
+            colDelScanPayload: qrPayload,
+            colDelScanSoNumber: so,
+            colDelScanTimestamp: timestamp,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+        if (id != 0) anyInserted = true;
+      }
+    });
+    return anyInserted; // returns true if it was a new scan, false if it was completely a duplicate
+  }
+
+  Future<List<String>> getScannedDeliveryOrders() async {
+    final db = await instance.database;
+    final result = await db.query(tableDeliveryScans, columns: [colDelScanSoNumber]);
+    return result.map((r) => r[colDelScanSoNumber] as String).toSet().toList(); // Unique SO numbers
+  }
+
+  Future<void> clearDeliveryScans() async {
+    final db = await instance.database;
+    await db.delete(tableDeliveryScans);
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedGlobalSettings() async {
