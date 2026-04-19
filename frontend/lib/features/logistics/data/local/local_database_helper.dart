@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 30;
+  static const _databaseVersion = 31;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -37,6 +37,7 @@ class LocalDatabaseHelper {
   static const columnSyncId = 'sync_id';
   static const columnSite = 'site';
   static const columnManufacturedQuantity = 'manufactured_quantity';
+  static const columnLot = 'lot';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -166,6 +167,10 @@ class LocalDatabaseHelper {
           PRIMARY KEY ($colDelScanPayload, $colDelScanSoNumber)
         )
       ''');
+    }
+    if (oldVersion < 31) {
+      debugPrint('DB Upgrade: Adding lot column to scans (v31)');
+      await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnLot TEXT');
     }
     if (oldVersion < 2) {
       try {
@@ -513,7 +518,8 @@ class LocalDatabaseHelper {
         $columnIsReflected INTEGER NOT NULL DEFAULT 0,
         $columnSyncId TEXT,
         $columnSite TEXT,
-        $columnManufacturedQuantity REAL DEFAULT 0
+        $columnManufacturedQuantity REAL DEFAULT 0,
+        $columnLot TEXT
       )
     ''');
 
@@ -681,6 +687,15 @@ class LocalDatabaseHelper {
         $colSettingLastUpdated TEXT,
         $colSettingUpdatedBy TEXT,
         $colSettingAction TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableDeliveryScans (
+        $colDelScanPayload TEXT,
+        $colDelScanSoNumber TEXT,
+        $colDelScanTimestamp TEXT,
+        PRIMARY KEY ($colDelScanPayload, $colDelScanSoNumber)
       )
     ''');
   }

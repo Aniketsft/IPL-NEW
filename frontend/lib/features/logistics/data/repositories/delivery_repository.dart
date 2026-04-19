@@ -574,6 +574,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
+              LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
             });
           }
         }
@@ -607,6 +608,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
+              LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
             });
           }
         } else {
@@ -620,6 +622,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.columnIsSynced: 0,
             LocalDatabaseHelper.columnItemStatus: 'A',
             LocalDatabaseHelper.columnSite: 'INTERNAL',
+            LocalDatabaseHelper.columnLot: entry['lot']?.toString(),
           });
         }
       }
@@ -689,6 +692,7 @@ class DeliveryRepository implements ILogisticsRepository {
                   'itemStatus': s['itemStatus'] ?? 'Q',
                   'location': s['location']?.toString(),
                   'syncId': s['sync_id']?.toString(),
+                  'lot': s['lot']?.toString(),
                 },
               )
               .toList(),
@@ -1155,6 +1159,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'manufacturedQuantity': s['manufactured_quantity'] ?? s['quantity'],
               'scanTimestamp': s['timestamp'],
               'site': siteCode ?? s['site'],
+              'lot': s[LocalDatabaseHelper.columnLot],
             },
           )
           .toList();
@@ -1226,6 +1231,7 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.columnIsReflected: 0,
           LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
           LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
         };
         await LocalDatabaseHelper.instance.insertScan(localRow);
       } catch (e) {

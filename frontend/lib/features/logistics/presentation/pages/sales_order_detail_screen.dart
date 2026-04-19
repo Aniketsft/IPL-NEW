@@ -245,14 +245,45 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     if (confirmed == true) {
       if (mounted) setState(() => _isLoading = true);
       try {
+        final List<String> codesToUpdate = _selectedItemCodes.toList();
         await context.read<DeliveryRepository>().bulkUpdateItemStatus(
           soNumber: widget.order.orderNumber,
-          itemCodes: _selectedItemCodes.toList(),
+          itemCodes: codesToUpdate,
           status: true,
           isValidation: widget.isDeliveryMode,
         );
+        
         _selectedItemCodes.clear();
         await _fetchDetails();
+        
+        // --- NEW: Printing Prompt for Production Mode ---
+        if (mounted && !widget.isDeliveryMode && codesToUpdate.isNotEmpty) {
+          final bool? printAll = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: const Text('Print Labels?', style: TextStyle(color: Colors.white)),
+              content: Text('Marked ${codesToUpdate.length} items as Prepared. Would you like to print labels for these items now?', style: const TextStyle(color: Colors.white70)),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
+                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('YES, PRINT ALL', style: TextStyle(color: Colors.orange))),
+              ],
+            ),
+          );
+
+          if (printAll == true) {
+            // Filter details to find the exact objects for the items we just prepared
+            final itemsToPrint = _details.where((d) => codesToUpdate.contains(d.itemCode)).toList();
+            for (var item in itemsToPrint) {
+              if (!mounted) break;
+              await LabelPrintingHandler.printLabel(context: context, item: item);
+            }
+          }
+        }
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
