@@ -278,18 +278,8 @@ class DeliveryRepository implements ILogisticsRepository {
       // 1. Update local DB FIRST (Offline-First)
       await LocalDatabaseHelper.instance.updateOrderStatus(soNumber, 2);
       
-      // 2. Optimistic API call
-      try {
-        await _dio.post(
-          'Logistics/close-order/$soNumber',
-          queryParameters: {'closedBy': closedBy},
-        );
-        // If success, mark as synced immediately
-        await LocalDatabaseHelper.instance.markOrdersAsSynced([soNumber]);
-      } catch (apiError) {
-        // Log but don't throw - it will be synced later via global sync
-        debugPrint('Sync: Optimistic close-order API failed for $soNumber. Order remains dirty for later sync. Error: $apiError');
-      }
+      // Removed immediate background push attempt to enforce strict offline-first sync architecture.
+
     } catch (e) {
       throw 'Failed to close order locally: $e';
     }
@@ -615,8 +605,10 @@ class DeliveryRepository implements ILogisticsRepository {
       final unsyncedLabels = await LocalDatabaseHelper.instance
           .getUnsyncedLabelAudits();
       final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
+      final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
+      final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty) {
         // Transform settings rows into authoritative author payload structure
         final settingsPayload = unsyncedSettingsRows.map((row) => {
           'settingKey': row[LocalDatabaseHelper.colSettingKey],
@@ -681,7 +673,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'soNumber': u[LocalDatabaseHelper.colDetSoNum],
             'itemCode': u[LocalDatabaseHelper.colDetItemCode],
             'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
-            'isPreparedForShipment': u[LocalDatabaseHelper.colDetIsValidated] == 1, // Validation status
+            'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
           }).toList(),
           'labelAudits': unsyncedLabels.map((l) => {
             'labelId': l[LocalDatabaseHelper.colLabelId],
@@ -892,7 +884,12 @@ class DeliveryRepository implements ILogisticsRepository {
           }))),
           'labelAudits': unsyncedLabels,
           'globalSettingsUpdates': settingsPayload,
-          'preparationStatusUpdates': unsyncedStatuses,
+          'preparationStatusUpdates': unsyncedStatuses.map((u) => {
+            'soNumber': u[LocalDatabaseHelper.colDetSoNum],
+            'itemCode': u[LocalDatabaseHelper.colDetItemCode],
+            'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
+            'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
+          }).toList(),
           'shipmentPreparationUpdates': unsyncedShipments.map((o) => {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
             'isPreparedForShipment': o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
@@ -1149,25 +1146,9 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
-  /// Saves each scan individually to the backend in a single batch request.
-  /// Scans are sent as a list of [ProductionScanDto] and are persisted line-by-line in the DB.
+  /// Saves each scan individually to the local queue in a batch.
+  /// Scans are strictly persisted offline so they can be pushed natively via the manual Sync button.
   Future<void> saveProductionScansBatch(List<Map<String, dynamic>> scans) async {
-    final payload = scans.map((scan) => {
-      'soNumber': scan['soNumber']?.toString(),
-      'itemCode': scan['productCode']?.toString(),
-      'scanAmountKg': (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
-      'barcode': scan['barcode']?.toString(),
-      'itemStatus': scan['status'] ?? 'A',
-      'location': scan['locationCode']?.toString(),
-      'lot': scan['lot']?.toString(),
-      'createdBy': 'mobile-user',
-      'createdAt': scan['timestamp'],
-    }).toList();
-
-    await _dio.post('Logistics/production-scans/batch', data: payload);
-
-    // Persist to Local DB immediately as 'synced' but 'unreflected'
-    // This allows getReconciledDetails to query it natively out of SQLite before the next Master Sync cycle.
     for (final scan in scans) {
       try {
         final localRow = {
@@ -1178,7 +1159,7 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.columnItemStatus: scan['status'] ?? 'A',
           LocalDatabaseHelper.columnLocationCode: scan['locationCode']?.toString(),
           LocalDatabaseHelper.columnSite: scan['siteId']?.toString(),
-          LocalDatabaseHelper.columnIsSynced: 1, // Already server-pushed via batch POST
+          LocalDatabaseHelper.columnIsSynced: 0,
           LocalDatabaseHelper.columnIsReflected: 0,
           LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
           LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
@@ -1290,28 +1271,6 @@ class DeliveryRepository implements ILogisticsRepository {
         where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
         whereArgs: [soNumber, itemCode],
       );
-      
-      // Immediate Sync with server
-      try {
-        final endpoint = isValidation
-            ? 'Logistics/update-validation-status'
-            : 'Logistics/update-preparation-status';
-        
-        final paramName = isValidation ? 'isValidated' : 'isPrepared';
-            
-        await _dio.post(
-          '$endpoint/$soNumber/$itemCode?$paramName=$isPrepared',
-        );
-        
-        await db.update(
-          LocalDatabaseHelper.tableDetails,
-          {LocalDatabaseHelper.columnIsSynced: 1},
-          where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
-          whereArgs: [soNumber, itemCode],
-        );
-      } catch (e) {
-        debugPrint("Failed to sync item status to server (immediate): $e");
-      }
     } catch (e) {
       throw 'Failed to update item status: $e';
     }
@@ -1331,26 +1290,6 @@ class DeliveryRepository implements ILogisticsRepository {
         status: status,
         isValidation: isValidation,
       );
-
-      // 2. Immediate Background Push Attempt
-      try {
-        await _dio.post(
-          'Logistics/bulk-update-status',
-          data: {
-            'soNumber': soNumber,
-            'itemCodes': itemCodes,
-            'status': status,
-            'isValidation': isValidation,
-          },
-        );
-
-        // Mark as synced if successful
-        final updates = itemCodes.map((c) => {'soNumber': soNumber, 'itemCode': c}).toList();
-        await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
-      } catch (e) {
-        debugPrint("Failed to push bulk status update to server (immediate): $e");
-        // We don't throw here as the data is already persisted locally (isSynced=0)
-      }
     } catch (e) {
       throw 'Failed to bulk update status: $e';
     }
@@ -1469,21 +1408,6 @@ class DeliveryRepository implements ILogisticsRepository {
     };
 
     await LocalDatabaseHelper.instance.insertScan(scanRecord);
-
-    // 2. Attempt online allocation if connected
-    try {
-      await _dio.post('/api/Logistics/allocate-excess', data: {
-        'SourceBulkSoNumber': sourceBulkSoNumber,
-        'TargetSoNumber': targetSoNumber,
-        'ItemCode': itemCode,
-        'AllocateAmountKg': amount,
-        'AllocatedBy': username,
-      });
-      // If server allocation succeeds, we don't necessarily need to mark THIS scan as synced 
-      // because the standard sync process will handle it normally, 
-      // but to be clean we could.
-    } catch (e) {
-    }
   }
 
   @override
@@ -1501,33 +1425,7 @@ class DeliveryRepository implements ILogisticsRepository {
       auditData['printedBy'] = username;
       auditData['createdAt'] = DateTime.now().toIso8601String();
 
-      // 2. Try online audit FIRST
-      try {
-        final response = await _dio.post('Logistics/labels/audit', data: auditData);
-        if (response.data != null && response.data['labelId'] != null) {
-          final serverId = response.data['labelId'].toString();
-          
-          // Also save locally as SYNCED for immediate local manifest history if needed
-          await LocalDatabaseHelper.instance.insertLabelAudit({
-            LocalDatabaseHelper.colLabelId: serverId,
-            LocalDatabaseHelper.colReferenceNumber: auditData['referenceNumber'],
-            LocalDatabaseHelper.colLabelType: auditData['labelType'],
-            LocalDatabaseHelper.colProductCode: auditData['productCode'],
-            LocalDatabaseHelper.colCustomerName: auditData['customerName'],
-            LocalDatabaseHelper.columnQuantity: auditData['totalWeight'],
-            LocalDatabaseHelper.colManifestJson: auditData['manifestJson'],
-            LocalDatabaseHelper.colPrintedBy: auditData['printedBy'],
-            LocalDatabaseHelper.colCreatedAt: auditData['createdAt'],
-            LocalDatabaseHelper.columnIsSynced: 1, // Already on server
-          });
-          
-          return serverId;
-        }
-      } catch (apiError) {
-        debugPrint("Offline-Audit: API call failed, falling back to local persistence. Error: $apiError");
-      }
-
-      // 3. OFFLINE FALLBACK: Save locally with offline ID
+      // 2. OFFLINE QUEUE: Save locally with offline ID
       final todayStr = DateFormat('yyMMdd').format(DateTime.now());
       
       // Get today's local audit count for sequence

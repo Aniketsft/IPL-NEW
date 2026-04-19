@@ -231,7 +231,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<T>(sql, parameters);
         }
 
-        public async Task<int> PushUpdatesAsync(SyncPushRequestDto request)
+        public async Task<int> PushUpdatesAsync(SyncPushRequestDto request, string performedBy)
         {
             int totalCount = 0;
 
@@ -270,6 +270,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     
                     // Dictionary for tracking new/updated Excess records in this batch
                     var excessTracker = existingExcesses.ToDictionary(e => (e.SourceBulkSoNumber, e.ItemCode));
+                    
+                    var auditLogsToInsert = new List<AuditLog>();
 
                     foreach (var scanDto in request.Scans)
                     {
@@ -292,7 +294,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
                             DeviceId = request.DeviceId,
-                            CreatedBy = scanDto.CreatedBy ?? "system",
+                            CreatedBy = performedBy,
                             CreatedAt = DateTime.UtcNow
                         };
                         _scanContext.ProductionScanTransactions.Add(transaction);
@@ -309,6 +311,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         state.LastScanId = transaction.Id;
                         state.UpdatedAt = DateTime.UtcNow;
 
+                        // Add to Audit Log Collection
+                        auditLogsToInsert.Add(new AuditLog
+                        {
+                            EntityName = "ProductionScanTransactions",
+                            EntityIdString = scanDto.SoNumber,
+                            ActionType = "SYNC_INSERT",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(new { scanDto.SoNumber, scanDto.ItemCode, scanDto.ScanAmountKg, scanDto.SyncId }),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
+                        });
+
                         // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
                         if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-") || scanDto.SoNumber.StartsWith("FRZ-"))
                         {
@@ -322,7 +335,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                     TotalManufacturedQuantity = 0,
                                     AllocatedQuantity = 0,
                                     RemainingExcess = 0,
-                                    CreatedBy = scanDto.CreatedBy ?? "system-sync"
+                                    CreatedBy = performedBy
                                 };
                                 _scanContext.Excesses.Add(excess);
                                 excessTracker[(scanDto.SoNumber, scanDto.ItemCode)] = excess;
@@ -331,7 +344,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             excess.TotalManufacturedQuantity += scanDto.ScanAmountKg;
                             excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
                             excess.UpdatedAt = DateTime.UtcNow;
-                            excess.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                            excess.UpdatedBy = performedBy;
                         }
 
                         // --- HANDLE ALLOCATIONS FROM POOLS (AGGREGATED) ---
@@ -343,7 +356,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                 poolExcess.AllocatedQuantity += scanDto.ScanAmountKg;
                                 poolExcess.RemainingExcess = poolExcess.TotalManufacturedQuantity - poolExcess.AllocatedQuantity;
                                 poolExcess.UpdatedAt = DateTime.UtcNow;
-                                poolExcess.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                                poolExcess.UpdatedBy = performedBy;
                             }
                             else
                             {
@@ -357,7 +370,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                     poolExcessFromDb.AllocatedQuantity += scanDto.ScanAmountKg;
                                     poolExcessFromDb.RemainingExcess = poolExcessFromDb.TotalManufacturedQuantity - poolExcessFromDb.AllocatedQuantity;
                                     poolExcessFromDb.UpdatedAt = DateTime.UtcNow;
-                                    poolExcessFromDb.UpdatedBy = scanDto.CreatedBy ?? "system-sync";
+                                    poolExcessFromDb.UpdatedBy = performedBy;
                                     excessTracker[(sourceBulkSo, scanDto.ItemCode)] = poolExcessFromDb;
                                 }
                             }
@@ -366,6 +379,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     try 
                     {
+                        if (auditLogsToInsert.Any())
+                        {
+                            _scanContext.AuditLogs.AddRange(auditLogsToInsert);
+                        }
                         await _scanContext.SaveChangesAsync();
                     }
                     catch (Exception ex)
@@ -418,6 +435,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     await SyncEnterpriseOrdersAndLinesAsync(headerDtos, detailDtos);
 
+                    foreach (var cb in request.CutBulkEntries)
+                    {
+                        _scanContext.AuditLogs.Add(new AuditLog
+                        {
+                            EntityName = "CutBulkEntry",
+                            EntityIdString = cb.EntryNumber ?? "UNKNOWN",
+                            ActionType = "SYNC_INSERT",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(cb),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
+                        });
+                    }
+
+
                     await _scanContext.SaveChangesAsync();
                     await syncTransaction.CommitAsync();
                     totalCount += request.CutBulkEntries.Count;
@@ -445,6 +476,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     if (state != null)
                     {
                         state.IsPrepared = update.IsPrepared;
+                        state.IsValidated = update.IsValidated;
                         state.UpdatedAt = DateTime.UtcNow;
                     }
                     else
@@ -453,7 +485,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         {
                             SalesOrderLineId = line.Id,
                             IsPrepared = update.IsPrepared,
+                            IsValidated = update.IsValidated,
                             UpdatedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    if (update.IsPrepared)
+                    {
+                        _scanContext.AuditLogs.Add(new AuditLog
+                        {
+                            EntityName = "ProductionLineState",
+                            EntityIdString = $"{update.SoNumber}_{update.ItemCode}",
+                            ActionType = "UPDATE_PREP_STATUS",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    if (update.IsValidated)
+                    {
+                        _scanContext.AuditLogs.Add(new AuditLog
+                        {
+                            EntityName = "ProductionLineState",
+                            EntityIdString = $"{update.SoNumber}_{update.ItemCode}",
+                            ActionType = "VALIDATE_ITEM",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
                         });
                     }
                 }
@@ -475,6 +534,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         existing.IsPreparedForShipment = update.IsPreparedForShipment;
                         if (update.IsValidated.HasValue) existing.IsValidated = update.IsValidated.Value;
                         existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedBy = performedBy;
                     }
                     else
                     {
@@ -483,9 +543,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             SoNumber = update.SoNumber,
                             IsPreparedForShipment = update.IsPreparedForShipment,
                             IsValidated = update.IsValidated ?? false,
-                            UpdatedAt = DateTime.UtcNow
+                            UpdatedAt = DateTime.UtcNow,
+                            UpdatedBy = performedBy
                         });
                     }
+
+                    _scanContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "OrderShipmentStatus",
+                        EntityIdString = update.SoNumber,
+                        ActionType = "UPDATE_SHIP_STATUS",
+                        Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                        PerformedBy = performedBy,
+                        PerformedAt = DateTime.UtcNow
+                    });
                 }
 
                 await _scanContext.SaveChangesAsync();
@@ -509,8 +580,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             {
                                 SoNumber = update.SoNumber,
                                 Status = 2,
-                                ChangedBy = "sync-push",
+                                ChangedBy = performedBy,
                                 ChangedAt = DateTime.UtcNow
+                            });
+
+                            _scanContext.AuditLogs.Add(new AuditLog
+                            {
+                                EntityName = "OrderStatusHistory",
+                                EntityIdString = update.SoNumber,
+                                ActionType = "CLOSE_ORDER",
+                                Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                                PerformedBy = performedBy,
+                                PerformedAt = DateTime.UtcNow
                             });
                         }
                     }
@@ -542,7 +623,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         CustomerName = auditDto.CustomerName,
                         TotalWeight = auditDto.TotalWeight,
                         ManifestJson = auditDto.ManifestJson,
-                        PrintedBy = auditDto.PrintedBy,
+                        PrintedBy = performedBy,
                         CreatedAt = auditDto.CreatedAt,
                         IsOfflineCreated = auditDto.IsOfflineCreated
                     });
@@ -580,7 +661,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     {
                         SettingKey = updateDto.SettingKey,
                         SettingValue = updateDto.SettingValue,
-                        LastUpdatedBy = author,
+                        LastUpdatedBy = performedBy,
                         UpdatedAt = DateTime.UtcNow,
                         Action = existing == null ? "INSERT" : "UPDATE"
                     });
@@ -589,10 +670,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     _scanContext.AuditLogs.Add(new AuditLog
                     {
                         EntityName = "GlobalSetting",
-                        EntityId = 0,
+                        EntityIdString = updateDto.SettingKey,
                         ActionType = existing == null ? "INSERT" : "UPDATE",
                         Payload = $"{{\"key\":\"{updateDto.SettingKey}\",\"old\":\"{oldValue}\",\"new\":\"{updateDto.SettingValue}\"}}",
-                        PerformedBy = author,
+                        PerformedBy = performedBy,
                         PerformedAt = DateTime.UtcNow
                     });
 
@@ -614,7 +695,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             _scanContext.AuditLogs.Add(new AuditLog
                             {
                                 EntityName = "Excess",
-                                EntityId = 0,
+                                EntityIdString = excess.SourceBulkSoNumber,
                                 ActionType = "CASCADE_UPDATE",
                                 Payload = $"{{\"excessId\":\"{excess.Id}\",\"triggeredBySetting\":\"{updateDto.SettingKey}\",\"old\":\"{oldVal ?? "NULL"}\",\"new\":\"{updateDto.SettingValue}\"}}",
                                 PerformedBy = author,

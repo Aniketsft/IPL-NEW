@@ -731,6 +731,39 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     END
                     ELSE
                         PRINT 'IsPrepared column already exists on ProductionLineStates';
+
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_NAME = 'ProductionLineStates' AND COLUMN_NAME = 'IsValidated'
+                    )
+                    BEGIN
+                        EXEC('ALTER TABLE ProductionLineStates ADD IsValidated BIT NOT NULL DEFAULT 0;');
+                        PRINT 'Added IsValidated column to ProductionLineStates';
+                    END
+
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_NAME = 'ProductionLineStates' AND COLUMN_NAME = 'TotalPreparedQty'
+                    )
+                    BEGIN
+                        EXEC('ALTER TABLE ProductionLineStates ADD TotalPreparedQty DECIMAL(18,2) NOT NULL DEFAULT 0;');
+                    END
+
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_NAME = 'ProductionLineStates' AND COLUMN_NAME = 'TotalValidatedQty'
+                    )
+                    BEGIN
+                        EXEC('ALTER TABLE ProductionLineStates ADD TotalValidatedQty DECIMAL(18,2) NOT NULL DEFAULT 0;');
+                    END
+                    
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_NAME = 'ProductionLineStates' AND COLUMN_NAME = 'IsLineCompleted'
+                    )
+                    BEGIN
+                        EXEC('ALTER TABLE ProductionLineStates ADD IsLineCompleted BIT NOT NULL DEFAULT 0;');
+                    END
                 ";
                 await context.Database.ExecuteSqlRawAsync(addColumnSql);
 

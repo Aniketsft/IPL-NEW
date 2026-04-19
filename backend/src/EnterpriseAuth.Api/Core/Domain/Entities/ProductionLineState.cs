@@ -26,6 +26,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("IsPrepared")]
         public bool IsPrepared { get; set; }
 
+        [Column("IsValidated")]
+        public bool IsValidated { get; set; }
+
         [Column("LastScanId")]
         public Guid? LastScanId { get; set; }
 

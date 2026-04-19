@@ -24,9 +24,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<ProductionScanDto> SaveProductionScanAsync(ProductionScanDto scanDto);
         Task<IEnumerable<ProductionScanDto>> GetProductionScansAsync(string soNumber, string itemCode);
         Task<int> SaveProductionScansBatchAsync(List<ProductionScanDto> scans);
-        Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared);
-        Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated);
-        Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation);
+        Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared, string performedBy = "system");
+        Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated, string performedBy = "system");
+        Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation, string performedBy = "system");
         Task<IEnumerable<ExcessDto>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode);
         Task<bool> AllocateExcessAsync(AllocateExcessDto dto);
         Task<LabelAuditDto> LogLabelAuditAsync(LabelAuditDto auditDto);

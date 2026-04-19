@@ -149,16 +149,16 @@ public class LogisticsController : ControllerBase
     }
 
     [HttpPost("update-preparation-status/{soNumber}/{itemCode}")]
-    public async Task<IActionResult> UpdatePreparationStatus(string soNumber, string itemCode, [FromQuery] bool isPrepared)
+    public async Task<IActionResult> UpdatePreparationStatus(string soNumber, string itemCode, [FromQuery] bool isPrepared, [FromQuery] string performedBy = "system")
     {
-        var result = await _logisticsService.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared);
+        var result = await _logisticsService.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared, performedBy: performedBy);
         return ToActionResult(result);
     }
 
     [HttpPost("update-validation-status/{soNumber}/{itemCode}")]
-    public async Task<IActionResult> UpdateValidationStatus(string soNumber, string itemCode, [FromQuery] bool isValidated)
+    public async Task<IActionResult> UpdateValidationStatus(string soNumber, string itemCode, [FromQuery] bool isValidated, [FromQuery] string performedBy = "system")
     {
-        var result = await _logisticsService.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated);
+        var result = await _logisticsService.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated, performedBy: performedBy);
         return ToActionResult(result);
     }
 

@@ -107,7 +107,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             // AuditLogs
             modelBuilder.Entity<AuditLog>(entity =>
             {
-                entity.HasIndex(e => new { e.EntityName, e.EntityId })
+                entity.HasIndex(e => new { e.EntityName, e.EntityIdString })
                     .HasDatabaseName("IX_AuditLogs_EntityLookup");
             });
 

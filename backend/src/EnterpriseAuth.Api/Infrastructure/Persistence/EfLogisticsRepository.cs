@@ -334,7 +334,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var audit = new AuditLog
                 {
                     EntityName = "ProductionScanTransactions",
-                    EntityId = 0,
+                    EntityIdString = scanDto.SoNumber,
                     ActionType = "INSERT",
                     Payload = System.Text.Json.JsonSerializer.Serialize(entity),
                     PerformedBy = entity.CreatedBy ?? "system",
@@ -440,7 +440,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     logsToInsert.Add(new AuditLog
                     {
                         EntityName = "ProductionScanTransactions",
-                        EntityId = 0,
+                        EntityIdString = soNumber,
                         ActionType = "INSERT_BATCH",
                         Payload = System.Text.Json.JsonSerializer.Serialize(new { entity.SalesOrderLineId, entity.Barcode, entity.ScanAmountKg }),
                         PerformedBy = entity.CreatedBy ?? "system",
@@ -586,36 +586,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         // ===== STATUS METHODS =====
 
-        public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
+        public async Task<bool> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared, string performedBy = "system")
         {
-            return await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, isPrepared);
+            return await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, isPrepared, performedBy: performedBy);
         }
 
-        public async Task<bool> UpdateOrderShipmentPreparationStatusAsync(string soNumber, bool isPrepared)
+        public async Task<bool> UpdateOrderShipmentPreparationStatusAsync(string soNumber, bool isPrepared, string performedBy = "system")
         {
-            return await UpsertOrderShipmentStatusAsync(soNumber, isPreparedForShipment: isPrepared);
+            return await UpsertOrderShipmentStatusAsync(soNumber, isPreparedForShipment: isPrepared, performedBy: performedBy);
         }
 
-        public async Task<bool> UpdateOrderValidationStatusAsync(string soNumber, bool isValidated)
+        public async Task<bool> UpdateOrderValidationStatusAsync(string soNumber, bool isValidated, string performedBy = "system")
         {
-            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated);
+            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated, performedBy: performedBy);
         }
 
-        public async Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated)
+        public async Task<bool> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated, string performedBy = "system")
         {
-            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated);
+            return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: isValidated, performedBy: performedBy);
         }
 
-        public async Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation)
+        public async Task<bool> BulkUpdateItemStatusAsync(string soNumber, List<string> itemCodes, bool status, bool isValidation, string performedBy = "system")
         {
             if (isValidation)
             {
-                return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: status);
+                return await UpsertOrderShipmentStatusAsync(soNumber, isValidated: status, performedBy: performedBy);
             }
 
             foreach (var itemCode in itemCodes)
             {
-                await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, status, autoSave: false);
+                await UpsertProductionLineStatePreparationAsync(soNumber, itemCode, status, autoSave: false, performedBy: performedBy);
             }
             await _scanContext.SaveChangesAsync();
             return true;
@@ -625,7 +625,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         /// Upserts IsPrepared on ProductionLineState (replaces ItemPreparationStatus table).
         /// </summary>
         private async Task<bool> UpsertProductionLineStatePreparationAsync(
-            string soNumber, string itemCode, bool isPrepared, bool autoSave = true)
+            string soNumber, string itemCode, bool isPrepared, bool autoSave = true, string performedBy = "system")
         {
             var line = await _scanContext.SalesOrderLines
                 .Include(l => l.Order)
@@ -653,6 +653,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 await _scanContext.SaveChangesAsync();
             }
+
+            // Central Audit Log
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName = "ProductionLineState",
+                EntityIdString = soNumber,
+                ActionType = "UPDATE_PREP_STATUS",
+                Payload = System.Text.Json.JsonSerializer.Serialize(new { soNumber, itemCode, isPrepared }),
+                PerformedBy = performedBy,
+                PerformedAt = DateTime.UtcNow
+            });
+
+            if (autoSave) await _scanContext.SaveChangesAsync();
             
             return true;
         }
@@ -664,7 +677,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             string soNumber, 
             bool? isPreparedForShipment = null, 
             bool? isValidated = null,
-            bool autoSave = true)
+            bool autoSave = true,
+            string performedBy = "system")
         {
             var existing = await _scanContext.OrderShipmentStatuses
                 .FirstOrDefaultAsync(s => s.SoNumber == soNumber);
@@ -690,6 +704,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 await _scanContext.SaveChangesAsync();
             }
+
+            // Central Audit Log
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName = "OrderShipmentStatus",
+                EntityIdString = soNumber,
+                ActionType = "UPDATE_SHIPMENT_STATUS",
+                Payload = System.Text.Json.JsonSerializer.Serialize(new { soNumber, isPreparedForShipment, isValidated }),
+                PerformedBy = performedBy,
+                PerformedAt = DateTime.UtcNow
+            });
+
+            if (autoSave) await _scanContext.SaveChangesAsync();
             
             return true;
         }
@@ -740,7 +767,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var audit = new AuditLog
             {
                 EntityName = "OrderStatusHistory",
-                EntityId = 0,
+                EntityIdString = soNumber,
                 ActionType = "CLOSE_ORDER",
                 Payload = $"{{\"soNumber\":\"{soNumber}\",\"closedBy\":\"{closedBy}\"}}",
                 PerformedBy = closedBy,
@@ -828,7 +855,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 _scanContext.AuditLogs.Add(new AuditLog
                 {
                     EntityName = "ExcessAllocation",
-                    EntityId = 0,
+                    EntityIdString = dto.TargetSoNumber,
                     ActionType = "ALLOCATE",
                     Payload = System.Text.Json.JsonSerializer.Serialize(new
                     {
@@ -911,6 +938,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             _scanContext.LabelAudits.Add(entity);
+            
+            // Create Audit Entry for unified trail
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName = "LabelAudit",
+                EntityIdString = entity.LabelId,
+                ActionType = "PRINT_LABEL",
+                Payload = System.Text.Json.JsonSerializer.Serialize(new 
+                { 
+                    entity.LabelId, 
+                    entity.ReferenceNumber, 
+                    entity.ProductCode, 
+                    entity.TotalWeight 
+                }),
+                PerformedBy = entity.PrintedBy ?? "system",
+                PerformedAt = DateTime.UtcNow
+            });
+
             await _scanContext.SaveChangesAsync();
 
             // Return the DTO with the generated/persisted ID

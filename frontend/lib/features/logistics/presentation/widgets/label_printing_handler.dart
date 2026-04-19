@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import '../../domain/entities/sales_order_detail.dart';
-import '../../domain/repositories/ilogistics_repository.dart';
-import 'package:provider/provider.dart';
+import '../../data/repositories/delivery_repository.dart';
 import 'dart:convert';
 import 'label_qr_generator.dart';
 
@@ -401,7 +401,7 @@ class LabelPrintingHandler {
   /// Private helper to log audit and handle both online/offline flows.
   static Future<String?> _logAudit(BuildContext context, SalesOrderDetail item) async {
     try {
-      final repo = Provider.of<ILogisticsRepository>(context, listen: false);
+      final repo = RepositoryProvider.of<DeliveryRepository>(context);
       return await repo.logLabelAudit({
         'referenceNumber': item.soNumber,
         'labelType': 'Standard',

@@ -224,11 +224,11 @@ public class LogisticsService : ILogisticsService
         }
     }
 
-    public async Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared)
+    public async Task<Result<bool>> UpdateItemPreparationStatusAsync(string soNumber, string itemCode, bool isPrepared, string performedBy = "system")
     {
         try
         {
-            var result = await _logisticsRepository.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared);
+            var result = await _logisticsRepository.UpdateItemPreparationStatusAsync(soNumber, itemCode, isPrepared, performedBy: performedBy);
             return Result<bool>.Success(result);
         }
         catch (Exception ex)
@@ -237,11 +237,11 @@ public class LogisticsService : ILogisticsService
         }
     }
 
-    public async Task<Result<bool>> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated)
+    public async Task<Result<bool>> UpdateItemValidationStatusAsync(string soNumber, string itemCode, bool isValidated, string performedBy = "system")
     {
         try
         {
-            var result = await _logisticsRepository.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated);
+            var result = await _logisticsRepository.UpdateItemValidationStatusAsync(soNumber, itemCode, isValidated, performedBy: performedBy);
             return Result<bool>.Success(result);
         }
         catch (Exception ex)
@@ -254,7 +254,7 @@ public class LogisticsService : ILogisticsService
     {
         try
         {
-            var result = await _logisticsRepository.BulkUpdateItemStatusAsync(dto.SoNumber, dto.ItemCodes, dto.Status, dto.IsValidation);
+            var result = await _logisticsRepository.BulkUpdateItemStatusAsync(dto.SoNumber, dto.ItemCodes, dto.Status, dto.IsValidation, performedBy: dto.PerformedBy);
             return Result<bool>.Success(result);
         }
         catch (Exception ex)

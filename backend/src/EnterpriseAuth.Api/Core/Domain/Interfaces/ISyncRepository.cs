@@ -6,6 +6,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
     public interface ISyncRepository
     {
         Task<SyncPackageDto> GetRefreshPackageAsync(string site);
-        Task<int> PushUpdatesAsync(SyncPushRequestDto request);
+        Task<int> PushUpdatesAsync(SyncPushRequestDto request, string performedBy);
     }
 }

@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -34,7 +35,9 @@ namespace EnterpriseAuth.Api.Controllers
                 return BadRequest("Invalid sync request");
             }
 
-            int count = await _syncRepository.PushUpdatesAsync(request);
+            var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value;
+            string performedBy = usernameClaim ?? User.Identity?.Name ?? "system-sync";
+            int count = await _syncRepository.PushUpdatesAsync(request, performedBy);
             return Ok(count);
         }
     }

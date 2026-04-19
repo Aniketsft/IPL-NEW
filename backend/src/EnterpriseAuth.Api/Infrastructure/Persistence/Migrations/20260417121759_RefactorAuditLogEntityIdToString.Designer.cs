@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260417121759_RefactorAuditLogEntityIdToString")]
+    partial class RefactorAuditLogEntityIdToString
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -325,10 +328,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPrepared")
                         .HasColumnType("bit")
                         .HasColumnName("IsPrepared");
-
-                    b.Property<bool>("IsValidated")
-                        .HasColumnType("bit")
-                        .HasColumnName("IsValidated");
 
                     b.Property<Guid?>("LastScanId")
                         .HasColumnType("uniqueidentifier")

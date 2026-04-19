@@ -17,8 +17,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string EntityName { get; set; } = string.Empty;
 
         [Required]
-        [Column("EntityId")]
-        public int EntityId { get; set; }
+        [MaxLength(200)]
+        [Column("EntityIdString")]
+        public string EntityIdString { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(20)]

@@ -8,5 +8,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<string> ItemCodes { get; set; } = new();
         public bool Status { get; set; }
         public bool IsValidation { get; set; }
+        public string PerformedBy { get; set; } = "system";
     }
 }
