@@ -4,12 +4,14 @@ class IndustrialModuleLayout extends StatelessWidget {
   final String title;
   final Widget body;
   final Widget? floatingActionButton;
+  final List<Widget>? extraActions;
 
   const IndustrialModuleLayout({
     super.key,
     required this.title,
     required this.body,
     this.floatingActionButton,
+    this.extraActions,
   });
 
   @override
@@ -29,6 +31,7 @@ class IndustrialModuleLayout extends StatelessWidget {
           ),
         ),
         actions: [
+          if (extraActions != null) ...extraActions!,
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),

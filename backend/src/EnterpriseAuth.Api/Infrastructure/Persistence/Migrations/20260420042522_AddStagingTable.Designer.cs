@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260420042522_AddStagingTable")]
+    partial class AddStagingTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -597,11 +600,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("ZDLVDAT_0");
 
-                    b.Property<string>("ZITMDES_0")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("ZITMDES_0");
-
                     b.Property<string>("ZITMREF_0")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
@@ -621,12 +619,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)")
                         .HasColumnName("ZQTY_0");
-
-                    b.Property<string>("ZREC_0")
-                        .IsRequired()
-                        .HasMaxLength(1)
-                        .HasColumnType("nvarchar(1)")
-                        .HasColumnName("ZREC_0");
 
                     b.Property<string>("ZSALFCY_0")
                         .HasMaxLength(5)

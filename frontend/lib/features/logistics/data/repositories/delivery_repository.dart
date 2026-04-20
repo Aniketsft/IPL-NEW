@@ -182,6 +182,8 @@ class DeliveryRepository implements ILogisticsRepository {
           soLorry: null,
           originalSoLorry: null,
           site: dto.site,
+          isPreparedForShipment: dto.isPreparedForShipment,
+          isProcessed: dto.isProcessed,
         );
       }).toList();
     } catch (e) {
@@ -1109,6 +1111,7 @@ class DeliveryRepository implements ILogisticsRepository {
       isClosed: row[LocalDatabaseHelper.colStatus] == 2,
       isEditable: true,
       isPreparedForShipment: row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
+      isProcessed: row[LocalDatabaseHelper.colIsProcessed] == 1,
     );
   }
 
@@ -1526,6 +1529,16 @@ class DeliveryRepository implements ILogisticsRepository {
       debugPrint("CRITICAL: Failed to log label audit: $e");
       // Fallback to a dumb timestamp ID if even SQLite fails
       return "TMP-${DateTime.now().millisecondsSinceEpoch}";
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> processEndOfDay() async {
+    try {
+      final response = await _dio.post('Logistics/end-of-day');
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw 'Failed to process End of Day: $e';
     }
   }
 

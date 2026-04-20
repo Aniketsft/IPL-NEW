@@ -12,6 +12,7 @@ class SalesOrderDto {
   final String? statusLabel;
   final String? poNo;
   final bool isPreparedForShipment;
+  final bool isProcessed;
 
   SalesOrderDto({
     required this.soNumber,
@@ -27,6 +28,7 @@ class SalesOrderDto {
     this.statusLabel,
     this.poNo,
     this.isPreparedForShipment = false,
+    this.isProcessed = false,
   });
 
   static String _truncateDate(dynamic value) {
@@ -51,6 +53,7 @@ class SalesOrderDto {
       statusLabel: json['statusLabel']?.toString(),
       poNo: json['poNo'] ?? json['poNumber'],
       isPreparedForShipment: json['isPreparedForShipment'] == true,
+      isProcessed: json['isProcessed'] == true,
     );
   }
 
@@ -70,6 +73,7 @@ class SalesOrderDto {
       'statusLabel': statusLabel,
       'isSynced': 1, // Server-provided data is officially synced
       'is_prepared_for_shipment': isPreparedForShipment ? 1 : 0,
+      'is_processed': isProcessed ? 1 : 0,
     };
   }
 }

@@ -34,6 +34,7 @@ class SalesOrder extends Equatable {
   final String? soLorry;
   final String? originalSoLorry;
   final bool isPreparedForShipment;
+  final bool isProcessed;
 
   const SalesOrder({
     required this.id,
@@ -57,6 +58,7 @@ class SalesOrder extends Equatable {
     this.originalSoLorry,
     this.site,
     this.isPreparedForShipment = false,
+    this.isProcessed = false,
   });
 
   factory SalesOrder.fromDetail(SalesOrderDetail detail) {
@@ -77,6 +79,7 @@ class SalesOrder extends Equatable {
       isClosed: false,
       isEditable: true,
       isPreparedForShipment: false,
+      isProcessed: false,
     );
   }
 
@@ -92,6 +95,7 @@ class SalesOrder extends Equatable {
     String? originalSoLorry,
     String? salesmanName,
     bool? isPreparedForShipment,
+    bool? isProcessed,
   }) {
     return SalesOrder(
       id: id,
@@ -115,6 +119,7 @@ class SalesOrder extends Equatable {
       salesmanName: salesmanName ?? this.salesmanName,
       site: site ?? this.site,
       isPreparedForShipment: isPreparedForShipment ?? this.isPreparedForShipment,
+      isProcessed: isProcessed ?? this.isProcessed,
     );
   }
 
@@ -141,5 +146,6 @@ class SalesOrder extends Equatable {
     originalSoLorry,
     site,
     isPreparedForShipment,
+    isProcessed,
   ];
 }

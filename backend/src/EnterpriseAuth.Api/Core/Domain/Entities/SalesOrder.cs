@@ -60,6 +60,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("UpdatedAt")]
         public DateTime? UpdatedAt { get; set; }
 
+        [Column("IsProcessed")]
+        public bool IsProcessed { get; set; }
+
         // Navigation
         public ICollection<SalesOrderLine> Lines { get; set; } = new List<SalesOrderLine>();
     }

@@ -69,7 +69,31 @@ class SalesOrderCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isDeliveryMode && order.isPreparedForShipment)
+                    if (isDeliveryMode && order.isProcessed)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.teal.withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Text(
+                        'PROCESSED',
+                        style: TextStyle(
+                          color: Colors.teal,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    )
+                  else if (isDeliveryMode && order.isPreparedForShipment)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,

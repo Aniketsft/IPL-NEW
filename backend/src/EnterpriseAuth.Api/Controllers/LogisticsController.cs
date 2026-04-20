@@ -13,10 +13,12 @@ namespace EnterpriseAuth.Api.Controllers;
 public class LogisticsController : ControllerBase
 {
     private readonly ILogisticsService _logisticsService;
+    private readonly ISageX3SoapService _x3SoapService;
 
-    public LogisticsController(ILogisticsService logisticsService)
+    public LogisticsController(ILogisticsService logisticsService, ISageX3SoapService x3SoapService)
     {
         _logisticsService = logisticsService;
+        _x3SoapService = x3SoapService;
     }
 
     [HttpGet("production-tracking")]
@@ -188,6 +190,13 @@ public class LogisticsController : ControllerBase
     {
         var result = await _logisticsService.LogLabelAuditAsync(audit);
         return ToActionResult(result);
+    }
+
+    [HttpPost("end-of-day")]
+    public async Task<IActionResult> ProcessEndOfDay()
+    {
+        var result = await _x3SoapService.ProcessEndOfDayAsync();
+        return Ok(result);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

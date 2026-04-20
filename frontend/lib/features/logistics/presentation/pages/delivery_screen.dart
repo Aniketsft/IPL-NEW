@@ -194,12 +194,140 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
+  Future<void> _processEndOfDay() async {
+    final repository = context.read<DeliveryRepository>();
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1D1D),
+        title: const Text('Export to Sage X3', style: TextStyle(color: Colors.white)),
+        content: const Text('This will process all pending staging records and import them into Sage X3.\n Proceed?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true), 
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800)),
+            child: const Text('PROCESS', style: TextStyle(color: Colors.white))
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final response = await repository.processEndOfDay();
+      if (mounted) {
+        _showEndOfDayResults(response);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showEndOfDayResults(Map<String, dynamic> data) {
+    final results = data['results'] as List? ?? [];
+    final successCount = data['successCount'] ?? 0;
+    final failureCount = data['failureCount'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1D1D),
+        title: const Text('END OF DAY REPORT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _statusChip('SUCCESS', successCount.toString(), Colors.green),
+                  _statusChip('FAILED', failureCount.toString(), Colors.red),
+                ],
+              ),
+              const Divider(color: Colors.white12, height: 24),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  itemBuilder: (context, index) {
+                    final res = results[index];
+                    final bool success = res['success'] ?? false;
+                    final List messages = res['messages'] as List? ?? [];
+                    
+                    return Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: Icon(
+                          success ? Icons.check_circle : Icons.error,
+                          color: success ? Colors.green : Colors.red,
+                        ),
+                        title: Text(
+                          res['identifier'] ?? 'Unknown SO',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          success ? 'Imported Successfully' : 'Import Failed',
+                          style: TextStyle(color: success ? Colors.green[200] : Colors.red[200], fontSize: 12),
+                        ),
+                        children: messages.map((m) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ', style: TextStyle(color: Colors.white54)),
+                              Expanded(child: Text(m.toString(), style: const TextStyle(color: Colors.white70, fontSize: 11))),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Color(0xFFFF9800)))),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const orange = Color(0xFFFF9800);
 
     return IndustrialModuleLayout(
       title: 'DELIVERY',
+      extraActions: [
+        IconButton(
+          tooltip: 'End of Day Import',
+          icon: const Icon(Icons.send_and_archive, color: orange),
+          onPressed: _processEndOfDay,
+        ),
+      ],
       body: Stack(
         children: [
           Column(

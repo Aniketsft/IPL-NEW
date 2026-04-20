@@ -74,5 +74,6 @@ abstract class ILogisticsRepository {
   });
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date);
   Future<String> logLabelAudit(Map<String, dynamic> auditData);
+  Future<Map<String, dynamic>> processEndOfDay();
 }
 

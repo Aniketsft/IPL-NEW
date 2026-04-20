@@ -11,6 +11,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal Manufactured { get; set; }
         public string Site { get; set; } = string.Empty;
         public string Unit { get; set; } = "KG";
+        public int Soplin { get; set; }
         public bool IsPrepared { get; set; }
     }
 }

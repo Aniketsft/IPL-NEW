@@ -30,6 +30,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   final TextEditingController _codeFilter = TextEditingController();
   final TextEditingController _descFilter = TextEditingController();
   final Set<String> _selectedItemCodes = {};
+  double _tolerancePercentage = 0.0;
 
   @override
   void initState() {
@@ -45,18 +46,27 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
     try {
       final repository = context.read<DeliveryRepository>();
+      
+      // Fetch tolerance first
+      final settings = await repository.getAppSettings();
       final results = await repository.fetchSalesOrderDetails(
         widget.order.orderNumber,
       );
-      setState(() {
-        _details = results;
-        _isLoading = false;
-      });
+      
+      if (mounted) {
+        setState(() {
+          _tolerancePercentage = settings.tolerancePercentage ?? 0.0;
+          _details = results;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
@@ -829,14 +839,18 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        '${item.formatQuantity(item.remaining)} ${item.unit}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: item.remaining < 0 ? Colors.green : Colors.red,
-                        ),
-                      ),
+                      Builder(builder: (context) {
+                        final effectiveLimit = item.quantity * (1 + _tolerancePercentage / 100);
+                        final effectiveRemaining = effectiveLimit - item.manufacturedQuantity;
+                        return Text(
+                          '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: effectiveRemaining < 0 ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ],

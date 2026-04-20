@@ -78,6 +78,9 @@ builder.Services.AddScoped<ISyncRepository, EfSyncRepository>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IStagingService, StagingService>();
+builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
+builder.Services.AddHttpClient();
 
 // Configure SyncSettings
 builder.Services.Configure<SyncSettings>(builder.Configuration.GetSection("SyncSettings"));
@@ -115,6 +118,7 @@ using (var scope = app.Services.CreateScope())
     await DbInitializer.MigrateScanProductionAsync(scanContext);
     await DbInitializer.MigrateEnterpriseRedesignAsync(scanContext);
     await DbInitializer.MigrateFinalDecommissionAsync(scanContext);
+    await DbInitializer.MigrateStagingTableAsync(scanContext);
 }
 
 // Configure the HTTP request pipeline.

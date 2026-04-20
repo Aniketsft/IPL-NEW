@@ -851,5 +851,87 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Console.WriteLine($"[DbInitializer] ERROR in Final Decommission: {ex.Message}");
             }
         }
+        public static async Task MigrateStagingTableAsync(ScanProductionDbContext context)
+        {
+            try
+            {
+                var migrationSql = @"
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Staging]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[Staging] (
+                            [Id] [int] IDENTITY(1,1) NOT NULL,
+                            [ZREC_0] [nvarchar](1) NOT NULL DEFAULT 'L',
+                            [ZSDHTYP_0] [nvarchar](5) NOT NULL DEFAULT 'SDH',
+                            [ZSALFCY_0] [nvarchar](5) NULL,
+                            [ZSTOFCY_0] [nvarchar](5) NOT NULL DEFAULT 'IPL',
+                            [ZSDHNUM_0] [nvarchar](20) NULL,
+                            [ZBPCORD_0] [nvarchar](20) NULL,
+                            [ZSUR_0] [nvarchar](5) NOT NULL DEFAULT 'MUR',
+                            [ZSHIDAT_0] [datetime2] NULL,
+                            [ZDLVDAT_0] [datetime2] NULL,
+                            [ZCFMFLG_0] [int] NOT NULL DEFAULT 2,
+                            [ZLOCFCY_0] [nvarchar](100) NULL,
+                            [ZLOC_0] [nvarchar](100) NULL,
+                            [ZSOHNUM_0] [nvarchar](20) NOT NULL,
+                            [ZSOPLIN_0] [int] NOT NULL,
+                            [ZITMREF_0] [nvarchar](50) NULL,
+                            [ZITMDES_0] [nvarchar](255) NULL,
+                            [ZSAU_0] [nvarchar](10) NULL,
+                            [ZQTY_0] [decimal](18, 5) NOT NULL,
+                            [CreatedAt] [datetime2] NOT NULL DEFAULT GETUTCDATE(),
+                            CONSTRAINT [PK_Staging] PRIMARY KEY CLUSTERED ([Id] ASC)
+                        );
+                        CREATE INDEX [IX_Staging_ZSOHNUM_0] ON [dbo].[Staging] ([ZSOHNUM_0]);
+                        PRINT 'Created Staging table manually';
+                    END
+                    ELSE
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'ZREC_0')
+                        BEGIN
+                            ALTER TABLE [dbo].[Staging] ADD [ZREC_0] [nvarchar](1) NOT NULL DEFAULT 'L';
+                            PRINT 'Added ZREC_0 column to existing Staging table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'ZITMDES_0')
+                        BEGIN
+                            ALTER TABLE [dbo].[Staging] ADD [ZITMDES_0] [nvarchar](255) NULL;
+                            PRINT 'Added ZITMDES_0 column to existing Staging table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'IsProcessed')
+                        BEGIN
+                            ALTER TABLE [dbo].[Staging] ADD [IsProcessed] [bit] NOT NULL DEFAULT 0;
+                            PRINT 'Added IsProcessed column to existing Staging table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'ZREQNUM_0')
+                        BEGIN
+                            ALTER TABLE [dbo].[Staging] ADD [ZREQNUM_0] [nvarchar](50) NULL;
+                            PRINT 'Added ZREQNUM_0 column to existing Staging table';
+                        END
+                    END
+                ";
+                await context.Database.ExecuteSqlRawAsync(migrationSql);
+
+                // Also ensure SalesOrders table has IsProcessed
+                var salesOrderMigrationSql = @"
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SalesOrders]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrders' AND COLUMN_NAME = 'IsProcessed')
+                        BEGIN
+                            ALTER TABLE [dbo].[SalesOrders] ADD [IsProcessed] [bit] NOT NULL DEFAULT 0;
+                            PRINT 'Added IsProcessed column to existing SalesOrders table';
+                        END
+                    END
+                ";
+                await context.Database.ExecuteSqlRawAsync(salesOrderMigrationSql);
+
+                Console.WriteLine("[DbInitializer] Staging and SalesOrders table migration completed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] ERROR in Staging migration: {ex.Message}");
+            }
+        }
     }
 }

@@ -16,6 +16,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public int Status { get; set; }
         public string Source { get; set; } = string.Empty;
         public bool IsPreparedForShipment { get; set; }
+        public bool IsProcessed { get; set; }
         public string StatusLabel => Status == 2 ? "Closed" : "Open";
     }
 }

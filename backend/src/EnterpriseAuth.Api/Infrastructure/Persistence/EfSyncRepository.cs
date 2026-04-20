@@ -12,6 +12,7 @@ using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Core.Application.Common;
+using EnterpriseAuth.Api.Core.Application.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
@@ -23,8 +24,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ScanProductionDbContext _scanContext;
         private readonly SyncSettings _syncSettings;
         private readonly ILogisticsRepository _logisticsRepository;
+        private readonly IStagingService _stagingService;
 
-        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, ILogisticsRepository logisticsRepository)
+        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, ILogisticsRepository logisticsRepository, IStagingService stagingService)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
@@ -32,6 +34,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _scanContext = scanContext;
             _syncSettings = syncSettings.Value;
             _logisticsRepository = logisticsRepository;
+            _stagingService = stagingService;
         }
 
         public async Task<SyncPackageDto> GetRefreshPackageAsync(string site)
@@ -64,6 +67,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.ITMDES1_0 as Description,
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as Quantity,
+                    f1.SOPLIN_0 as Soplin,
                     f2.SAU_0 as Unit,
                     f1.STOFCY_0 as Site
                 FROM {_syncSettings.X3DatabaseName}.INLPROD.SORDER f0 WITH (NOLOCK)
@@ -149,12 +153,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     .Select(s => s.SoNumber)
                     .ToListAsync();
 
+                var processedOrders = await _scanContext.SalesOrders
+                    .Where(o => allSoNumbers.Contains(o.SourceOrderId) && o.IsProcessed)
+                    .Select(o => o.SourceOrderId)
+                    .ToListAsync();
+                
                 foreach (var header in package.Orders)
                 {
                     if (closedSoNumbers.Contains(header.SohNum))
                         header.Status = 2;
                     if (shipmentReady.Contains(header.SohNum))
                         header.IsPreparedForShipment = true;
+                    if (processedOrders.Contains(header.SohNum))
+                        header.IsProcessed = true;
                 }
             }
 
@@ -557,6 +568,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         PerformedBy = performedBy,
                         PerformedAt = DateTime.UtcNow
                     });
+
+                    // TRIGGER: Populate Staging Table if marked as prepared
+                    if (update.IsPreparedForShipment)
+                    {
+                        await _stagingService.PopulateStagingAsync(update.SoNumber);
+                    }
                 }
 
                 await _scanContext.SaveChangesAsync();
@@ -790,6 +807,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Description = dto.Description,
                         OrderedQuantity = dto.Quantity ?? 0,
                         Unit = dto.Unit,
+                        LineNumber = dto.Soplin,
                         LineStatus = 1,
                         CreatedAt = DateTime.UtcNow
                     };

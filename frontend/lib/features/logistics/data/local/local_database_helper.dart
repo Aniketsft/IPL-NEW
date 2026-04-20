@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 31;
+  static const _databaseVersion = 32;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -53,6 +53,7 @@ class LocalDatabaseHelper {
   static const colSource = 'source';
   static const colStatusLabel = 'statusLabel';
   static const colIsPreparedForShipment = 'is_prepared_for_shipment';
+  static const colIsProcessed = 'is_processed';
 
   // tbl_sales_order_details columns
 
@@ -171,6 +172,14 @@ class LocalDatabaseHelper {
     if (oldVersion < 31) {
       debugPrint('DB Upgrade: Adding lot column to scans (v31)');
       await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnLot TEXT');
+    }
+    if (oldVersion < 32) {
+      debugPrint('DB Upgrade: Adding is_processed to tbl_sales_orders (v32)');
+      try {
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colIsProcessed INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v32: $e");
+      }
     }
     if (oldVersion < 2) {
       try {
@@ -539,7 +548,8 @@ class LocalDatabaseHelper {
         $colSource TEXT,
         $colStatusLabel TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
-        $colIsPreparedForShipment INTEGER DEFAULT 0
+        $colIsPreparedForShipment INTEGER DEFAULT 0,
+        $colIsProcessed INTEGER DEFAULT 0
       )
     ''');
 

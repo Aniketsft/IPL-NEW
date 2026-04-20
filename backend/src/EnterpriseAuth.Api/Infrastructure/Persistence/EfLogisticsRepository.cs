@@ -13,6 +13,7 @@ using EnterpriseAuth.Api.Core.Application.DTOs;
 
 using Microsoft.Extensions.Options;
 using EnterpriseAuth.Api.Core.Application.Common;
+using EnterpriseAuth.Api.Core.Application.Interfaces;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -22,14 +23,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ApplicationDbContext _context;
         private readonly ScanProductionDbContext _scanContext;
         private readonly SyncSettings _syncSettings;
+        private readonly IStagingService _stagingService;
 
-        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IStagingService stagingService)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
             _context = context;
             _scanContext = scanContext;
             _syncSettings = syncSettings.Value;
+            _stagingService = stagingService;
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode)
@@ -703,6 +706,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             if (autoSave)
             {
                 await _scanContext.SaveChangesAsync();
+            }
+
+            // TRIGGER: Populate Staging Table if marked as prepared
+            if (isPreparedForShipment == true || (existing != null && existing.IsPreparedForShipment))
+            {
+                await _stagingService.PopulateStagingAsync(soNumber);
             }
 
             // Central Audit Log

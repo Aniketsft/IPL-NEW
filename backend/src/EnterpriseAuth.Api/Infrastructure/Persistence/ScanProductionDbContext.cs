@@ -24,6 +24,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<LabelAudit> LabelAudits { get; set; }
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
+        public DbSet<Staging> StagingRecords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -124,6 +125,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            // Staging
+            modelBuilder.Entity<Staging>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ZQTY_0).HasPrecision(18, 5);
+                entity.HasIndex(e => e.ZSOHNUM_0);
             });
         }
     }

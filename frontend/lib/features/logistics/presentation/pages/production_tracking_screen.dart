@@ -54,6 +54,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   bool _isSettingsExpanded = false;
   List<Map<String, dynamic>> _excessPools = [];
   bool _isLoadingExcess = false;
+  double _tolerancePercentage = 0.0;
 
   @override
   void initState() {
@@ -68,6 +69,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     try {
       await _fetchProductionSites();
       await _fetchLocations();
+      await _fetchAppSettings();
       if (_selectedSite != null) {
         await _fetchLots();
       }
@@ -200,6 +202,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     }
   }
 
+  Future<void> _fetchAppSettings() async {
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final settings = await repository.getAppSettings();
+      if (mounted) {
+        setState(() {
+          _tolerancePercentage = settings.tolerancePercentage ?? 0.0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch app settings: $e');
+    }
+  }
+
   Future<void> _fetchLots() async {
     if (_selectedSite == null) return;
     try {
@@ -308,13 +324,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             return false;
           }
 
-          final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
+          final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-') || 
+                                 widget.order.orderNumber.startsWith('BLK-') || 
+                                 widget.order.orderNumber.startsWith('CUTS-') || 
+                                 widget.order.orderNumber.startsWith('FRZ-');
           if (!isCutBulkOrder && _status == 'A') {
-            final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _cumulativeQty;
+            final effectiveLimit = widget.product.quantity * (1 + _tolerancePercentage / 100);
+            final remaining = effectiveLimit - widget.product.manufacturedQuantity - _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
               AudioService.instance.playError();
               HapticFeedback.heavyImpact();
-              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit.');
+              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit (with $_tolerancePercentage% tolerance).');
               return false;
             }
           }
@@ -404,13 +424,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   void _addManualQty(double qty) {
-    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-');
+    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-') || 
+                           widget.order.orderNumber.startsWith('BLK-') || 
+                           widget.order.orderNumber.startsWith('CUTS-') || 
+                           widget.order.orderNumber.startsWith('FRZ-');
     if (!isCutBulkOrder) {
-      final remaining = widget.product.quantity - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty;
+      final effectiveLimit = widget.product.quantity * (1 + _tolerancePercentage / 100);
+      final remaining = effectiveLimit - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty;
       if (qty > remaining + 0.001) {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
-        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit.');
+        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit (with $_tolerancePercentage% tolerance).');
         return;
       }
     }
@@ -796,7 +820,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}'),
-              _statTile('Remaining', '${widget.product.formatQuantity(widget.product.quantity - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', color: orange),
+              _statTile('Remaining', '${widget.product.formatQuantity((widget.product.quantity * (1 + _tolerancePercentage / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', color: orange),
             ],
           ),
           const SizedBox(height: 16),
