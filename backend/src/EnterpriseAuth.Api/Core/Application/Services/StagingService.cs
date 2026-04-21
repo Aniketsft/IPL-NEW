@@ -71,11 +71,16 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     g => g.OrderByDescending(x => x.CreatedAt).Select(x => x.Location).FirstOrDefault()
                 );
 
-            // 4. Map to Staging Entity
+            // 4. Batch-fetch VAT levels for all item codes in the order (from X3 ITMMASTER)
+            var itemCodes = order.Lines.Select(l => l.ItemCode).Where(c => c != null).Distinct().ToList();
+            var vatLevels = await GetItemVatLevelsAsync(itemCodes);
+            Console.WriteLine($"[Staging] Fetched VAT levels for {vatLevels.Count}/{itemCodes.Count} items in SO {soNumber}.");
+
+            // 5. Map to Staging Entity
             var stagingRecords = new List<Staging>();
             int lineNumber = 1000; // X3 Principle: Start at 1000
 
-            // Mapping ZLOCFCY_0 logic: First 2 characters 
+            // Mapping ZLOCFCY_0 logic: First 2 characters of Lorry trip code
             string lorryCode = "IPL"; // Default
             if (!string.IsNullOrEmpty(metadata.SO_LORRY))
             {
@@ -84,35 +89,43 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     : metadata.SO_LORRY;
             }
 
-            // A. Create Header Record (H)
+            // A. Create Header Record (H) — ZVACITM_0 is null for the header row
             stagingRecords.Add(new Staging
             {
                 ZREC_0 = "H",
                 ZSDHTYP_0 = "SDH",
                 ZSALFCY_0 = "IPL",
                 ZSTOFCY_0 = "IPL",
-                ZSDHNUM_0 = $"STG-{soNumber}", // Grouped shipment ID
+                ZSDHNUM_0 = $"STG-{soNumber}", // Internal grouping ID
                 ZBPCORD_0 = order.CustomerCode,
                 ZSUR_0 = "MUR",
                 ZSHIDAT_0 = order.DeliveryDate,
                 ZDLVDAT_0 = order.DeliveryDate,
                 ZCFMFLG_0 = 2,
                 ZLOCFCY_0 = lorryCode,
-                ZLOC_0 = scanLocations.Values.FirstOrDefault(), // Map first scan location to header
-                ZSOHNUM_0 = soNumber,
+                ZLOC_0 = scanLocations.Values.FirstOrDefault(),
+                ZSOHNUM_0 = soNumber,  // X3 Sales Order Number — used in SOAP Line record
                 ZSOPLIN_0 = 0,
                 ZITMREF_0 = null,
                 ZITMDES_0 = null,
                 ZSAU_0 = null,
                 ZQTY_0 = 0,
+                ZVACITM_0 = null,  // Not applicable for header
                 CreatedAt = DateTime.UtcNow
             });
 
-            // B. Create Line Records (L)
+            // B. Create Line Records (L) — map ZVACITM_0 from the VAT lookup
             foreach (var line in order.Lines)
             {
                 var state = lineStates.FirstOrDefault(s => s.SalesOrderLineId == line.Id);
                 if (state == null || state.TotalManufacturedQty <= 0) continue;
+
+                // Resolve VAT level: use lookup result, fallback to "STD" if not found
+                var vatLevel = (line.ItemCode != null && vatLevels.ContainsKey(line.ItemCode))
+                    ? vatLevels[line.ItemCode]
+                    : "STD";
+
+                Console.WriteLine($"[Staging] Line {lineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={state.TotalManufacturedQty:F3}");
 
                 stagingRecords.Add(new Staging
                 {
@@ -120,7 +133,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZSDHTYP_0 = "SDH",
                     ZSALFCY_0 = "IPL",
                     ZSTOFCY_0 = "IPL",
-                    ZSDHNUM_0 = $"STG-{soNumber}", // Grouped shipment ID
+                    ZSDHNUM_0 = $"STG-{soNumber}",
                     ZBPCORD_0 = order.CustomerCode,
                     ZSUR_0 = "MUR",
                     ZSHIDAT_0 = order.DeliveryDate,
@@ -128,16 +141,17 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZCFMFLG_0 = 2,
                     ZLOCFCY_0 = lorryCode,
                     ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
-                    ZSOHNUM_0 = soNumber,
+                    ZSOHNUM_0 = soNumber,  // X3 SO Number used directly in SOAP L;{ZSOHNUM_0};...
                     ZSOPLIN_0 = lineNumber,
                     ZITMREF_0 = line.ItemCode,
                     ZITMDES_0 = line.Description,
                     ZSAU_0 = line.Unit,
                     ZQTY_0 = state.TotalManufacturedQty,
+                    ZVACITM_0 = vatLevel,  // VAT level from X3 ITMMASTER.VACITM_0
                     CreatedAt = DateTime.UtcNow
                 });
 
-                lineNumber += 1000; // X3 Principle: Increment by 1000
+                lineNumber += 1000;
             }
 
             if (stagingRecords.Any())
@@ -182,6 +196,32 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             {
                 Console.WriteLine($"[Staging] Error fetching X3 metadata for {soNumber}: {ex.Message}");
                 return null;
+            }
+        }
+
+        private async Task<Dictionary<string, string>> GetItemVatLevelsAsync(List<string?> itemCodes)
+        {
+            try
+            {
+                var validCodes = itemCodes.Where(c => c != null).Select(c => c!).Distinct().ToList();
+                if (!validCodes.Any()) return new Dictionary<string, string>();
+
+                using var connection = new SqlConnection(_x3ConnectionString);
+                string sql = $@"
+                    SELECT ITMREF_0, ISNULL(VACITM_0, 'STD') AS VACITM_0
+                    FROM {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER
+                    WHERE ITMREF_0 IN @ItemCodes";
+
+                var rows = await connection.QueryAsync(sql, new { ItemCodes = validCodes });
+                return rows.ToDictionary(
+                    row => (string)row.ITMREF_0,
+                    row => (string)row.VACITM_0
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Staging] Warning: VAT level lookup failed: {ex.Message}. Defaulting all lines to 'STD'.");
+                return new Dictionary<string, string>();
             }
         }
 

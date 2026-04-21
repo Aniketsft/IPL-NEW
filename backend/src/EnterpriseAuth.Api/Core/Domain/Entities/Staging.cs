@@ -90,7 +90,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public bool IsProcessed { get; set; }
 
         [MaxLength(50)]
-        [Column("ZREQNUM_0")]
-        public string? ZREQNUM_0 { get; set; }
+        [Column("ZVACITM_0")]
+        public string? ZVACITM_0 { get; set; }
     }
 }

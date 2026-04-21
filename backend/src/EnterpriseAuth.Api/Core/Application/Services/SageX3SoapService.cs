@@ -68,7 +68,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     foreach (var record in group)
                     {
                         record.IsProcessed = true;
-                        record.ZREQNUM_0 = importResult.RequestNumber;
+                        record.ZVACITM_0 = importResult.RequestNumber; // Store X3 request number (field repurposed from ZREQNUM_0)
                     }
 
                     // Also mark the normalized SalesOrder as processed
