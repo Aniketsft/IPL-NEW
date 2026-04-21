@@ -98,7 +98,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZDLVDAT_0 = order.DeliveryDate,
                 ZCFMFLG_0 = 2,
                 ZLOCFCY_0 = lorryCode,
-                ZLOC_0 = null, // Header usually doesn't have a specific scan location
+                ZLOC_0 = scanLocations.Values.FirstOrDefault(), // Map first scan location to header
                 ZSOHNUM_0 = soNumber,
                 ZSOPLIN_0 = 0,
                 ZITMREF_0 = null,
