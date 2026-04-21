@@ -33,8 +33,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
         public async Task<bool> PopulateStagingAsync(string soNumber)
         {
-            // 1. Avoid duplicates: Check if staging records already exist for this SO
-            var exists = await _context.StagingRecords.AnyAsync(s => s.ZSOHNUM_0 == soNumber);
+            // 1. Avoid duplicates: use ZSDHNUM_0 (STG-{soNumber}) — stable internal key
+            //    We cannot use ZSOHNUM_0 for dedup because it now stores the IPL SO number (not soNumber)
+            var exists = await _context.StagingRecords.AnyAsync(s => s.ZSDHNUM_0 == $"STG-{soNumber}");
             if (exists) return false;
 
             // 2. Fetch the metadata from X3 using the comprehensive query
@@ -80,6 +81,14 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             var stagingRecords = new List<Staging>();
             int lineNumber = 1000; // X3 Principle: Start at 1000
 
+            // Resolve the X3 Sales Order number:
+            //   soNumber           = mobile/POD number (e.g. "PODSO260400794") — used to look up in ZCONSORDERS via ORIGINALSO_0
+            //   metadata.SO_NO     = ZCONSORDERS.SOHNUM_0 (e.g. "IPLSO251001075") — what X3 expects in the L record
+            string x3SoNumber = !string.IsNullOrEmpty(metadata.SO_NO)
+                ? metadata.SO_NO
+                : soNumber; // safety fallback if SO_NO is somehow null
+            Console.WriteLine($"[Staging] SO resolved: mobile={soNumber} → X3 SOHNUM_0={x3SoNumber}");
+
             // Mapping ZLOCFCY_0 logic: First 2 characters of Lorry trip code
             string lorryCode = "IPL"; // Default
             if (!string.IsNullOrEmpty(metadata.SO_LORRY))
@@ -104,7 +113,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZCFMFLG_0 = 2,
                 ZLOCFCY_0 = lorryCode,
                 ZLOC_0 = scanLocations.Values.FirstOrDefault(),
-                ZSOHNUM_0 = soNumber,  // X3 Sales Order Number — used in SOAP Line record
+                ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP payload
                 ZSOPLIN_0 = 0,
                 ZITMREF_0 = null,
                 ZITMDES_0 = null,
@@ -141,7 +150,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZCFMFLG_0 = 2,
                     ZLOCFCY_0 = lorryCode,
                     ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
-                    ZSOHNUM_0 = soNumber,  // X3 SO Number used directly in SOAP L;{ZSOHNUM_0};...
+                    ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP L;{ZSOHNUM_0};...
                     ZSOPLIN_0 = lineNumber,
                     ZITMREF_0 = line.ItemCode,
                     ZITMDES_0 = line.Description,
@@ -188,7 +197,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         ON TRP3.LANCHP_0 = 409
                        AND TRP3.LANNUM_0 = SOHORI.DRN_0
                        AND TRP3.LAN_0 = 'BRI'
-                    WHERE SDH.SOHNUM_0 = @SoNumber";
+                    WHERE SDH.ORIGINALSO_0 = @SoNumber";
 
                 return await connection.QueryFirstOrDefaultAsync<X3MetadataDto>(sql, new { SoNumber = soNumber });
             }
