@@ -44,12 +44,12 @@ class _ProductionTrackingProductListScreenState
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
-    const dark900 = Color(0xFF0D0D0D);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Scaffold(
-      backgroundColor: dark900,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           'Production Tracking',
@@ -57,7 +57,7 @@ class _ProductionTrackingProductListScreenState
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
       ),
       body: Column(
         children: [
@@ -66,19 +66,20 @@ class _ProductionTrackingProductListScreenState
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: dark800,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
             ),
             child: TextField(
               controller: _searchController,
               onChanged: (val) => setState(() => _searchQuery = val),
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
                 hintText: 'Search by product code or name...',
-                hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
+                prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
@@ -103,13 +104,15 @@ class _ProductionTrackingProductListScreenState
                           builder: (context, child) {
                             return Theme(
                               data: Theme.of(context).copyWith(
-                                colorScheme: const ColorScheme.dark(
+                                colorScheme: ColorScheme.fromSeed(
+                                  seedColor: orange,
                                   primary: orange,
                                   onPrimary: Colors.white,
-                                  surface: dark800,
-                                  onSurface: Colors.white,
+                                  surface: theme.cardColor,
+                                  onSurface: isDark ? Colors.white : Colors.black87,
+                                  brightness: theme.brightness,
                                 ),
-                                dialogBackgroundColor: dark900,
+                                dialogBackgroundColor: theme.scaffoldBackgroundColor,
                               ),
                               child: child!,
                             );
@@ -130,17 +133,17 @@ class _ProductionTrackingProductListScreenState
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today, color: orange, size: 14),
+                            Icon(Icons.calendar_today, color: orange, size: 14),
                             const SizedBox(width: 8),
                             Text(
                               dateStr,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: orange,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
                             ),
-                            const Icon(Icons.arrow_drop_down, color: orange),
+                            Icon(Icons.arrow_drop_down, color: orange),
                           ],
                         ),
                       ),
@@ -148,9 +151,9 @@ class _ProductionTrackingProductListScreenState
                   },
                 ),
                 const Spacer(),
-                const Text(
+                Text(
                   'Filtering by Delivery Date',
-                  style: TextStyle(color: Colors.white24, fontSize: 10, fontStyle: FontStyle.italic),
+                  style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10, fontStyle: FontStyle.italic),
                 ),
               ],
             ),
@@ -160,7 +163,7 @@ class _ProductionTrackingProductListScreenState
             child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
               builder: (context, state) {
                 if (state is ManufacturingLoadInProgress) {
-                  return const Center(
+                  return Center(
                     child: CircularProgressIndicator(color: orange),
                   );
                 }
@@ -187,10 +190,10 @@ class _ProductionTrackingProductListScreenState
                     ..sort();
 
                   if (filteredKeys.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Text(
                         'No products found',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                       ),
                     );
                   }
@@ -203,14 +206,14 @@ class _ProductionTrackingProductListScreenState
                       final code = filteredKeys[index];
                       final soItems = grouped[code]!;
                       return _buildProductCard(
-                          context, code, soItems, dark800, orange, state);
+                          context, code, soItems, theme, orange, state);
                     },
                   );
                 }
-                return const Center(
+                return Center(
                   child: Text(
                     'Loading production data...',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                   ),
                 );
               },
@@ -225,10 +228,11 @@ class _ProductionTrackingProductListScreenState
     BuildContext context,
     String itemCode,
     List<SalesOrderDetail> soItems,
-    Color dark,
+    ThemeData theme,
     Color orange,
     ManufacturingState state,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     final description = soItems.first.description;
     final totalOrdered = soItems.fold<double>(0, (s, i) => s + i.quantity);
     final totalScanned =
@@ -256,9 +260,16 @@ class _ProductionTrackingProductListScreenState
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: dark,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+          boxShadow: isDark ? null : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -274,8 +285,8 @@ class _ProductionTrackingProductListScreenState
                         children: [
                           Text(
                             itemCode,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                             ),
@@ -289,6 +300,7 @@ class _ProductionTrackingProductListScreenState
                               (state as ProductionTrackingLoaded)
                                   .excessPools[itemCode]!,
                               soItems.first.unit,
+                              isDark,
                             ),
                           ],
                         ],
@@ -296,8 +308,8 @@ class _ProductionTrackingProductListScreenState
                       const SizedBox(height: 2),
                       Text(
                         description,
-                        style: const TextStyle(
-                          color: Colors.grey,
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black45,
                           fontSize: 13,
                         ),
                         maxLines: 1,
@@ -315,8 +327,8 @@ class _ProductionTrackingProductListScreenState
                   ),
                   child: Text(
                     '$soCount SO${soCount != 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      color: Color(0xFFFF9800),
+                    style: TextStyle(
+                      color: orange,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -330,7 +342,7 @@ class _ProductionTrackingProductListScreenState
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: aggProgress,
-                backgroundColor: Colors.white10,
+                backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
                 valueColor: AlwaysStoppedAnimation<Color>(orange),
                 minHeight: 6,
               ),
@@ -343,14 +355,16 @@ class _ProductionTrackingProductListScreenState
                   child: _buildStat(
                     'Ordered',
                     '${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
-                    Colors.white70,
+                    isDark ? Colors.white70 : Colors.black87,
+                    isDark,
                   ),
                 ),
                 Expanded(
                   child: _buildStat(
                     'Progress',
                     '${(aggProgress * 100).toStringAsFixed(0)}%',
-                    aggProgress >= 1.0 ? Colors.greenAccent : Colors.white70,
+                    aggProgress >= 1.0 ? Colors.green : (isDark ? Colors.white70 : Colors.black87),
+                    isDark,
                   ),
                 ),
               ],
@@ -372,13 +386,15 @@ class _ProductionTrackingProductListScreenState
                       'Produced (M)',
                       '${soItems.first.formatQuantity(totalManufactured)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
                       orange,
+                      isDark,
                       isFullWidth: true,
                     ),
                   ),
                   _buildStat(
                     'Scanned (S)',
                     '${soItems.first.formatQuantity(totalScanned)} scans',
-                    Colors.white.withValues(alpha: 0.5),
+                    isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+                    isDark,
                   ),
                 ],
               ),
@@ -389,12 +405,12 @@ class _ProductionTrackingProductListScreenState
     );
   }
 
-  Widget _buildStat(String label, String value, Color color, {bool isFullWidth = false}) {
+  Widget _buildStat(String label, String value, Color color, bool isDark, {bool isFullWidth = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -410,23 +426,24 @@ class _ProductionTrackingProductListScreenState
     );
   }
 
-  Widget _buildPoolBadge(double amount, String unit) {
+  Widget _buildPoolBadge(double amount, String unit, bool isDark) {
+    final poolColor = isDark ? Colors.blueAccent : Colors.blue.shade700;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.15),
+        color: poolColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+        border: Border.all(color: poolColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inventory_2_outlined, color: Colors.blueAccent, size: 10),
+          Icon(Icons.inventory_2_outlined, color: poolColor, size: 10),
           const SizedBox(width: 4),
           Text(
             'POOL: ${amount.toStringAsFixed(1)} $unit',
-            style: const TextStyle(
-              color: Colors.blueAccent,
+            style: TextStyle(
+              color: poolColor,
               fontSize: 9,
               fontWeight: FontWeight.w900,
             ),

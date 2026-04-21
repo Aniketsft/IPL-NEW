@@ -6,6 +6,9 @@ class OtherModulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return IndustrialModuleLayout(
       title: 'OTHER MODULES',
       body: Padding(
@@ -13,10 +16,10 @@ class OtherModulesScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'MISCELLANEOUS OPERATIONS',
               style: TextStyle(
-                color: Colors.white70,
+                color: isDark ? Colors.white70 : Colors.black54,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
                 letterSpacing: 1.2,
@@ -24,16 +27,19 @@ class OtherModulesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             _buildModuleTile(
+              context,
               Icons.assignment_turned_in_outlined,
               'Quality Assurance',
               'Internal audits & inspections',
             ),
             _buildModuleTile(
+              context,
               Icons.engineering_outlined,
               'Maintenance',
               'Equipment & facility upkeep',
             ),
             _buildModuleTile(
+              context,
               Icons.history_outlined,
               'Operation Logs',
               'View system-wide activity history',
@@ -44,24 +50,35 @@ class OtherModulesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModuleTile(IconData icon, String title, String subtitle) {
+  Widget _buildModuleTile(BuildContext context, IconData icon, String title, String subtitle) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2C2C2E)),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF9800).withValues(alpha: 0.1),
+              color: orange.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: const Color(0xFFFF9800), size: 24),
+            child: Icon(icon, color: orange, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -70,8 +87,8 @@ class OtherModulesScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -79,12 +96,12 @@ class OtherModulesScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 12),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white10),
+          Icon(Icons.arrow_forward_ios, size: 14, color: isDark ? Colors.white10 : Colors.black12),
         ],
       ),
     );

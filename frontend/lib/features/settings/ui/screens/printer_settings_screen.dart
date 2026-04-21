@@ -33,80 +33,102 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          left: 24,
-          right: 24,
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'REGISTER NEW PRINTER',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            _buildDialogInput(nameController, 'DISPLAY NAME', 'e.g. Warehouse 1', Icons.label_outline),
-            const SizedBox(height: 16),
-            _buildDialogInput(ipController, 'IP ADDRESS', 'e.g. 192.168.1.100', Icons.lan_outlined),
-            const SizedBox(height: 16),
-            _buildDialogInput(portController, 'PORT', '9100', Icons.settings_ethernet, isNumeric: true),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final name = nameController.text.trim();
-                  final ip = ipController.text.trim();
-                  final portStr = portController.text.trim();
-                  
-                  if (name.isEmpty || ip.isEmpty) return;
-                  
-                  final port = int.tryParse(portStr) ?? 9100;
-                  
-                  Navigator.pop(context);
-                  setState(() => _isLoading = true);
-                  await _printerService.addPrinter(name, ip, port);
-                  setState(() => _isLoading = false);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF9800),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final orange = theme.primaryColor;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            left: 24,
+            right: 24,
+            top: 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'REGISTER NEW PRINTER',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87, 
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16,
+                  letterSpacing: 1.0,
                 ),
-                child: const Text('SAVE PRINTER'),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 24),
+              _buildDialogInput(nameController, 'DISPLAY NAME', 'e.g. Warehouse 1', Icons.label_outline),
+              const SizedBox(height: 16),
+              _buildDialogInput(ipController, 'IP ADDRESS', 'e.g. 192.168.1.100', Icons.lan_outlined),
+              const SizedBox(height: 16),
+              _buildDialogInput(portController, 'PORT', '9100', Icons.settings_ethernet, isNumeric: true),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    final ip = ipController.text.trim();
+                    final portStr = portController.text.trim();
+                    
+                    if (name.isEmpty || ip.isEmpty) return;
+                    
+                    final port = int.tryParse(portStr) ?? 9100;
+                    
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    await _printerService.addPrinter(name, ip, port);
+                    setState(() => _isLoading = false);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('SAVE PRINTER', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   Widget _buildDialogInput(TextEditingController controller, String label, String hint, IconData icon, {bool isNumeric = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label, 
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black45, 
+            fontSize: 10, 
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white10),
-            prefixIcon: Icon(icon, color: Colors.white24, size: 20),
+            hintStyle: TextStyle(color: isDark ? Colors.white10 : Colors.black12),
+            prefixIcon: Icon(icon, color: isDark ? Colors.white24 : Colors.black26, size: 20),
             filled: true,
-            fillColor: Colors.white.withAlpha(13),
+            fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],
@@ -115,8 +137,9 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return IndustrialModuleLayout(
       title: 'PRINTER MANAGEMENT',
@@ -124,7 +147,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         children: [
           // ── Active Status ──────────────────────────────────────────────
           if (_printerService.activePrinter != null)
-            _buildActivePrinterSummary(dark800, orange),
+            _buildActivePrinterSummary(theme.cardColor, orange),
 
           // ── Printer List Header ────────────────────────────────────────
           Padding(
@@ -132,14 +155,18 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'SAVED PRINTERS',
-                  style: TextStyle(color: Colors.grey, fontSize: 11, letterSpacing: 1),
+                  style: TextStyle(
+                    color: isDark ? Colors.grey : Colors.grey[600], 
+                    fontSize: 11, 
+                    letterSpacing: 1,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _showAddPrinterDialog,
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text('ADD NEW', style: TextStyle(fontSize: 12)),
+                  label: const Text('ADD NEW', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: TextButton.styleFrom(foregroundColor: orange),
                 ),
               ],
@@ -149,11 +176,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
           // ── Printer List ───────────────────────────────────────────────
           Expanded(
             child: _printerService.printers.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'No printers saved.\nTap "ADD NEW" to register a printer.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white24, fontSize: 13),
+                      style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13),
                     ),
                   )
                 : ListView.builder(
@@ -163,7 +190,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                       final printer = _printerService.printers[index];
                       final isActive = _printerService.activePrinter?.id == printer.id;
                       
-                      return _buildPrinterTile(printer, isActive, dark800, orange);
+                      return _buildPrinterTile(printer, isActive, theme.cardColor, orange);
                     },
                   ),
           ),
@@ -184,10 +211,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                     qrData: "MULTI|TEST|DATA"
                   ),
                   icon: const Icon(Icons.receipt_long),
-                  label: const Text('PRINT TEST ON PRIMARY'),
+                  label: const Text('PRINT TEST ON PRIMARY', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white10),
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                    side: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -200,20 +227,30 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   }
 
   Widget _buildActivePrinterSummary(Color bgColor, Color accentColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final active = _printerService.activePrinter!;
+
     return Container(
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withAlpha(75)),
+        border: Border.all(color: Colors.green.withValues(alpha: isDark ? 0.3 : 0.5)),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            backgroundColor: Colors.green,
-            child: Icon(Icons.print, color: Colors.white, size: 20),
+          CircleAvatar(
+            backgroundColor: Colors.green.withValues(alpha: 0.15),
+            child: const Icon(Icons.print, color: Colors.green, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -226,11 +263,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                 ),
                 Text(
                   active.name.toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 Text(
                   '${active.ip}:${active.port}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
                 ),
               ],
             ),
@@ -241,32 +278,42 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   }
 
   Widget _buildPrinterTile(NetPrinter printer, bool isActive, Color bgColor, Color accentColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isActive ? accentColor.withAlpha(127) : Colors.transparent),
+        border: Border.all(color: isActive ? accentColor.withValues(alpha: 0.5) : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.1))),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onTap: () => _printerService.setPrimaryPrinter(printer.id).then((_) => setState(() {})),
         leading: Icon(
           isActive ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: isActive ? accentColor : Colors.white24,
+          color: isActive ? accentColor : (isDark ? Colors.white24 : Colors.black26),
         ),
         title: Text(
           printer.name,
-          style: TextStyle(color: Colors.white, fontWeight: isActive ? FontWeight.bold : FontWeight.normal),
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: isActive ? FontWeight.bold : FontWeight.normal),
         ),
         subtitle: Text(
           '${printer.ip}:${printer.port}',
-          style: const TextStyle(color: Colors.white38, fontSize: 11),
+          style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.flash_on, size: 18),
+              icon: Icon(Icons.flash_on, size: 18, color: isDark ? Colors.white70 : Colors.black54),
               onPressed: () async {
                 final success = await _printerService.testConnection(printer.ip, printer.port);
                 if (mounted) {

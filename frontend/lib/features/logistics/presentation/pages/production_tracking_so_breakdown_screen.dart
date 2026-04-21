@@ -55,21 +55,25 @@ class _ProductionTrackingSoBreakdownScreenState
       // Logic for REMOVING prepared status (Simpler flow)
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: const Text('Remove Prepared Status', style: TextStyle(color: Colors.white)),
-          content: const Text('Remove the prepared status for this item?', style: TextStyle(color: Colors.white70)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('CONFIRM', style: TextStyle(color: Color(0xFFFF9800))),
-            ),
-          ],
-        ),
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: theme.cardColor,
+            title: Text('Remove Prepared Status', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            content: Text('Remove the prepared status for this item?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text('CONFIRM', style: TextStyle(color: Theme.of(context).primaryColor)),
+              ),
+            ],
+          );
+        },
       );
 
       if (confirmed == true) {
@@ -129,9 +133,9 @@ class _ProductionTrackingSoBreakdownScreenState
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
-    const dark900 = Color(0xFF0D0D0D);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     final totalOrdered =
         _currentItems.fold<double>(0, (s, i) => s + i.quantity);
@@ -144,7 +148,7 @@ class _ProductionTrackingSoBreakdownScreenState
         : (totalManufactured > 0 ? 1.0 : 0.0);
 
     return Scaffold(
-      backgroundColor: dark900,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           widget.itemCode,
@@ -152,7 +156,7 @@ class _ProductionTrackingSoBreakdownScreenState
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
       ),
       body: Column(
         children: [
@@ -161,9 +165,16 @@ class _ProductionTrackingSoBreakdownScreenState
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: dark800,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: orange.withValues(alpha: 0.3)),
+              boxShadow: isDark ? null : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,8 +185,8 @@ class _ProductionTrackingSoBreakdownScreenState
                     Expanded(
                       child: Text(
                         widget.description,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -188,6 +199,7 @@ class _ProductionTrackingSoBreakdownScreenState
                           return _buildPoolBadge(
                             state.excessPools[widget.itemCode]!,
                             widget.soItems.first.unit,
+                            isDark,
                           );
                         }
                         return const SizedBox.shrink();
@@ -200,8 +212,8 @@ class _ProductionTrackingSoBreakdownScreenState
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: aggProgress,
-                    backgroundColor: Colors.white10,
-                    valueColor: const AlwaysStoppedAnimation<Color>(orange),
+                    backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                    valueColor: AlwaysStoppedAnimation<Color>(orange),
                     minHeight: 8,
                   ),
                 ),
@@ -212,14 +224,16 @@ class _ProductionTrackingSoBreakdownScreenState
                       child: _statChip(
                         label: 'Ordered',
                         value: '${_currentItems.first.formatQuantity(totalOrdered)} ${_currentItems.first.unit}',
-                        color: Colors.white70
+                        color: isDark ? Colors.white70 : Colors.black87,
+                        isDark: isDark,
                       ),
                     ),
                     Expanded(
                       child: _statChip(
                         label: 'Prepared',
                         value: '$totalPrepared / ${_currentItems.length}',
-                        color: Colors.blueAccent
+                        color: isDark ? Colors.blueAccent : Colors.blue.shade700,
+                        isDark: isDark,
                       ),
                     ),
                     Expanded(
@@ -227,8 +241,9 @@ class _ProductionTrackingSoBreakdownScreenState
                         label: 'Overall',
                         value: '${(aggProgress * 100).toStringAsFixed(0)}%',
                         color: aggProgress >= 1.0
-                            ? Colors.greenAccent
-                            : Colors.white70
+                            ? Colors.green
+                            : (isDark ? Colors.white70 : Colors.black87),
+                        isDark: isDark,
                       ),
                     ),
                   ],
@@ -244,8 +259,8 @@ class _ProductionTrackingSoBreakdownScreenState
               alignment: Alignment.centerLeft,
               child: Text(
                 'Sales Orders (${_currentItems.length})',
-                style: const TextStyle(
-                  color: Colors.grey,
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38,
                   fontSize: 12,
                   letterSpacing: 0.5,
                 ),
@@ -259,7 +274,7 @@ class _ProductionTrackingSoBreakdownScreenState
               itemCount: _currentItems.length,
               itemBuilder: (context, index) {
                 final item = _currentItems[index];
-                return _buildSoCard(item, index, dark800, orange);
+                return _buildSoCard(item, index, theme, orange);
               },
             ),
           ),
@@ -269,7 +284,8 @@ class _ProductionTrackingSoBreakdownScreenState
   }
 
   Widget _buildSoCard(
-      SalesOrderDetail item, int index, Color dark, Color orange) {
+      SalesOrderDetail item, int index, ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
     final progress = item.progress.clamp(0.0, 1.0);
     final progressPct = (progress * 100).toStringAsFixed(1);
     final isComplete = progress >= 1.0;
@@ -295,15 +311,22 @@ class _ProductionTrackingSoBreakdownScreenState
         child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: dark,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isPrepared
-                ? Colors.blueAccent.withValues(alpha: 0.5)
+                ? (isDark ? Colors.blueAccent.withValues(alpha: 0.5) : Colors.blue.withValues(alpha: 0.3))
                 : (isComplete
-                    ? Colors.greenAccent.withValues(alpha: 0.3)
-                    : Colors.white10),
+                    ? (isDark ? Colors.greenAccent.withValues(alpha: 0.3) : Colors.green.withValues(alpha: 0.2))
+                    : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08))),
           ),
+          boxShadow: isDark ? null : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -315,8 +338,8 @@ class _ProductionTrackingSoBreakdownScreenState
               children: [
                 Text(
                   item.soNumber,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
@@ -326,7 +349,7 @@ class _ProductionTrackingSoBreakdownScreenState
                   Text(
                     item.customerName!,
                     style:
-                        const TextStyle(color: Colors.grey, fontSize: 12),
+                        TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 12),
                   ),
               ],
             ),
@@ -336,10 +359,10 @@ class _ProductionTrackingSoBreakdownScreenState
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.white10,
+                backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
                 valueColor: AlwaysStoppedAnimation<Color>(isPrepared
                     ? Colors.blueGrey
-                    : (isComplete ? Colors.greenAccent : orange)),
+                    : (isComplete ? Colors.green : orange)),
                 minHeight: 6,
               ),
             ),
@@ -351,7 +374,8 @@ class _ProductionTrackingSoBreakdownScreenState
                   child: _soStat(
                     'Ordered',
                     '${item.formatQuantity(item.quantity)} ${item.unit}',
-                    Colors.white70,
+                    isDark ? Colors.white70 : Colors.black87,
+                    isDark,
                   ),
                 ),
                 Expanded(
@@ -359,13 +383,15 @@ class _ProductionTrackingSoBreakdownScreenState
                     'Produced (M)',
                     '${item.formatQuantity(item.manufacturedQuantity)} ${item.unit}',
                     orange,
+                    isDark,
                   ),
                 ),
                 Expanded(
                   child: _soStat(
                     'Scanned (S)',
                     '${item.formatQuantity(item.scannedQuantity)} scans',
-                    Colors.white.withValues(alpha: 0.5),
+                    isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+                    isDark,
                   ),
                 ),
                 Expanded(
@@ -375,8 +401,9 @@ class _ProductionTrackingSoBreakdownScreenState
                         ? 'PREPARED'
                         : (isComplete ? 'COMPLETE' : '$progressPct%'),
                     isPrepared
-                        ? Colors.blueAccent
-                        : (isComplete ? Colors.greenAccent : Colors.white70),
+                        ? (isDark ? Colors.blueAccent : Colors.blue.shade700)
+                        : (isComplete ? Colors.green : (isDark ? Colors.white70 : Colors.black87)),
+                    isDark,
                   ),
                 ),
               ],
@@ -392,12 +419,13 @@ class _ProductionTrackingSoBreakdownScreenState
     required String label,
     required String value,
     required Color color,
+    required bool isDark,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -412,12 +440,12 @@ class _ProductionTrackingSoBreakdownScreenState
     );
   }
 
-  Widget _soStat(String label, String value, Color color) {
+  Widget _soStat(String label, String value, Color color, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -432,23 +460,24 @@ class _ProductionTrackingSoBreakdownScreenState
     );
   }
 
-  Widget _buildPoolBadge(double amount, String unit) {
+  Widget _buildPoolBadge(double amount, String unit, bool isDark) {
+    final poolColor = isDark ? Colors.blueAccent : Colors.blue.shade700;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.15),
+        color: poolColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+        border: Border.all(color: poolColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inventory_2_outlined, color: Colors.blueAccent, size: 12),
+          Icon(Icons.inventory_2_outlined, color: poolColor, size: 12),
           const SizedBox(width: 6),
           Text(
             'POOL: ${amount.toStringAsFixed(1)} $unit',
-            style: const TextStyle(
-              color: Colors.blueAccent,
+            style: TextStyle(
+              color: poolColor,
               fontSize: 10,
               fontWeight: FontWeight.w900,
               letterSpacing: 0.5,

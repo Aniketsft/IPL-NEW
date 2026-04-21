@@ -35,6 +35,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return IndustrialModuleLayout(
       title: 'GOODS RECEIPT',
       body: Column(
@@ -63,6 +67,19 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                         initialDate: DateTime.now(),
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2101),
+                        builder: (context, child) => Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.fromSeed(
+                              seedColor: orange,
+                              primary: orange,
+                              onPrimary: Colors.white,
+                              surface: theme.cardColor,
+                              onSurface: isDark ? Colors.white : Colors.black87,
+                              brightness: theme.brightness,
+                            ),
+                          ),
+                          child: child!,
+                        ),
                       );
                       if (picked != null) {
                         setState(() => _dateController.text = picked.toString().split(' ')[0]);
@@ -76,19 +93,25 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     onTap: () async {
                       final result = await showModalBottomSheet<String>(
                         context: context,
-                        backgroundColor: const Color(0xFF1E1E1E),
-                        builder: (context) => ListView(
-                          shrinkWrap: true,
-                          children: [
-                            ListTile(
-                              title: const Text('All Suppliers', style: TextStyle(color: Colors.orange)),
-                              onTap: () => Navigator.pop(context, null),
-                            ),
-                            ..._suppliers.map((s) => ListTile(
-                              title: Text(s, style: const TextStyle(color: Colors.white)),
-                              onTap: () => Navigator.pop(context, s),
-                            )),
-                          ],
+                        backgroundColor: theme.scaffoldBackgroundColor,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        builder: (context) => Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: [
+                              ListTile(
+                                title: Text('All Suppliers', style: TextStyle(color: orange, fontWeight: FontWeight.bold)),
+                                onTap: () => Navigator.pop(context, null),
+                              ),
+                              ..._suppliers.map((s) => ListTile(
+                                title: Text(s, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                                onTap: () => Navigator.pop(context, s),
+                              )),
+                            ],
+                          ),
                         ),
                       );
                       setState(() => _selectedSupplier = result);
@@ -106,10 +129,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
             },
           ),
           Expanded(
-            child: const Center(
+            child: Center(
               child: Text(
                 'Receipt backend is under construction (Sales Orders removed).',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
               ),
             ),
           ),

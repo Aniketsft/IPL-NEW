@@ -35,6 +35,10 @@ class FilterPickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Expanded(
       child: InkWell(
         onTap: () async {
@@ -51,17 +55,17 @@ class FilterPickerTile extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white38,
+                    style: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.black38,
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
@@ -70,13 +74,13 @@ class FilterPickerTile extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(icon, color: const Color(0xFFFF9800), size: 14),
+                      Icon(icon, color: orange, size: 14),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           value ?? 'All',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -109,11 +113,14 @@ class FilterStatusToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -121,8 +128,8 @@ class FilterStatusToggle extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -135,8 +142,8 @@ class FilterStatusToggle extends StatelessWidget {
             },
             activeColor: orange,
             activeTrackColor: orange.withValues(alpha: 0.3),
-            inactiveThumbColor: Colors.white24,
-            inactiveTrackColor: Colors.white10,
+            inactiveThumbColor: isDark ? Colors.white24 : Colors.black26,
+            inactiveTrackColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
           ),
         ],
       ),
@@ -158,31 +165,35 @@ class FilterSearchInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return TextField(
       controller: controller,
       onChanged: (val) {
         onChanged?.call(val);
         FilterStateScope.of(context)?.onStateChanged();
       },
-      style: const TextStyle(color: Colors.white, fontSize: 15),
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24, fontSize: 15),
-        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFF9800), size: 20),
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 15),
+        prefixIcon: Icon(Icons.search_rounded, color: orange, size: 20),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
-        hoverColor: Colors.white.withValues(alpha: 0.08),
+        fillColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+        hoverColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFFF9800), width: 1.5),
+          borderSide: BorderSide(color: orange, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
@@ -204,6 +215,10 @@ class FilterDatePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Expanded(
       child: InkWell(
         onTap: () async {
@@ -216,17 +231,17 @@ class FilterDatePicker extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white38,
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38,
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
@@ -235,15 +250,15 @@ class FilterDatePicker extends StatelessWidget {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFFFF9800)),
+                  Icon(Icons.calendar_today_rounded, size: 14, color: orange),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       value == null
                           ? 'Select Date'
                           : DateFormat('dd MMM yyyy').format(value!),
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -271,27 +286,31 @@ class FilterDateInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return TextField(
       controller: controller,
       readOnly: true,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
       decoration: InputDecoration(
         hintText: label,
-        hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-        prefixIcon: const Icon(Icons.calendar_month_rounded, color: Color(0xFFFF9800), size: 20),
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 14),
+        prefixIcon: Icon(Icons.calendar_month_rounded, color: orange, size: 20),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFFF9800), width: 1.5),
+          borderSide: BorderSide(color: orange, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
@@ -304,13 +323,20 @@ class FilterDateInput extends StatelessWidget {
           builder: (context, child) {
             return Theme(
               data: Theme.of(context).copyWith(
-                colorScheme: const ColorScheme.dark(
-                  primary: Color(0xFFFF9800),
-                  onPrimary: Colors.white,
-                  surface: Color(0xFF1E1E1E),
-                  onSurface: Colors.white,
-                ),
-                dialogBackgroundColor: const Color(0xFF121212),
+                colorScheme: isDark 
+                  ? ColorScheme.dark(
+                      primary: orange,
+                      onPrimary: Colors.black,
+                      surface: theme.cardColor,
+                      onSurface: isDark ? Colors.white : Colors.black87,
+                    )
+                  : ColorScheme.light(
+                      primary: orange,
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                      onSurface: Colors.black87,
+                    ),
+                dialogBackgroundColor: theme.scaffoldBackgroundColor,
               ),
               child: child!,
             );
@@ -341,7 +367,10 @@ class FilterSegmentedToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -349,8 +378,8 @@ class FilterSegmentedToggle extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white38,
+            style: TextStyle(
+              color: isDark ? Colors.white38 : Colors.black38,
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
@@ -360,9 +389,9 @@ class FilterSegmentedToggle extends StatelessWidget {
         Container(
           height: 46,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
           ),
           child: Row(
             children: options.map((option) {
@@ -387,7 +416,7 @@ class FilterSegmentedToggle extends StatelessWidget {
                     child: Text(
                       option,
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white60,
+                        color: isSelected ? (isDark ? Colors.white : Colors.black) : (isDark ? Colors.white60 : Colors.black45),
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         fontSize: 13,
                       ),
@@ -419,6 +448,9 @@ class FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -426,8 +458,8 @@ class FilterDropdown extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white38,
+            style: TextStyle(
+              color: isDark ? Colors.white38 : Colors.black38,
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
@@ -437,17 +469,17 @@ class FilterDropdown extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-              dropdownColor: const Color(0xFF1E1E1E),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white38),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              dropdownColor: theme.cardColor,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white38 : Colors.black38),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
               items: options.map((String option) {
                 return DropdownMenuItem<String>(
                   value: option,

@@ -106,33 +106,13 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: Text(title, style: const TextStyle(color: Colors.white)),
-          content: Text(content, style: const TextStyle(color: Colors.white70)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == true) choice = 'just_mark';
-    } else {
-      // Adding status logic
-      if (widget.isDeliveryMode) {
-        // Validation flow (Simple Confirmation for now)
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
-            title: const Text('Validate for Shipment', style: TextStyle(color: Colors.white)),
-            content: const Text('Are you sure you want to validate this item for shipment?', style: TextStyle(color: Colors.white70)),
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: theme.colorScheme.surface,
+            title: Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            content: Text(content, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -143,7 +123,35 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                 child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
               ),
             ],
-          ),
+          );
+        },
+      );
+      if (confirmed == true) choice = 'just_mark';
+    } else {
+      // Adding status logic
+      if (widget.isDeliveryMode) {
+        // Validation flow (Simple Confirmation for now)
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            final theme = Theme.of(context);
+            final isDark = theme.brightness == Brightness.dark;
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              title: Text('Validate for Shipment', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+              content: Text('Are you sure you want to validate this item for shipment?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+                ),
+              ],
+            );
+          },
         );
         if (confirmed == true) choice = 'just_mark';
       } else {
@@ -235,21 +243,25 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(content, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          content: Text(content, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed == true) {
@@ -270,15 +282,19 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         if (mounted && !widget.isDeliveryMode && codesToUpdate.isNotEmpty) {
           final bool? printAll = await showDialog<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: const Color(0xFF1E1E1E),
-              title: const Text('Print Labels?', style: TextStyle(color: Colors.white)),
-              content: Text('Marked ${codesToUpdate.length} items as Prepared. Would you like to print labels for these items now?', style: const TextStyle(color: Colors.white70)),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
-                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('YES, PRINT ALL', style: TextStyle(color: Colors.orange))),
-              ],
-            ),
+            builder: (context) {
+              final theme = Theme.of(context);
+              final isDark = theme.brightness == Brightness.dark;
+              return AlertDialog(
+                backgroundColor: theme.colorScheme.surface,
+                title: Text('Print Labels?', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                content: Text('Marked ${codesToUpdate.length} items as Prepared. Would you like to print labels for these items now?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
+                  TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('YES, PRINT ALL', style: TextStyle(color: Colors.orange))),
+                ],
+              );
+            },
           );
 
           if (printAll == true) {
@@ -308,30 +324,34 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   Future<void> _prepareForShipment() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          'Prepare for Shipment',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Are you sure you want to mark this order as PREPARED FOR SHIPMENT? This will lock the order.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text(
+            'Prepare for Shipment',
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Finalize Shipment',
-              style: TextStyle(color: Colors.orange),
+          content: Text(
+            'Are you sure you want to mark this order as PREPARED FOR SHIPMENT? This will lock the order.',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                'Finalize Shipment',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -361,30 +381,34 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   Future<void> _closeOrder() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          'Close Production',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Are you sure you want to close this Production? This will mark it as completed.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text(
+            'Close Production',
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Close Production',
-              style: TextStyle(color: Colors.orange),
+          content: Text(
+            'Are you sure you want to close this Production? This will mark it as completed.',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                'Close Production',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -430,17 +454,21 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.order.orderNumber),
-        backgroundColor: Colors.transparent,
+        title: Text(
+          widget.order.orderNumber,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        ),
+        backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new, size: 20, color: isDark ? Colors.white : Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -581,7 +609,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                       return _buildProductCard(
                         _filteredDetails[index],
                         orange,
-                        dark800,
+                        theme.cardColor,
+                        isDark,
                       );
                     },
                   ),
@@ -593,12 +622,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildHeaderInfo() {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: isDark ? theme.colorScheme.surfaceContainerHigh : theme.colorScheme.surface,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -668,13 +700,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildCompactInfo(String label, String value) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.35),
+            color: isDark ? Colors.white.withValues(alpha: 0.35) : Colors.black38,
             fontSize: 10,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -683,8 +717,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -693,7 +727,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     );
   }
 
-  Widget _buildProductCard(SalesOrderDetail item, Color orange, Color dark800) {
+  Widget _buildProductCard(SalesOrderDetail item, Color orange, Color cardColor, bool isDark) {
+    final theme = Theme.of(context);
     final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
     final isLocked = itemStatus ||
         widget.order.isPreparedForShipment ||
@@ -755,7 +790,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           decoration: BoxDecoration(
             color: Colors.transparent,
             border: Border(
-              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              bottom: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
             ),
           ),
           child: Column(
@@ -773,8 +808,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                           value: _selectedItemCodes.contains(item.itemCode),
                           onChanged: (val) => _toggleSelection(item.itemCode),
                           activeColor: orange,
-                          checkColor: Colors.black,
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                          checkColor: isDark ? Colors.black : Colors.white,
+                          side: BorderSide(color: isDark ? Colors.white30 : Colors.black26),
                         ),
                       ),
                     ),
@@ -784,16 +819,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                       children: [
                         Text(
                           item.itemCode,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           item.description,
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: isDark ? Colors.grey : Colors.grey[600],
                             fontSize: 13,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -828,9 +864,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     children: [
                       Text(
                         '${item.formatQuantity(item.quantity)} ${item.unit}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                     ],
@@ -887,7 +924,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: item.progress,
-                  backgroundColor: Colors.white10,
+                  backgroundColor: isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow,
                   valueColor: AlwaysStoppedAnimation<Color>(orange),
                   minHeight: 4,
                 ),
@@ -900,6 +937,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   Widget _buildFooter() {
+    final theme = Theme.of(context);
+
     if (widget.order.isPreparedForShipment) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
@@ -1146,19 +1185,28 @@ class _StatusBadge extends StatelessWidget {
       );
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isClosed ? Colors.white10 : orange.withValues(alpha: 0.15),
+        color: isClosed 
+            ? (isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow) 
+            : orange.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isClosed ? Colors.white24 : orange.withValues(alpha: 0.3),
+          color: isClosed 
+              ? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1)) 
+              : orange.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
         isClosed ? 'CLOSED' : 'OPEN',
         style: TextStyle(
-          color: isClosed ? Colors.white60 : orange,
+          color: isClosed 
+              ? (isDark ? Colors.white60 : Colors.black45) 
+              : orange,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1,

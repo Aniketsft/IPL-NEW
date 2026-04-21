@@ -40,15 +40,17 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
-    const dark900 = Color(0xFF121212);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Scaffold(
-      backgroundColor: dark900,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Sync Audit Trail'),
-        backgroundColor: dark800,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
         actions: [
           IconButton(
             onPressed: _loadHistory,
@@ -57,37 +59,38 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: orange))
+          ? Center(child: CircularProgressIndicator(color: orange))
           : _history.isEmpty
-          ? _buildEmptyState()
+          ? _buildEmptyState(isDark)
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _history.length,
               itemBuilder: (context, index) {
                 final item = _history[index];
-                return _buildHistoryCard(item);
+                return _buildHistoryCard(item, theme, orange);
               },
             ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history_rounded, size: 64, color: Colors.grey[700]),
+          Icon(Icons.history_rounded, size: 64, color: isDark ? Colors.grey[700] : Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             'No sync history found',
-            style: TextStyle(color: Colors.grey[400], fontSize: 16),
+            style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 16),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHistoryCard(Map<String, dynamic> item) {
+  Widget _buildHistoryCard(Map<String, dynamic> item, ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
     final timestamp = DateTime.parse(
       item[LocalDatabaseHelper.colSyncTimestamp],
     );
@@ -103,39 +106,40 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
       } catch (_) {}
     }
 
+    final statusColor = isSuccess ? Colors.green : Colors.red;
+
     return Card(
-      color: const Color(0xFF1E1E1E),
+      color: theme.cardColor,
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: isDark ? 0 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isSuccess
-              ? Colors.green.withValues(alpha: 0.3)
-              : Colors.red.withValues(alpha: 0.3),
+          color: statusColor.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
       child: ExpansionTile(
+        collapsedIconColor: isDark ? Colors.white38 : Colors.black38,
+        iconColor: orange,
         leading: CircleAvatar(
-          backgroundColor: isSuccess
-              ? Colors.green.withValues(alpha: 0.1)
-              : Colors.red.withValues(alpha: 0.1),
+          backgroundColor: statusColor.withValues(alpha: 0.1),
           child: Icon(
             isSuccess ? Icons.check_circle_outline : Icons.error_outline,
-            color: isSuccess ? Colors.green : Colors.red,
+            color: statusColor,
           ),
         ),
         title: Text(
           DateFormat('MMM dd, yyyy - hh:mm a').format(timestamp),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold,
           ),
         ),
         subtitle: Text(
           isSuccess ? 'Payload processed successfully' : 'Sync failed',
           style: TextStyle(
-            color: isSuccess ? Colors.green[300] : Colors.red[300],
+            color: isSuccess ? (isDark ? Colors.green[300] : Colors.green[700]) : (isDark ? Colors.red[300] : Colors.red[700]),
             fontSize: 13,
           ),
         ),
@@ -151,16 +155,16 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
               ),
             ),
           if (counts.isNotEmpty) ...[
-            const Text(
+            Text(
               'Records Synchronized:',
               style: TextStyle(
-                color: Colors.grey,
+                color: isDark ? Colors.grey : Colors.black54,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
             ),
             const SizedBox(height: 8),
-            _buildCountGrid(counts),
+            _buildCountGrid(counts, isDark, orange),
           ],
           if (isSuccess && message.contains('ms'))
             Padding(
@@ -168,7 +172,7 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
               child: Text(
                 'Performance: ${message.split('completed in ').last}',
                 style: TextStyle(
-                  color: Colors.grey[500],
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
@@ -179,7 +183,7 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
     );
   }
 
-  Widget _buildCountGrid(Map<String, dynamic> counts) {
+  Widget _buildCountGrid(Map<String, dynamic> counts, bool isDark, Color orange) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -187,7 +191,7 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -195,16 +199,16 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
             children: [
               Text(
                 e.key.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.orange,
+                style: TextStyle(
+                  color: orange,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
                 e.value.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),

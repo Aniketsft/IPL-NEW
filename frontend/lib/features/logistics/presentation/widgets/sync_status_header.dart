@@ -13,22 +13,26 @@ class SyncStatusHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.orange.withValues(alpha: 0.15),
-            Colors.orange.withValues(alpha: 0.05),
+            orange.withValues(alpha: 0.15),
+            orange.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+        border: Border.all(color: orange.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -51,13 +55,13 @@ class SyncStatusHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
+                    color: orange.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.cloud_sync_rounded,
                     size: 20,
-                    color: Colors.orange,
+                    color: orange,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -66,10 +70,10 @@ class SyncStatusHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'Offline Mode',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDark ? Colors.white : Colors.black87,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
@@ -78,7 +82,7 @@ class SyncStatusHeader extends StatelessWidget {
                       Text(
                         'Last Synced: $lastSync',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: isDark ? Colors.white60 : Colors.black45,
                           fontSize: 11,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -89,7 +93,7 @@ class SyncStatusHeader extends StatelessWidget {
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.sync_rounded, size: 24, color: Colors.orange),
+                  icon: Icon(Icons.sync_rounded, size: 24, color: orange),
                   onPressed: () {
                     final authState = context.read<AuthBloc>().state;
                     if (authState is Authenticated) {
@@ -103,7 +107,7 @@ class SyncStatusHeader extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14,
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: isDark ? Colors.white24 : Colors.black26,
                 ),
               ],
             ),

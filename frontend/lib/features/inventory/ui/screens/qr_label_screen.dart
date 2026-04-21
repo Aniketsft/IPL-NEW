@@ -146,8 +146,11 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+    final cardBg = theme.cardColor;
+    final surfaceBg = isDark ? (theme.scaffoldBackgroundColor) : Colors.grey.withValues(alpha: 0.05);
 
     return IndustrialModuleLayout(
       title: 'QR AGGREGATION',
@@ -158,13 +161,14 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
             padding: const EdgeInsets.all(4),
             margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: dark800,
+              color: cardBg,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
             ),
             child: Row(
               children: [
-                _buildModeButton('CRATE', AggregationMode.crate, orange),
-                _buildModeButton('PALETTE', AggregationMode.palette, orange),
+                _buildModeButton(context, 'CRATE', AggregationMode.crate, orange),
+                _buildModeButton(context, 'PALETTE', AggregationMode.palette, orange),
               ],
             ),
           ),
@@ -198,7 +202,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
                 if (!_isScannerOpen)
                   Container(
                     color: Colors.black54,
-                    child: const Center(child: Icon(Icons.check_circle, color: orange, size: 48)),
+                    child: Center(child: Icon(Icons.check_circle, color: orange, size: 48)),
                   ),
               ],
             ),
@@ -210,14 +214,15 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: _buildStatCard('TOTAL WEIGHT', '${_totalWeight.toStringAsFixed(2)} KG', orange),
+                  child: _buildStatCard(context, 'TOTAL WEIGHT', '${_totalWeight.toStringAsFixed(2)} KG', orange),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStatCard(
+                    context,
                     'ITEMS COUNT', 
                     '${_mode == AggregationMode.crate ? _crateItems.length : _paletteGroups.values.fold(0, (sum, list) => sum + list.length)}', 
-                    Colors.white,
+                    isDark ? Colors.white : Colors.black87,
                   ),
                 ),
               ],
@@ -228,22 +233,24 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFF161618),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: surfaceBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              child: _buildScannedList(),
+              child: _buildScannedList(context),
             ),
           ),
 
           // ── Action Bar ──────────────────────────────────────────────────
-          _buildActionBar(orange),
+          _buildActionBar(context, orange),
         ],
       ),
     );
   }
 
-  Widget _buildModeButton(String label, AggregationMode mode, Color activeColor) {
+  Widget _buildModeButton(BuildContext context, String label, AggregationMode mode, Color activeColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bool active = _mode == mode;
     return Expanded(
       child: GestureDetector(
@@ -263,7 +270,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: active ? Colors.black : Colors.white38,
+              color: active ? Colors.black : (isDark ? Colors.white38 : Colors.black38),
               fontWeight: FontWeight.bold,
               fontSize: 12,
               letterSpacing: 1,
@@ -274,18 +281,29 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color valueColor) {
+  Widget _buildStatCard(BuildContext context, String label, String value, Color valueColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = theme.cardColor;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(value, style: TextStyle(color: valueColor, fontSize: 18, fontWeight: FontWeight.bold)),
         ],
@@ -293,19 +311,23 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
     );
   }
 
-  Widget _buildScannedList() {
+  Widget _buildScannedList(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     if (_mode == AggregationMode.crate) {
-      if (_crateItems.isEmpty) return _buildEmptyState();
+      if (_crateItems.isEmpty) return _buildEmptyState(context);
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _crateItems.length,
         itemBuilder: (context, index) {
           final item = _crateItems[index];
-          return _buildItemTile(item);
+          return _buildItemTile(context, item);
         },
       );
     } else {
-      if (_paletteGroups.isEmpty) return _buildEmptyState();
+      if (_paletteGroups.isEmpty) return _buildEmptyState(context);
       final sos = _paletteGroups.keys.toList();
       return ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -320,11 +342,11 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
                 child: Text(
                   'SALES ORDER: $so',
-                  style: const TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 12),
                 ),
               ),
-              ...items.map((item) => _buildItemTile(item)),
-              const Divider(color: Colors.white10, height: 24),
+              ...items.map((item) => _buildItemTile(context, item)),
+              Divider(color: isDark ? Colors.white10 : Colors.black12, height: 24),
             ],
           );
         },
@@ -332,58 +354,67 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
     }
   }
 
-  Widget _buildItemTile(Map<String, String> item) {
+  Widget _buildItemTile(BuildContext context, Map<String, String> item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(8),
+        border: isDark ? null : Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.inventory_2_outlined, size: 16, color: Colors.white24),
+          Icon(Icons.inventory_2_outlined, size: 16, color: isDark ? Colors.white24 : Colors.black26),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item['itemCode'] ?? 'UNKNOWN', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                Text(item['description'] ?? '', style: const TextStyle(color: Colors.white24, fontSize: 11), maxLines: 1),
+                Text(item['itemCode'] ?? 'UNKNOWN', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w600)),
+                Text(item['description'] ?? '', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 11), maxLines: 1),
               ],
             ),
           ),
-          Text('${item['weight']} ${item['unit']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text('${item['weight']} ${item['unit']}', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_scanner, size: 48, color: Colors.white.withValues(alpha: 0.05)),
+          Icon(Icons.qr_code_scanner, size: 48, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
           const SizedBox(height: 16),
-          const Text('AWAITING SCANS...', style: TextStyle(color: Colors.white12, letterSpacing: 1.5)),
+          Text('AWAITING SCANS...', style: TextStyle(color: isDark ? Colors.white12 : Colors.black12, letterSpacing: 1.5)),
         ],
       ),
     );
   }
 
-  Widget _buildActionBar(Color orange) {
+  Widget _buildActionBar(BuildContext context, Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = theme.cardColor;
     bool canFinalize = (_mode == AggregationMode.crate && _crateItems.isNotEmpty) || 
                       (_mode == AggregationMode.palette && _paletteGroups.isNotEmpty);
 
     return Container(
       padding: const EdgeInsets.all(16),
-      color: const Color(0xFF1E1E1E),
+      decoration: BoxDecoration(
+        color: cardBg,
+        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))),
+      ),
       child: Row(
         children: [
           IconButton(
             onPressed: _resetSession,
-            icon: const Icon(Icons.refresh, color: Colors.white38),
+            icon: Icon(Icons.refresh, color: isDark ? Colors.white38 : Colors.black38),
           ),
           const SizedBox(width: 12),
           Expanded(

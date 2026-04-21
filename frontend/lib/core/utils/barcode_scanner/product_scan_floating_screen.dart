@@ -244,18 +244,19 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   }
 
   void _showErrorDialog(String title, String message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         title: Row(
           children: [
             const Icon(Icons.error_outline, color: Colors.red),
             const SizedBox(width: 8),
-            Text(title, style: const TextStyle(color: Colors.white)),
+            Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
           ],
         ),
-        content: Text(message, style: const TextStyle(color: Colors.white70)),
+        content: Text(message, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -291,8 +292,10 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const darkBg = Color(0xFF121212);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+    final darkBg = theme.scaffoldBackgroundColor;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -310,12 +313,12 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.1),
                 blurRadius: 30,
                 spreadRadius: 10,
               ),
             ],
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
@@ -357,8 +360,8 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                             Expanded(
                                               child: Text(
                                                 widget.product['name'] ?? widget.product['productName'] ?? 'Product Scan',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
+                                                style: TextStyle(
+                                                  color: isDark ? Colors.white : Colors.black87,
                                                   fontSize: 20,
                                                   fontWeight: FontWeight.bold,
                                                 ),
@@ -376,7 +379,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                               ),
                                               child: Text(
                                                 _unitLabel,
-                                                style: const TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                                style: TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
                                               ),
                                             ),
                                           ],
@@ -389,7 +392,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.close, color: Colors.white54),
+                                    icon: Icon(Icons.close, color: isDark ? Colors.white54 : Colors.black45),
                                     onPressed: () => Navigator.pop(context),
                                   ),
                                 ],
@@ -410,16 +413,16 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF1E1E1E),
+                                            color: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.03),
                                             borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                            border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
                                           ),
                                           child: DropdownButtonHideUnderline(
                                             child: DropdownButton<String>(
                                               isExpanded: true,
-                                              dropdownColor: const Color(0xFF1E1E1E),
+                                              dropdownColor: theme.cardColor,
                                               value: _selectedSite,
-                                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                                              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13),
                                               items: _sites.isEmpty 
                                                 ? [DropdownMenuItem(value: _selectedSite ?? 'IPL', child: Text(_selectedSite ?? "IPL"))]
                                                 : _sites.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
@@ -445,9 +448,9 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF1E1E1E),
+                                              color: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.03),
                                               borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                              border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
                                             ),
                                             child: Row(
                                               children: [
@@ -463,7 +466,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                                   ),
                                                 ),
                                                 _isLoadingLocations 
-                                                  ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: orange))
+                                                  ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: orange))
                                                   : const Icon(Icons.arrow_drop_down, color: Colors.white54),
                                               ],
                                             ),
@@ -475,20 +478,20 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                   const SizedBox(height: 8),
                                   TextField(
                                     controller: _lotController,
-                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13),
                                     decoration: InputDecoration(
                                       hintText: 'Enter Lot ID',
-                                      hintStyle: const TextStyle(color: Colors.white24),
+                                      hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
                                       filled: true,
-                                      fillColor: const Color(0xFF1E1E1E),
-                                      prefixIcon: const Icon(Icons.pin_outlined, color: Colors.white54, size: 18),
+                                      fillColor: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.03),
+                                      prefixIcon: Icon(Icons.pin_outlined, color: isDark ? Colors.white54 : Colors.black45, size: 18),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                        borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
                                       ),
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                        borderSide: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
                                       ),
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                     ),
@@ -508,9 +511,9 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Row(
                                 children: [
-                                  _buildSummaryStat('TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
+                                  _buildSummaryStat(context, 'TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
                                   const SizedBox(width: 12),
-                                  _buildSummaryStat('COUNT', '${_scans.length} Items', Colors.white),
+                                  _buildSummaryStat(context, 'COUNT', '${_scans.length} Items', isDark ? Colors.white : Colors.black87),
                                 ],
                               ),
                             ),
@@ -551,7 +554,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                         child: BackdropFilter(
                                           filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
                                           child: Container(
-                                            color: AppTheme.darkSurface.withValues(alpha: 0.85),
+                                            color: theme.cardColor.withValues(alpha: 0.85),
                                             padding: const EdgeInsets.all(20),
                                             child: Column(
                                               mainAxisAlignment: MainAxisAlignment.center,
@@ -593,7 +596,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                                     Expanded(
                                                       child: TextButton(
                                                         onPressed: () => setState(() => _pendingScan = null),
-                                                        child: const Text('DISCARD', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                                                        child: Text('DISCARD', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontWeight: FontWeight.bold)),
                                                       ),
                                                     ),
                                                     const SizedBox(width: 8),
@@ -659,7 +662,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                 const SizedBox(height: 12),
                                 Text(
                                   'No items scanned yet',
-                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 13),
+                                  style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2), fontSize: 13),
                                 ),
                               ],
                             ),
@@ -698,8 +701,8 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                     20, 20, 20, MediaQuery.of(context).padding.bottom + 20
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+                    color: theme.cardColor,
+                    border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))),
                   ),
                   child: Row(
                     children: [
@@ -710,7 +713,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                             Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: orange,
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -730,41 +733,45 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   }
 
   void _showManualScanDialog() {
-    final controller = TextEditingController();
+    final TextEditingController controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Manual Entry', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter barcode number',
-            hintStyle: TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-          ),
-          onSubmitted: (v) {
-            Navigator.pop(context);
-            _handleScan(v, isManual: true);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: theme.cardColor,
+          title: Text('Manual Entry', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          content: TextField(
+            controller: controller,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter barcode number',
+              hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.black38),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12)),
+            ),
+            onSubmitted: (v) {
               Navigator.pop(context);
-              _handleScan(controller.text, isManual: true);
+              _handleScan(v, isManual: true);
             },
-            child: const Text('Add'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _handleScan(controller.text, isManual: true);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -772,14 +779,17 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: theme.cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Confirm Scan', style: TextStyle(color: Colors.white)),
+            Icon(Icons.check_circle_outline, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            Text('Confirm Scan', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
           ],
         ),
         content: Column(
@@ -817,11 +827,16 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             child: const Text('Confirm'),
           ),
         ],
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _buildPromptRow(String label, String value, {bool isBold = false}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -829,14 +844,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
           width: 80,
           child: Text(
             label,
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
+            style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 13),
           ),
         ),
         Expanded(
           child: Text(
             value,
             style: TextStyle(
-              color: isBold ? Colors.orange : Colors.white,
+              color: isBold ? orange : (isDark ? Colors.white : Colors.black87),
               fontSize: 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
@@ -847,13 +862,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   }
 
   Widget _buildOverlayStat(String label, String value, String unit, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4),
             fontSize: 9,
             fontWeight: FontWeight.bold,
             letterSpacing: 1,
@@ -888,19 +904,22 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     );
   }
 
-  Widget _buildSummaryStat(String label, String value, Color color) {
+  Widget _buildSummaryStat(BuildContext context, String label, String value, Color color) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 10, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
@@ -910,13 +929,15 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   }
 
   void _showLocationPicker() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final TextEditingController searchController = TextEditingController();
     List<LocationLookup> filteredLocations = List.from(_locations);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : theme.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -930,15 +951,15 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: isDark ? Colors.white24 : Colors.black12,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Select Target Location',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isDark ? Colors.white : Colors.black87,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -947,13 +968,13 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
               TextField(
                 controller: searchController,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                 decoration: InputDecoration(
                   hintText: 'Search locations...',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.black38),
+                  prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.black38),
                   filled: true,
-                  fillColor: const Color(0xFF2C2C2E),
+                  fillColor: isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.03),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -985,18 +1006,18 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                             title: Text(
                               loc.location ?? '',
                               style: TextStyle(
-                                color: isSelected ? const Color(0xFFFF9800) : Colors.white,
+                                color: isSelected ? theme.primaryColor : (isDark ? Colors.white : Colors.black87),
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                             subtitle: Text(
                               '${loc.locationTypeName} - ${loc.warehouseName}',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
+                                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
                                 fontSize: 12,
                               ),
                             ),
-                            trailing: isSelected ? const Icon(Icons.check, color: Color(0xFFFF9800)) : null,
+                            trailing: isSelected ? Icon(Icons.check, color: theme.primaryColor) : null,
                             onTap: () {
                               setState(() {
                                 _selectedLocationEntity = loc;

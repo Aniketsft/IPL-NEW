@@ -42,12 +42,12 @@ class _ProductionTrackingListScreenState
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
-    const dark900 = Color(0xFF0D0D0D);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Scaffold(
-      backgroundColor: dark900,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           'Production Tracking List',
@@ -71,7 +71,7 @@ class _ProductionTrackingListScreenState
                   }
                   return Text(
                     siteName,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
                   );
                 },
               ),
@@ -89,7 +89,7 @@ class _ProductionTrackingListScreenState
                 child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
                   builder: (context, state) {
                     if (state is ManufacturingLoadInProgress) {
-                      return const Center(
+                      return Center(
                         child: CircularProgressIndicator(color: orange),
                       );
                     }
@@ -110,10 +110,10 @@ class _ProductionTrackingListScreenState
                       }).toList();
 
                       if (filteredItems.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Text(
                             'No items found',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                           ),
                         );
                       }
@@ -126,14 +126,14 @@ class _ProductionTrackingListScreenState
                         ),
                         itemBuilder: (context, index) {
                           final item = filteredItems[index];
-                          return _buildProductCard(item, dark800, orange);
+                          return _buildProductCard(item, theme, orange);
                         },
                       );
                     }
-                    return const Center(
+                    return Center(
                       child: Text(
                         'Initialize tracking...',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                       ),
                     );
                   },
@@ -184,20 +184,29 @@ class _ProductionTrackingListScreenState
     );
   }
 
-  Widget _buildProductCard(dynamic item, Color dark, Color orange) {
+  Widget _buildProductCard(dynamic item, ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: dark,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         title: Text(
           item.itemCode,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: orange,
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
@@ -208,25 +217,27 @@ class _ProductionTrackingListScreenState
             const SizedBox(height: 4),
             Text(
               item.description,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 13),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildStat('Ordered', '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}'),
+                  child: _buildStat('Ordered', '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}', isDark),
                 ),
                 Expanded(
                   child: _buildStat(
                     'Remaining',
                     '${item.remainingDisplay} ${item.unit}',
-                    color: (item.remaining ?? 0) < 0 ? Colors.green : Colors.white70,
+                    isDark,
+                    color: (item.remaining ?? 0) < 0 ? Colors.green : (isDark ? Colors.white70 : Colors.black87),
                   ),
                 ),
                 Expanded(
                   child: _buildStat(
                     'Scanned',
                     '${item.formatQuantity(item.scannedQuantity ?? 0)} ${item.unit}',
+                    isDark,
                     color: orange,
                   ),
                 ),
@@ -234,11 +245,8 @@ class _ProductionTrackingListScreenState
             ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        trailing: Icon(Icons.chevron_right, color: isDark ? Colors.white24 : Colors.black26),
         onTap: () async {
-          // Since we don't have the full SalesOrder object here easily without joining,
-          // we'll pass a dummy header or handle it appropriately.
-          // For now, navigating to detail is fine if we can reconstruct the entity.
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
@@ -268,19 +276,23 @@ class _ProductionTrackingListScreenState
 
   Widget _buildStat(
     String label,
-    String value, {
+    String value,
+    bool isDark, {
     Color color = Colors.white70,
   }) {
+    // If not dark, default to black87 instead of white70
+    final displayColor = (color == Colors.white70 && !isDark) ? Colors.black87 : color;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        Text(label, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 11)),
         Text(
           value,
           style: TextStyle(
-            color: color,
+            color: displayColor,
             fontWeight: FontWeight.bold,
-            fontSize: 13, // Slightly smaller
+            fontSize: 13,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

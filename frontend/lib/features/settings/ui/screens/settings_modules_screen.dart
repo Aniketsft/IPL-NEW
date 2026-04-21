@@ -108,14 +108,14 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const darkCard = Color(0xFF1E1E1E);
-    const darkBorder = Color(0xFF2C2C2E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return IndustrialModuleLayout(
       title: 'LOGISTICS | SETTINGS',
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: orange))
+          ? Center(child: CircularProgressIndicator(color: orange))
           : Stack(
               children: [
                 SingleChildScrollView(
@@ -131,9 +131,9 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Only one lot number can be created per day and will default in production tracking.',
-                              style: TextStyle(color: Colors.white38, fontSize: 11),
+                              style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
                             ),
                             const SizedBox(height: 16),
                             _buildTextField(
@@ -146,11 +146,11 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.lock, color: orange, size: 14),
+                                  Icon(Icons.lock, color: orange, size: 14),
                                   const SizedBox(width: 4),
                                   Text(
                                     'LOCKED FOR TODAY: ${_settings?.lastLotDate}',
-                                    style: const TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
@@ -209,8 +209,15 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: darkCard,
-                      border: Border(top: BorderSide(color: darkBorder)),
+                      color: theme.cardColor,
+                      border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))),
+                      boxShadow: isDark ? null : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, -4),
+                        ),
+                      ],
                     ),
                     child: SizedBox(
                       width: double.infinity,
@@ -239,13 +246,23 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     required Widget child,
     bool isLocked = false,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isLocked ? accentColor.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isLocked ? accentColor.withValues(alpha: 0.3) : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,7 +273,12 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87, 
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 13, 
+                  letterSpacing: 1.2,
+                ),
               ),
               const Spacer(),
               if (isLocked) const Icon(Icons.verified, color: Colors.greenAccent, size: 16),
@@ -276,29 +298,37 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     bool enabled = true,
     TextInputType keyboardType = TextInputType.text,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return TextField(
       controller: controller,
       enabled: enabled,
       keyboardType: keyboardType,
-      style: TextStyle(color: enabled ? Colors.white : Colors.white38),
+      style: TextStyle(color: enabled ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white38 : Colors.black26)),
       decoration: InputDecoration(
         filled: true,
-        fillColor: Colors.black.withValues(alpha: 0.2),
+        fillColor: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24),
-        prefixIcon: Icon(icon, color: Colors.white24, size: 18),
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+        prefixIcon: Icon(icon, color: isDark ? Colors.white24 : Colors.black26, size: 18),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: isDark ? BorderSide.none : BorderSide(color: Colors.black.withValues(alpha: 0.05))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
 
   Widget _buildLabel(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, left: 4),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        child: Text(
+          text, 
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+        ),
       ),
     );
   }
@@ -309,6 +339,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     List<Map<String, String>> items,
     Function(String?) onSelected,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     String? displayName;
     if (value != null && items.isNotEmpty) {
       try {
@@ -323,8 +354,9 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.2),
+          color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
+          border: isDark ? null : Border.all(color: Colors.black.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -332,11 +364,11 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
             Expanded(
               child: Text(
                 displayName ?? 'Select $label...',
-                style: TextStyle(color: displayName == null ? Colors.white24 : Colors.white, fontSize: 14),
+                style: TextStyle(color: displayName == null ? (isDark ? Colors.white24 : Colors.black26) : (isDark ? Colors.white : Colors.black87), fontSize: 14),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Icon(Icons.arrow_drop_down, color: Colors.white38, size: 20),
+            Icon(Icons.arrow_drop_down, color: isDark ? Colors.white38 : Colors.black38, size: 20),
           ],
         ),
       ),
@@ -344,10 +376,11 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
   }
 
   void _showSearchSheet(String title, List<Map<String, String>> items, Function(String?) onSelected) {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => _SearchPickerSheet(title: title, items: items, onSelected: onSelected),
     );
@@ -387,26 +420,43 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           const SizedBox(height: 12),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40, 
+            height: 4, 
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white24 : Colors.black12, 
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 16),
-          Text('Select ${widget.title}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(
+            'Select ${widget.title}', 
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87, 
+              fontSize: 18, 
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _searchController,
             onChanged: _filter,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
               hintText: 'Search...',
-              hintStyle: const TextStyle(color: Colors.white24),
-              prefixIcon: const Icon(Icons.search, color: Colors.white38),
+              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+              prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.black38),
               filled: true,
-              fillColor: const Color(0xFF1E1E1E),
+              fillColor: theme.cardColor,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
@@ -417,8 +467,14 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
               itemBuilder: (context, index) {
                 final item = _filteredItems[index];
                 return ListTile(
-                  title: Text(item['name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: Text(item['code'] ?? '', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                  title: Text(
+                    item['name'] ?? '', 
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    item['code'] ?? '', 
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 12),
+                  ),
                   onTap: () {
                     widget.onSelected(item['code']);
                     Navigator.pop(context);

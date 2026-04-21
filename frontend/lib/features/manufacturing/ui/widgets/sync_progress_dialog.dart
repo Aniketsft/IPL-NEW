@@ -40,8 +40,11 @@ class SyncProgressDialog extends StatelessWidget {
             isError = true;
           }
 
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+
           return Dialog(
-            backgroundColor: const Color(0xFF121212),
+            backgroundColor: theme.cardColor,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -51,13 +54,13 @@ class SyncProgressDialog extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildAnimatedIcon(isSuccess, isError),
+                    _buildAnimatedIcon(context, isSuccess, isError),
                     const SizedBox(height: 24),
                     Text(
                       message,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -70,8 +73,8 @@ class SyncProgressDialog extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                             child: LinearProgressIndicator(
                               value: progress,
-                              backgroundColor: Colors.white.withValues(alpha: 0.1),
-                              color: const Color(0xFFFF9800),
+                              backgroundColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1),
+                              color: theme.primaryColor,
                               minHeight: 8,
                             ),
                           ),
@@ -79,7 +82,7 @@ class SyncProgressDialog extends StatelessWidget {
                           Text(
                             '${(progress * 100).toInt()}%',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
                               fontSize: 12,
                             ),
                           ),
@@ -103,7 +106,7 @@ class SyncProgressDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildAnimatedIcon(bool isSuccess, bool isError) {
+  Widget _buildAnimatedIcon(BuildContext context, bool isSuccess, bool isError) {
     if (isError) {
       return const Icon(Icons.error_outline, size: 64, color: Colors.red);
     }
@@ -115,12 +118,12 @@ class SyncProgressDialog extends StatelessWidget {
       );
     }
 
-    return const SizedBox(
+    return SizedBox(
       height: 64,
       width: 64,
       child: CircularProgressIndicator(
         strokeWidth: 5,
-        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9800)),
+        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
       ),
     );
   }

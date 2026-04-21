@@ -82,24 +82,40 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   void _scanManifest() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1D1D1D),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           children: [
-            Container(margin: const EdgeInsets.symmetric(vertical: 12), width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text(
                 'SCAN CRATE OR PALETTE',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
               ),
             ),
             Expanded(
@@ -149,20 +165,42 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
       await _fetchOrders();
       if (mounted) {
+        final theme = Theme.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully added to Manifest', style: TextStyle(color: Colors.green)), backgroundColor: Colors.black)
+          SnackBar(
+            content: const Text(
+              'Successfully added to Manifest',
+              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: theme.colorScheme.surface,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
         showDialog(
           context: context, 
           builder: (_) => AlertDialog(
-            backgroundColor: Colors.red[900], 
-            title: const Text('SCAN REJECTED', style: TextStyle(color: Colors.white)), 
-            content: Text(e.toString(), style: const TextStyle(color: Colors.white)), 
-            actions: [TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Colors.white)))]
-          )
+            backgroundColor: isDark ? const Color(0xFF422222) : Colors.red[50], 
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red),
+                const SizedBox(width: 8),
+                Text('SCAN REJECTED', style: TextStyle(color: isDark ? Colors.white : Colors.red[900], fontWeight: FontWeight.bold)),
+              ],
+            ), 
+            content: Text(e.toString(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)), 
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: TextStyle(color: isDark ? Colors.white54 : Colors.red[900])),
+              ),
+            ],
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -170,19 +208,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _clearManifest() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final repository = context.read<DeliveryRepository>();
+
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        title: const Text('Clear Manifest?', style: TextStyle(color: Colors.white)),
-        content: const Text('This will clear the current unloading queue. Proceed?', style: TextStyle(color: Colors.white70)),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          'Clear Manifest?',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        ),
+        content: Text(
+          'This will clear the current unloading queue. Proceed?',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true), 
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('CLEAR', style: TextStyle(color: Colors.white))
+            child: const Text('CLEAR', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -195,19 +245,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _processEndOfDay() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
     final repository = context.read<DeliveryRepository>();
+
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        title: const Text('Export to Sage X3', style: TextStyle(color: Colors.white)),
-        content: const Text('This will process all pending staging records and import them into Sage X3.\n Proceed?', style: TextStyle(color: Colors.white70)),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          'Export to Sage X3',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        ),
+        content: Text(
+          'This will process all pending staging records and import them into Sage X3.\n Proceed?',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true), 
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800)),
-            child: const Text('PROCESS', style: TextStyle(color: Colors.white))
+            style: ElevatedButton.styleFrom(backgroundColor: orange),
+            child: const Text('PROCESS', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -235,6 +298,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   void _showEndOfDayResults(Map<String, dynamic> data) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final results = data['results'] as List? ?? [];
     final successCount = data['successCount'] ?? 0;
     final failureCount = data['failureCount'] ?? 0;
@@ -242,8 +308,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        title: const Text('END OF DAY REPORT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          'END OF DAY REPORT',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
@@ -252,11 +324,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _statusChip('SUCCESS', successCount.toString(), Colors.green),
-                  _statusChip('FAILED', failureCount.toString(), Colors.red),
+                  _statusChip('SUCCESS', successCount.toString(), Colors.green, isDark),
+                  _statusChip('FAILED', failureCount.toString(), Colors.red, isDark),
                 ],
               ),
-              const Divider(color: Colors.white12, height: 24),
+              Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -275,19 +347,35 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         ),
                         title: Text(
                           res['identifier'] ?? 'Unknown SO',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         subtitle: Text(
                           success ? 'Imported Successfully' : 'Import Failed',
-                          style: TextStyle(color: success ? Colors.green[200] : Colors.red[200], fontSize: 12),
+                          style: TextStyle(
+                            color: success 
+                                ? (isDark ? Colors.green[200] : Colors.green[700]) 
+                                : (isDark ? Colors.red[200] : Colors.red[700]),
+                            fontSize: 12,
+                          ),
                         ),
                         children: messages.map((m) => Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('• ', style: TextStyle(color: Colors.white54)),
-                              Expanded(child: Text(m.toString(), style: const TextStyle(color: Colors.white70, fontSize: 11))),
+                              Text('• ', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+                              Expanded(
+                                child: Text(
+                                  m.toString(),
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white70 : Colors.black87,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         )).toList(),
@@ -306,25 +394,27 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
-  Widget _statusChip(String label, String value, Color color) {
+  Widget _statusChip(String label, String value, Color color, bool isDark) {
     return Column(
       children: [
         Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        Text(label, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10)),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return IndustrialModuleLayout(
       title: 'DELIVERY',
       extraActions: [
         IconButton(
           tooltip: 'End of Day Import',
-          icon: const Icon(Icons.send_and_archive, color: orange),
+          icon: Icon(Icons.send_and_archive, color: orange),
           onPressed: _processEndOfDay,
         ),
       ],
@@ -339,14 +429,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: TextField(
                   controller: _searchController,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                   decoration: InputDecoration(
                     hintText: 'Search Scanned Manifest...',
-                    hintStyle: const TextStyle(color: Colors.white24),
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
                     filled: true,
-                    fillColor: const Color(0xFF2C2C2E),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    fillColor: theme.cardColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
                 ),
@@ -355,7 +446,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               // Scanner / Empty State OR List
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: orange))
+                    ? Center(child: CircularProgressIndicator(color: orange))
                     : _errorMessage != null
                     ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)))
                     : _filteredOrders.isEmpty
@@ -363,11 +454,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.qr_code_scanner, size: 80, color: Colors.grey[800]),
+                            Icon(Icons.qr_code_scanner, size: 80, color: isDark ? Colors.grey[800] : Colors.grey[300]),
                             const SizedBox(height: 16),
-                            const Text('No Items in Manifest', style: TextStyle(color: Colors.grey, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text('No Items in Manifest', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 18, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
-                            const Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 12)),
                             const SizedBox(height: 24),
                             ElevatedButton.icon(
                               onPressed: _scanManifest,
@@ -399,9 +490,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               if (_filteredOrders.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1E1E1E),
-                    border: Border(top: BorderSide(color: Colors.white10)),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
                   ),
                   child: Row(
                     children: [

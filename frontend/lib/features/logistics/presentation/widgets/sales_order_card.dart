@@ -17,15 +17,23 @@ class SalesOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark800 = Color(0xFF1E1E1E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: dark800,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.1)),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () async {
@@ -57,7 +65,7 @@ class SalesOrderCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             order.orderNumber,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: orange,
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
@@ -138,7 +146,9 @@ class SalesOrderCard extends StatelessWidget {
                       child: Text(
                         order.isClosed ? 'CLOSED' : 'OPEN',
                         style: TextStyle(
-                          color: order.isClosed ? Colors.grey : orange,
+                          color: order.isClosed 
+                              ? (isDark ? Colors.grey : Colors.grey[700]) 
+                              : orange,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.5,
@@ -150,8 +160,8 @@ class SalesOrderCard extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 '${order.customerCode} - ${order.customerName}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
                   fontWeight: FontWeight.bold,
                   fontSize: 17,
                 ),
@@ -164,6 +174,7 @@ class SalesOrderCard extends StatelessWidget {
                   Icons.history_outlined,
                   'SO Date',
                   DateFormat('dd/MM/yyyy').format(order.soDate!),
+                  isDark,
                 ),
                 const SizedBox(height: 8),
               ],
@@ -171,12 +182,14 @@ class SalesOrderCard extends StatelessWidget {
                 Icons.description_outlined,
                 'PO',
                 order.purchaseOrderNumber ?? 'N/A',
+                isDark,
               ),
               const SizedBox(height: 8),
               _buildInfoRow(
                 Icons.calendar_month_outlined,
                 'Del. Date',
                 order.deliveryDate,
+                isDark,
               ),
               const SizedBox(height: 12),
               _buildInfoRow(
@@ -187,6 +200,7 @@ class SalesOrderCard extends StatelessWidget {
                       ? '${order.salesManCode2} - ${order.salesmanName}'
                       : order.salesManCode2)
                   : (order.salesmanName ?? 'N/A'),
+                isDark,
               ),
             ],
           ),
@@ -195,20 +209,23 @@ class SalesOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value, bool isDark) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: Colors.white38),
+        Icon(icon, size: 16, color: isDark ? Colors.white38 : Colors.black38),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: const TextStyle(color: Colors.white38, fontSize: 13),
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black45, 
+            fontSize: 13,
+          ),
         ),
         Flexible(
           child: Text(
             value,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),

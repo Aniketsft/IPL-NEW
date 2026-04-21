@@ -45,6 +45,10 @@ class _PickingScreenState extends State<PickingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     final query = _searchController.text.toLowerCase();
     final filtered = _items
         .where(
@@ -58,39 +62,40 @@ class _PickingScreenState extends State<PickingScreen> {
       title: 'PICKING LIST',
       body: Column(
         children: [
-          _buildSearchHeader(),
-          _buildProgressIndicator(),
+          _buildSearchHeader(context, isDark, orange),
+          _buildProgressIndicator(orange),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: filtered.length,
-              itemBuilder: (context, index) => _buildPickCard(filtered[index]),
+              itemBuilder: (context, index) => _buildPickCard(context, filtered[index], isDark, orange),
             ),
           ),
-          _buildFooter(),
+          _buildFooter(context, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildSearchHeader() {
+  Widget _buildSearchHeader(BuildContext context, bool isDark, Color orange) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
-        border: Border(bottom: BorderSide(color: Color(0xFF2C2C2E))),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        border: Border(bottom: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search SKU or Item Name...',
-          hintStyle: const TextStyle(color: Colors.white38),
-          prefixIcon: const Icon(Icons.search, color: Colors.white38),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+          prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.black38),
           border: InputBorder.none,
           suffixIcon: IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: Color(0xFFFF9800)),
+            icon: Icon(Icons.qr_code_scanner, color: orange),
             onPressed: () {},
           ),
         ),
@@ -98,28 +103,35 @@ class _PickingScreenState extends State<PickingScreen> {
     );
   }
 
-  Widget _buildProgressIndicator() {
+  Widget _buildProgressIndicator(Color orange) {
     final pickedCount = _items.where((i) => i.isPicked).length;
     final progress = _items.isEmpty ? 0.0 : pickedCount / _items.length;
 
     return LinearProgressIndicator(
       value: progress,
-      backgroundColor: Colors.white10,
-      color: const Color(0xFFFF9800),
+      backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black).withValues(alpha: 0.1),
+      color: orange,
       minHeight: 2,
     );
   }
 
-  Widget _buildPickCard(PickItem item) {
+  Widget _buildPickCard(BuildContext context, PickItem item, bool isDark, Color orange) {
+    final theme = Theme.of(context);
+    
+    // Picked color: primaryContainer for both modes ensures consistent visibility
+    final pickedColor = isDark ? theme.colorScheme.primaryContainer.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.08);
+    final unpickedColor = theme.cardColor;
+
     return Card(
-      color: item.isPicked ? const Color(0xFF1B2E1E) : const Color(0xFF252528),
+      color: item.isPicked ? pickedColor : unpickedColor,
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: isDark ? 0 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
           color: item.isPicked
-              ? Colors.green.withValues(alpha: 0.3)
-              : Colors.transparent,
+              ? Colors.green.withValues(alpha: isDark ? 0.3 : 0.5)
+              : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
         ),
       ),
       child: InkWell(
@@ -135,8 +147,8 @@ class _PickingScreenState extends State<PickingScreen> {
                   children: [
                     Text(
                       item.id,
-                      style: const TextStyle(
-                        color: Color(0xFFFF9800),
+                      style: TextStyle(
+                        color: orange,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -144,35 +156,35 @@ class _PickingScreenState extends State<PickingScreen> {
                     const SizedBox(height: 4),
                     Text(
                       item.name,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
                           size: 14,
-                          color: Colors.white38,
+                          color: isDark ? Colors.white38 : Colors.black38,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           item.location,
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
                             fontSize: 12,
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Icon(
+                        Icon(
                           Icons.inventory_2_outlined,
                           size: 14,
-                          color: Colors.white38,
+                          color: isDark ? Colors.white38 : Colors.black38,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Qty: ${item.qty}',
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
                             fontSize: 12,
                           ),
                         ),
@@ -186,7 +198,7 @@ class _PickingScreenState extends State<PickingScreen> {
                 onChanged: (val) => setState(() => item.isPicked = val!),
                 activeColor: Colors.green,
                 checkColor: Colors.white,
-                side: const BorderSide(color: Colors.white24, width: 2),
+                side: BorderSide(color: isDark ? Colors.white24 : Colors.black26, width: 2),
               ),
             ],
           ),
@@ -195,22 +207,24 @@ class _PickingScreenState extends State<PickingScreen> {
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(BuildContext context, bool isDark) {
+    final theme = Theme.of(context);
+    final orange = theme.primaryColor;
     final pickedCount = _items.where((i) => i.isPicked).length;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
-        border: Border(top: BorderSide(color: Color(0xFF2C2C2E))),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        border: Border(top: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
       ),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
           onPressed: pickedCount == _items.length ? () {} : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2C2C2E),
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
+            backgroundColor: orange,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(28),

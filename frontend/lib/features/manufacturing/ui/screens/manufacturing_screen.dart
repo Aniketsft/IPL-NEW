@@ -65,23 +65,26 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
   }
 
   Future<void> _startEndOfDayFlow() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     // Step 1: Selection of Work Order
     final String? selectedWo = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Select Work Order', style: TextStyle(color: Colors.white)),
+        backgroundColor: theme.cardColor,
+        title: Text('Select Work Order', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
             children: [
               ListTile(
-                title: const Text('WO-2026-001', style: TextStyle(color: Colors.white)),
+                title: Text('WO-2026-001', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                 onTap: () => Navigator.pop(ctx, 'WO-2026-001'),
               ),
               ListTile(
-                title: const Text('WO-2026-002', style: TextStyle(color: Colors.white)),
+                title: Text('WO-2026-002', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                 onTap: () => Navigator.pop(ctx, 'WO-2026-002'),
               ),
             ],
@@ -100,9 +103,9 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     final bool? confirmProceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text('Proceed ($selectedWo)', style: const TextStyle(color: Colors.white)),
-        content: const Text('Do you want to proceed or close?', style: TextStyle(color: Colors.white70)),
+        backgroundColor: theme.cardColor,
+        title: Text('Proceed ($selectedWo)', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        content: Text('Do you want to proceed or close?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CLOSE')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('PROCEED')),
@@ -119,9 +122,9 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     final bool? retry = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: theme.cardColor,
         title: const Text('Connection Error', style: TextStyle(color: Colors.redAccent)),
-        content: const Text('Error connecting to X3. Do you want to retry?', style: TextStyle(color: Colors.white70)),
+        content: Text('Error connecting to X3. Do you want to retry?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('RETRY')),
@@ -139,9 +142,9 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: theme.cardColor,
         title: const Text('Status', style: TextStyle(color: Colors.redAccent)),
-        content: const Text('Process Failed', style: TextStyle(color: Colors.white70)),
+        content: Text('Process Failed', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
         ],
@@ -203,6 +206,8 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
         final filteredItems =
             menuItems.where((item) => item.title.toLowerCase().contains(query)).toList();
 
+        final theme = Theme.of(context);
+
         return IndustrialModuleLayout(
           title: 'MANUFACTURING',
           body: Column(
@@ -239,22 +244,25 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
   }
 
   Widget _buildFilters(BuildContext context, ManufacturingState state) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: const Color(0xFF1E1E1E),
+      color: theme.cardColor,
       child: Column(
         children: [
           Row(
             children: [
               Expanded(
                 child: TextField(
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.white54 : Colors.black38),
                     hintText: 'Search dashboard...',
-                    hintStyle: const TextStyle(color: Colors.white54),
+                    hintStyle: TextStyle(color: isDark ? Colors.white54 : Colors.black38),
                     filled: true,
-                    fillColor: const Color(0xFF2A2A2A),
+                    fillColor: isDark ? Colors.black.withValues(alpha: 0.1) : theme.scaffoldBackgroundColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -270,22 +278,22 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
+                  color: isDark ? Colors.black.withValues(alpha: 0.1) : theme.scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    dropdownColor: const Color(0xFF2A2A2A),
+                    dropdownColor: isDark ? theme.cardColor : Colors.white,
                     value: state.currentSiteCode ?? 'IPL',
-                    hint: const Text('Site', style: TextStyle(color: Colors.white54)),
-                    items: const [
+                    hint: Text('Site', style: TextStyle(color: isDark ? Colors.white54 : Colors.black38)),
+                    items: [
                       DropdownMenuItem(
                         value: 'IPL',
-                        child: Text('IPL - Main', style: TextStyle(color: Colors.white)),
+                        child: Text('IPL - Main', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                       ),
                       DropdownMenuItem(
                         value: 'SFT',
-                        child: Text('SFT - Whse', style: TextStyle(color: Colors.white)),
+                        child: Text('SFT - Whse', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                       ),
                     ],
                     onChanged: (value) {
@@ -309,9 +317,14 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     VoidCallback? onTapOverride,
     String? subtitle,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Material(
-      color: const Color(0xFF1E1E1E),
+      color: theme.cardColor,
       borderRadius: BorderRadius.circular(12),
+      elevation: isDark ? 0 : 2,
       child: InkWell(
         onTap:
             onTapOverride ??
@@ -324,21 +337,21 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 36, color: const Color(0xFFFF9800)),
+              Icon(icon, size: 36, color: orange),
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
@@ -350,7 +363,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
                     fontSize: 10,
                   ),
                 ),

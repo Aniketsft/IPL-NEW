@@ -31,6 +31,10 @@ class _TransferScreenState extends State<TransferScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return IndustrialModuleLayout(
       title: 'INTERNAL TRANSFER',
       body: SingleChildScrollView(
@@ -38,26 +42,34 @@ class _TransferScreenState extends State<TransferScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLocationSelection(),
+            _buildLocationSelection(theme, orange),
             const SizedBox(height: 24),
-            _buildProductScanSection(),
+            _buildProductScanSection(theme, orange),
             const SizedBox(height: 32),
-            _buildTransferSummary(),
+            _buildTransferSummary(theme),
             const SizedBox(height: 32),
-            _buildActionButton(),
+            _buildActionButton(theme, orange),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLocationSelection() {
+  Widget _buildLocationSelection(ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2C2C2E)),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -65,12 +77,13 @@ class _TransferScreenState extends State<TransferScreen> {
             'Source Location',
             _sourceLocation,
             (val) => setState(() => _sourceLocation = val!),
+            theme,
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Icon(
               Icons.arrow_downward,
-              color: Color(0xFFFF9800),
+              color: orange,
               size: 20,
             ),
           ),
@@ -78,6 +91,7 @@ class _TransferScreenState extends State<TransferScreen> {
             'Destination Location',
             _destLocation,
             (val) => setState(() => _destLocation = val!),
+            theme,
           ),
         ],
       ),
@@ -88,24 +102,28 @@ class _TransferScreenState extends State<TransferScreen> {
     String label,
     String value,
     ValueChanged<String?> onChanged,
+    ThemeData theme,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white38, fontSize: 11),
+          style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11),
         ),
         DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: value,
             isExpanded: true,
-            dropdownColor: const Color(0xFF1E1E1E),
+            dropdownColor: theme.cardColor,
+            elevation: 8,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             items: _locations
                 .map(
                   (e) => DropdownMenuItem(
                     value: e,
-                    child: Text(e, style: const TextStyle(color: Colors.white)),
+                    child: Text(e, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                   ),
                 )
                 .toList(),
@@ -116,14 +134,15 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
-  Widget _buildProductScanSection() {
+  Widget _buildProductScanSection(ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'SCAN PRODUCT',
           style: TextStyle(
-            color: Colors.white70,
+            color: isDark ? Colors.white70 : Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),
@@ -133,6 +152,7 @@ class _TransferScreenState extends State<TransferScreen> {
           'Search or Scan SKU',
           Icons.qr_code_scanner,
           _productController,
+          theme,
         ),
         const SizedBox(height: 12),
         Row(
@@ -142,23 +162,25 @@ class _TransferScreenState extends State<TransferScreen> {
                 'Quantity',
                 Icons.numbers,
                 _quantityController,
+                theme,
               ),
             ),
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF9800),
+                backgroundColor: orange,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 14,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                elevation: isDark ? 0 : 2,
               ),
-              child: const Text('ADD'),
+              child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -170,44 +192,48 @@ class _TransferScreenState extends State<TransferScreen> {
     String hint,
     IconData icon,
     TextEditingController controller,
+    ThemeData theme,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2C2C2E)),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
       ),
       child: TextField(
         controller: controller,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-          prefixIcon: Icon(icon, color: Colors.white38, size: 20),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
+          prefixIcon: Icon(icon, color: isDark ? Colors.white38 : Colors.black38, size: 20),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
         ),
       ),
     );
   }
 
-  Widget _buildTransferSummary() {
+  Widget _buildTransferSummary(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(8),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Text('Items to Transfer: 0', style: TextStyle(color: Colors.white54)),
-          SizedBox(height: 8),
+          Text('Items to Transfer: 0', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+          const SizedBox(height: 8),
           Text(
             'TOTAL QUANTITY: 0.00',
             style: TextStyle(
-              color: Colors.white,
+              color: isDark ? Colors.white : Colors.black87,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -217,17 +243,20 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
-  Widget _buildActionButton() {
+  Widget _buildActionButton(ThemeData theme, Color orange) {
+    final isDark = theme.brightness == Brightness.dark;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: () {},
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2C2C2E),
-          foregroundColor: Colors.white,
+          backgroundColor: isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow,
+          foregroundColor: isDark ? Colors.white : Colors.black87,
+          elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.08)),
           ),
         ),
         child: const Text(

@@ -1,5 +1,4 @@
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
-import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -106,7 +105,9 @@ class _StandardFilterState extends State<StandardFilter> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -117,20 +118,20 @@ class _StandardFilterState extends State<StandardFilter> {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
               ),
               child: TextField(
                 controller: widget.searchController,
                 onChanged: widget.onSearchChanged,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: widget.searchHint,
                   hintStyle:
-                      const TextStyle(color: Colors.white24, fontSize: 14),
+                      TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 14),
                   prefixIcon:
-                      const Icon(Icons.search_rounded, color: orange, size: 20),
+                      Icon(Icons.search_rounded, color: orange, size: 20),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -149,12 +150,12 @@ class _StandardFilterState extends State<StandardFilter> {
                   height: 48,
                   width: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
                   ),
-                  child: const Icon(Icons.tune_rounded,
-                      color: Colors.white70, size: 22),
+                  child: Icon(Icons.tune_rounded,
+                      color: isDark ? Colors.white70 : Colors.black54, size: 22),
                 ),
               ),
               if (widget.hasActiveFilters)
@@ -168,7 +169,7 @@ class _StandardFilterState extends State<StandardFilter> {
                       color: orange,
                       shape: BoxShape.circle,
                       border:
-                          Border.all(color: const Color(0xFF121212), width: 2),
+                          Border.all(color: theme.scaffoldBackgroundColor, width: 2),
                       boxShadow: [
                         BoxShadow(
                             color: orange.withValues(alpha: 0.5),
@@ -202,8 +203,9 @@ class _FilterModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark100 = Color(0xFF1E1E1E);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -212,10 +214,10 @@ class _FilterModal extends StatelessWidget {
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: dark100,
+            color: theme.cardColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 5),
+              BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.1), blurRadius: 20, spreadRadius: 5),
             ],
           ),
           child: Column(
@@ -227,7 +229,7 @@ class _FilterModal extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -239,15 +241,15 @@ class _FilterModal extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white54),
+                      icon: Icon(Icons.close, color: isDark ? Colors.white54 : Colors.black45),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -265,8 +267,8 @@ class _FilterModal extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                 decoration: BoxDecoration(
-                  color: dark100,
-                  border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+                  color: theme.cardColor,
+                  border: Border(top: BorderSide(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05))),
                 ),
                 child: Row(
                   children: [
@@ -277,7 +279,7 @@ class _FilterModal extends StatelessWidget {
                           Navigator.pop(context);
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.white70,
+                          foregroundColor: isDark ? Colors.white70 : Colors.black54,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: const Text('Reset All'),

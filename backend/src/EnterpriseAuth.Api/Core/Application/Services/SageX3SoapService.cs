@@ -129,7 +129,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     GRP1 = new
                     {
                         I_MODIMP = "ZSDH2",
-                        I_AOWSTA = "NO",
+                        I_AOWSTA = "YES",
                         I_EXEC = "REALTIME",
                         I_RECORDSEP = "|",
                         I_FILE = fileBuilder.ToString()
@@ -158,6 +158,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 </soapenv:Envelope>";
 
                 // 5. Send Request
+                Console.WriteLine("====== SAGE X3 SOAP REQUEST ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("==================================");
+
                 var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
                 request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
                 

@@ -8,6 +8,10 @@ class SyncOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return BlocBuilder<SyncBloc, SyncState>(
       builder: (context, state) {
         if (state is! SyncInProgress) {
@@ -15,18 +19,18 @@ class SyncOverlay extends StatelessWidget {
         }
 
         return Container(
-          color: Colors.black54,
+          color: theme.colorScheme.surface.withValues(alpha: 0.8),
           child: Center(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 40),
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: theme.cardColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                border: Border.all(color: orange.withValues(alpha: 0.3)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.1),
                     blurRadius: 20,
                     spreadRadius: 5,
                   ),
@@ -35,16 +39,16 @@ class SyncOverlay extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.sync_rounded,
-                    color: Colors.orange,
+                    color: orange,
                     size: 48,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Synchronizing Data',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: isDark ? Colors.white : Colors.black87,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -53,8 +57,8 @@ class SyncOverlay extends StatelessWidget {
                   Text(
                     state.message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
                       fontSize: 14,
                     ),
                   ),
@@ -63,16 +67,16 @@ class SyncOverlay extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: state.progress,
-                      backgroundColor: Colors.white10,
-                      color: Colors.orange,
+                      backgroundColor: orange.withValues(alpha: 0.1),
+                      color: orange,
                       minHeight: 8,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '${(state.progress * 100).toInt()}%',
-                    style: const TextStyle(
-                      color: Colors.orange,
+                    style: TextStyle(
+                      color: orange,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

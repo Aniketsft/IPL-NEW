@@ -86,20 +86,24 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           widget.product['productName'] ?? 'Product Details',
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
           onPressed: () => Navigator.pop(context, _scans),
         ),
       ),
@@ -109,10 +113,17 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
+              color: theme.cardColor,
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(20),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -120,14 +131,14 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'TOTAL WEIGHT',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
                     ),
                     Text(
                       '${_totalWeight.toStringAsFixed(2)} KG',
-                      style: const TextStyle(
-                        color: Color(0xFFFF9800),
+                      style: TextStyle(
+                        color: orange,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
@@ -137,14 +148,14 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text(
+                    Text(
                       'COUNT',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
                     ),
                     Text(
                       '${_scans.length} Items',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -162,8 +173,8 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
               child: AppBarcodeScanner(
                 onScanSuccess: _onScanSuccess,
                 onUnknownBarcode: (code) {
-                  AudioService.instance.playError(); // Standard reject chime
-                  HapticFeedback.heavyImpact(); // ERROR TACTILE
+                  AudioService.instance.playError();
+                  HapticFeedback.heavyImpact();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Unknown barcode or invalid format'),
@@ -172,7 +183,6 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   );
                 },
                 onManualAdd: (weight) {
-                  // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
                   setState(() {
                     _scans.add({
                       'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
@@ -182,7 +192,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   });
                 },
                 manualEntries: const {'1KG': 1.0},
-                themeColor: const Color(0xFFFF9800),
+                themeColor: orange,
               ),
             ),
 
@@ -203,8 +213,8 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isScannerVisible
                           ? Colors.red
-                          : const Color(0xFFFF9800),
-                      foregroundColor: Colors.black,
+                          : orange,
+                      foregroundColor: _isScannerVisible ? Colors.white : Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -219,12 +229,13 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('SCAN 1KG'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white10,
-                      foregroundColor: Colors.white,
+                      backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                      foregroundColor: isDark ? Colors.white : Colors.black87,
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: Colors.white24),
+                        side: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
                       ),
                     ),
                   ),
@@ -233,14 +244,14 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
             ),
           ),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'SCANNED ITEMS',
                 style: TextStyle(
-                  color: Colors.grey,
+                  color: isDark ? Colors.white38 : Colors.black38,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -259,7 +270,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -267,12 +278,12 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFF9800).withValues(alpha: 0.1),
+                          color: orange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.qr_code,
-                          color: Color(0xFFFF9800),
+                          color: orange,
                           size: 20,
                         ),
                       ),
@@ -283,16 +294,16 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                           children: [
                             Text(
                               scan['barcode'] ?? 'N/A',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
                             ),
-                            const Text(
+                            Text(
                               'Standard Entry',
                               style: TextStyle(
-                                color: Colors.grey,
+                                color: isDark ? Colors.white38 : Colors.black38,
                                 fontSize: 12,
                               ),
                             ),
@@ -301,15 +312,15 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                       ),
                       Text(
                         '${scan['weight']} KG',
-                        style: const TextStyle(
-                          color: Color(0xFFFF9800),
+                        style: TextStyle(
+                          color: orange,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
-                          color: Color.fromARGB(255, 255, 0, 0),
+                          color: Colors.red,
                           size: 20,
                         ),
                         onPressed: () {
@@ -328,9 +339,9 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
           // Bottom Footer
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color(0xFF121212),
-              border: Border(top: BorderSide(color: Colors.white10)),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
             ),
             child: Row(
               children: [
@@ -338,8 +349,8 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context, _scans),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: orange,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

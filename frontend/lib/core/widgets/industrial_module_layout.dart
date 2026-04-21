@@ -16,16 +16,19 @@ class IndustrialModuleLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: theme.colorScheme.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white70),
+        iconTheme: IconThemeData(color: isDark ? Colors.white70 : Colors.black87),
         title: Text(
           title,
-          style: const TextStyle(
-            color: Color(0xFFFF9800),
+          style: TextStyle(
+            color: theme.primaryColor,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -38,10 +41,10 @@ class IndustrialModuleLayout extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Main Plant',
                     style: TextStyle(
-                      color: Colors.blueGrey,
+                      color: isDark ? Colors.blueGrey : Colors.grey[600],
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -52,11 +55,11 @@ class IndustrialModuleLayout extends StatelessWidget {
                       // Logout action could go here
                     },
                     borderRadius: BorderRadius.circular(20),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4.0),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
                       child: Icon(
                         Icons.exit_to_app_rounded,
-                        color: Colors.white60,
+                        color: isDark ? Colors.white60 : Colors.black54,
                         size: 22,
                       ),
                     ),

@@ -10,7 +10,6 @@ import '../../data/repositories/delivery_repository.dart';
 import 'new_cuts_bulk_screen.dart';
 import '../widgets/sync_overlay.dart';
 
-
 class ViewSalesOrderScreen extends StatefulWidget {
   const ViewSalesOrderScreen({super.key});
 
@@ -142,12 +141,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   }
 
   Future<void> _loadLookups() async {
-    // Initial load of everything if no filters active, or keep it lazy
     setState(() => _isLoadingLookups = true);
     try {
       final repository = context.read<DeliveryRepository>();
       
-      // If date is null, load all for starting point
       if (_selectedDate == null) {
         final customers = await repository.getCustomers();
         final reps = await repository.getSalesReps();
@@ -188,7 +185,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        rep0: null, // Removed per request
+        rep0: null,
         rep1: _selectedSalesmanCode,
         limit: 100,
         offset: 0,
@@ -224,7 +221,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         date: _selectedDate,
         siteCode: _selectedSite?.code,
         customerCode: _selectedCustomerCode,
-        rep0: null, // Removed per request
+        rep0: null,
         rep1: _selectedSalesmanCode,
         limit: 100,
         offset: nextOffset,
@@ -247,11 +244,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF9800);
-    const dark900 = Color(0xFF0D0D0D);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
     return Scaffold(
-      backgroundColor: dark900,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           'View Sales Order',
@@ -308,12 +306,12 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   return Column(
                     children: [
                       if (_isLoadingLookups)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: LinearProgressIndicator(
                             minHeight: 2,
-                            color: Colors.orange,
-                            backgroundColor: Colors.white10,
+                            color: orange,
+                            backgroundColor: Colors.transparent,
                           ),
                         ),
                       const SizedBox(height: 4),
@@ -330,11 +328,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                 lastDate: DateTime(2101),
                                 builder: (context, child) => Theme(
                                   data: Theme.of(context).copyWith(
-                                    colorScheme: const ColorScheme.dark(
+                                    colorScheme: ColorScheme.fromSeed(
+                                      seedColor: orange,
                                       primary: orange,
                                       onPrimary: Colors.white,
-                                      surface: Color(0xFF1E1E1E),
-                                      onSurface: Colors.white,
+                                      surface: theme.cardColor,
+                                      onSurface: isDark ? Colors.white : Colors.black87,
+                                      brightness: theme.brightness,
                                     ),
                                   ),
                                   child: child!,
@@ -343,12 +343,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                               if (picked != null) {
                                 setState(() {
                                   _selectedDate = picked;
-                                  // Reset children
                                   _selectedSite = null;
                                   _selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
                                 });
-                                // Cascading reload
                                 await _reloadSites();
                                 setModalState(() {}); 
                               }
@@ -376,13 +374,11 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                           name: site['name']!,
                                         )
                                       : null;
-                                  // Reset children
                                   _selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
                                 });
                                 
                                 if (_selectedSite != null) {
-                                  // Cascading reload of salesreps
                                   await _reloadSalesReps();
                                 }
                                 setModalState(() {});
@@ -450,7 +446,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(color: orange),
                       )
                     : _errorMessage != null
@@ -473,8 +469,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                         padding: const EdgeInsets.only(bottom: 20),
                         itemBuilder: (context, index) {
                           if (index == _filteredOrders.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: CircularProgressIndicator(color: orange),
                               ),
@@ -508,18 +504,16 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     );
   }
 
-
-
-
   void _showSearchPicker(
     String title,
     List<Map<String, String>> items,
     Function(String?) onSelected,
   ) {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -570,6 +564,10 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -580,15 +578,15 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: isDark ? Colors.white24 : Colors.black12,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'Select ${widget.title}',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -597,16 +595,20 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
           TextField(
             controller: _searchController,
             onChanged: _filter,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
               hintText: 'Search...',
-              hintStyle: const TextStyle(color: Colors.white24),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+              prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
               filled: true,
-              fillColor: const Color(0xFF2C2C2E),
+              fillColor: theme.cardColor,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
@@ -618,9 +620,9 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return ListTile(
-                    title: const Text(
+                    title: Text(
                       'All',
-                      style: TextStyle(color: Colors.orange),
+                      style: TextStyle(color: orange),
                     ),
                     onTap: () {
                       widget.onSelected(null);
@@ -632,14 +634,14 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                 return ListTile(
                   title: Text(
                     item['code'] ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   subtitle: Text(
                     item['name'] ?? '',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: isDark ? Colors.grey : Colors.black45, fontSize: 12),
                   ),
                   onTap: () {
                     widget.onSelected(item['code']);

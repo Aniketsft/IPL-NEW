@@ -68,6 +68,10 @@ class _StockControlScreenState extends State<StockControlScreen> {
         )
         .toList();
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return IndustrialModuleLayout(
       title: 'STOCK CONTROL',
       body: Column(
@@ -100,7 +104,7 @@ class _StockControlScreenState extends State<StockControlScreen> {
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: filtered.length,
-              itemBuilder: (context, index) => _buildStockCard(filtered[index]),
+              itemBuilder: (context, index) => _buildStockCard(context, filtered[index], isDark, orange),
             ),
           ),
         ],
@@ -109,13 +113,18 @@ class _StockControlScreenState extends State<StockControlScreen> {
   }
 
 
-  Widget _buildStockCard(StockItem item) {
+  Widget _buildStockCard(BuildContext context, StockItem item, bool isDark, Color orange) {
+    final theme = Theme.of(context);
     final bool isLowStock = item.qty < 50;
 
     return Card(
-      color: const Color(0xFF252528),
+      color: theme.cardColor,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      elevation: isDark ? 0 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -128,8 +137,8 @@ class _StockControlScreenState extends State<StockControlScreen> {
                   children: [
                     Text(
                       item.id,
-                      style: const TextStyle(
-                        color: Color(0xFFFF9800),
+                      style: TextStyle(
+                        color: orange,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -137,36 +146,36 @@ class _StockControlScreenState extends State<StockControlScreen> {
                     const SizedBox(height: 4),
                     Text(
                       item.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
                     ),
                   ],
                 ),
-                _buildQuantityBadge(item.qty, item.unit, isLowStock),
+                _buildQuantityBadge(item.qty, item.unit, isLowStock, isDark),
               ],
             ),
             const SizedBox(height: 16),
-            const Divider(color: Colors.white10, height: 1),
+            Divider(color: isDark ? Colors.white10 : Colors.black12, height: 1),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.location_on_outlined,
                   size: 14,
-                  color: Colors.white38,
+                  color: isDark ? Colors.white38 : Colors.black38,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   item.location,
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
                 ),
                 const Spacer(),
-                const Text(
+                Text(
                   'Last Updated: 2m ago',
-                  style: TextStyle(color: Colors.white24, fontSize: 11),
+                  style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11),
                 ),
               ],
             ),
@@ -176,16 +185,16 @@ class _StockControlScreenState extends State<StockControlScreen> {
     );
   }
 
-  Widget _buildQuantityBadge(double qty, String unit, bool isLow) {
+  Widget _buildQuantityBadge(double qty, String unit, bool isLow, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isLow
             ? Colors.red.withValues(alpha: 0.15)
-            : Colors.white.withValues(alpha: 0.05),
+            : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isLow ? Colors.red.withValues(alpha: 0.3) : Colors.white12,
+          color: isLow ? Colors.red.withValues(alpha: 0.3) : (isDark ? Colors.white12 : Colors.black12),
         ),
       ),
       child: Row(
@@ -194,7 +203,7 @@ class _StockControlScreenState extends State<StockControlScreen> {
           Text(
             qty.toStringAsFixed(0),
             style: TextStyle(
-              color: isLow ? Colors.red : Colors.white,
+              color: isLow ? Colors.red : (isDark ? Colors.white : Colors.black87),
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -203,7 +212,7 @@ class _StockControlScreenState extends State<StockControlScreen> {
           Text(
             unit,
             style: TextStyle(
-              color: isLow ? Colors.red.withValues(alpha: 0.7) : Colors.white38,
+              color: isLow ? Colors.red.withValues(alpha: 0.7) : (isDark ? Colors.white38 : Colors.black38),
               fontSize: 10,
             ),
           ),

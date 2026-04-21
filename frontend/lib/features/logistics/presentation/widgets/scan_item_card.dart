@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-const Color orange = Color(0xFFFF9800);
-const Color dark800 = Color(0xFF1E1E1E);
-const Color darkBorder = Color(0xFF2C2C2E);
+// Removed hardcoded color constants in favor of Theme.of(context)
 
 class ScanItemCard extends StatelessWidget {
   final int lineNumber;
@@ -22,6 +20,10 @@ class ScanItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+    
     final barcode = scan['barcode'] as String;
     final timestamp = scan['timestamp'] as String;
     final status = scan['status'] ?? 'A'; // Default to 'A' if not present
@@ -33,13 +35,22 @@ class ScanItemCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isSaved ? const Color(0xFF1A2A1A) : dark800,
+        color: isSaved 
+            ? (isDark ? const Color(0xFF1A2A1A) : Colors.green.withValues(alpha: 0.05)) 
+            : theme.cardColor,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isSaved
               ? Colors.green.withValues(alpha: 0.25)
-              : darkBorder,
+              : (isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.05)),
         ),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -47,13 +58,13 @@ class ScanItemCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: darkBorder,
+              color: isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               '#$lineNumber',
-              style: const TextStyle(
-                color: Colors.grey,
+              style: TextStyle(
+                color: isDark ? Colors.grey : Colors.grey[600],
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -67,8 +78,8 @@ class ScanItemCard extends StatelessWidget {
               children: [
                 Text(
                   barcode,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
                     fontSize: 13,
                     fontFamily: 'monospace',
                   ),
@@ -77,7 +88,7 @@ class ScanItemCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     productName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: orange,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -91,8 +102,8 @@ class ScanItemCard extends StatelessWidget {
                   timestamp.length > 16 
                       ? timestamp.substring(11, 16) 
                       : timestamp,
-                  style: const TextStyle(
-                    color: Colors.grey,
+                  style: TextStyle(
+                    color: isDark ? Colors.grey : Colors.grey[600],
                     fontSize: 10,
                   ),
                 ),
@@ -105,7 +116,7 @@ class ScanItemCard extends StatelessWidget {
             children: [
               Text(
                 'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0) is double ? (unit == 'EA' || unit == 'PCS' ? (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toInt().toString() : (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(3)) : scan['weight']} $unit',
-                style: const TextStyle(
+                style: TextStyle(
                   color: orange,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
@@ -115,7 +126,7 @@ class ScanItemCard extends StatelessWidget {
                 Text(
                   'S: ${scan['scannedQty']}',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45),
                     fontSize: 10,
                   ),
                 ),

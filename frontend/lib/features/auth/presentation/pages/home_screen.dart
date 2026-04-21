@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_sett
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/receipt_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
+import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -33,14 +34,9 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('HomeScreen: Building for user: $username');
-    print('HomeScreen: Total permissions: ${permissions.length}');
-    if (permissions.isEmpty) {
-      print('WARNING: Permissions list is EMPTY for user $username');
-    } else {
-      print('HomeScreen: Sample permissions: ${permissions.take(5).toList()}');
-    }
-    
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -51,63 +47,71 @@ class HomeScreen extends StatelessWidget {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white70),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: theme.colorScheme.surface,
+          elevation: 0,
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: Icon(Icons.menu, color: isDark ? Colors.white70 : Colors.black87),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
           ),
-        ),
-        title: Row(
-          children: [
-            const Text(
-              'HIPO CLOUD',
-              style: TextStyle(
-                color: Color(0xFFFF9800),
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+          title: Text(
+            'HIPO CLOUD',
+            style: TextStyle(
+              color: theme.primaryColor,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          actions: [
+            Center(
+              child: Text(
+                'Main Plant',
+                style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
               ),
             ),
-            const Spacer(),
-            const Text(
-              'Main Plant',
-              style: TextStyle(color: Colors.white38, fontSize: 14),
-            ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+              icon: Icon(
+                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+              onPressed: () => context.read<ThemeCubit>().toggleTheme(),
+            ),
+            IconButton(
+              icon: Icon(Icons.logout_rounded, color: isDark ? Colors.white70 : Colors.black87),
               onPressed: () => context.read<AuthBloc>().add(LogoutRequested()),
             ),
+            const SizedBox(width: 8),
           ],
         ),
+        drawer: _buildDrawer(context),
+        body: _buildBody(context),
       ),
-      drawer: _buildDrawer(context),
-      body: _buildBody(context),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: Colors.white,
-        mini: true,
-        child: const Icon(Icons.wb_sunny_outlined, color: Colors.black87),
-      ),
-    ));
+    );
   }
 
   Future<bool?> _showExitConfirmation(BuildContext context) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: theme.colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Confirm Exit',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        content: const Text(
+        content: Text(
           'Are you sure you want to close the application?',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
         ),
         actions: [
           TextButton(
@@ -117,11 +121,11 @@ class HomeScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF9800),
+              backgroundColor: theme.primaryColor,
               foregroundColor: Colors.black,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('EXIT APP'),
+            child: const Text('EXIT APP', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -131,6 +135,7 @@ class HomeScreen extends StatelessWidget {
   Widget _buildBody(BuildContext context) {
     if (permissions.isEmpty) {
       return _buildRestrictedUI(
+        context,
         'NO PERMISSIONS ASSIGNED',
         'Your account ($username) has no assigned permissions. Please contact your system administrator.',
       );
@@ -211,8 +216,9 @@ class HomeScreen extends StatelessWidget {
 
     if (menuItems.isEmpty) {
       return _buildRestrictedUI(
+        context,
         'NO AUTHORIZED MODULES',
-        'Your account has permissions ${permissions.take(3).toList()}... but none match the dashboard modules. Casing or naming mismatch?',
+        'Your account has permissions ${permissions.take(3).toList()}... but none match the dashboard modules.',
       );
     }
 
@@ -226,34 +232,39 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildRestrictedUI(BuildContext context, String title, String message) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-  Widget _buildRestrictedUI(String title, String message) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.lock_person_rounded,
               size: 64,
-              color: Colors.white24,
+              color: isDark ? Colors.white24 : Colors.black26,
             ),
             const SizedBox(height: 24),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
+                letterSpacing: 1.2,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, height: 1.5),
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
+                height: 1.5,
+              ),
             ),
           ],
         ),
@@ -268,9 +279,13 @@ class HomeScreen extends StatelessWidget {
     Widget? screen, {
     VoidCallback? onTapOverride,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Material(
-      color: const Color(0xFF1E1E1E),
-      borderRadius: BorderRadius.circular(8),
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(12),
+      elevation: isDark ? 0 : 2,
       child: InkWell(
         onTap:
             onTapOverride ??
@@ -280,19 +295,19 @@ class HomeScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => screen),
                   )
                 : null),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: const Color(0xFFFF9800)),
+            Icon(icon, size: 40, color: theme.primaryColor),
             const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -302,50 +317,90 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Drawer(
-      backgroundColor: const Color(0xFF1E1E1E),
-      child: ListView(
-        padding: EdgeInsets.zero,
+      backgroundColor: theme.colorScheme.surface,
+      child: Column(
         children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(color: Color(0xFF2C2C2C)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFFF9800),
-                  child: Icon(Icons.person, color: Colors.black87),
+                DrawerHeader(
+                  decoration: BoxDecoration(
+                    color: isDark ? theme.colorScheme.primaryContainer.withValues(alpha: 0.1) : theme.primaryColor.withValues(alpha: 0.1),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: theme.primaryColor,
+                        child: const Icon(Icons.person, color: Colors.black),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        username.toUpperCase(),
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'System Administrator',
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black45,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  username.toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                ListTile(
+                  leading: Icon(
+                    Icons.dashboard,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                  title: Text(
+                    'Dashboard',
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  onTap: () => Navigator.pop(context),
                 ),
-                const Text(
-                  'System Administrator',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
-                ),
+                if (_hasAccess('settings', 'general'))
+                  ListTile(
+                    leading: Icon(
+                      Icons.settings,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    title: Text(
+                      'Settings',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsModulesScreen()),
+                      );
+                    },
+                  ),
               ],
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.dashboard, color: Colors.white70),
-            title: const Text(
-              'Dashboard',
-              style: TextStyle(color: Colors.white70),
-            ),
-            onTap: () => Navigator.pop(context),
-          ),
-          const Divider(color: Colors.white10),
+          Divider(color: isDark ? Colors.white10 : Colors.black12),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.redAccent),
             title: const Text(
               'Log out',
-              style: TextStyle(color: Colors.redAccent),
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
             ),
             onTap: () => context.read<AuthBloc>().add(LogoutRequested()),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );

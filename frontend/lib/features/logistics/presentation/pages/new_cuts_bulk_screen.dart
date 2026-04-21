@@ -237,11 +237,15 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildModeToggle(Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
@@ -253,6 +257,8 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildToggleButton(String key, String label, Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isSelected = _mode == key;
     return Expanded(
       child: GestureDetector(
@@ -260,14 +266,16 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2C2C2E) : Colors.transparent,
+            color: isSelected 
+                ? (isDark ? Colors.white.withValues(alpha: 0.05) : theme.primaryColor.withValues(alpha: 0.05)) 
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? orange : Colors.white38,
+                color: isSelected ? orange : (isDark ? Colors.white38 : Colors.black38),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -280,25 +288,39 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   Widget _buildDefaultsBanner(Color orange) {
     if (_settings == null) return const SizedBox.shrink();
     
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final customerCode = _settings?.excessDefaultCustomer ?? 'NOT SET';
     final salesmanCode = _settings?.excessDefaultSalesman ?? 'NOT SET';
     
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, color: Colors.white38, size: 16),
+              Icon(Icons.info_outline, color: isDark ? Colors.white38 : Colors.black38, size: 16),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'USING GLOBAL DEFAULTS',
-                style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38, 
+                  fontSize: 10, 
+                  fontWeight: FontWeight.bold, 
+                  letterSpacing: 1.1,
+                ),
               ),
               const Spacer(),
               _buildDatePickerIcon(),
@@ -331,6 +353,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildDatePickerIcon() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
@@ -338,14 +364,27 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           initialDate: _date ?? DateTime.now(),
           firstDate: DateTime(2000),
           lastDate: DateTime(2101),
+          builder: (context, child) => Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: orange,
+                primary: orange,
+                onPrimary: Colors.white,
+                surface: isDark ? const Color(0xFF1E1E1E) : theme.cardColor,
+                onSurface: isDark ? Colors.white : Colors.black87,
+                brightness: isDark ? Brightness.dark : Brightness.light,
+              ),
+            ),
+            child: child!,
+          ),
         );
         if (picked != null) setState(() => _date = picked);
       },
       child: Row(
         children: [
-          Text(intl.DateFormat('dd/MM').format(_date!), style: const TextStyle(color: Color(0xFFFF9800), fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(intl.DateFormat('dd/MM').format(_date!), style: TextStyle(color: orange, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(width: 4),
-          const Icon(Icons.calendar_month, color: Color(0xFFFF9800), size: 16),
+          Icon(Icons.calendar_month, color: orange, size: 16),
         ],
       ),
     );
@@ -358,6 +397,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     Function(String?) onSelected, {
     bool isLoading = false,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     String? displayName;
     if (value != null && value.isNotEmpty && items.isNotEmpty) {
       try {
@@ -366,7 +409,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         if (name != null && name.trim().isNotEmpty) {
           displayName = name;
         } else {
-          displayName = value; // Fallback to code if name is empty
+          displayName = value;
         }
       } catch (_) {
         displayName = value;
@@ -378,30 +421,32 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
               child: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF9800)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: orange),
                     )
                   : Text(
                       displayName ?? 'Select $label...',
                       style: TextStyle(
-                        color: displayName == null ? Colors.white24 : Colors.white,
+                        color: displayName == null 
+                            ? (isDark ? Colors.white24 : Colors.black26) 
+                            : (isDark ? Colors.white : Colors.black87),
                         fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
             ),
-            const Icon(Icons.arrow_drop_down, color: Colors.white38, size: 20),
+            Icon(Icons.arrow_drop_down, color: isDark ? Colors.white38 : Colors.black38, size: 20),
           ],
         ),
       ),
@@ -420,9 +465,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   void _scanProduct() {
+     final theme = Theme.of(context);
+     final isDark = theme.brightness == Brightness.dark;
+
      showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: theme.scaffoldBackgroundColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -437,12 +485,19 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Scan Product Barcode/SKU', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Scan Product Barcode/SKU', 
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87, 
+                fontSize: 16, 
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 16),
             AppBarcodeScanner(
               height: 250,
               onScan: (code) {
-                Navigator.pop(context); // Close the scanner
+                Navigator.pop(context);
                 _processScannedProductCode(code);
               },
             ),
@@ -524,6 +579,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildProductItemCard(Map<String, dynamic> product, int index) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
     final String code = product['code'] ?? '';
     final String name = product['name'] ?? '';
     final String sku = product['sku'] ?? 'N/A';
@@ -540,11 +598,18 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: scanCount > 0 ? const Color(0xFFFF9800).withValues(alpha: 0.3) : Colors.white10,
+          color: scanCount > 0 ? orange.withValues(alpha: 0.3) : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
         ),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () => _navigateToScan(product, index),
@@ -596,7 +661,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: isDark ? Colors.black.withValues(alpha: 0.2) : theme.primaryColor.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -633,13 +698,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildMiniInfo(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.3),
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
             fontSize: 9,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.0,
@@ -660,17 +726,21 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
 
 
   Widget _buildLabel(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, left: 4),
       child: Text(
         text,
-        style: const TextStyle(color: Colors.white70, fontSize: 13),
+        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13),
       ),
     );
   }
 
   Widget _buildDatePicker() {
-    const orange = Color(0xFFFF9800);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
@@ -679,10 +749,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           firstDate: DateTime(2000),
           lastDate: DateTime(2101),
           builder: (context, child) => Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
+            data: theme.copyWith(
+              colorScheme: theme.colorScheme.copyWith(
                 primary: orange,
-                onSurface: Colors.white,
+                onSurface: isDark ? Colors.white : Colors.black87,
               ),
             ),
             child: child!,
@@ -693,9 +763,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -705,14 +775,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                   ? 'dd/mm/yyyy'
                   : intl.DateFormat('dd/MM/yyyy').format(_date!),
               style: TextStyle(
-                color: _date == null ? Colors.white24 : Colors.white,
+                color: _date == null ? (isDark ? Colors.white24 : Colors.black26) : (isDark ? Colors.white : Colors.black87),
                 fontSize: 14,
               ),
             ),
-            const Icon(
+            Icon(
               Icons.calendar_today_outlined,
               size: 18,
-              color: Colors.white38,
+              color: isDark ? Colors.white38 : Colors.black38,
             ),
           ],
         ),
@@ -726,10 +796,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     List<Map<String, String>> items,
     Function(String?) onSelected,
   ) {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: theme.scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -742,14 +813,17 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
   Widget _buildBottomBar(Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: theme.cardColor,
           border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
           ),
         ),
         child: SizedBox(
@@ -763,6 +837,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
+              elevation: isDark ? 0 : 4,
             ),
             child: const Text(
               'Save',
@@ -813,6 +888,10 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -823,15 +902,15 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: isDark ? Colors.white24 : Colors.black12,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'Select ${widget.title}',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -840,13 +919,13 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
           TextField(
             controller: _searchController,
             onChanged: _filter,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
               hintText: 'Search...',
-              hintStyle: const TextStyle(color: Colors.white24),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black38),
+              prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.black38),
               filled: true,
-              fillColor: const Color(0xFF2C2C2E),
+              fillColor: isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.03),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -865,8 +944,8 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                     children: [
                       Text(
                         item['code'] ?? '',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -875,12 +954,12 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF9800).withValues(alpha: 0.2),
+                            color: theme.primaryColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             item['unit']!,
-                            style: const TextStyle(color: Color(0xFFFF9800), fontSize: 10, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: theme.primaryColor, fontSize: 10, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -888,7 +967,7 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                   ),
                   subtitle: Text(
                     item['name'] ?? '',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 12),
                   ),
                   onTap: () {
                     widget.onSelected(item['code']);

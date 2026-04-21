@@ -113,14 +113,16 @@ class _UserManagementScreenState extends State<UserManagementScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tabColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final tabColor = isDark ? const Color(0xFF1E1E1E) : theme.cardColor;
+    final orange = theme.primaryColor;
 
     return IndustrialModuleLayout(
       title: 'User Management',
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF9800)),
+          ? Center(
+              child: CircularProgressIndicator(color: orange),
             )
           : Column(
               children: [
@@ -128,8 +130,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                   color: tabColor,
                   child: TabBar(
                     controller: _tabController,
-                    indicatorColor: const Color(0xFFFF9800),
-                    labelColor: const Color(0xFFFF9800),
+                    indicatorColor: orange,
+                    labelColor: orange,
                     unselectedLabelColor: isDark
                         ? Colors.white54
                         : Colors.black54,
@@ -244,10 +246,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       decoration: BoxDecoration(
         color: isDark
             ? (depth == 0 ? const Color(0xFF2C2C2E) : const Color(0xFF252528))
-            : (depth == 0 ? Colors.grey[100] : Colors.white),
+            : (depth == 0 ? Colors.grey[100] : Colors.black.withValues(alpha: 0.02)),
         borderRadius: BorderRadius.circular(8),
         border: depth == 0
-            ? Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.3))
+            ? Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.3))
             : null,
       ),
       child: Row(
@@ -259,7 +261,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                 fontWeight: depth == 0 ? FontWeight.bold : FontWeight.w500,
                 fontSize: depth == 0 ? 14 : 13,
                 color: depth == 0
-                    ? const Color(0xFFFF9800)
+                    ? Theme.of(context).primaryColor
                     : (isDark ? Colors.white : Colors.black87),
               ),
             ),
@@ -337,7 +339,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
@@ -453,6 +455,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   }
 
   Widget _matrixToggle(bool value, Function(bool) onChanged) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: 40,
       child: Center(
@@ -461,8 +464,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           child: Checkbox(
             value: value,
             onChanged: (v) => onChanged(v ?? false),
-            activeColor: const Color(0xFFFF9800),
-            side: const BorderSide(color: Colors.grey),
+            activeColor: Theme.of(context).primaryColor,
+            side: BorderSide(color: isDark ? Colors.grey : Colors.black26),
           ),
         ),
       ),
@@ -521,7 +524,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
@@ -555,7 +558,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF252528) : Colors.white,
+            color: isDark ? const Color(0xFF252528) : Colors.black.withValues(alpha: 0.02),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -570,7 +573,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                 ),
                 value: role.id,
                 groupValue: _selectedGroup!.roleId,
-                activeColor: const Color(0xFFFF9800),
+                activeColor: Theme.of(context).primaryColor,
                 onChanged: (val) {
                   setState(() {
                     final idx = _localGroups.indexOf(_selectedGroup!);
@@ -636,7 +639,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+              color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButtonHideUnderline(
@@ -657,7 +660,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+              color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -681,7 +684,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       }
                     });
                   },
-                  activeColor: const Color(0xFFFF9800),
+                  activeColor: Theme.of(context).primaryColor,
                 ),
               ],
             ),
@@ -722,7 +725,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+            color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: TextField(
@@ -845,7 +848,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.grey[200],
+        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
@@ -917,7 +920,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             child: ElevatedButton(
               onPressed: isLoading ? null : onPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF9800),
+                backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
