@@ -112,31 +112,26 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string delDate = header?.ZDLVDAT_0?.ToString("yyyyMMdd") ?? "";
 
                 // Header Record: H;Template;Site1;Site2;;Customer;Currency;ShiDate;DelDate;Flag;Lorry;Location
-                fileBuilder.Append($"H;{header?.ZSDHTYP_0};{header?.ZSALFCY_0};{header?.ZSTOFCY_0};;{header?.ZBPCORD_0};{header?.ZSUR_0};{shiDate};{delDate};{header?.ZCFMFLG_0};{header?.ZLOCFCY_0};{header?.ZLOC_0}|");
+                fileBuilder.Append($"H;{header?.ZSDHTYP_0};{header?.ZSALFCY_0};{header?.ZSTOFCY_0};;{header?.ZBPCORD_0};{header?.ZSUR_0};{shiDate};{delDate};2;{header?.ZLOCFCY_0};{header?.ZLOC_0}|");
 
-                // Line Records: L;SONo;LineNo;ItemCode;Description;Unit;Qty;VatCode
+                // Line Records: L;SONo;LineNo;ItemCode;Description;Unit;Qty
                 foreach (var line in lines)
                 {
                     string qty = line.ZQTY_0.ToString("F3"); // 3 decimal places
-                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty};{line.ZVACITM_0}|");
+                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty}|");
                 }
 
                 fileBuilder.Append("END");
 
-                // 3. Construct the JSON for the CDATA block
-                var jsonPayload = new
-                {
-                    GRP1 = new
-                    {
-                        I_MODIMP = "ZSDH2",
-                        I_AOWSTA = "YES",
-                        I_EXEC = "REALTIME",
-                        I_RECORDSEP = "|",
-                        I_FILE = fileBuilder.ToString()
-                    }
-                };
-
-                string inputXmlJson = JsonSerializer.Serialize(jsonPayload);
+                // 3. Construct the JSON for the CDATA block (Manual construction to avoid character escaping)
+                string iFile = fileBuilder.ToString();
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZSDH2\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
 
                 // 4. Construct the SOAP Envelope
                 string soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">

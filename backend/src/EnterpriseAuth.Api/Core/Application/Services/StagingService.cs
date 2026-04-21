@@ -106,7 +106,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZSALFCY_0 = "IPL",
                 ZSTOFCY_0 = "IPL",
                 ZSDHNUM_0 = $"STG-{soNumber}", // Internal grouping ID
-                ZBPCORD_0 = order.CustomerCode,
+                ZBPCORD_0 = metadata.ZBPCORD_0,
                 ZSUR_0 = "MUR",
                 ZSHIDAT_0 = order.DeliveryDate,
                 ZDLVDAT_0 = order.DeliveryDate,
@@ -143,7 +143,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZSALFCY_0 = "IPL",
                     ZSTOFCY_0 = "IPL",
                     ZSDHNUM_0 = $"STG-{soNumber}",
-                    ZBPCORD_0 = order.CustomerCode,
+                    ZBPCORD_0 = metadata.ZBPCORD_0,
                     ZSUR_0 = "MUR",
                     ZSHIDAT_0 = order.DeliveryDate,
                     ZDLVDAT_0 = order.DeliveryDate,
@@ -181,6 +181,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string sql = $@"
                     SELECT TOP 1
                         SDH.SOHNUM_0 AS SO_NO,
+                        SOH.BPCORD_0 AS ZBPCORD_0,
                         SDH.SDHNUM_0 AS DELIVERY_NO,
                         TRP.LANMES_0 AS SO_LORRY,
                         TRP3.LANMES_0 AS ORI_SO_LORRY,
@@ -237,6 +238,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private class X3MetadataDto
         {
             public string SO_NO { get; set; } = string.Empty;
+            public string? ZBPCORD_0 { get; set; }
             public string? DELIVERY_NO { get; set; }
             public string? SO_LORRY { get; set; }
             public string? ORI_SO_LORRY { get; set; }
