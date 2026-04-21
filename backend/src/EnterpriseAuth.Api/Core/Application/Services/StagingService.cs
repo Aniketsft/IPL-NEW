@@ -71,7 +71,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     g => g.OrderByDescending(x => x.CreatedAt).Select(x => x.Location).FirstOrDefault()
                 );
 
-            // 4. Map to Staging Entity
+            // 4. Fetch VAT levels for all items in the order
+            var itemCodes = order.Lines.Select(l => l.ItemCode).Distinct().ToList();
+            var vatLevels = await GetItemVatLevelsAsync(itemCodes);
+            
+            // 5. Map to Staging Entity
             var stagingRecords = new List<Staging>();
             int lineNumber = 1000; // X3 Principle: Start at 1000
 
@@ -105,6 +109,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZITMDES_0 = null,
                 ZSAU_0 = null,
                 ZQTY_0 = 0,
+                ZVACITM_0 = null,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -134,6 +139,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZITMDES_0 = line.Description,
                     ZSAU_0 = line.Unit,
                     ZQTY_0 = state.TotalManufacturedQty,
+                    ZVACITM_0 = vatLevels.ContainsKey(line.ItemCode) ? vatLevels[line.ItemCode] : "STD", // Default to STD if not found
                     CreatedAt = DateTime.UtcNow
                 });
 
@@ -182,6 +188,28 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             {
                 Console.WriteLine($"[Staging] Error fetching X3 metadata for {soNumber}: {ex.Message}");
                 return null;
+            }
+        }
+
+        private async Task<Dictionary<string, string>> GetItemVatLevelsAsync(List<string> itemCodes)
+        {
+            try
+            {
+                if (!itemCodes.Any()) return new Dictionary<string, string>();
+
+                using var connection = new SqlConnection(_x3ConnectionString);
+                string sql = $@"
+                    SELECT ITMREF_0, VACITM_0 
+                    FROM {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER 
+                    WHERE ITMREF_0 IN @ItemCodes";
+
+                var results = await connection.QueryAsync<(string ItemCode, string VatLevel)>(sql, new { ItemCodes = itemCodes.Distinct() });
+                return results.ToDictionary(x => x.ItemCode, x => x.VatLevel);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Staging] Error fetching VAT levels: {ex.Message}");
+                return new Dictionary<string, string>();
             }
         }
 

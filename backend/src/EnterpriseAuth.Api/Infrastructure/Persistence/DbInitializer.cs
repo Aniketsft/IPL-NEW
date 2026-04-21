@@ -904,10 +904,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             PRINT 'Added IsProcessed column to existing Staging table';
                         END
 
-                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'ZREQNUM_0')
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'ZVACITM_0')
                         BEGIN
-                            ALTER TABLE [dbo].[Staging] ADD [ZREQNUM_0] [nvarchar](50) NULL;
-                            PRINT 'Added ZREQNUM_0 column to existing Staging table';
+                            ALTER TABLE [dbo].[Staging] ADD [ZVACITM_0] [nvarchar](50) NULL;
+                            PRINT 'Added ZVACITM_0 column to existing Staging table';
                         END
                     END
                 ";
