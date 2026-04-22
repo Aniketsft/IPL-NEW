@@ -5,19 +5,21 @@ abstract class ManufacturingState extends Equatable {
   final String? currentSiteCode;
   final String dashboardSearchQuery;
   final DateTime? selectedDate;
+  final String selectedSchema;
 
   const ManufacturingState({
     this.currentSiteCode,
     this.dashboardSearchQuery = '',
     this.selectedDate,
+    this.selectedSchema = 'INLPROD',
   });
 
   @override
-  List<Object?> get props => [currentSiteCode, dashboardSearchQuery, selectedDate];
+  List<Object?> get props => [currentSiteCode, dashboardSearchQuery, selectedDate, selectedSchema];
 }
 
 class ManufacturingInitial extends ManufacturingState {
-  ManufacturingInitial() : super(selectedDate: DateTime.now());
+  const ManufacturingInitial({super.selectedSchema}) : super(selectedDate: null);
 }
 
 class ManufacturingLoadInProgress extends ManufacturingState {
@@ -25,6 +27,7 @@ class ManufacturingLoadInProgress extends ManufacturingState {
     super.currentSiteCode,
     super.dashboardSearchQuery,
     super.selectedDate,
+    super.selectedSchema,
   });
 }
 
@@ -38,10 +41,11 @@ class ProductionTrackingLoaded extends ManufacturingState {
     super.currentSiteCode,
     super.dashboardSearchQuery,
     super.selectedDate,
+    super.selectedSchema,
   });
 
   @override
-  List<Object?> get props => [items, excessPools, currentSiteCode, dashboardSearchQuery, selectedDate];
+  List<Object?> get props => [items, excessPools, currentSiteCode, dashboardSearchQuery, selectedDate, selectedSchema];
 }
 
 class ManufacturingFailure extends ManufacturingState {
@@ -52,10 +56,11 @@ class ManufacturingFailure extends ManufacturingState {
     super.currentSiteCode,
     super.dashboardSearchQuery,
     super.selectedDate,
+    super.selectedSchema,
   });
 
   @override
-  List<Object?> get props => [message, currentSiteCode, dashboardSearchQuery, selectedDate];
+  List<Object?> get props => [message, currentSiteCode, dashboardSearchQuery, selectedDate, selectedSchema];
 }
 
 enum SyncPhase { idle, pushing, pulling, success }
@@ -72,8 +77,9 @@ class ManufacturingSyncProgress extends ManufacturingState {
     super.currentSiteCode,
     super.dashboardSearchQuery,
     super.selectedDate,
+    super.selectedSchema,
   });
 
   @override
-  List<Object?> get props => [phase, progress, message, currentSiteCode, dashboardSearchQuery, selectedDate];
+  List<Object?> get props => [phase, progress, message, currentSiteCode, dashboardSearchQuery, selectedDate, selectedSchema];
 }

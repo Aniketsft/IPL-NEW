@@ -5,6 +5,7 @@ class SecureStorageService {
 
   static const _tokenKey = 'jwt_token';
   static const _usernameKey = 'username';
+  static const _schemaKey = 'selected_x3_schema';
 
   Future<void> saveToken(String token) async {
     await _storage.write(key: _tokenKey, value: token);
@@ -20,6 +21,14 @@ class SecureStorageService {
 
   Future<String?> getUsername() async {
     return await _storage.read(key: _usernameKey);
+  }
+
+  Future<void> saveSchema(String schema) async {
+    await _storage.write(key: _schemaKey, value: schema);
+  }
+
+  Future<String?> getSchema() async {
+    return await _storage.read(key: _schemaKey);
   }
 
   Future<void> deleteAll() async {

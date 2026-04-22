@@ -12,7 +12,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
     {
         public static async Task SeedAsync(ApplicationDbContext context, IPasswordHasher hasher)
         {
+            Console.WriteLine("[DbInitializer] Checking if database exists...");
             await context.Database.EnsureCreatedAsync();
+            Console.WriteLine("[DbInitializer] Database ensured.");
 
             // FORCE CLEANSE: Clear existing permissions and associations to prevent orphan crashes
             try {

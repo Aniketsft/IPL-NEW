@@ -5,6 +5,8 @@ class IndustrialModuleLayout extends StatelessWidget {
   final Widget body;
   final Widget? floatingActionButton;
   final List<Widget>? extraActions;
+  final bool showLogout;
+  final bool showPlantName;
 
   const IndustrialModuleLayout({
     super.key,
@@ -12,6 +14,8 @@ class IndustrialModuleLayout extends StatelessWidget {
     required this.body,
     this.floatingActionButton,
     this.extraActions,
+    this.showLogout = false,
+    this.showPlantName = false,
   });
 
   @override
@@ -35,35 +39,43 @@ class IndustrialModuleLayout extends StatelessWidget {
         ),
         actions: [
           if (extraActions != null) ...extraActions!,
-          Center(
+          IconButton(
+            icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
+            tooltip: 'Back to Home',
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          ),
+          if (showPlantName || showLogout)
+            Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Main Plant',
-                    style: TextStyle(
-                      color: isDark ? Colors.blueGrey : Colors.grey[600],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () {
-                      // Logout action could go here
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Icon(
-                        Icons.exit_to_app_rounded,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                        size: 22,
+                  if (showPlantName)
+                    Text(
+                      'Main Plant',
+                      style: TextStyle(
+                        color: isDark ? Colors.blueGrey : Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ),
+                  if (showPlantName && showLogout) const SizedBox(width: 8),
+                  if (showLogout)
+                    InkWell(
+                      onTap: () {
+                        // Logout action could go here
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                          Icons.exit_to_app_rounded,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                          size: 22,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

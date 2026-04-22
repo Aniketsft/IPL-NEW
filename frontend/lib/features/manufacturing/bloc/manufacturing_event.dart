@@ -57,3 +57,12 @@ class UpdateItemPreparationStatus extends ManufacturingEvent {
   @override
   List<Object?> get props => [soNumber, itemCode, isPrepared];
 }
+
+class ManufacturingSchemaChanged extends ManufacturingEvent {
+  final String schema;
+
+  const ManufacturingSchemaChanged(this.schema);
+
+  @override
+  List<Object?> get props => [schema];
+}

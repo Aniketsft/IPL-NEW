@@ -130,6 +130,7 @@ class MyApp extends StatelessWidget {
                   .read<GetProductionTrackingUseCase>(),
               synchronizeLogistics: context.read<SynchronizeLogisticsUseCase>(),
               setPreparationStatus: context.read<SetPreparationStatusUseCase>(),
+              storageService: context.read<SecureStorageService>(),
             ),
           ),
           BlocProvider(

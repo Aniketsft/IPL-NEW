@@ -5,32 +5,37 @@ import '../../logistics/domain/usecases/set_preparation_status_use_case.dart';
 import '../../logistics/domain/entities/sales_order_detail.dart';
 import 'manufacturing_event.dart';
 import 'manufacturing_state.dart';
+import '../../../core/secure_storage_service.dart';
 
 class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   final GetProductionTrackingUseCase _getProductionTracking;
   final SynchronizeLogisticsUseCase _synchronizeLogistics;
   final SetPreparationStatusUseCase _setPreparationStatus;
+  final SecureStorageService _storageService;
 
   ManufacturingBloc({
     required GetProductionTrackingUseCase getProductionTracking,
     required SynchronizeLogisticsUseCase synchronizeLogistics,
     required SetPreparationStatusUseCase setPreparationStatus,
+    required SecureStorageService storageService,
   }) : _getProductionTracking = getProductionTracking,
        _synchronizeLogistics = synchronizeLogistics,
        _setPreparationStatus = setPreparationStatus,
-       super(ManufacturingInitial()) {
+       _storageService = storageService,
+       super(const ManufacturingInitial()) {
     on<LoadProductionTrackingRequested>(_onLoadProductionTrackingRequested);
     on<SyncDataRequested>(_onSyncDataRequested);
     on<SiteFilterChanged>(_onSiteFilterChanged);
     on<DashboardSearchChanged>(_onDashboardSearchChanged);
     on<UpdateItemPreparationStatus>(_onUpdateItemPreparationStatus);
+    on<ManufacturingSchemaChanged>(_onManufacturingSchemaChanged);
   }
 
   void _onSiteFilterChanged(
     SiteFilterChanged event,
     Emitter<ManufacturingState> emit,
   ) {
-    emit(ManufacturingInitial()); // Optional: clear items or keep them
+    emit(ManufacturingInitial(selectedSchema: state.selectedSchema)); 
     add(LoadProductionTrackingRequested(siteCode: event.siteCode));
   }
 
@@ -45,6 +50,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           items: currentState.items,
           currentSiteCode: currentState.currentSiteCode,
           dashboardSearchQuery: event.query,
+          selectedSchema: state.selectedSchema,
         ),
       );
     } else {
@@ -63,6 +69,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
       currentSiteCode: event.siteCode ?? state.currentSiteCode,
       dashboardSearchQuery: state.dashboardSearchQuery,
       selectedDate: targetDate,
+      selectedSchema: state.selectedSchema,
     ));
     try {
       final result = await _getProductionTracking.execute(
@@ -76,10 +83,11 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           currentSiteCode: event.siteCode ?? state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
           selectedDate: targetDate,
+          selectedSchema: state.selectedSchema,
         ),
       );
     } catch (e) {
-      emit(ManufacturingFailure(e.toString()));
+      emit(ManufacturingFailure(e.toString(), selectedSchema: state.selectedSchema));
     }
   }
 
@@ -96,6 +104,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           selectedDate: state.selectedDate,
           currentSiteCode: state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedSchema: state.selectedSchema,
         ),
       );
 
@@ -108,6 +117,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           selectedDate: state.selectedDate,
           currentSiteCode: state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedSchema: state.selectedSchema,
         ),
       );
 
@@ -124,6 +134,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           selectedDate: targetDate,
           currentSiteCode: state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedSchema: state.selectedSchema,
         ),
       );
 
@@ -135,6 +146,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           selectedDate: targetDate,
           currentSiteCode: state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
+          selectedSchema: state.selectedSchema,
         ),
       );
 
@@ -150,10 +162,11 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           currentSiteCode: event.siteCode ?? state.currentSiteCode,
           dashboardSearchQuery: state.dashboardSearchQuery,
           selectedDate: targetDate,
+          selectedSchema: state.selectedSchema,
         ),
       );
     } catch (e) {
-      emit(ManufacturingFailure('Sync failed: $e'));
+      emit(ManufacturingFailure('Sync failed: $e', selectedSchema: state.selectedSchema));
     }
   }
 
@@ -183,11 +196,27 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           items: updatedItems,
           currentSiteCode: currentState.currentSiteCode,
           dashboardSearchQuery: currentState.dashboardSearchQuery,
+          selectedSchema: state.selectedSchema,
         ));
       }
     } catch (e) {
       // In a real app we might want a specific error state or toast
       print('Failed to update preparation status: $e');
     }
+  }
+
+  Future<void> _onManufacturingSchemaChanged(
+    ManufacturingSchemaChanged event,
+    Emitter<ManufacturingState> emit,
+  ) async {
+    await _storageService.saveSchema(event.schema);
+    
+    // Clear state and reload data with the new schema target preserved in state
+    emit(ManufacturingInitial(selectedSchema: event.schema)); 
+    
+    add(LoadProductionTrackingRequested(
+      siteCode: state.currentSiteCode,
+      date: state.selectedDate,
+    ));
   }
 }

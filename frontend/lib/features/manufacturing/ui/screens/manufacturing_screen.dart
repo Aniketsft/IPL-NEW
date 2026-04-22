@@ -10,6 +10,7 @@ import '../../bloc/manufacturing_state.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/sync_progress_dialog.dart';
+import './end_of_day_screen.dart';
 
 class ManufacturingScreen extends StatefulWidget {
   final List<String> permissions;
@@ -64,93 +65,6 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     });
   }
 
-  Future<void> _startEndOfDayFlow() async {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    // Step 1: Selection of Work Order
-    final String? selectedWo = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardColor,
-        title: Text('Select Work Order', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                title: Text('WO-2026-001', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                onTap: () => Navigator.pop(ctx, 'WO-2026-001'),
-              ),
-              ListTile(
-                title: Text('WO-2026-002', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                onTap: () => Navigator.pop(ctx, 'WO-2026-002'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
-        ],
-      ),
-    );
-
-    if (selectedWo == null) return;
-
-    // Step 2: Confirmation to proceed or close
-    if (!mounted) return;
-    final bool? confirmProceed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardColor,
-        title: Text('Proceed ($selectedWo)', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        content: Text('Do you want to proceed or close?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CLOSE')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('PROCEED')),
-        ],
-      ),
-    );
-
-    if (confirmProceed != true) return;
-
-    // Step 3: Simulation removed
-
-    // Step 4: Error connecting to X3
-    if (!mounted) return;
-    final bool? retry = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardColor,
-        title: const Text('Connection Error', style: TextStyle(color: Colors.redAccent)),
-        content: Text('Error connecting to X3. Do you want to retry?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('RETRY')),
-        ],
-      ),
-    );
-
-    if (retry != true) return;
-
-    // Step 5: Simulation removed
-    if (!mounted) return;
-
-    // Step 6: Final Failure Prompt
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardColor,
-        title: const Text('Status', style: TextStyle(color: Colors.redAccent)),
-        content: Text('Process Failed', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-        ],
-      ),
-    );
-  }
 
 
   @override
@@ -199,7 +113,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
           _MenuItem(
             title: 'End of Day',
             icon: Icons.event_busy_rounded,
-            onTap: _startEndOfDayFlow,
+            targetScreen: const EndOfDayScreen(),
           ),
         ];
 
@@ -210,104 +124,78 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
 
         return IndustrialModuleLayout(
           title: 'MANUFACTURING',
-          body: Column(
-            children: [
-              _buildFilters(context, state),
-              Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(24),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    return _buildMenuCard(
-                      context,
-                      item.title,
-                      item.icon,
-                      item.targetScreen,
-                      onTapOverride: item.onTap,
-                      subtitle: item.subtitle,
-                    );
-                  },
-                ),
-              ),
-            ],
+          showLogout: false,
+          showPlantName: false,
+          extraActions: [
+            _buildSchemaSelector(context, state),
+          ],
+          body: GridView.builder(
+            padding: const EdgeInsets.all(24),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: filteredItems.length,
+            itemBuilder: (context, index) {
+              final item = filteredItems[index];
+              return _buildMenuCard(
+                context,
+                item.title,
+                item.icon,
+                item.targetScreen,
+                onTapOverride: item.onTap,
+                subtitle: item.subtitle,
+              );
+            },
           ),
         );
       },
     );
   }
 
-  Widget _buildFilters(BuildContext context, ManufacturingState state) {
+  Widget _buildSchemaSelector(BuildContext context, ManufacturingState state) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: theme.cardColor,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                  decoration: InputDecoration(
-                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.white54 : Colors.black38),
-                    hintText: 'Search dashboard...',
-                    hintStyle: TextStyle(color: isDark ? Colors.white54 : Colors.black38),
-                    filled: true,
-                    fillColor: isDark ? Colors.black.withValues(alpha: 0.1) : theme.scaffoldBackgroundColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                  onChanged: (value) {
-                    context.read<ManufacturingBloc>().add(DashboardSearchChanged(value));
-                  },
-                ),
+    return Theme(
+      data: theme.copyWith(
+        canvasColor: isDark ? theme.cardColor : Colors.white,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: state.selectedSchema,
+            icon: Icon(Icons.keyboard_arrow_down_rounded, color: orange, size: 25),
+            style: TextStyle(
+              color: orange,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: 'INLPROD',
+                child: Text('X3'),
               ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.black.withValues(alpha: 0.1) : theme.scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    dropdownColor: isDark ? theme.cardColor : Colors.white,
-                    value: state.currentSiteCode ?? 'IPL',
-                    hint: Text('Site', style: TextStyle(color: isDark ? Colors.white54 : Colors.black38)),
-                    items: [
-                      DropdownMenuItem(
-                        value: 'IPL',
-                        child: Text('IPL - Main', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                      ),
-                      DropdownMenuItem(
-                        value: 'SFT',
-                        child: Text('SFT - Whse', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      context.read<ManufacturingBloc>().add(SiteFilterChanged(value));
-                    },
-                  ),
-                ),
+              DropdownMenuItem(
+                value: 'INLDRYRUN',
+                child: Text('SC'),
               ),
             ],
+            onChanged: (value) {
+              if (value != null) {
+                context.read<ManufacturingBloc>().add(ManufacturingSchemaChanged(value));
+              }
+            },
           ),
-        ],
+        ),
       ),
     );
   }
+
 
   Widget _buildMenuCard(
     BuildContext context,

@@ -37,6 +37,12 @@ class NetworkService {
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+          
+          final schema = await _storageService.getSchema();
+          if (schema != null) {
+            options.headers['X-X3-Schema'] = schema;
+          }
+          
           return handler.next(options);
         },
         onError: (DioException e, handler) async {

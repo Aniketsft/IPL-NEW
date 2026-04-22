@@ -546,16 +546,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             color: isDark ? Colors.white : Colors.black87,
           ),
         ),
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new, 
-            size: 20, 
-            color: isDark ? Colors.white : Colors.black87,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.home_rounded, color: orange, size: 24),
+            tooltip: 'Back to Home',
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
-          onPressed: () => Navigator.pop(context, _baseSessionScannedQty > 0),
-        ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [

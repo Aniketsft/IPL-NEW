@@ -259,21 +259,11 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
+            tooltip: 'Back to Home',
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                _selectedSite?.name ??
-                    (_orders.isNotEmpty
-                        ? (_orders.first.site ?? 'Main Plant')
-                        : 'Main Plant'),
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
-          ),
+          const SizedBox(width: 16),
         ],
       ),
       body: Stack(

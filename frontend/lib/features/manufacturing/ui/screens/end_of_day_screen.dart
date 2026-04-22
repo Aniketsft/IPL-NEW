@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
+import '../../../../core/widgets/industrial_module_layout.dart';
 
-class PickingScreen extends StatelessWidget {
-  const PickingScreen({super.key});
+class EndOfDayScreen extends StatelessWidget {
+  const EndOfDayScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const IndustrialModuleLayout(
-      title: 'PICKING LIST',
+      title: 'END OF DAY',
       body: Center(
         child: Text(
           'Module content removed.',

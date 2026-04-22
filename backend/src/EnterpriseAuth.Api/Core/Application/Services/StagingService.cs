@@ -19,16 +19,19 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private readonly ScanProductionDbContext _context;
         private readonly string _x3ConnectionString;
         private readonly SyncSettings _syncSettings;
+        private readonly IX3SchemaProvider _schemaProvider;
 
         public StagingService(
             ScanProductionDbContext context, 
             IConfiguration configuration, 
-            IOptions<SyncSettings> syncSettings)
+            IOptions<SyncSettings> syncSettings,
+            IX3SchemaProvider schemaProvider)
         {
             _context = context;
             _x3ConnectionString = configuration.GetConnectionString("Innodis") 
                                   ?? throw new ArgumentException("Innodis connection string missing");
             _syncSettings = syncSettings.Value;
+            _schemaProvider = schemaProvider;
         }
 
         public async Task<bool> PopulateStagingAsync(string soNumber)
@@ -187,14 +190,14 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         TRP3.LANMES_0 AS ORI_SO_LORRY,
                         SDH.ORIGINALSO_0 AS ORI_SO_NO
                     FROM {_syncSettings.X3DatabaseName}.INLPROD.ZCONSORDERS SDH
-                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDER SOH ON SDH.SOHNUM_0 = SOH.SOHNUM_0
-                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.SDELIVERY SDH2 ON SDH.SDHNUM_0 = SDH2.SDHNUM_0
-                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.SORDER SOHORI ON SDH.ORIGINALSO_0 = SOHORI.SOHNUM_0
-                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.APLSTD TRP 
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOH ON SDH.SOHNUM_0 = SOH.SOHNUM_0
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SDELIVERY SDH2 ON SDH.SDHNUM_0 = SDH2.SDHNUM_0
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOHORI ON SDH.ORIGINALSO_0 = SOHORI.SOHNUM_0
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.APLSTD TRP 
                         ON TRP.LANCHP_0 = 409
                        AND TRP.LANNUM_0 = SOH.DRN_0
                        AND TRP.LAN_0 = 'BRI'
-                    LEFT JOIN {_syncSettings.X3DatabaseName}.INLPROD.APLSTD TRP3 
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.APLSTD TRP3 
                         ON TRP3.LANCHP_0 = 409
                        AND TRP3.LANNUM_0 = SOHORI.DRN_0
                        AND TRP3.LAN_0 = 'BRI'
@@ -219,7 +222,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 using var connection = new SqlConnection(_x3ConnectionString);
                 string sql = $@"
                     SELECT ITMREF_0, ISNULL(VACITM_0, 'STD') AS VACITM_0
-                    FROM {_syncSettings.X3DatabaseName}.INLPROD.ITMMASTER
+                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER
                     WHERE ITMREF_0 IN @ItemCodes";
 
                 var rows = await connection.QueryAsync(sql, new { ItemCodes = validCodes });

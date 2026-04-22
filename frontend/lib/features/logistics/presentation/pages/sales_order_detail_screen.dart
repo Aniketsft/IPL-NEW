@@ -472,16 +472,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          const Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                'Main Plant',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
+          IconButton(
+            icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
+            tooltip: 'Back to Home',
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.logout)),
+          const SizedBox(width: 16),
         ],
       ),
       body: Column(

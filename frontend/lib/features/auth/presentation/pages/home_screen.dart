@@ -66,23 +66,12 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           actions: [
-            Center(
-              child: Text(
-                'Main Plant',
-                style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
-              ),
-            ),
-            const SizedBox(width: 8),
             IconButton(
               icon: Icon(
                 isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                 color: isDark ? Colors.white70 : Colors.black87,
               ),
               onPressed: () => context.read<ThemeCubit>().toggleTheme(),
-            ),
-            IconButton(
-              icon: Icon(Icons.logout_rounded, color: isDark ? Colors.white70 : Colors.black87),
-              onPressed: () => context.read<AuthBloc>().add(LogoutRequested()),
             ),
             const SizedBox(width: 8),
           ],

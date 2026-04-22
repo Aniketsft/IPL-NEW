@@ -8,6 +8,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Infrastructure.Security;
 using EnterpriseAuth.Api.Core.Application.Services;
 using EnterpriseAuth.Api.Core.Application.Common;
+using EnterpriseAuth.Api.Infrastructure.Features.SchemaManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,6 +82,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStagingService, StagingService>();
 builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IX3SchemaProvider, HeaderX3SchemaProvider>();
 
 // Configure SyncSettings
 builder.Services.Configure<SyncSettings>(builder.Configuration.GetSection("SyncSettings"));
