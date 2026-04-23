@@ -11,7 +11,7 @@ class EodPdfGenerator {
     required DateTime productionDate,
     required List<ProductionTrackingItem> items,
   }) async {
-    final filteredItems = items.where((i) => i.manufactured > 0).toList();
+    final filteredItems = items;
     final pdf = pw.Document();
     final dateStr = DateFormat('EEE, d MMM yyyy').format(productionDate);
     final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());

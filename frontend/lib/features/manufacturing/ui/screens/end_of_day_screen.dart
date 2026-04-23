@@ -98,6 +98,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   bool _isSaving = false;
   String? _errorMessage;
   DateTime _selectedDate = DateTime.now();
+  String _selectedSite = 'IPL';
   bool _isEodDone = false;
   bool _isSendingToX3 = false;
 
@@ -107,7 +108,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   void initState() {
     super.initState();
     _fetchWorkOrders();
-    _fetchProductionSummary(_selectedDate);
+    _fetchProductionSummary(_selectedDate, _selectedSite);
   }
 
 
@@ -157,14 +158,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
     }
   }
 
-  Future<void> _fetchProductionSummary(DateTime date) async {
+  Future<void> _fetchProductionSummary(DateTime date, String site) async {
     setState(() => _isLoading = true);
     try {
       final db = LocalDatabaseHelper.instance;
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
       
       // Fetch from local database to match Production Tracking screen
-      final data = await db.getProductionSummaryByDate(dateStr);
+      final data = await db.getProductionSummaryByDate(dateStr, site: site);
       final isDone = await db.isEodCompleted(dateStr);
       
       setState(() {
@@ -178,10 +179,10 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           lotNumber: e['lot'] as String? ?? '',
           unit: e['unit'] as String? ?? 'KG',
           conversion: 1.0,
-          location: e['location'] as String? ?? 'PROD',
+          location: e['location'] as String? ?? 'IPLCH',
           statusLabel: 'A',
           createdAt: e['timestamp'] != null ? DateTime.tryParse(e['timestamp'].toString()) : null,
-        )).where((item) => item.manufactured > 0).toList();
+        )).toList();
         _errorMessage = null;
       });
     } catch (e) {
@@ -586,7 +587,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           );
           if (date != null) {
             setState(() => _selectedDate = date);
-            _fetchProductionSummary(date);
+            _fetchProductionSummary(date, _selectedSite);
           }
         },
         child: Row(
@@ -595,14 +596,35 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                DateFormat('EEE, d MMM yyyy').format(_selectedDate),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                DateFormat('d MMM yyyy').format(_selectedDate),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
-           
-            const Icon(Icons.arrow_drop_down, color: _amber),
+            const Icon(Icons.arrow_drop_down, color: Colors.white38),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Container(width: 1, height: 24, color: isDark ? Colors.white10 : Colors.black12),
+            ),
+            DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedSite,
+                dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                items: ['IPL', 'SOP', 'SOPL']
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _amber)),
+                        ))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _selectedSite = val);
+                    _fetchProductionSummary(_selectedDate, val);
+                  }
+                },
+                icon: const Icon(Icons.location_on, color: _amber, size: 18),
+              ),
+            ),
           ],
         ),
       ),

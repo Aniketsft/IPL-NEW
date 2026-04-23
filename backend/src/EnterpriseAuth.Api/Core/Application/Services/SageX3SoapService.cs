@@ -291,7 +291,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 
                 var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
-                request.Headers.Add("SOAPAction", "");
+                // Syracuse can be picky about SOAPAction casing
+                request.Headers.TryAddWithoutValidation("SOAPAction", "");
+                request.Headers.TryAddWithoutValidation("soapAction", "");
 
                 var response = await _httpClient.SendAsync(request);
                 string responseXml = await response.Content.ReadAsStringAsync();

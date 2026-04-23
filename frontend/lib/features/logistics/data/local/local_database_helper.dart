@@ -1557,9 +1557,17 @@ class LocalDatabaseHelper {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getProductionSummaryByDate(String dateStr) async {
+  Future<List<Map<String, dynamic>>> getProductionSummaryByDate(String dateStr, {String? site}) async {
     final db = await instance.database;
     
+    String whereClause = 'ord.$colDeliveryDate LIKE ?';
+    List<dynamic> whereArgs = ['$dateStr%'];
+
+    if (site != null && site.isNotEmpty) {
+      whereClause += ' AND ord.$colSite = ?';
+      whereArgs.add(site);
+    }
+
     final query = '''
       SELECT 
         det.*,
@@ -1584,10 +1592,10 @@ class LocalDatabaseHelper {
         GROUP BY $columnSoNumber, $columnProductCode
       ) scn ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode
-      WHERE ord.$colDeliveryDate LIKE ?
+      WHERE $whereClause
     ''';
 
-    return await db.rawQuery(query, ['$dateStr%']);
+    return await db.rawQuery(query, whereArgs);
   }
 
   Future<bool> isEodCompleted(String dateStr) async {
