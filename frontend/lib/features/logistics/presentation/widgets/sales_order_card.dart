@@ -159,7 +159,9 @@ class SalesOrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                '${order.customerCode} - ${order.customerName}',
+                order.customerName.trim().isNotEmpty
+                  ? '${order.customerCode} - ${order.customerName}'
+                  : order.customerCode,
                 style: TextStyle(
                   color: isDark ? Colors.white : Colors.black87,
                   fontWeight: FontWeight.bold,

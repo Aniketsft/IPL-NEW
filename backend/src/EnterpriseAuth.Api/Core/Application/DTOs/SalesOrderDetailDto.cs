@@ -13,5 +13,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Unit { get; set; } = "KG";
         public int Soplin { get; set; }
         public bool IsPrepared { get; set; }
+        public string? CustomerCode { get; set; }
+        public string? CustomerName { get; set; }
     }
 }

@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 35;
+  static const _databaseVersion = 36;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -87,6 +87,8 @@ class LocalDatabaseHelper {
   static const colDetIsValidated = 'is_validated';
   static const colDetUnit = 'unit';
   static const colDetScanned = 'scanned';
+  static const colDetCustomerCode = 'customerCode';
+  static const colDetCustomerName = 'customerName';
 
   // Common Code/Name columns
   static const colCode = 'code';
@@ -581,6 +583,16 @@ class LocalDatabaseHelper {
         )
       ''');
     }
+
+    if (oldVersion < 36) {
+      debugPrint('DB Upgrade: Adding customer info to details table (v36)');
+      try {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerCode TEXT');
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerName TEXT');
+      } catch (e) {
+        debugPrint("Migration error v36: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -643,6 +655,8 @@ class LocalDatabaseHelper {
         $colDetIsPrepared INTEGER DEFAULT 0,
         $colDetIsValidated INTEGER DEFAULT 0,
         $colDetUnit TEXT DEFAULT "KG",
+        $colDetCustomerCode TEXT,
+        $colDetCustomerName TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
@@ -935,8 +949,8 @@ class LocalDatabaseHelper {
         ord.$colStatus as headerStatus,
         ord.$colStatusLabel as headerStatusLabel,
         ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
-        ord.$colCustomerName as customerName,
-        ord.$colCustomerCode as customerCode,
+        COALESCE(det.$colDetCustomerName, ord.$colCustomerName) as customerName,
+        COALESCE(det.$colDetCustomerCode, ord.$colCustomerCode) as customerCode,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
         (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining

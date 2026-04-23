@@ -44,25 +44,44 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var package = new SyncPackageDto();
 
             // Define fetching tasks with separate connections for parallel execution
+            // Pre-fetch customer mappings from ZBTBORD to avoid slow OUTER APPLY
             var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>($@"
+                WITH CustMap AS (
+                    SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0, PONO_0,
+                           ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY PONO_0) as rn
+                    FROM (
+                        SELECT SONO_0 as MapKey, ORISOCUST_0, ORISOCUSTNAM_0, PONO_0 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD
+                        UNION ALL
+                        SELECT ORISONO_0 as MapKey, ORISOCUST_0, ORISOCUSTNAM_0, PONO_0 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD WHERE ORISONO_0 IS NOT NULL AND ORISONO_0 <> ''
+                    ) t
+                )
                 SELECT TOP 300
                     f0.SOHNUM_0 COLLATE DATABASE_DEFAULT as [SohNum],
-                    f2.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
+                    m.PONO_0 COLLATE DATABASE_DEFAULT as [PoNo],
                     f0.ORDDAT_0 as [OrderDate],
                     f0.SHIDAT_0 as [DeliveryDate],
-                    f0.BPCORD_0 COLLATE DATABASE_DEFAULT as [CustomerCode],
-                    c.ZFULLBUSNAM_0 COLLATE DATABASE_DEFAULT as [CustomerName],
+                    COALESCE(NULLIF(m.ORISOCUST_0, ''), f0.BPCORD_0) COLLATE DATABASE_DEFAULT as [CustomerCode],
+                    COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) COLLATE DATABASE_DEFAULT as [CustomerName],
                     LTRIM(RTRIM(f0.REP_0)) COLLATE DATABASE_DEFAULT as [Rep0],
                     LTRIM(RTRIM(f0.REP_1)) COLLATE DATABASE_DEFAULT as [Rep1],
                     f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
-                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
+                LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 ORDER BY f0.ORDDAT_0 DESC");
 
             var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
+                WITH CustMap AS (
+                    SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0,
+                           ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY ORISOCUST_0) as rn
+                    FROM (
+                        SELECT SONO_0 as MapKey, ORISOCUST_0, ORISOCUSTNAM_0 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD
+                        UNION ALL
+                        SELECT ORISONO_0 as MapKey, ORISOCUST_0, ORISOCUSTNAM_0 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD WHERE ORISONO_0 IS NOT NULL AND ORISONO_0 <> ''
+                    ) t
+                )
                 SELECT 
                     f0.SOHNUM_0 as SoNumber,
                     f2.ITMREF_0 as ItemCode,
@@ -71,16 +90,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f1.QTY_0 as Quantity,
                     f1.SOPLIN_0 as Soplin,
                     f2.SAU_0 as Unit,
-                    f1.STOFCY_0 as Site
+                    f1.STOFCY_0 as Site,
+                    COALESCE(NULLIF(m.ORISOCUST_0, ''), f0.BPCORD_0) as CustomerCode,
+                    COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) as CustomerName
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
+                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
+                LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 WHERE f0.SOHNUM_0 IN (
                     SELECT TOP 300 s.SOHNUM_0 
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER s WITH (NOLOCK) 
-                    JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
-                    JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER bc WITH (NOLOCK) ON s.BPCORD_0 = bc.BPCNUM_0
+                    JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.SONO_0
                     ORDER BY s.ORDDAT_0 DESC
                 )");
 

@@ -102,8 +102,8 @@ class DeliveryRepository implements ILogisticsRepository {
       final query = '''
         SELECT 
           det.*,
-          ord.${LocalDatabaseHelper.colCustomerName} as customerName,
-          ord.${LocalDatabaseHelper.colCustomerCode} as customerCode,
+          COALESCE(det.${LocalDatabaseHelper.colDetCustomerName}, ord.${LocalDatabaseHelper.colCustomerName}) as customerName,
+          COALESCE(det.${LocalDatabaseHelper.colDetCustomerCode}, ord.${LocalDatabaseHelper.colCustomerCode}) as customerCode,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalScannedQty, 0)) as reconciledProduced,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
           (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining

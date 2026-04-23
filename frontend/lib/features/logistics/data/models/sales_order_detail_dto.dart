@@ -94,6 +94,8 @@ class SalesOrderDetailDto {
       'locationTypeName': locationTypeName,
       LocalDatabaseHelper.colDetIsPrepared: isPrepared ? 1 : 0,
       LocalDatabaseHelper.colDetUnit: unit,
+      LocalDatabaseHelper.colDetCustomerCode: customerCode,
+      LocalDatabaseHelper.colDetCustomerName: customerName,
     };
   }
 }

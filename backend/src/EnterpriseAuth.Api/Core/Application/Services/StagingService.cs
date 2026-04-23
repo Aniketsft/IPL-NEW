@@ -85,7 +85,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             int lineNumber = 1000; // X3 Principle: Start at 1000
 
             // Resolve the X3 Sales Order number:
-            //   soNumber           = mobile/POD number (e.g. "PODSO260400794") — used to look up in ZCONSORDERS via ORIGINALSO_0
+            //   soNumber           = mobile/IPL number (e.g. "IPLSO251001075")
             //   metadata.SO_NO     = ZCONSORDERS.SOHNUM_0 (e.g. "IPLSO251001075") — what X3 expects in the L record
             string x3SoNumber = !string.IsNullOrEmpty(metadata.SO_NO)
                 ? metadata.SO_NO
@@ -201,7 +201,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         ON TRP3.LANCHP_0 = 409
                        AND TRP3.LANNUM_0 = SOHORI.DRN_0
                        AND TRP3.LAN_0 = 'BRI'
-                    WHERE SDH.ORIGINALSO_0 = @SoNumber";
+                    WHERE SDH.SOHNUM_0 = @SoNumber OR SDH.ORIGINALSO_0 = @SoNumber";
 
                 return await connection.QueryFirstOrDefaultAsync<X3MetadataDto>(sql, new { SoNumber = soNumber });
             }

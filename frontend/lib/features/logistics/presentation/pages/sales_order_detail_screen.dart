@@ -830,7 +830,32 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 6),
+                        if ((item.customerCode != null && item.customerCode!.trim().isNotEmpty) || 
+                            (item.customerName != null && item.customerName!.trim().isNotEmpty)) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: orange.withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  '${item.customerCode ?? ''} ${item.customerName != null ? '- ${item.customerName}' : ''}',
+                                  style: TextStyle(
+                                    color: orange.withValues(alpha: 0.8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
