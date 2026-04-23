@@ -234,6 +234,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
       // Insert staging EOD and local status
       for (var item in _summaryItems) {
+        final mfgDate = item.createdAt ?? DateTime.now();
+        final expiryDate = mfgDate.add(const Duration(days: 5));
+        
         await db.insertStagingEod({
           'id': const Uuid().v4(),
           'soNumber': _selectedWorkOrder!.workOrder,
@@ -243,7 +246,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'unit': item.unit,
           'location': item.location,
           'itemStatus': item.statusLabel,
-          'createdAt': item.createdAt?.toIso8601String() ?? timestamp,
+          'expiryDate': expiryDate.toIso8601String(),
+          'createdAt': mfgDate.toIso8601String(),
           'isSynced': 0,
           'location2': '',
           'location3': '',
@@ -589,15 +593,15 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           children: [
             const Icon(Icons.calendar_today, color: _amber, size: 20),
             const SizedBox(width: 12),
-            Text(
-              DateFormat('EEE, d MMM yyyy').format(_selectedDate),
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            Expanded(
+              child: Text(
+                DateFormat('EEE, d MMM yyyy').format(_selectedDate),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            const Spacer(),
-            const Text(
-              'Filtering by Production Date',
-              style: TextStyle(fontSize: 10, color: Colors.white24),
-            ),
+            const SizedBox(width: 8),
+           
             const Icon(Icons.arrow_drop_down, color: _amber),
           ],
         ),
@@ -626,26 +630,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           items: _workOrders.map((w) {
             return DropdownMenuItem<WorkOrderHeader>(
               value: w,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    w.workOrder,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  if (w.date != null)
-                    Text(
-                      DateFormat('dd MMM yyyy').format(w.date!),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                ],
+              child: Text(
+                w.workOrder,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
               ),
             );
           }).toList(),
@@ -716,21 +706,27 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
             first.description,
             style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
           ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center, 
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                first.unit == 'EA'
-                    ? '${totalQty.toStringAsFixed(2)} KG / ${(totalQty / first.conversion).toStringAsFixed(0)} EA'
-                    : '${totalQty.toStringAsFixed(2)} ${first.unit}',
-                style: const TextStyle(color: _amber, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                '${items.length} Scans',
-                style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10),
-              ),
-            ],
+          trailing: SizedBox(
+            width: 110,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center, 
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    first.unit == 'EA'
+                        ? '${totalQty.toStringAsFixed(2)} KG / ${(totalQty / first.conversion).toStringAsFixed(0)} EA'
+                        : '${totalQty.toStringAsFixed(2)} ${first.unit}',
+                    style: const TextStyle(color: _amber, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Text(
+                  '${items.length} Scans',
+                  style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10),
+                ),
+              ],
+            ),
           ),
           children: [
             Padding(

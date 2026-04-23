@@ -23,7 +23,7 @@ class EodPdfGenerator {
         build: (pw.Context context) => [
           _buildHeader(workOrder, dateStr, printTime),
           pw.SizedBox(height: 20),
-          _buildTable(filteredItems),
+          _buildTable(filteredItems, productionDate),
           pw.SizedBox(height: 20),
           _buildFooter(filteredItems),
         ],
@@ -75,8 +75,10 @@ class EodPdfGenerator {
     );
   }
 
-  static pw.Widget _buildTable(List<ProductionTrackingItem> items) {
-    final headers = ['Code', 'Description', 'Quantity', 'Unit', 'Location', 'Lot'];
+  static pw.Widget _buildTable(List<ProductionTrackingItem> items, DateTime productionDate) {
+    final headers = ['Code', 'Description', 'Quantity', 'Unit', 'Location', 'Lot', 'Expiry'];
+    final expiryDate = productionDate.add(const Duration(days: 5));
+    final expiryStr = DateFormat('dd/MM/yy').format(expiryDate);
     
     // Group items by itemCode for the PDF
     final Map<String, List<ProductionTrackingItem>> grouped = {};
@@ -105,6 +107,7 @@ class EodPdfGenerator {
         first.unit,
         location,
         lot,
+        expiryStr,
       ];
     }).toList();
 
@@ -116,12 +119,13 @@ class EodPdfGenerator {
       headerDecoration: const pw.BoxDecoration(color: PdfColors.amber),
       cellHeight: 25,
       columnWidths: {
-        0: const pw.FixedColumnWidth(60),
+        0: const pw.FixedColumnWidth(50),
         1: const pw.FlexColumnWidth(2),
-        2: const pw.FixedColumnWidth(100),
+        2: const pw.FixedColumnWidth(80),
         3: const pw.FixedColumnWidth(30),
-        4: const pw.FixedColumnWidth(60),
-        5: const pw.FixedColumnWidth(60),
+        4: const pw.FixedColumnWidth(40),
+        5: const pw.FixedColumnWidth(50),
+        6: const pw.FixedColumnWidth(50),
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
@@ -130,6 +134,7 @@ class EodPdfGenerator {
         3: pw.Alignment.center,
         4: pw.Alignment.center,
         5: pw.Alignment.centerLeft,
+        6: pw.Alignment.center,
       },
     );
   }

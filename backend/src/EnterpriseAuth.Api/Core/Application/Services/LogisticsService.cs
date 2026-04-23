@@ -80,12 +80,14 @@ public class LogisticsService : ILogisticsService
             
             var records = items.Select(item => {
                 var header = woHeaders.FirstOrDefault(h => h.Product == item.ItemCode);
+                var mfgDate = item.CreatedAt ?? DateTime.UtcNow;
                 return new StagingEod
                 {
                     WorkOrderNumber = workOrder,
                     ProductCode = item.ItemCode,
                     TotalManufacturedQuantity = item.Manufactured,
-                    DateOfManufacturing = item.CreatedAt ?? DateTime.UtcNow,
+                    DateOfManufacturing = mfgDate,
+                    ExpiryDate = mfgDate.AddDays(5),
                     Unit = item.Unit,
                     Location = item.Location ?? "",
                     ItemStatus = item.StatusLabel ?? "A",

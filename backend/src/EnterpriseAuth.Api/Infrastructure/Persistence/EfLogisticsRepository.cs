@@ -1051,44 +1051,35 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
             
-            string whereClause = "";
-            object param = null;
-            if (!string.IsNullOrEmpty(searchQuery))
+            string sql;
+            object? param = null;
+
+            if (string.IsNullOrEmpty(searchQuery))
             {
-                whereClause = "WHERE (f0.MFGNUM_0 LIKE '%' + @Query + '%')";
+                // Simple query for dropdown population
+                // Note: When using DISTINCT, the ORDER BY column must be in the SELECT list
+                sql = $@"SELECT DISTINCT TOP 100 MFGNUM_0 AS WorkOrder, CREDAT_0 AS Date FROM {schema}.MFGHEAD ORDER BY Date DESC";
+            }
+            else
+            {
+                // Detailed query for metadata (CCE_0/1) during finalization
+                sql = $@"
+                    SELECT 
+                        h.MFGNUM_0    AS WorkOrder,
+                        i.ITMREF_0    AS Product,
+                        i.UOMEXTQTY_0 AS ReleasedQty,
+                        i.UOM_0       AS Unit,
+                        m.CCE_0       AS CCE_0,
+                        m.CCE_1       AS CCE_1,
+                        'IPL'         AS ProductionSite,
+                        'IPLCH'       AS Location
+                    FROM {schema}.MFGHEAD h
+                    JOIN {schema}.MFGITM i ON h.MFGNUM_0 = i.MFGNUM_0
+                    JOIN {schema}.ITMMASTER m ON i.ITMREF_0 = m.ITMREF_0
+                    WHERE h.MFGNUM_0 = @Query";
+                
                 param = new { Query = searchQuery };
             }
-
-            string sql = $@"
-                SELECT DISTINCT TOP 50
-                    f0.MFGNUM_0     AS WorkOrder,
-                    f1.ITMREF_0     AS Product,
-                    f1.UOMEXTQTY_0  AS ReleasedQty,
-                    f1.UOM_0        AS Unit,
-                    f0.MFGTRKNUM_0  AS TrackingNum,
-                    f1.STRDAT_0     AS Date,
-                    'M'             AS RecordType,
-                    'IPL'           AS ProductionSite,
-                    '1'             AS Conversion,
-                    'STD'           AS TransactionType,
-                    'S'             AS StockFlag,
-                    f1.UOM_0        AS StockUnit,
-                    f1.UOMEXTQTY_0  AS StockQty,
-                    '1'             AS StockConversion,
-                    'IPLCH'         AS Location,
-                    'A'             AS Status,
-                    '20261231'      AS ExpirationDate,
-                    'LC'            AS LC,
-                    'DPT'           AS DPT,
-                    'PRO'           AS PRO,
-                    'CUS'           AS CUS,
-                    f2.CCE_0        AS CCE_0,
-                    f2.CCE_1        AS CCE_1
-                FROM {schema}.MFGITMTRK f0
-                JOIN {schema}.MFGITM f1 ON f0.MFGNUM_0 = f1.MFGNUM_0
-                JOIN {schema}.ITMMASTER f2 ON f1.ITMREF_0 = f2.ITMREF_0
-                {whereClause}
-                ORDER BY Date DESC, WorkOrder DESC";
 
             return await db.QueryAsync<WorkOrderDto>(sql, param);
         }

@@ -808,6 +808,26 @@ class LocalDatabaseHelper {
         $columnIsSynced INTEGER DEFAULT 0
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableEodStatus (
+        productionDate TEXT PRIMARY KEY,
+        workOrder TEXT,
+        completedAt TEXT,
+        completedBy TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableOfflineAuditLogs (
+        $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity TEXT,
+        action TEXT,
+        payload TEXT,
+        timestamp TEXT,
+        $columnIsSynced INTEGER DEFAULT 0
+      )
+    ''');
   }
 
   // Insert a scan record
