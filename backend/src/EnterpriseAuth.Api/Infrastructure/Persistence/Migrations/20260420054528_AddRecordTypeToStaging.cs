@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,13 +10,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "ZREC_0",
-                table: "Staging",
-                type: "nvarchar(1)",
-                maxLength: 1,
-                nullable: false,
-                defaultValue: "");
+            // migrationBuilder.AddColumn<string>(
+            //    name: "ZREC_0",
+            //    table: "Staging",
+            //    type: "nvarchar(1)",
+            //    maxLength: 1,
+            //    nullable: false,
+            //    defaultValue: "");
         }
 
         /// <inheritdoc />

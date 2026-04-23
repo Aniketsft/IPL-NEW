@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260423070805_AddEodStatusTable")]
+    partial class AddEodStatusTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -68,6 +71,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_AuditLogs_EntityLookup");
 
                     b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.EodStatus", b =>
+                {
+                    b.Property<string>("ProductionDate")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CompletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("LastUpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WorkOrder")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("ProductionDate");
+
+                    b.HasIndex("WorkOrder");
+
+                    b.ToTable("EodStatuses");
                 });
 
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.Excess", b =>
@@ -709,12 +740,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsProcessed")
-                        .HasColumnType("bit");
 
                     b.Property<string>("ItemStatus")
                         .IsRequired()

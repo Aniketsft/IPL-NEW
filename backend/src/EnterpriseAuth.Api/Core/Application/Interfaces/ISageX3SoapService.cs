@@ -16,5 +16,10 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         /// Processes all pending records in the Staging table, grouped by SO Number.
         /// </summary>
         Task<EndOfDayResult> ProcessEndOfDayAsync();
+
+        /// <summary>
+        /// Processes all pending Production EOD records in the StagingEod table.
+        /// </summary>
+        Task<EndOfDayResult> ProcessProductionEodAsync();
     }
 }

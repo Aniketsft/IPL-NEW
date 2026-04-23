@@ -675,8 +675,9 @@ class DeliveryRepository implements ILogisticsRepository {
       final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
       final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
       final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
+      final unsyncedStagingEod = await LocalDatabaseHelper.instance.getUnsyncedStagingEod();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedStagingEod.isNotEmpty) {
         // Transform settings rows into authoritative author payload structure
         final settingsPayload = unsyncedSettingsRows.map((row) => {
           'settingKey': row[LocalDatabaseHelper.colSettingKey],
@@ -758,6 +759,20 @@ class DeliveryRepository implements ILogisticsRepository {
           }).toList(),
           'deviceId': 'mobile-terminal',
           'globalSettingsUpdates': settingsPayload,
+          'stagingEodEntries': unsyncedStagingEod.map((e) => {
+            'id': e['id'],
+            'workOrderNumber': e['soNumber'],
+            'productCode': e['productCode'],
+            'totalManufacturedQuantity': e['manufactured_quantity'],
+            'dateOfManufacturing': e['timestamp'],
+            'unit': e['unit'],
+            'location': e['location'],
+            'itemStatus': e['itemStatus'],
+            'expiryDate': e['expiryDate'],
+            'location2': e['location2'],
+            'location3': e['location3'],
+            'createdAt': e['createdAt'],
+          }).toList(),
         };
 
         // Note: Refined sync payload construction
@@ -765,6 +780,12 @@ class DeliveryRepository implements ILogisticsRepository {
         
         try {
           await _dio.post('Sync/push', data: payload);
+          
+          // If production EOD records were synced, trigger the Sage X3 integration
+          if (unsyncedStagingEod.isNotEmpty) {
+            debugPrint("Sync: Production EOD records detected. Triggering Sage X3 SOAP integration...");
+            await _dio.post('Logistics/production-eod');
+          }
         } on DioException catch (e) {
           final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
           debugPrint("Sync: Push failed to $fullUrl. Error: ${e.error ?? e.message}");
@@ -792,6 +813,12 @@ class DeliveryRepository implements ILogisticsRepository {
           final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
           await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
           debugPrint("Sync: ${keys.length} global settings marked as synced.");
+        }
+
+        if (unsyncedStagingEod.isNotEmpty) {
+          final ids = unsyncedStagingEod.map((e) => e['id'] as String).toList();
+          await LocalDatabaseHelper.instance.markStagingEodAsSynced(ids);
+          debugPrint("Sync: Pushed and marked ${ids.length} EOD entries as synced.");
         }
 
         // Preparation statuses (Item level) and Shipment statuses (Order level)
@@ -918,8 +945,10 @@ class DeliveryRepository implements ILogisticsRepository {
       final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
       final unsyncedLabels = await LocalDatabaseHelper.instance.getUnsyncedLabelAudits();
       final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
+      final unsyncedStagingEod = await LocalDatabaseHelper.instance.getUnsyncedStagingEod();
+      final unsyncedAudits = await LocalDatabaseHelper.instance.getUnsyncedOfflineAudits();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStagingEod.isNotEmpty || unsyncedAudits.isNotEmpty) {
         final settingsPayload = unsyncedSettingsRows.map((row) => {
           'settingKey': row[LocalDatabaseHelper.colSettingKey],
           'settingValue': row[LocalDatabaseHelper.colSettingValue],
@@ -968,6 +997,26 @@ class DeliveryRepository implements ILogisticsRepository {
             'status': o[LocalDatabaseHelper.colStatus],
           }).toList(),
           'deviceId': 'mobile-terminal',
+          'stagingEodEntries': unsyncedStagingEod.map((e) => {
+            'id': e['id'],
+            'workOrderNumber': e['soNumber'],
+            'productCode': e['productCode'],
+            'totalManufacturedQuantity': e['manufactured_quantity'],
+            'dateOfManufacturing': e['timestamp'],
+            'unit': e['unit'],
+            'location': e['location'],
+            'itemStatus': e['itemStatus'],
+            'expiryDate': e['expiryDate'],
+            'location2': e['location2'],
+            'location3': e['location3'],
+            'createdAt': e['createdAt'],
+          }).toList(),
+          'offlineAudits': unsyncedAudits.map((a) => {
+            'entity': a['entity'],
+            'action': a['action'],
+            'payload': a['payload'],
+            'timestamp': a['timestamp'],
+          }).toList(),
         };
 
         await _dio.post('Sync/push', data: payload);
@@ -985,6 +1034,16 @@ class DeliveryRepository implements ILogisticsRepository {
         if (unsyncedSettingsRows.isNotEmpty) {
           final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
           await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
+        }
+
+        if (unsyncedStagingEod.isNotEmpty) {
+          final ids = unsyncedStagingEod.map((e) => e['id'] as String).toList();
+          await LocalDatabaseHelper.instance.markStagingEodAsSynced(ids);
+        }
+
+        if (unsyncedAudits.isNotEmpty) {
+          final ids = unsyncedAudits.map((a) => a['id'] as int).toList();
+          await LocalDatabaseHelper.instance.markOfflineAuditsAsSynced(ids);
         }
       }
 

@@ -28,6 +28,27 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("production-summary")]
+    public async Task<IActionResult> GetProductionSummary([FromQuery] DateTime date)
+    {
+        var result = await _logisticsService.GetProductionSummaryAsync(date);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("production-summary/work-order/{workOrder}")]
+    public async Task<IActionResult> GetProductionSummaryByWorkOrder(string workOrder)
+    {
+        var result = await _logisticsService.GetProductionSummaryByWorkOrderAsync(workOrder);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("complete-eod")]
+    public async Task<IActionResult> CompleteEndOfDay([FromBody] CompleteEodRequest request)
+    {
+        var result = await _logisticsService.CompleteEndOfDayAsync(request.WorkOrder, request.Items);
+        return ToActionResult(result);
+    }
+
     [HttpGet("sales-order-headers")]
     public async Task<IActionResult> GetSalesOrderHeaders(
         [FromQuery] int? status, 
@@ -199,10 +220,30 @@ public class LogisticsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("production-eod")]
+    public async Task<IActionResult> ProcessProductionEndOfDay()
+    {
+        var result = await _x3SoapService.ProcessProductionEodAsync();
+        return Ok(result);
+    }
+
+    [HttpGet("work-orders")]
+    public async Task<IActionResult> GetWorkOrders([FromQuery] string? query)
+    {
+        var result = await _logisticsService.GetWorkOrdersAsync(query);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess
             ? Ok(result.Value)
             : StatusCode(500, new { error = result.Error, code = result.ErrorCode });
     }
+}
+
+public class CompleteEodRequest
+{
+    public string WorkOrder { get; set; } = string.Empty;
+    public List<ProductionTrackingDto> Items { get; set; } = new();
 }

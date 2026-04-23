@@ -5,6 +5,7 @@ using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
+using EnterpriseAuth.Api.Core.Domain.Entities;
 
 namespace EnterpriseAuth.Api.Core.Application.Services;
 
@@ -40,6 +41,65 @@ public class LogisticsService : ILogisticsService
         catch (Exception ex)
         {
             return Result<IEnumerable<SalesOrderHeaderDto>>.Failure($"Failed to fetch sales order headers: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionSummaryAsync(DateTime date)
+    {
+        try
+        {
+            var summary = await _logisticsRepository.GetProductionSummaryAsync(date);
+            return Result<IEnumerable<ProductionTrackingDto>>.Success(summary);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<ProductionTrackingDto>>.Failure($"Failed to fetch production summary: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionSummaryByWorkOrderAsync(string workOrder)
+    {
+        try
+        {
+            var summary = await _logisticsRepository.GetProductionSummaryByWorkOrderAsync(workOrder);
+            return Result<IEnumerable<ProductionTrackingDto>>.Success(summary);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<ProductionTrackingDto>>.Failure($"Failed to fetch work order summary: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> CompleteEndOfDayAsync(string workOrder, IEnumerable<ProductionTrackingDto> items)
+    {
+        try
+        {
+            // Get CCE_0/CCE_1 for the items from X3
+            // For simplicity, we'll fetch the work order headers again which contain this info
+            var woHeaders = await _logisticsRepository.GetWorkOrdersAsync(workOrder);
+            
+            var records = items.Select(item => {
+                var header = woHeaders.FirstOrDefault(h => h.Product == item.ItemCode);
+                return new StagingEod
+                {
+                    WorkOrderNumber = workOrder,
+                    ProductCode = item.ItemCode,
+                    TotalManufacturedQuantity = item.Manufactured,
+                    DateOfManufacturing = item.CreatedAt ?? DateTime.UtcNow,
+                    Unit = item.Unit,
+                    Location = item.Location ?? "",
+                    ItemStatus = item.StatusLabel ?? "A",
+                    Location2 = header?.CCE_0 ?? "",
+                    Location3 = header?.CCE_1 ?? ""
+                };
+            });
+
+            var success = await _logisticsRepository.SaveStagingEodAsync(records);
+            return Result<bool>.Success(success);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to complete end of day: {ex.Message}");
         }
     }
 
@@ -299,6 +359,19 @@ public class LogisticsService : ILogisticsService
         catch (Exception ex)
         {
             return Result<LabelAuditDto>.Failure($"Failed to log label audit: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<WorkOrderDto>>> GetWorkOrdersAsync(string? searchQuery)
+    {
+        try
+        {
+            var result = await _logisticsRepository.GetWorkOrdersAsync(searchQuery);
+            return Result<IEnumerable<WorkOrderDto>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<WorkOrderDto>>.Failure($"Failed to fetch work orders: {ex.Message}");
         }
     }
 }

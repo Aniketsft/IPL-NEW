@@ -7,6 +7,7 @@ class IndustrialModuleLayout extends StatelessWidget {
   final List<Widget>? extraActions;
   final bool showLogout;
   final bool showPlantName;
+  final bool showHome;
 
   const IndustrialModuleLayout({
     super.key,
@@ -16,6 +17,7 @@ class IndustrialModuleLayout extends StatelessWidget {
     this.extraActions,
     this.showLogout = false,
     this.showPlantName = false,
+    this.showHome = true,
   });
 
   @override
@@ -39,11 +41,12 @@ class IndustrialModuleLayout extends StatelessWidget {
         ),
         actions: [
           if (extraActions != null) ...extraActions!,
-          IconButton(
-            icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
-            tooltip: 'Back to Home',
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-          ),
+          if (showHome)
+            IconButton(
+              icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
+              tooltip: 'Back to Home',
+              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            ),
           if (showPlantName || showLogout)
             Center(
             child: Padding(

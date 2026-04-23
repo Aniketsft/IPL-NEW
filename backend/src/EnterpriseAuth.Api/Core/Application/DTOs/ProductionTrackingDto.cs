@@ -1,3 +1,5 @@
+using System;
+
 namespace EnterpriseAuth.Api.Core.Application.DTOs
 {
     public class ProductionTrackingDto
@@ -17,10 +19,16 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string LocationType { get; set; } = string.Empty;
         public string LocationTypeName { get; set; } = string.Empty;
         public string Lot { get; set; } = string.Empty;
+        public string LotNumber { get; set; } = string.Empty;
+        public string Unit { get; set; } = string.Empty;
+        public string Uom { get; set; } = string.Empty;
+        public DateTime? CreatedAt { get; set; }
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
         public string? PoNumber { get; set; }
         public string? Salesman { get; set; }
         public bool IsPrepared { get; set; }
+        public string? StatusLabel { get; set; }
+        public decimal Conversion { get; set; } = 1;
     }
 }

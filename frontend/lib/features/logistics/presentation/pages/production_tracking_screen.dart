@@ -59,6 +59,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     _fetchInitialData();
     _fetchHistoricalScans();
     _fetchExcessPools();
+    // Auto-launch scanner immediately on screen entry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isScannerVisible) {
+        setState(() => _isScannerVisible = true);
+      }
+    });
   }
 
   Future<void> _fetchInitialData() async {
@@ -657,8 +663,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(widget.order.customerName, style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
-              if (availablePool > 0) _bulkPoolBadge(availablePool),
+              Expanded(
+                child: Text(
+                  widget.order.customerName,
+                  style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              if (availablePool > 0) ...[
+                const SizedBox(width: 12),
+                _bulkPoolBadge(availablePool),
+              ],
             ],
           ),
           const SizedBox(height: 6),
@@ -1267,7 +1283,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            child: AppBarcodeScanner(onScan: _handleScan, themeColor: orange),
+            child: AppBarcodeScanner(onScan: _handleScan, themeColor: orange, autoStart: true),
           ),
         ),
         if (_pendingScan != null) _buildScanSuccessOverlay(),
@@ -1376,84 +1392,201 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.cardColor, 
-        borderRadius: BorderRadius.circular(20), 
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: orange.withValues(alpha: 0.06),
+                  blurRadius: 18,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: Column(
         children: [
-          Text('Total Produced (All Time)', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            textBaseline: TextBaseline.alphabetic,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            children: [
-              Text(
-                widget.product.formatQuantity(widget.product.manufacturedQuantity + _baseSessionScannedQty + _cumulativeQty),
-                style: TextStyle(color: orange, fontSize: 56, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(width: 10),
-              Text(widget.product.unit, style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 22, fontWeight: FontWeight.bold)),
-            ],
+          // ── Quantity display ──────────────────────────────────
+          Text(
+            'Total Produced (All Time)',
+            style: TextStyle(
+              color: isDark ? Colors.grey : Colors.grey[600],
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: _toggleScanner,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text('LAUNCH SCANNER', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: orange,
-                    foregroundColor: isDark ? Colors.black : Colors.white,
-                    minimumSize: const Size(0, 64),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            decoration: BoxDecoration(
+              color: orange.withValues(alpha: isDark ? 0.10 : 0.06),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              textBaseline: TextBaseline.alphabetic,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              children: [
+                Text(
+                  widget.product.formatQuantity(
+                    widget.product.manufacturedQuantity +
+                        _baseSessionScannedQty +
+                        _cumulativeQty,
+                  ),
+                  style: TextStyle(
+                    color: orange,
+                    fontSize: 56,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  widget.product.unit,
+                  style: TextStyle(
+                    color: isDark ? Colors.grey : Colors.grey[600],
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // ── Primary: LAUNCH SCANNER (full-width, gradient, glow) ──
+          SizedBox(
+            width: double.infinity,
+            height: 72,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [orange, HSLColor.fromColor(orange).withLightness(0.38).toColor()],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(36),
+                boxShadow: [
+                  BoxShadow(
+                    color: orange.withValues(alpha: 0.45),
+                    blurRadius: 20,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: _toggleScanner,
+                icon: const Icon(Icons.qr_code_scanner, size: 22),
+                label: const Text(
+                  'LAUNCH SCANNER',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  minimumSize: const Size(double.infinity, 72),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(36),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Secondary row: +1 KG  |  Manual Entry ─────────────
+          Row(
+            children: [
+              // +1 KG pill
               Expanded(
-                flex: 1,
                 child: InkWell(
                   onTap: () => _addManualQty(1.0),
                   borderRadius: BorderRadius.circular(32),
                   child: Container(
-                    height: 64,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow, 
-                      borderRadius: BorderRadius.circular(32), 
-                      border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08))
+                      color: isDark
+                          ? theme.colorScheme.surfaceContainerHighest
+                          : theme.colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.12)
+                            : Colors.black.withValues(alpha: 0.10),
+                      ),
                     ),
-                    child: Center(
-                      child: Text(
-                        '+1 KG', 
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87, 
-                          fontWeight: FontWeight.w900, 
-                          fontSize: 14
-                        )
-                      )
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '+1 KG',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Manual Entry pill
+              Expanded(
+                child: InkWell(
+                  onTap: _showManualBarcodeDialog,
+                  borderRadius: BorderRadius.circular(32),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.12)
+                            : Colors.black.withValues(alpha: 0.10),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.keyboard_alt_outlined,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Manual',
+                          style: TextStyle(
+                            color: isDark ? Colors.white54 : Colors.black54,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: _showManualBarcodeDialog, 
-            child: Text(
-              'Manual Barcode Entry', 
-              style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black38, 
-                fontSize: 12, 
-                decoration: TextDecoration.underline,
-                decorationColor: isDark ? Colors.white24 : Colors.black12,
-              )
-            )
           ),
         ],
       ),

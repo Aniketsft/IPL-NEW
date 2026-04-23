@@ -10,6 +10,9 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
     {
         Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync(string? siteCode);
         Task<Result<IEnumerable<SalesOrderHeaderDto>>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1);
+        Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionSummaryAsync(DateTime date);
+        Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionSummaryByWorkOrderAsync(string workOrder);
+        Task<Result<bool>> CompleteEndOfDayAsync(string workOrder, IEnumerable<ProductionTrackingDto> items);
         Task<Result<IEnumerable<SalesOrderDetailDto>>> GetSalesOrderDetailsAsync(string soNumber);
         Task<Result<IEnumerable<CustomerLookupDto>>> GetCustomerLookupAsync();
         Task<Result<IEnumerable<SalesRepLookupDto>>> GetSalesRepLookupAsync();
@@ -31,5 +34,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<IEnumerable<ExcessDto>>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode);
         Task<Result<bool>> AllocateExcessAsync(AllocateExcessDto dto);
         Task<Result<LabelAuditDto>> LogLabelAuditAsync(LabelAuditDto auditDto);
+        Task<Result<IEnumerable<WorkOrderDto>>> GetWorkOrdersAsync(string? searchQuery);
     }
 }

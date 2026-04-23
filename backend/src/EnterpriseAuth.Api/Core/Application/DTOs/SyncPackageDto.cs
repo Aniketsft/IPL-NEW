@@ -27,7 +27,33 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<OrderStatusUpdateDto> OrderStatusUpdates { get; set; } = new();
         public List<LabelAuditDto> LabelAudits { get; set; } = new();
         public List<GlobalSettingUpdateDto>? GlobalSettingsUpdates { get; set; }
+        public List<StagingEodDto> StagingEodEntries { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
+        public List<OfflineAuditDto> OfflineAudits { get; set; } = new();
+    }
+
+    public class OfflineAuditDto
+    {
+        public string Entity { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Payload { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+    }
+
+    public class StagingEodDto
+    {
+        public Guid Id { get; set; }
+        public string WorkOrderNumber { get; set; } = string.Empty;
+        public string ProductCode { get; set; } = string.Empty;
+        public decimal TotalManufacturedQuantity { get; set; }
+        public DateTime DateOfManufacturing { get; set; }
+        public string Unit { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string ItemStatus { get; set; } = string.Empty;
+        public DateTime? ExpiryDate { get; set; }
+        public string? Location2 { get; set; } = string.Empty;
+        public string? Location3 { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
     }
 
     public class GlobalSettingUpdateDto

@@ -58,7 +58,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
+                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD f2 WITH (NOLOCK) ON f0.SOHNUM_0 = f2.ORISONO_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 ORDER BY f0.ORDDAT_0 DESC");
 
@@ -75,11 +75,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
-                JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
+                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD f3 WITH (NOLOCK) on f0.SOHNUM_0 = f3.ORISONO_0
                 WHERE f0.SOHNUM_0 IN (
                     SELECT TOP 300 s.SOHNUM_0 
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER s WITH (NOLOCK) 
-                    JOIN {_syncSettings.X3DatabaseName}.INLPROD.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
+                    JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZBTBORD z WITH (NOLOCK) ON s.SOHNUM_0 = z.ORISONO_0
                     JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER bc WITH (NOLOCK) ON s.BPCORD_0 = bc.BPCNUM_0
                     ORDER BY s.ORDDAT_0 DESC
                 )");
@@ -725,6 +725,99 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
                 await _scanContext.SaveChangesAsync();
                 totalCount += request.GlobalSettingsUpdates.Count;
+            }
+
+            // 8. Process Staging EOD Entries (Offline Production Tracking)
+            if (request.StagingEodEntries != null && request.StagingEodEntries.Any())
+            {
+                // Only process entries with quantity > 0
+                var validEntries = request.StagingEodEntries.Where(e => e.TotalManufacturedQuantity > 0).ToList();
+                if (!validEntries.Any()) return totalCount;
+
+                var eodIds = validEntries.Select(e => e.Id).ToList();
+                var existingEodIds = await _scanContext.StagingEodRecords
+                    .Where(e => eodIds.Contains(e.Id))
+                    .Select(e => e.Id)
+                    .ToListAsync();
+
+                // 1. Fetch CCE_0 and CCE_1 mapping from ITMMASTER
+                var productCodes = validEntries.Select(e => e.ProductCode).Distinct().ToList();
+                var cceMapping = new Dictionary<string, (string Cce0, string Cce1)>();
+                
+                if (productCodes.Any())
+                {
+                    using IDbConnection db = new SqlConnection(_connectionString);
+                    string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+                    string sql = $@"SELECT ITMREF_0 as ProductCode, CCE_0 as Cce0, CCE_1 as Cce1 FROM {schema}.ITMMASTER WHERE ITMREF_0 IN @Codes";
+                    var results = await db.QueryAsync(sql, new { Codes = productCodes });
+                    foreach (var row in results)
+                    {
+                        string prodCode = row.ProductCode;
+                        string c0 = row.Cce0?.ToString() ?? string.Empty;
+                        string c1 = row.Cce1?.ToString() ?? string.Empty;
+                        cceMapping[prodCode] = (c0, c1);
+                    }
+                }
+
+                foreach (var dto in validEntries)
+                {                    
+                    if (existingEodIds.Contains(dto.Id)) continue;
+
+                    // Get CCE values from mapping if available, otherwise fallback to DTO or empty
+                    var cce = cceMapping.ContainsKey(dto.ProductCode) ? cceMapping[dto.ProductCode] : (Cce0: string.Empty, Cce1: string.Empty);
+
+                    var entity = new StagingEod
+                    {
+                        Id = dto.Id,
+                        WorkOrderNumber = dto.WorkOrderNumber,
+                        ProductCode = dto.ProductCode,
+                        TotalManufacturedQuantity = dto.TotalManufacturedQuantity,
+                        DateOfManufacturing = dto.DateOfManufacturing,
+                        Unit = dto.Unit,
+                        Location = dto.Location,
+                        ItemStatus = dto.ItemStatus,
+                        ExpiryDate = dto.ExpiryDate,
+                        Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
+                        Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),
+                        CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,
+                        IsCompleted = true
+                    };
+
+                    _scanContext.StagingEodRecords.Add(entity);
+                }
+
+                // 2. Add single consolidated Audit Log for the batch
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName = "StagingEodBatch",
+                    EntityIdString = validEntries.First().WorkOrderNumber,
+                    ActionType = "SYNC_INSERT_BATCH",
+                    Payload = $"Inserted {validEntries.Count} EOD records for site {request.DeviceId}",
+                    PerformedBy = performedBy,
+                    PerformedAt = DateTime.UtcNow
+                });
+
+                await _scanContext.SaveChangesAsync();
+                totalCount += validEntries.Count;
+            }
+
+            // 9. Process Offline Audits
+            if (request.OfflineAudits != null && request.OfflineAudits.Any())
+            {
+                foreach (var dto in request.OfflineAudits)
+                {
+                    _scanContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = dto.Entity,
+                        ActionType = dto.Action,
+                        Payload = dto.Payload,
+                        EntityIdString = request.DeviceId,
+                        PerformedBy = performedBy,
+                        PerformedAt = dto.Timestamp
+                    });
+                }
+                await _scanContext.SaveChangesAsync();
+                totalCount += request.OfflineAudits.Count;
             }
 
             return totalCount;

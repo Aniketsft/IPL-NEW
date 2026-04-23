@@ -652,8 +652,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   children: [
                     Text(
                       widget.order.customerName,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                         letterSpacing: -0.5,

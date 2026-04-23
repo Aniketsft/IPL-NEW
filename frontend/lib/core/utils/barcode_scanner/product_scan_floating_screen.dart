@@ -530,11 +530,20 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                     child: AppBarcodeScanner(
                                       onScan: _handleScan,
                                       onManualAdd: (weight) {
+                                        double finalWeight = weight;
+                                        final unit = _unitLabel;
+                                        if (unit == 'EA' || unit == 'PCS') {
+                                          // Use standard weight for EA products if manual add is used as "+1 Unit"
+                                          final stdWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
+                                                           (widget.product['conversion'] as num?)?.toDouble() ?? 1.0;
+                                          finalWeight = stdWeight;
+                                        }
+
                                         setState(() {
                                           _scans.insert(0, {
                                             'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
                                             'productName': widget.product['productName'],
-                                            'weight': weight,
+                                            'weight': finalWeight,
                                             'site': _selectedSite,
                                             'location': _selectedLocationEntity?.location,
                                             'lot': _selectedLot,
@@ -543,7 +552,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                           });
                                         });
                                       },
-                                      manualEntries: const {'1KG': 1.0},
+                                      manualEntries: _unitLabel == 'EA' || _unitLabel == 'PCS' ? const {'+1 EA': 1.0} : const {'+1 KG': 1.0},
                                       themeColor: orange,
                                     ),
                                   ),

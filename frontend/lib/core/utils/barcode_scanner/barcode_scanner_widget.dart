@@ -13,6 +13,9 @@ class AppBarcodeScanner extends StatefulWidget {
   final Map<String, double>? manualEntries;
   final double height;
   final Color themeColor;
+  /// If true, the camera starts immediately on mount and the internal
+  /// START/STOP toggle row is hidden (parent widget controls open/close).
+  final bool autoStart;
 
   const AppBarcodeScanner({
     super.key,
@@ -23,6 +26,7 @@ class AppBarcodeScanner extends StatefulWidget {
     this.manualEntries,
     this.height = 200.0,
     this.themeColor = const Color(0xFFFF9800),
+    this.autoStart = false,
   });
 
   @override
@@ -36,6 +40,38 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
 
   // Set to avoid processing barcodes too frequently
   DateTime? _lastScanTime;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoStart) {
+      // Start camera immediately without waiting for user to tap START SCAN
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
+    }
+  }
+
+  Future<void> _startCamera() async {
+    final status = await Permission.camera.request();
+    if (status.isGranted && mounted) {
+      setState(() {
+        _isScannerVisible = true;
+        _scannerController?.dispose();
+        _scannerController = MobileScannerController(
+          formats: [
+            BarcodeFormat.ean13,
+            BarcodeFormat.code128,
+            BarcodeFormat.qrCode,
+          ],
+        );
+      });
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Camera permission is required to scan'),
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -118,7 +154,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_isScannerVisible)
+        if (_isScannerVisible && _scannerController != null)
           Container(
             height: widget.height,
             margin: const EdgeInsets.only(bottom: 12),
@@ -137,6 +173,8 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
               ),
             ),
           ),
+        // Only show internal START/STOP row when NOT in autoStart mode
+        if (!widget.autoStart)
         Row(
           children: [
             Expanded(

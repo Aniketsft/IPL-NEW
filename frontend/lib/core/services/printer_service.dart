@@ -1,165 +1,22 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-
-class NetPrinter {
-  final String id;
-  final String name;
-  final String ip;
-  final int port;
-  final bool isDefault;
-
-  NetPrinter({
-    required this.id,
-    required this.name,
-    required this.ip,
-    this.port = 9100,
-    this.isDefault = false,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'ip': ip,
-    'port': port,
-    'isDefault': isDefault,
-  };
-
-  factory NetPrinter.fromJson(Map<String, dynamic> json) => NetPrinter(
-    id: json['id'],
-    name: json['name'],
-    ip: json['ip'],
-    port: json['port'],
-    isDefault: json['isDefault'] ?? false,
-  );
-
-  NetPrinter copyWith({bool? isDefault, String? name, String? ip, int? port}) {
-    return NetPrinter(
-      id: this.id,
-      name: name ?? this.name,
-      ip: ip ?? this.ip,
-      port: port ?? this.port,
-      isDefault: isDefault ?? this.isDefault,
-    );
-  }
-}
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class PrinterService {
   static final PrinterService instance = PrinterService._internal();
   PrinterService._internal();
 
-  static const String _prefPrintersKey = 'saved_network_printers';
-
-  List<NetPrinter> _printers = [];
-  NetPrinter? _activePrinter;
-  
-  List<NetPrinter> get printers => _printers;
-  NetPrinter? get activePrinter => _activePrinter;
-
   Future<void> init() async {
-    await _loadPrinters();
-  }
-
-  Future<void> _loadPrinters() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? data = prefs.getString(_prefPrintersKey);
-    
-    if (data != null) {
-      final List<dynamic> decoded = jsonDecode(data);
-      _printers = decoded.map((p) => NetPrinter.fromJson(p)).toList();
-      
-      try {
-        _activePrinter = _printers.firstWhere((p) => p.isDefault);
-      } catch (_) {
-        if (_printers.isNotEmpty) {
-          _activePrinter = _printers.first;
-        }
-      }
-    }
-  }
-
-  Future<void> _savePrinters() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(_printers.map((p) => p.toJson()).toList());
-    await prefs.setString(_prefPrintersKey, encoded);
-  }
-
-  Future<void> addPrinter(String name, String ip, int port) async {
-    final newPrinter = NetPrinter(
-      id: const Uuid().v4(),
-      name: name,
-      ip: ip,
-      port: port,
-      isDefault: _printers.isEmpty,
-    );
-    
-    _printers.add(newPrinter);
-    if (newPrinter.isDefault) {
-      _activePrinter = newPrinter;
-    }
-    await _savePrinters();
-  }
-
-  Future<void> removePrinter(String id) async {
-    final wasDefault = _printers.any((p) => p.id == id && p.isDefault);
-    _printers.removeWhere((p) => p.id == id);
-    
-    if (wasDefault && _printers.isNotEmpty) {
-      _printers[0] = _printers[0].copyWith(isDefault: true);
-      _activePrinter = _printers[0];
-    } else if (_printers.isEmpty) {
-      _activePrinter = null;
-    }
-    
-    await _savePrinters();
-  }
-
-  Future<void> setPrimaryPrinter(String id) async {
-    _printers = _printers.map((p) {
-      final isNowDefault = p.id == id;
-      final updated = p.copyWith(isDefault: isNowDefault);
-      if (isNowDefault) {
-        _activePrinter = updated;
-      }
-      return updated;
-    }).toList();
-    
-    await _savePrinters();
-  }
-
-  Future<bool> testConnection(String ip, int port) async {
-    try {
-      final socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 3));
-      socket.destroy();
-      return true;
-    } catch (_) {
-      return false;
-    }
+    // No initialization needed for system printers
   }
 
   Future<bool> isConnected() async {
-    if (_activePrinter == null) return false;
-    return await testConnection(_activePrinter!.ip, _activePrinter!.port);
+    // We assume the native print spooler handles connection checks
+    return true;
   }
 
   Future<void> disconnect() async {
-  }
-
-  Future<void> _sendBytes(List<int> bytes) async {
-    if (_activePrinter == null) {
-      throw 'No printer selected. Please configure a printer in Settings.';
-    }
-    try {
-      final socket = await Socket.connect(_activePrinter!.ip, _activePrinter!.port, timeout: const Duration(seconds: 5));
-      socket.add(bytes);
-      await socket.flush();
-      await socket.close();
-    } catch (e) {
-      print('Network transmission failed: $e');
-      rethrow;
-    }
   }
 
   Future<void> printLabel({
@@ -171,34 +28,57 @@ class PrinterService {
     required String qrData,
     String? auditId,
   }) async {
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(PaperSize.mm80, profile);
-    List<int> bytes = [];
+    final doc = pw.Document();
 
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.text("ITEM: $productCode", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
-    
-    bytes += generator.text("CUSTOMER: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
-    bytes += generator.text("SO NUMBER: $soNumber");
-    
-    bytes += generator.feed(1);
-    bytes += generator.text("WEIGHT: ${weight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(32),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('ITEM: $productCode', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
+                          pw.SizedBox(height: 16),
+                          pw.Text('CUSTOMER: ${customerName.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24)),
+                          pw.Text('SO: $soNumber', style: pw.TextStyle(fontSize: 24)),
+                          pw.SizedBox(height: 24),
+                          pw.Text('WEIGHT: ${weight.toStringAsFixed(2)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
+                        ],
+                      ),
+                    ),
+                    pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: qrData,
+                      width: 150,
+                      height: 150,
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 32),
+                pw.Center(child: pw.Text('Industrial Tracking System', style: const pw.TextStyle(fontSize: 16))),
+                if (auditId != null)
+                  pw.Center(child: pw.Text('AUDIT: $auditId', style: const pw.TextStyle(fontSize: 12))),
+              ],
+            ),
+          );
+        },
+      ),
+    );
 
-    bytes += generator.qrcode(qrData, size: QRSize.size4);
-    
-    bytes += generator.feed(1);
-    bytes += generator.feed(1);
-    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
-    if (auditId != null) {
-      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
-    }
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.feed(3);
-    bytes += generator.cut();
-
-    await _sendBytes(bytes);
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'Item_Label_$productCode',
+    );
   }
 
   Future<void> printCrateLabel({
@@ -210,45 +90,86 @@ class PrinterService {
     required String qrData,
     String? auditId,
   }) async {
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(PaperSize.mm80, profile);
-    List<int> bytes = [];
-
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.text("CRATE LABEL", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
-    
-    bytes += generator.text("CUSTOMER: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
-    bytes += generator.text("SO REF: $soNumber");
-    bytes += generator.text("DELIVERY: $deliveryDate");
-    bytes += generator.feed(1);
-
-    bytes += generator.text("PRODUCT          WEIGHT", styles: const PosStyles(bold: true));
-    bytes += generator.text("--------------------------------");
-    for (var item in items) {
-        String prod = (item['itemCode'] ?? 'N/A').padRight(19);
-        String wgt = '${item['weight'] ?? '0.00'} $unit'.padLeft(13);
-        bytes += generator.text("$prod$wgt");
-    }
-    
-    bytes += generator.feed(1);
+    final doc = pw.Document();
     double total = items.fold(0.0, (val, item) => val + (double.tryParse(item['weight'] ?? '0') ?? 0.0));
-    bytes += generator.text("TOTAL WEIGHT", styles: const PosStyles(align: PosAlign.center));
-    bytes += generator.text("${total.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
 
-    bytes += generator.qrcode(qrData, size: QRSize.size4);
-    
-    bytes += generator.feed(1);
-    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
-    if (auditId != null) {
-      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
-    }
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.feed(3);
-    bytes += generator.cut();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(32),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Center(child: pw.Text('CRATE LABEL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 36))),
+                pw.SizedBox(height: 16),
+                pw.Text('CUSTOMER: ${customerName.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24)),
+                pw.Text('SO REF: $soNumber', style: pw.TextStyle(fontSize: 24)),
+                pw.Text('DELIVERY: $deliveryDate', style: pw.TextStyle(fontSize: 24)),
+                pw.SizedBox(height: 24),
+                
+                pw.Divider(thickness: 2),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('PRODUCT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20)),
+                    pw.Text('WEIGHT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20)),
+                  ],
+                ),
+                pw.Divider(thickness: 1),
+                
+                ...items.map((item) {
+                  String prod = item['itemCode'] ?? 'N/A';
+                  String wgt = '${item['weight'] ?? '0.00'} $unit';
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 4.0),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(prod, style: const pw.TextStyle(fontSize: 18)),
+                        pw.Text(wgt, style: const pw.TextStyle(fontSize: 18)),
+                      ],
+                    ),
+                  );
+                }),
+                pw.Divider(thickness: 2),
+                
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        children: [
+                          pw.Text('TOTAL WEIGHT', style: const pw.TextStyle(fontSize: 20)),
+                          pw.Text('${total.toStringAsFixed(2)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
+                        ],
+                      ),
+                    ),
+                    pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: qrData,
+                      width: 150,
+                      height: 150,
+                    ),
+                  ],
+                ),
+                
+                pw.SizedBox(height: 32),
+                pw.Center(child: pw.Text('Industrial Tracking System', style: const pw.TextStyle(fontSize: 16))),
+                if (auditId != null)
+                  pw.Center(child: pw.Text('AUDIT: $auditId', style: const pw.TextStyle(fontSize: 12))),
+              ],
+            ),
+          );
+        },
+      ),
+    );
 
-    await _sendBytes(bytes);
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'Crate_Label_$soNumber',
+    );
   }
 
   Future<void> printPaletteLabel({
@@ -261,52 +182,92 @@ class PrinterService {
     String deliveryDate = "MULTIPLE",
     String? auditId,
   }) async {
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(PaperSize.mm80, profile);
-    List<int> bytes = [];
+    final doc = pw.Document();
 
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.text("PALETTE MASTER", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
-    
-    bytes += generator.text("MASTER CUST: ${customerName.toUpperCase()}", styles: const PosStyles(bold: true));
-    bytes += generator.text("TOTAL SOs: $soCount");
-    bytes += generator.text("DELIVERY: $deliveryDate");
-    bytes += generator.feed(1);
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(32),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Center(child: pw.Text('PALETTE MASTER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 36))),
+                pw.SizedBox(height: 16),
+                pw.Text('MASTER CUST: ${customerName.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24)),
+                pw.Text('TOTAL SOs: $soCount', style: const pw.TextStyle(fontSize: 24)),
+                pw.Text('DELIVERY: $deliveryDate', style: const pw.TextStyle(fontSize: 24)),
+                pw.SizedBox(height: 24),
 
-    bytes += generator.text("EXPLODED MANIFEST", styles: const PosStyles(bold: true, align: PosAlign.center));
-    bytes += generator.text("--------------------------------");
-    manifest.forEach((so, data) {
-        final List<Map<String, String>> items = List<Map<String, String>>.from(data['items'] ?? []);
-        final String cust = (data['customer'] ?? 'N/A').toUpperCase();
-        
-        bytes += generator.text("SO: $so", styles: const PosStyles(bold: true));
-        bytes += generator.text("CUST: $cust");
-        
-        for (var item in items) {
-            String prod = (item['itemCode'] ?? 'N/A').padRight(19);
-            String wgt = '${item['weight'] ?? '0.00'} $unit'.padLeft(13);
-            bytes += generator.text("  $prod$wgt");
-        }
-        bytes += generator.feed(1);
-    });
+                pw.Center(child: pw.Text('EXPLODED MANIFEST', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20))),
+                pw.Divider(thickness: 2),
+                
+                ...manifest.entries.map((entry) {
+                  final so = entry.key;
+                  final data = entry.value;
+                  final cust = (data['customer'] ?? 'N/A').toString().toUpperCase();
+                  final items = List<Map<String, String>>.from(data['items'] ?? []);
 
-    bytes += generator.feed(1);
-    bytes += generator.text("PALETTE TOTAL WEIGHT", styles: const PosStyles(align: PosAlign.center));
-    bytes += generator.text("${totalWeight.toStringAsFixed(2)} $unit", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-    bytes += generator.feed(1);
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 12.0),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('SO: $so | CUST: $cust', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+                        ...items.map((item) {
+                          String prod = item['itemCode'] ?? 'N/A';
+                          String wgt = '${item['weight'] ?? '0.00'} $unit';
+                          return pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text('  $prod', style: const pw.TextStyle(fontSize: 16)),
+                              pw.Text(wgt, style: const pw.TextStyle(fontSize: 16)),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
+                  );
+                }),
+                
+                pw.Divider(thickness: 2),
+                pw.SizedBox(height: 16),
+                
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        children: [
+                          pw.Text('PALETTE TOTAL WEIGHT', style: const pw.TextStyle(fontSize: 20)),
+                          pw.Text('${totalWeight.toStringAsFixed(2)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
+                        ],
+                      ),
+                    ),
+                    pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: qrData,
+                      width: 180,
+                      height: 180,
+                    ),
+                  ],
+                ),
+                
+                pw.SizedBox(height: 32),
+                pw.Center(child: pw.Text('Industrial Tracking System', style: const pw.TextStyle(fontSize: 16))),
+                if (auditId != null)
+                  pw.Center(child: pw.Text('AUDIT: $auditId', style: const pw.TextStyle(fontSize: 12))),
+              ],
+            ),
+          );
+        },
+      ),
+    );
 
-    bytes += generator.qrcode(qrData, size: QRSize.size4);
-    
-    bytes += generator.feed(1);
-    bytes += generator.text("Industrial Tracking System", styles: const PosStyles(align: PosAlign.center));
-    if (auditId != null) {
-      bytes += generator.text("AUDIT: $auditId", styles: const PosStyles(align: PosAlign.center));
-    }
-    bytes += generator.text("================================", styles: const PosStyles(bold: true));
-    bytes += generator.feed(3);
-    bytes += generator.cut();
-
-    await _sendBytes(bytes);
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'Palette_Master',
+    );
   }
 }

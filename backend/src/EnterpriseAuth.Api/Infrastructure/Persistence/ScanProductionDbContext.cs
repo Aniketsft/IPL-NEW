@@ -12,6 +12,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<SalesOrderLine> SalesOrderLines { get; set; }
         public DbSet<ProductionScanTransaction> ProductionScanTransactions { get; set; }
         public DbSet<ProductionLineState> ProductionLineStates { get; set; }
+        public DbSet<StagingEod> StagingEodRecords { get; set; }
 
         // --- TRANSACTION / STATUS TABLES (Kept Separately) ---
         public DbSet<OrderShipmentStatus> OrderShipmentStatuses { get; set; }
@@ -133,6 +134,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.ZQTY_0).HasPrecision(18, 5);
                 entity.HasIndex(e => e.ZSOHNUM_0);
+            });
+
+            // StagingEod
+            modelBuilder.Entity<StagingEod>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.TotalManufacturedQuantity).HasPrecision(18, 5);
+                entity.HasIndex(e => e.WorkOrderNumber);
             });
         }
     }

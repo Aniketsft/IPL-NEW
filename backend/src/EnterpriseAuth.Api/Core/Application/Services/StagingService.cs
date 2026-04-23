@@ -189,7 +189,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         TRP.LANMES_0 AS SO_LORRY,
                         TRP3.LANMES_0 AS ORI_SO_LORRY,
                         SDH.ORIGINALSO_0 AS ORI_SO_NO
-                    FROM {_syncSettings.X3DatabaseName}.INLPROD.ZCONSORDERS SDH
+                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS SDH
                     LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOH ON SDH.SOHNUM_0 = SOH.SOHNUM_0
                     LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SDELIVERY SDH2 ON SDH.SDHNUM_0 = SDH2.SDHNUM_0
                     LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOHORI ON SDH.ORIGINALSO_0 = SOHORI.SOHNUM_0

@@ -74,12 +74,18 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
   }
 
   void _addManualOneKg() {
-    // AudioService.instance.playSuccess(); // Removed to only trigger on 'detected' scans
+    final unit = (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
+    double weightToAdd = 1.0;
+    if (unit == 'EA' || unit == 'PCS') {
+      weightToAdd = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
+                    (widget.product['conversion'] as num?)?.toDouble() ?? 1.0;
+    }
+
     setState(() {
       _scans.add({
         'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
         'productName': widget.product['productName'],
-        'weight': 1.0,
+        'weight': weightToAdd,
       });
     });
   }
@@ -183,15 +189,23 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                   );
                 },
                 onManualAdd: (weight) {
+                  final unit = (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
+                  double finalWeight = weight;
+                  if (unit == 'EA' || unit == 'PCS') {
+                    finalWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
+                                 (widget.product['conversion'] as num?)?.toDouble() ?? 1.0;
+                  }
+
                   setState(() {
                     _scans.add({
                       'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
                       'productName': widget.product['productName'],
-                      'weight': weight,
+                      'weight': finalWeight,
                     });
                   });
                 },
-                manualEntries: const {'1KG': 1.0},
+                manualEntries: (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase() == 'EA' 
+                    ? const {'+1 EA': 1.0} : const {'+1 KG': 1.0},
                 themeColor: orange,
               ),
             ),
@@ -199,43 +213,110 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
           // Action Buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _toggleScanner,
-                    icon: Icon(
-                      _isScannerVisible ? Icons.close : Icons.qr_code_scanner,
-                    ),
-                    label: Text(
-                      _isScannerVisible ? 'CLOSE SCANNER' : 'OPEN SCANNER',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isScannerVisible
-                          ? Colors.red
-                          : orange,
-                      foregroundColor: _isScannerVisible ? Colors.white : Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
+                // ── Primary: OPEN / CLOSE SCANNER (full-width, gradient) ──
+                SizedBox(
+                  width: double.infinity,
+                  height: 64,
+                  child: _isScannerVisible
+                      ? ElevatedButton.icon(
+                          onPressed: _toggleScanner,
+                          icon: const Icon(Icons.close),
+                          label: const Text(
+                            'CLOSE SCANNER',
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade700,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(32),
+                            ),
+                          ),
+                        )
+                      : DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                orange,
+                                HSLColor.fromColor(orange).withLightness(0.38).toColor(),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: orange.withValues(alpha: 0.45),
+                                blurRadius: 20,
+                                spreadRadius: -4,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: _toggleScanner,
+                            icon: const Icon(Icons.qr_code_scanner, size: 22),
+                            label: const Text(
+                              'OPEN SCANNER',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              shadowColor: Colors.transparent,
+                              minimumSize: const Size(double.infinity, 64),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(32),
+                              ),
+                            ),
+                          ),
+                        ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _addManualOneKg,
-                    icon: const Icon(Icons.add),
-                    label: const Text('SCAN 1KG'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
-                      foregroundColor: isDark ? Colors.white : Colors.black87,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                const SizedBox(height: 10),
+                // ── Secondary: +1 KG pill (full-width, below scanner) ──
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: InkWell(
+                    onTap: _addManualOneKg,
+                    borderRadius: BorderRadius.circular(32),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.10),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_rounded,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase() == 'EA' 
+                                ? '+1 EA' : '+1 KG',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

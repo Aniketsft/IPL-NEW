@@ -310,7 +310,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
         title: Text(
-          'END OF DAY REPORT',
+          'DELIVERY DISPATCH',
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold,

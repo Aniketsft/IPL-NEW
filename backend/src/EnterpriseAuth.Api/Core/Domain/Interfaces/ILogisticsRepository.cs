@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EnterpriseAuth.Api.Core.Application.DTOs;
+using EnterpriseAuth.Api.Core.Domain.Entities;
 
 namespace EnterpriseAuth.Api.Core.Domain.Interfaces
 {
@@ -9,6 +10,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
     {
         Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode);
         Task<IEnumerable<SalesOrderHeaderDto>> GetSalesOrderHeadersAsync(int? status, DateTime? date, string? customerCode, string? rep0, string? rep1);
+        Task<IEnumerable<ProductionTrackingDto>> GetProductionSummaryAsync(DateTime date);
+        Task<IEnumerable<ProductionTrackingDto>> GetProductionSummaryByWorkOrderAsync(string workOrder);
+        Task<bool> SaveStagingEodAsync(IEnumerable<StagingEod> records);
         Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber);
         Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync();
         Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync();
@@ -30,5 +34,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<ExcessDto>> GetExcessByDateAndItemAsync(DateTime deliveryDate, string itemCode);
         Task<bool> AllocateExcessAsync(AllocateExcessDto dto);
         Task<LabelAuditDto> LogLabelAuditAsync(LabelAuditDto auditDto);
+        Task<IEnumerable<WorkOrderDto>> GetWorkOrdersAsync(string? searchQuery);
     }
 }

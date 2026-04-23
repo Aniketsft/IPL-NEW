@@ -189,6 +189,130 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
+        public async Task<EndOfDayResult> ProcessProductionEodAsync()
+        {
+            var result = new EndOfDayResult();
+
+            var allRecords = await _context.StagingEodRecords
+                .Where(r => !r.IsProcessed)
+                .ToListAsync();
+
+            if (!allRecords.Any())
+            {
+                return result;
+            }
+
+            var groups = allRecords.GroupBy(r => r.WorkOrderNumber).ToList();
+            result.TotalProcessed = groups.Count;
+
+            foreach (var group in groups)
+            {
+                var importResult = await ImportProductionEodAsync(group.Key, group.ToList());
+                result.Results.Add(importResult);
+
+                if (importResult.Success)
+                {
+                    result.SuccessCount++;
+                    foreach (var record in group)
+                    {
+                        record.IsProcessed = true;
+                    }
+                }
+                else
+                {
+                    result.FailureCount++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return result;
+        }
+
+        private async Task<X3ImportResult> ImportProductionEodAsync(string workOrder, List<StagingEod> records)
+        {
+            var result = new X3ImportResult { Identifier = workOrder };
+
+            try
+            { 
+                var fileBuilder = new StringBuilder();
+
+                foreach (var rec in records)
+                {
+                    string mfgDate = rec.DateOfManufacturing.ToString("yyyyMMdd");
+                    string expDate = rec.ExpiryDate?.ToString("yyyyMMdd") ?? "";
+                    string qty = rec.TotalManufacturedQuantity.ToString("F3");
+
+                    // Mapping according to requirement:
+                    // M;Site;WorkOrderNumber;ProductCode;TotalManufacturedQuantity;Unit;1;;dateOfManufacturing;STD;|
+                    fileBuilder.Append($"M;IPL;{rec.WorkOrderNumber};{rec.ProductCode};{qty};{rec.Unit};1;;{mfgDate};STD;|");
+                    
+                    // S;Unit;TotalManufacturedQuantity;1;Location;ItemStatus;;;;;ExpiryDate|
+                    fileBuilder.Append($"S;{rec.Unit};{qty};1;{rec.Location};{rec.ItemStatus};;;;;{expDate}|");
+                    
+                    // LC;DPT;PRO;CUS;Location2;Location3;;;;|
+                    fileBuilder.Append($"LC;DPT;PRO;CUS;{rec.Location2 ?? ""};{rec.Location3 ?? ""};;;;|");
+                }
+
+                fileBuilder.Append("END");
+
+                string iFile = fileBuilder.ToString();
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZMFG\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
+
+                string soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
+         <callContext xsi:type=""wss:CAdxCallContext"">
+            <codeLang xsi:type=""xsd:string"">ENG</codeLang>
+            <poolAlias xsi:type=""xsd:string"">{_poolAlias}</poolAlias>
+            <poolId xsi:type=""xsd:string""></poolId>
+            <requestConfig xsi:type=""xsd:string""></requestConfig>
+         </callContext>
+         <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
+           <inputXml xsi:type=""xsd:string"">
+                 <![CDATA[{inputXmlJson}]]>
+         </inputXml>
+      </wss:run>
+   </soapenv:Body>
+</soapenv:Envelope>";
+
+                Console.WriteLine("====== SAGE X3 PRODUCTION EOD SOAP REQUEST ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("==================================================");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
+                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+                
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+                request.Headers.Add("SOAPAction", "");
+
+                var response = await _httpClient.SendAsync(request);
+                string responseXml = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    result.Success = false;
+                    result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    return result;
+                }
+
+                return ParseSoapResponse(responseXml, result);
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.TechnicalError = ex.Message;
+                return result;
+            }
+        }
+
         private X3ImportResult ParseSoapResponse(string xml, X3ImportResult result)
         {
             try

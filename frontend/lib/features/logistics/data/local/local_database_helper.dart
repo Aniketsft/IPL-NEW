@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 32;
+  static const _databaseVersion = 35;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -23,6 +23,19 @@ class LocalDatabaseHelper {
   static const tableLabelAudits = 'tbl_label_audits';
   static const tableGlobalSettings = 'tbl_global_settings';
   static const tableDeliveryScans = 'tbl_delivery_scans';
+  static const tableWorkOrders = 'tbl_work_orders';
+  static const tableStagingEod = 'tbl_staging_eod';
+  static const tableEodStatus = 'tbl_eod_status';
+  static const tableOfflineAuditLogs = 'tbl_offline_audit_logs';
+
+  // tbl_work_orders columns
+  static const colWoWorkOrder   = 'workOrder';
+  static const colWoProduct     = 'product';
+  static const colWoReleasedQty = 'releasedQty';
+  static const colWoUnit        = 'unit';
+  static const colWoTrackingNum = 'trackingNum';
+  static const colWoDate        = 'date';
+  static const colWoCachedAt    = 'cachedAt';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -511,6 +524,63 @@ class LocalDatabaseHelper {
       ''');
       await db.execute('DROP TABLE ${tableGlobalSettings}_old');
     }
+    if (oldVersion < 33) {
+      debugPrint('DB Upgrade: Creating Work Orders cache table (v33)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableWorkOrders (
+          $colWoWorkOrder   TEXT PRIMARY KEY,
+          $colWoProduct     TEXT,
+          $colWoReleasedQty REAL,
+          $colWoUnit        TEXT,
+          $colWoTrackingNum TEXT,
+          $colWoDate        TEXT,
+          $colWoCachedAt    TEXT
+        )
+      ''');
+    }
+
+    if (oldVersion < 34) {
+      debugPrint('DB Upgrade: Creating Staging EOD table (v34)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableStagingEod (
+          $columnId TEXT PRIMARY KEY,
+          $columnSoNumber TEXT,
+          $columnProductCode TEXT,
+          $columnManufacturedQuantity REAL,
+          $columnTimestamp TEXT,
+          $colDetUnit TEXT,
+          $columnLocationCode TEXT,
+          $columnItemStatus TEXT,
+          expiryDate TEXT,
+          location2 TEXT,
+          location3 TEXT,
+          createdAt TEXT,
+          $columnIsSynced INTEGER DEFAULT 0
+        )
+      ''');
+    }
+
+    if (oldVersion < 35) {
+      debugPrint('DB Upgrade: Creating EOD Status and Offline Audit tables (v35)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableEodStatus (
+          productionDate TEXT PRIMARY KEY,
+          workOrder TEXT,
+          completedAt TEXT,
+          completedBy TEXT
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableOfflineAuditLogs (
+          $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity TEXT,
+          action TEXT,
+          payload TEXT,
+          timestamp TEXT,
+          $columnIsSynced INTEGER DEFAULT 0
+        )
+      ''');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -708,6 +778,36 @@ class LocalDatabaseHelper {
         PRIMARY KEY ($colDelScanPayload, $colDelScanSoNumber)
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableWorkOrders (
+        $colWoWorkOrder   TEXT PRIMARY KEY,
+        $colWoProduct     TEXT,
+        $colWoReleasedQty REAL,
+        $colWoUnit        TEXT,
+        $colWoTrackingNum TEXT,
+        $colWoDate        TEXT,
+        $colWoCachedAt    TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableStagingEod (
+        $columnId TEXT PRIMARY KEY,
+        $columnSoNumber TEXT,
+        $columnProductCode TEXT,
+        $columnManufacturedQuantity REAL,
+        $columnTimestamp TEXT,
+        $colDetUnit TEXT,
+        $columnLocationCode TEXT,
+        $columnItemStatus TEXT,
+        expiryDate TEXT,
+        location2 TEXT,
+        location3 TEXT,
+        createdAt TEXT,
+        $columnIsSynced INTEGER DEFAULT 0
+      )
+    ''');
   }
 
   // Insert a scan record
@@ -734,6 +834,44 @@ class LocalDatabaseHelper {
       where: '$columnIsReflected = ?',
       whereArgs: [0],
     );
+  }
+
+  // Staging EOD methods
+  Future<int> insertStagingEod(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert(tableStagingEod, row, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedStagingEod() async {
+    Database db = await instance.database;
+    return await db.query(
+      tableStagingEod,
+      where: '$columnIsSynced = ?',
+      whereArgs: [0],
+    );
+  }
+
+  Future<int> markStagingEodAsSynced(List<String> ids) async {
+    if (ids.isEmpty) return 0;
+    Database db = await instance.database;
+    String placeholders = List.generate(ids.length, (index) => '?').join(', ');
+    return await db.update(
+      tableStagingEod,
+      {columnIsSynced: 1},
+      where: '$columnId IN ($placeholders)',
+      whereArgs: ids,
+    );
+  }
+
+  // Work Order methods
+  Future<int> insertWorkOrder(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert(tableWorkOrders, row, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllWorkOrders() async {
+    Database db = await instance.database;
+    return await db.query(tableWorkOrders, orderBy: '$colWoDate DESC');
   }
 
   // Mark scans as synced
@@ -1382,6 +1520,93 @@ class LocalDatabaseHelper {
       {colSettingIsSynced: 1},
       where: '$colSettingKey IN ($placeholders)',
       whereArgs: keys,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getProductionSummaryByDate(String dateStr) async {
+    final db = await instance.database;
+    
+    final query = '''
+      SELECT 
+        det.*,
+        ord.$colCustomerName as customerName,
+        ord.$colCustomerCode as customerCode,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
+        scn.lot,
+        scn.location,
+        scn.timestamp
+      FROM $tableDetails det
+      INNER JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
+      LEFT JOIN (
+        SELECT 
+          $columnSoNumber, 
+          $columnProductCode, 
+          SUM($columnManufacturedQuantity) as totalManufacturedQty,
+          MAX($columnLot) as lot,
+          MAX($columnLocationCode) as location,
+          MAX($columnTimestamp) as timestamp
+        FROM $tableScans
+        WHERE $columnIsReflected = 0
+        GROUP BY $columnSoNumber, $columnProductCode
+      ) scn ON det.$colDetSoNum = scn.$columnSoNumber 
+        AND det.$colDetItemCode = scn.$columnProductCode
+      WHERE ord.$colDeliveryDate LIKE ?
+    ''';
+
+    return await db.rawQuery(query, ['$dateStr%']);
+  }
+
+  Future<bool> isEodCompleted(String dateStr) async {
+    final db = await instance.database;
+    final res = await db.query(
+      tableEodStatus,
+      where: 'productionDate = ?',
+      whereArgs: [dateStr],
+    );
+    return res.isNotEmpty;
+  }
+
+  Future<void> markEodCompleted(String dateStr, String workOrder, {String? completedBy}) async {
+    final db = await instance.database;
+    await db.insert(
+      tableEodStatus,
+      {
+        'productionDate': dateStr,
+        'workOrder': workOrder,
+        'completedAt': DateTime.now().toIso8601String(),
+        'completedBy': completedBy ?? 'User',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> insertOfflineAuditLog({
+    required String entity,
+    required String action,
+    required String payload,
+  }) async {
+    final db = await instance.database;
+    await db.insert(tableOfflineAuditLogs, {
+      'entity': entity,
+      'action': action,
+      'payload': payload,
+      'timestamp': DateTime.now().toIso8601String(),
+      'isSynced': 0,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedOfflineAudits() async {
+    final db = await instance.database;
+    return await db.query(tableOfflineAuditLogs, where: 'isSynced = 0');
+  }
+
+  Future<void> markOfflineAuditsAsSynced(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final db = await instance.database;
+    await db.update(
+      tableOfflineAuditLogs,
+      {'isSynced': 1},
+      where: 'id IN (${ids.join(", ")})',
     );
   }
 }

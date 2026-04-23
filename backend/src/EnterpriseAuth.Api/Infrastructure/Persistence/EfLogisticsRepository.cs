@@ -140,6 +140,77 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             });
         }
 
+        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionSummaryAsync(DateTime date)
+        {
+            var targetDate = date.Date;
+            
+            var nextDate = targetDate.AddDays(1);
+            var scans = await _scanContext.ProductionScanTransactions
+                .Include(t => t.OrderLine)
+                .ThenInclude(l => l.Order)
+                .Where(t => t.OrderLine.Order.DeliveryDate >= targetDate 
+                         && t.OrderLine.Order.DeliveryDate < nextDate 
+                         && !t.IsDeleted)
+                .AsNoTracking()
+                .ToListAsync();
+
+            return scans.Select(s => new ProductionTrackingDto
+            {
+                SoNumber = s.OrderLine.Order.SourceOrderId,
+                ItemCode = s.OrderLine.ItemCode,
+                Description = s.OrderLine.Description,
+                Quantity = s.OrderLine.OrderedQuantity,
+                Manufactured = s.ScanAmountKg,
+                LotNumber = s.LotNumber ?? "",
+                CreatedAt = s.CreatedAt,
+                Unit = "KG", // Defaulting to KG for scans
+                Site = s.OrderLine.Order.Site ?? "IPL"
+            });
+        }
+
+        public async Task<IEnumerable<ProductionTrackingDto>> GetProductionSummaryByWorkOrderAsync(string workOrder)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+
+            // 1. Find the SalesOrder Id for the workOrder
+            var orderId = await _scanContext.SalesOrders
+                .Where(o => o.SourceOrderId == workOrder)
+                .Select(o => o.Id)
+                .FirstOrDefaultAsync();
+
+            if (orderId == Guid.Empty) return Enumerable.Empty<ProductionTrackingDto>();
+
+            // 2. Query aggregated scans joined with ITMMASTER for conversion and locations
+            string sql = $@"
+                SELECT 
+                    @WorkOrder      AS SoNumber,
+                    t.ItemCode      AS ItemCode,
+                    l.Description   AS Description,
+                    l.OrderedQuantity AS Quantity,
+                    SUM(t.ScanAmountKg) AS Manufactured,
+                    t.LotNumber     AS LotNumber,
+                    l.Unit          AS Unit,
+                    MAX(t.CreatedAt) AS CreatedAt,
+                    t.Location      AS Location,
+                    t.ItemStatus    AS StatusLabel,
+                    i.PCUSTU_0      AS Conversion
+                FROM ProductionScanTransactions t
+                JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
+                JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
+                WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0
+                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, l.Unit, t.Location, t.ItemStatus, i.PCUSTU_0";
+
+            var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });
+            return results;
+        }
+
+        public async Task<bool> SaveStagingEodAsync(IEnumerable<StagingEod> records)
+        {
+            await _scanContext.StagingEodRecords.AddRangeAsync(records);
+            return await _scanContext.SaveChangesAsync() > 0;
+        }
+
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
         {
             // Read from optimized aggregated states linked to unified lines
@@ -973,6 +1044,53 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             auditDto.LabelId = entity.LabelId;
             auditDto.CreatedAt = entity.CreatedAt;
             return auditDto;
+        }
+
+        public async Task<IEnumerable<WorkOrderDto>> GetWorkOrdersAsync(string? searchQuery)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+            
+            string whereClause = "";
+            object param = null;
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                whereClause = "WHERE (f0.MFGNUM_0 LIKE '%' + @Query + '%')";
+                param = new { Query = searchQuery };
+            }
+
+            string sql = $@"
+                SELECT DISTINCT TOP 50
+                    f0.MFGNUM_0     AS WorkOrder,
+                    f1.ITMREF_0     AS Product,
+                    f1.UOMEXTQTY_0  AS ReleasedQty,
+                    f1.UOM_0        AS Unit,
+                    f0.MFGTRKNUM_0  AS TrackingNum,
+                    f1.STRDAT_0     AS Date,
+                    'M'             AS RecordType,
+                    'IPL'           AS ProductionSite,
+                    '1'             AS Conversion,
+                    'STD'           AS TransactionType,
+                    'S'             AS StockFlag,
+                    f1.UOM_0        AS StockUnit,
+                    f1.UOMEXTQTY_0  AS StockQty,
+                    '1'             AS StockConversion,
+                    'IPLCH'         AS Location,
+                    'A'             AS Status,
+                    '20261231'      AS ExpirationDate,
+                    'LC'            AS LC,
+                    'DPT'           AS DPT,
+                    'PRO'           AS PRO,
+                    'CUS'           AS CUS,
+                    f2.CCE_0        AS CCE_0,
+                    f2.CCE_1        AS CCE_1
+                FROM {schema}.MFGITMTRK f0
+                JOIN {schema}.MFGITM f1 ON f0.MFGNUM_0 = f1.MFGNUM_0
+                JOIN {schema}.ITMMASTER f2 ON f1.ITMREF_0 = f2.ITMREF_0
+                {whereClause}
+                ORDER BY Date DESC, WorkOrder DESC";
+
+            return await db.QueryAsync<WorkOrderDto>(sql, param);
         }
     }
 }
