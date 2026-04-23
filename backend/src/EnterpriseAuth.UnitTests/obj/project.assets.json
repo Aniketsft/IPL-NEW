@@ -4200,23 +4200,26 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Aniket\\.nuget\\packages\\": {},
+    "C:\\Users\\Admin\\.nuget\\packages\\": {},
+    "C:\\Program Files\\DevExpress 25.2\\Components\\Offline Packages": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
+      "projectUniqueName": "C:\\Users\\Admin\\Documents\\GitHub\\IPL-NEW\\backend\\src\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
       "projectName": "EnterpriseAuth.UnitTests",
-      "projectPath": "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
-      "packagesPath": "C:\\Users\\Aniket\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.UnitTests\\obj\\",
+      "projectPath": "C:\\Users\\Admin\\Documents\\GitHub\\IPL-NEW\\backend\\src\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
+      "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Admin\\Documents\\GitHub\\IPL-NEW\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
+        "C:\\Program Files\\DevExpress 25.2\\Components\\Offline Packages",
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\Aniket\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\Admin\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\DevExpress 25.2.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -4225,6 +4228,7 @@
       ],
       "sources": {
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\DevExpress 25.2\\Components\\System\\Components\\Packages": {},
         "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
@@ -4232,8 +4236,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj": {
-              "projectPath": "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj"
+            "C:\\Users\\Admin\\Documents\\GitHub\\IPL-NEW\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj": {
+              "projectPath": "C:\\Users\\Admin\\Documents\\GitHub\\IPL-NEW\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj"
             }
           }
         }
@@ -4248,7 +4252,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.100"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0": {
@@ -4295,7 +4299,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.313/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
