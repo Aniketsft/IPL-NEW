@@ -24,70 +24,153 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Text(
-              'INKJET / SYSTEM PRINTERS',
-              style: TextStyle(
-                color: isDark ? Colors.grey : Colors.grey[600], 
-                fontSize: 12, 
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-              ),
-              textAlign: TextAlign.center,
+          _sectionHeader('PRINTING MODE', isDark),
+          _modeSelector(orange, isDark),
+          
+          if (PrinterService.instance.currentMode == PrintMode.directIp) ...[
+            const SizedBox(height: 24),
+            _sectionHeader('IP THERMAL PRINTER SETTINGS', isDark),
+            _ipSettings(orange, isDark),
+          ],
+
+          if (PrinterService.instance.currentMode == PrintMode.system) ...[
+            const SizedBox(height: 24),
+            _sectionHeader('INKJET / SYSTEM PRINTERS', isDark),
+            _systemPrinterInfo(isDark),
+          ],
+
+          const SizedBox(height: 48),
+          _testPrintButton(orange, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: isDark ? Colors.grey : Colors.grey[600], 
+          fontSize: 12, 
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _modeSelector(Color orange, bool isDark) {
+    final mode = PrinterService.instance.currentMode;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: SegmentedButton<PrintMode>(
+        segments: const [
+          ButtonSegment(value: PrintMode.system, label: Text('SYSTEM PDF'), icon: Icon(Icons.picture_as_pdf)),
+          ButtonSegment(value: PrintMode.directIp, label: Text('DIRECT IP'), icon: Icon(Icons.lan)),
+        ],
+        selected: {mode},
+        onSelectionChanged: (newSelection) async {
+          await PrinterService.instance.setPrintMode(newSelection.first);
+          setState(() {});
+        },
+        style: SegmentedButton.styleFrom(
+          selectedBackgroundColor: orange,
+          selectedForegroundColor: Colors.black,
+          side: BorderSide(color: orange.withValues(alpha: 0.5)),
+        ),
+      ),
+    );
+  }
+
+  Widget _ipSettings(Color orange, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        children: [
+          TextField(
+            controller: TextEditingController(text: PrinterService.instance.printerIp),
+            decoration: InputDecoration(
+              labelText: 'Printer IP Address',
+              labelStyle: TextStyle(color: orange),
+              prefixIcon: Icon(Icons.settings_ethernet, color: orange),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: orange.withValues(alpha: 0.3))),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
             ),
+            keyboardType: TextInputType.number,
+            onChanged: (val) => PrinterService.instance.setPrinterIp(val),
           ),
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Text(
-              'The system now uses standard PDF printing which supports standard Inkjet and Laser printers.\n\nPrinters are discovered automatically by your device (via AirPrint/Android Print Services). You no longer need to manually register IP addresses.',
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black87,
-                fontSize: 14,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
+          TextField(
+            controller: TextEditingController(text: PrinterService.instance.printerPort.toString()),
+            decoration: InputDecoration(
+              labelText: 'Port (Usually 9100)',
+              labelStyle: TextStyle(color: orange),
+              prefixIcon: Icon(Icons.numbers, color: orange),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: orange.withValues(alpha: 0.3))),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
             ),
-          ),
-          const SizedBox(height: 48),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: OutlinedButton.icon(
-              onPressed: _isLoading ? null : () async {
-                setState(() => _isLoading = true);
-                try {
-                  await PrinterService.instance.printLabel(
-                    soNumber: "TEST-BATCH-00x",
-                    customerName: "MANAGEMENT TEST",
-                    productCode: "INKJET-TEST-1",
-                    weight: 1.0,
-                    unit: "KG",
-                    qrData: "MULTI|TEST|DATA"
-                  );
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Print Failed: $e'), backgroundColor: Colors.redAccent),
-                    );
-                  }
-                } finally {
-                  if (mounted) setState(() => _isLoading = false);
-                }
-              },
-              icon: _isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.print_outlined),
-              label: Text(_isLoading ? 'OPENING PRINT DIALOGUE...' : 'TEST INKJET PRINT DIALOGUE', style: const TextStyle(fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: orange,
-                side: BorderSide(color: orange.withValues(alpha: 0.5), width: 2),
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
+            keyboardType: TextInputType.number,
+            onChanged: (val) => PrinterService.instance.setPrinterPort(int.tryParse(val) ?? 9100),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _systemPrinterInfo(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Text(
+        'Uses standard PDF printing. Printers are discovered automatically via AirPrint or Android Print Services.',
+        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _testPrintButton(Color orange, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: OutlinedButton.icon(
+        onPressed: _isLoading ? null : () async {
+          setState(() => _isLoading = true);
+          try {
+            await PrinterService.instance.printLabel(
+              soNumber: "TEST-BATCH-00x",
+              customerName: "MANAGEMENT TEST",
+              productCode: "THERMAL-TEST-1",
+              weight: 1.25,
+              unit: "KG",
+              qrData: "MULTI|TEST|DATA"
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Test Print Sent'), backgroundColor: Colors.green),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Print Failed: $e'), backgroundColor: Colors.redAccent),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isLoading = false);
+          }
+        },
+        icon: _isLoading 
+          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.print_outlined),
+        label: Text(_isLoading ? 'PRINTING...' : 'RUN TEST PRINT', style: const TextStyle(fontWeight: FontWeight.bold)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: orange,
+          side: BorderSide(color: orange.withValues(alpha: 0.5), width: 2),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
       ),
     );
   }

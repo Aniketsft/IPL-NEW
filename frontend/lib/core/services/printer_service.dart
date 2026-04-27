@@ -2,17 +2,48 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:enterprise_auth_mobile/core/services/tcp_print_service.dart';
+import 'package:enterprise_auth_mobile/core/utils/zpl_generator.dart';
+
+enum PrintMode { system, directIp }
 
 class PrinterService {
   static final PrinterService instance = PrinterService._internal();
   PrinterService._internal();
 
+  late SharedPreferences _prefs;
+  PrintMode _mode = PrintMode.directIp;
+  String _printerIp = '172.26.45.120';
+  int _printerPort = 9100;
+
   Future<void> init() async {
-    // No initialization needed for system printers
+    _prefs = await SharedPreferences.getInstance();
+    _mode = PrintMode.values[_prefs.getInt('print_mode') ?? 1];
+    _printerIp = _prefs.getString('printer_ip') ?? '172.26.45.120';
+    _printerPort = _prefs.getInt('printer_port') ?? 9100;
   }
 
+  Future<void> setPrintMode(PrintMode mode) async {
+    _mode = mode;
+    await _prefs.setInt('print_mode', mode.index);
+  }
+
+  Future<void> setPrinterIp(String ip) async {
+    _printerIp = ip;
+    await _prefs.setString('printer_ip', ip);
+  }
+
+  Future<void> setPrinterPort(int port) async {
+    _printerPort = port;
+    await _prefs.setInt('printer_port', port);
+  }
+
+  PrintMode get currentMode => _mode;
+  String get printerIp => _printerIp;
+  int get printerPort => _printerPort;
+
   Future<bool> isConnected() async {
-    // We assume the native print spooler handles connection checks
     return true;
   }
 
@@ -28,11 +59,25 @@ class PrinterService {
     required String qrData,
     String? auditId,
   }) async {
+    if (_mode == PrintMode.directIp) {
+      final zpl = ZplGenerator.generateItemLabel(
+        soNumber: soNumber,
+        customerName: customerName,
+        productCode: productCode,
+        weight: weight,
+        unit: unit,
+        qrData: qrData,
+        auditId: auditId,
+      );
+      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      return;
+    }
+
     final doc = pw.Document();
 
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: const PdfPageFormat(100 * PdfPageFormat.mm, 100 * PdfPageFormat.mm),
         build: (pw.Context context) {
           return pw.Padding(
             padding: const pw.EdgeInsets.all(32),
@@ -90,12 +135,26 @@ class PrinterService {
     required String qrData,
     String? auditId,
   }) async {
+    if (_mode == PrintMode.directIp) {
+      final zpl = ZplGenerator.generateCrateLabel(
+        soNumber: soNumber,
+        customerName: customerName,
+        deliveryDate: deliveryDate,
+        items: items,
+        unit: unit,
+        qrData: qrData,
+        auditId: auditId,
+      );
+      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      return;
+    }
+
     final doc = pw.Document();
     double total = items.fold(0.0, (val, item) => val + (double.tryParse(item['weight'] ?? '0') ?? 0.0));
 
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: const PdfPageFormat(100 * PdfPageFormat.mm, 100 * PdfPageFormat.mm),
         build: (pw.Context context) {
           return pw.Padding(
             padding: const pw.EdgeInsets.all(32),
@@ -186,7 +245,7 @@ class PrinterService {
 
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: const PdfPageFormat(100 * PdfPageFormat.mm, 100 * PdfPageFormat.mm),
         build: (pw.Context context) {
           return pw.Padding(
             padding: const pw.EdgeInsets.all(32),
@@ -269,5 +328,26 @@ class PrinterService {
       onLayout: (PdfPageFormat format) async => doc.save(),
       name: 'Palette_Master',
     );
+  }
+  Future<void> printEodReport({
+    required String workOrder,
+    required String dateStr,
+    required List<dynamic> items,
+  }) async {
+    if (_mode == PrintMode.directIp) {
+      final zpl = ZplGenerator.generateEodLabel(
+        workOrder: workOrder,
+        dateStr: dateStr,
+        items: items,
+      );
+      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      return;
+    }
+
+    // PDF Fallback (uses the existing logic in EodPdfGenerator)
+    // We don't implement the PDF logic here to avoid duplication,
+    // instead, the UI will still call EodPdfGenerator if needed.
+    // However, to make PrinterService the 'main' router, 
+    // we can eventually move the logic here.
   }
 }
