@@ -186,10 +186,13 @@ class LabelPrintingHandler {
           title: item.itemCode,
           qrData: qrData,
           details: [
+            Text(item.description, style: const TextStyle(color: Colors.black54, fontSize: 10, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 8),
             Text('CUSTOMER: ${item.customerName?.toUpperCase() ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
             Text('SO REF: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 10)),
+            if (item.lot != null) Text('LOT: ${item.lot}', style: const TextStyle(color: Colors.black, fontSize: 10)),
             const SizedBox(height: 12),
-            Text('WGT: ${item.manufacturedQuantity.toStringAsFixed(2)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20)),
+            Text('QTY: ${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         actions: [
@@ -386,9 +389,11 @@ class LabelPrintingHandler {
         soNumber: item.soNumber,
         customerName: item.customerName ?? 'N/A',
         productCode: item.itemCode,
+        description: item.description,
         weight: item.manufacturedQuantity,
         unit: item.unit,
         qrData: LabelQrGenerator.generate(item),
+        lotNumber: item.lot,
         auditId: effectiveAuditId,
       );
     } catch (e) {

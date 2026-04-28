@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   /// Base IP Address for the backend server.
   /// Update this value to change the IP globally across the app.
-  static const String serverIp = '192.168.100.10';
+  static const String serverIp = '172.26.106.82';
   //'172.26.106.42'; POKEMON
 
   //'192.168.100.13';

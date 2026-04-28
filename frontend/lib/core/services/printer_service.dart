@@ -54,9 +54,13 @@ class PrinterService {
     required String soNumber,
     required String customerName,
     required String productCode,
+    required String description,
     required double weight,
     required String unit,
     required String qrData,
+    String? lotNumber,
+    String? productionDate,
+    String? expiryDate,
     String? auditId,
   }) async {
     if (_mode == PrintMode.directIp) {
@@ -64,9 +68,13 @@ class PrinterService {
         soNumber: soNumber,
         customerName: customerName,
         productCode: productCode,
+        description: description,
         weight: weight,
         unit: unit,
         qrData: qrData,
+        lotNumber: lotNumber,
+        productionDate: productionDate,
+        expiryDate: expiryDate,
         auditId: auditId,
       );
       await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
@@ -85,34 +93,44 @@ class PrinterService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(productCode, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+                    pw.Expanded(child: pw.Text(description, textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 12))),
+                  ],
+                ),
+                pw.SizedBox(height: 12),
+                pw.Text(customerName.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                pw.Text('IPLSO Number: $soNumber', style: const pw.TextStyle(fontSize: 14)),
+                pw.Divider(thickness: 1),
+                pw.Text('Lot Number: ${lotNumber ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
+                pw.Text('Production Date: ${productionDate ?? "TODAY"}', style: const pw.TextStyle(fontSize: 12)),
+                pw.Text('Expiry Date: ${expiryDate ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
+                pw.SizedBox(height: 20),
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Expanded(
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          pw.Text('ITEM: $productCode', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
-                          pw.SizedBox(height: 16),
-                          pw.Text('CUSTOMER: ${customerName.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24)),
-                          pw.Text('SO: $soNumber', style: pw.TextStyle(fontSize: 24)),
-                          pw.SizedBox(height: 24),
-                          pw.Text('WEIGHT: ${weight.toStringAsFixed(2)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
+                          pw.Text('Quantity:', style: const pw.TextStyle(fontSize: 14)),
+                          pw.Text('${weight.toStringAsFixed(3)} $unit', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 32)),
                         ],
                       ),
                     ),
                     pw.BarcodeWidget(
                       barcode: pw.Barcode.qrCode(),
                       data: qrData,
-                      width: 150,
-                      height: 150,
+                      width: 100,
+                      height: 100,
                     ),
                   ],
                 ),
-                pw.SizedBox(height: 32),
-                pw.Center(child: pw.Text('Industrial Tracking System', style: const pw.TextStyle(fontSize: 16))),
-                if (auditId != null)
-                  pw.Center(child: pw.Text('AUDIT: $auditId', style: const pw.TextStyle(fontSize: 12))),
+                pw.Spacer(),
+                pw.Divider(thickness: 1),
+                pw.Text('Label ID: ${auditId ?? "INTERNAL"}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('Printed at: ${DateTime.now().toString()}', style: const pw.TextStyle(fontSize: 8)),
               ],
             ),
           );

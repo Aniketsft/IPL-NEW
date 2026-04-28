@@ -7,17 +7,18 @@ class ZplGenerator {
     required String soNumber,
     required String customerName,
     required String productCode,
+    required String description,
     required double weight,
     required String unit,
     required String qrData,
+    String? lotNumber,
+    String? productionDate,
+    String? expiryDate,
     String? auditId,
   }) {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    
-    // ^XA: Start Label
-    // ^CI28: Unicode encoding
-    // ^PW800: Print Width 800 dots (100mm)
-    // ^LL800: Label Length 800 dots (100mm)
+    final prodDate = productionDate ?? DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final expDate = expiryDate ?? "N/A";
     
     return """
 ^XA
@@ -25,39 +26,33 @@ class ZplGenerator {
 ^PW780
 ^LL780
 
--- Header Section (Compact) --
-^FO40,40^GB700,50,4^FS
-^FO60,52^A0N,28,28^FB660,1,C^FDITEM IDENTIFICATION^FS
+-- Top Section: Code & Description --
+^FO40,40^A0N,40,40^FD$productCode^FS
+^FO400,40^A0N,30,30^FB360,2,R^FD$description^FS
 
--- Product Code (Large) --
-^FO40,110^A0N,45,45^FDITEM:^FS
-^FO180,105^A0N,70,70^FD$productCode^FS
+-- Customer & SO --
+^FO40,100^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,145^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
--- Divider --
-^FO40,190^GB700,3,3^FS
+-- Middle Divider --
+^FO40,200^GB700,3,3^FS
 
--- Customer & SO Section (Safe Wrapping) --
-^FO40,210^A0N,24,24^FDCUSTOMER:^FS
-^FO40,240^A0N,28,28^FB700,2,L^FD${customerName.toUpperCase()}^FS
+-- Batch/Date Info --
+^FO40,230^A0N,30,30^FDLot Number: ${lotNumber ?? "N/A"}^FS
+^FO40,275^A0N,30,30^FDProduction Date: $prodDate^FS
+^FO40,320^A0N,30,30^FDExpiry Date: $expDate^FS
 
-^FO40,305^A0N,24,24^FDSALES ORDER:^FS
-^FO190,305^A0N,28,28^FD$soNumber^FS
+-- Large Quantity --
+^FO40,400^A0N,40,40^FDQuantity:^FS
+^FO40,450^A0N,80,80^FD${weight.toStringAsFixed(3)} $unit^FS
 
--- Divider --
-^FO40,350^GB700,3,3^FS
+-- QR Code (Bottom Right, adjusted for safe printing) --
+^FO460,480^BQN,2,6^FDQA,$qrData^FS
 
--- Split Footer (Weight Left / QR Right) --
-^FO40,400^A0N,35,35^FDWEIGHT:^FS
-^FO40,440^A0N,90,90^FD${weight.toStringAsFixed(2)} $unit^FS
-
--- QR Code (Bottom Right, 3cm x 3cm) --
-^FO500,430^BQN,2,9^FDQA,$qrData^FS
-
--- Metadata (Stacked below weight) --
-^FO40,650^GB700,3,3^FS
-^FO40,670^A0N,20,20^FDTRACKING: ${auditId ?? "INTERNAL"}^FS
-^FO40,700^A0N,18,18^FDPRINTED: $now^FS
-^FO40,730^A0N,18,18^FDINDUSTRIAL QUALITY VERIFIED^FS
+-- Footer / Audit --
+^FO40,700^GB700,3,3^FS
+^FO40,720^A0N,25,25^FDLabel ID: ${auditId ?? "INTERNAL"}^FS
+^FO40,750^A0N,18,18^FDPrinted at: $now^FS
 
 ^XZ
 """;

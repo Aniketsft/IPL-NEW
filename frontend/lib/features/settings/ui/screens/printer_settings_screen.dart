@@ -142,9 +142,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               soNumber: "TEST-BATCH-00x",
               customerName: "MANAGEMENT TEST",
               productCode: "THERMAL-TEST-1",
+              description: "INDUSTRIAL TEST PRODUCT",
               weight: 1.25,
               unit: "KG",
-              qrData: "MULTI|TEST|DATA"
+              qrData: "MULTI|TEST|DATA",
+              lotNumber: "LOT-TEST-99",
             );
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
