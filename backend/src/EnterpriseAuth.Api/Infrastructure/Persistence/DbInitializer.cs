@@ -924,6 +924,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ALTER TABLE [dbo].[SalesOrders] ADD [IsProcessed] [bit] NOT NULL DEFAULT 0;
                             PRINT 'Added IsProcessed column to existing SalesOrders table';
                         END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrders' AND COLUMN_NAME = 'Rep0')
+                        BEGIN
+                            ALTER TABLE [dbo].[SalesOrders] ADD [Rep0] [nvarchar](50) NULL;
+                            PRINT 'Added Rep0 column to existing SalesOrders table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrders' AND COLUMN_NAME = 'Rep1')
+                        BEGIN
+                            ALTER TABLE [dbo].[SalesOrders] ADD [Rep1] [nvarchar](50) NULL;
+                            PRINT 'Added Rep1 column to existing SalesOrders table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrders' AND COLUMN_NAME = 'DeliveryRepCode')
+                        BEGIN
+                            ALTER TABLE [dbo].[SalesOrders] ADD [DeliveryRepCode] [nvarchar](50) NULL;
+                            PRINT 'Added DeliveryRepCode column to existing SalesOrders table';
+                        END
                     END
                 ";
                 await context.Database.ExecuteSqlRawAsync(salesOrderMigrationSql);

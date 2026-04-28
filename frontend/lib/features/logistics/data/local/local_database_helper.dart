@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 37;
+  static const _databaseVersion = 38;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -599,6 +599,16 @@ class LocalDatabaseHelper {
         await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colSalesman TEXT');
       } catch (e) {
         debugPrint("Migration error v37: $e");
+      }
+    }
+
+    if (oldVersion < 38) {
+      debugPrint('DB Upgrade: Adding rep0/rep1 columns to tbl_sales_orders (v38)');
+      try {
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colRep0 TEXT');
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colRep1 TEXT');
+      } catch (e) {
+        debugPrint("Migration error v38: $e");
       }
     }
   }
