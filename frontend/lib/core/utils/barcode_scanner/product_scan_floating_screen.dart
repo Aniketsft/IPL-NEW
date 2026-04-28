@@ -142,7 +142,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   String _formatQuantity(double qty, [String? overrideUnit]) {
     final unit = (overrideUnit ?? widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
     if (unit == 'EA' || unit == 'PCS') {
-      return qty.toInt().toString();
+      return qty.toStringAsFixed(2);
     }
     return qty.toStringAsFixed(3);
   }
@@ -582,8 +582,8 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                                   children: [
                                                     Expanded(
                                                       child: _buildOverlayStat(
-                                                        'SCANNED',
-                                                        _formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
+                                                        _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'QTY (EA)' : 'SCANNED',
+                                                        BarcodeProcessor.formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
                                                         _pendingScan!['unit'],
                                                         Colors.white70,
                                                       ),
@@ -591,9 +591,9 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                                     const SizedBox(width: 12),
                                                     Expanded(
                                                       child: _buildOverlayStat(
-                                                        'TO MANUFACTURE',
-                                                        _formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, _pendingScan!['unit']),
-                                                        _pendingScan!['unit'],
+                                                        _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'WEIGHT (KG)' : 'TOTAL (KG)',
+                                                        BarcodeProcessor.formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, 'KG'),
+                                                        'KG',
                                                         AppTheme.primaryAmber,
                                                       ),
                                                     ),
@@ -810,10 +810,16 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             _buildPromptRow('Barcode:', result.processedBarcode),
             const SizedBox(height: 8),
             _buildPromptRow(
-              'Weight:',
-              '${BarcodeProcessor.formatQuantity(result.manufacturedQty, widget.product['unit'] ?? 'KG')} ${widget.product['unit'] ?? 'KG'}',
+              'Weight (KG):',
+              '${BarcodeProcessor.formatQuantity(result.manufacturedQty, 'KG')} KG',
               isBold: true,
             ),
+            if (widget.product['unit'] == 'EA' || widget.product['unit'] == 'PCS')
+              _buildPromptRow(
+                'Qty (EA):',
+                '${BarcodeProcessor.formatQuantity(result.scannedQty, 'EA')} EA',
+                isBold: true,
+              ),
           ],
         ),
         actions: [

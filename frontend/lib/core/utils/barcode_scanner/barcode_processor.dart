@@ -26,60 +26,64 @@ class BarcodeModel {
 }
 
 class BarcodeProcessor {
-  /// Processes a barcode according to complex business rules for prefixes 2 and 6.
-  /// Standardizes output into scanned vs manufactured quantities.
   static BarcodeModel process({
     required String barcode,
     required String itemCode,
     required String unit,
     required double standardWeight,
   }) {
-    String originalBarcode = barcode;
-    String processedBarcode = barcode;
+    final String originalBarcode = barcode.trim();
+    String processedBarcode = originalBarcode;
 
-    // Rule: if prefix starts with 2, add a 0 at the start of the barcode
-    if (barcode.startsWith('2')) {
-      processedBarcode = '0$barcode';
+    // Strict Prefix Validation (Only allow 0, 2, 6)
+    final bool isP0 = originalBarcode.startsWith('0');
+    final bool isP2 = originalBarcode.startsWith('2');
+    final bool isP6 = originalBarcode.startsWith('6');
+
+    if (!isP0 && !isP2 && !isP6) {
+      return BarcodeModel.invalid(originalBarcode);
     }
 
-    double scannedQty = 0.0;
-    double manufacturedQty = 0.0;
-    final isKG = unit.toUpperCase() == 'KG';
-    final isEA = unit.toUpperCase() == 'EA';
+    if (isP2) {
+      processedBarcode = '0$originalBarcode';
+    }
 
-    // Case 1 & 2 (Prefix 2 or Prefix 0)
-    if (barcode.startsWith('2') || barcode.startsWith('0')) {
-      if (isKG) {
-        // Case 1: ignore last digit (check digit) take last 4 digit indices 9 10 11 12 divide by 1000
-        // User probably means indices 9-12 based on 1-based indexing for a 13 digit barcode.
-        // In 0-indexed: index 8, 9, 10, 11 if barcode is length 13.
-        // If it starts with '0' (already padded), we adjust the logic slightly or use the same indices.
-        if (barcode.length >= 12) {
-          // Rule: Ignore the very last check digit (at length-1) and take the 5 preceding digits.
-          final qtyStr = barcode.substring(barcode.length - 6, barcode.length - 1);
-          scannedQty = (double.tryParse(qtyStr) ?? 0.0) / 1000.0;
-          manufacturedQty = scannedQty; // Default for KG
+    double manufacturedQty = 0.0;
+    double scannedQty = 0.0;
+    
+    final String cleanUnit = unit.trim().toUpperCase();
+    final bool isEA = cleanUnit == 'EA' || cleanUnit == 'PCS';
+
+    // 1. Calculate Manufactured Quantity (Weight in KG)
+    if (isP6) {
+      // Fixed weight items use the standard weight from the master
+      manufacturedQty = standardWeight;
+    } else {
+      // Variable weight items (0 or 2) extract from barcode
+      if (originalBarcode.length >= 12) {
+        final qtyStr = originalBarcode.substring(originalBarcode.length - 6, originalBarcode.length - 1);
+        manufacturedQty = (double.tryParse(qtyStr) ?? 0.0) / 1000.0;
+      } else {
+        manufacturedQty = standardWeight;
+      }
+    }
+
+    // 2. Calculate Scanned Quantity (Piece count for EA, Weight for KG)
+    if (isEA) {
+      if (isP6) {
+        // As per requirement: Prefix 6 EA quantity = no of scans (1.0)
+        scannedQty = 1.0;
+      } else {
+        // For Prefix 0/2, pieces = weight / standard weight
+        if (standardWeight > 0) {
+          scannedQty = manufacturedQty / standardWeight;
         } else {
           scannedQty = 1.0;
-          manufacturedQty = 1.0;
         }
-      } else if (isEA) {
-        // Case 2: scanned qty = number of scans (1 for individual scan).
-        // manufactured qty = standard weight of product x no of scan.
-        scannedQty = 1.0;
-        manufacturedQty = standardWeight;
       }
     } else {
-      // Case 5 & 6 (Standard EAN-13 / Other Prefixes)
-      // Logic: Generic fallback for any other barcode found in master table.
-      // We treat them like Case 3 & 4 (Prefix 6) - using standard weight.
-      if (isKG) {
-        scannedQty = standardWeight;
-        manufacturedQty = standardWeight;
-      } else if (isEA) {
-        scannedQty = 1.0;
-        manufacturedQty = standardWeight;
-      }
+      // For KG units, scanned qty is the weight
+      scannedQty = manufacturedQty;
     }
 
     return BarcodeModel(
@@ -92,20 +96,17 @@ class BarcodeProcessor {
   }
 
   static String formatQuantity(double quantity, String unit) {
-    if (unit.toUpperCase() == 'EA') {
-      return quantity.toInt().toString();
+    final String cleanUnit = unit.trim().toUpperCase();
+    if (cleanUnit == 'EA' || cleanUnit == 'PCS') {
+      return quantity.toStringAsFixed(2);
     }
-    final formatter = NumberFormat("0.000");
-    return formatter.format(quantity);
+    return NumberFormat("0.000").format(quantity);
   }
 
   static bool isValidBarcode(String barcode) {
     final b = barcode.trim();
     if (b.length != 13) return false;
     if (!RegExp(r'^[0-9]+$').hasMatch(b)) return false;
-    // Standard EAN-13 is usually 13 digits.
-    // We allow any prefix as long as it's the correct length, 
-    // because prefix-specific math is handled but fallback is standard lookup.
-    return true;
+    return b.startsWith('0') || b.startsWith('2') || b.startsWith('6');
   }
 }

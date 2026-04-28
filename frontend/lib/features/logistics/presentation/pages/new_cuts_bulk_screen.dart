@@ -99,7 +99,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String _formatQuantity(double qty, String unit) {
     final u = unit.toUpperCase();
     if (u == 'EA' || u == 'PCS') {
-      return qty.toInt().toString();
+      // For piece count, use 2 decimal places if fractional, or integer if whole
+      if (qty == qty.toInt().toDouble()) {
+        return qty.toInt().toString();
+      }
+      return qty.toStringAsFixed(2);
     }
     return qty.toStringAsFixed(3);
   }
@@ -587,12 +591,13 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
     final String sku = product['sku'] ?? 'N/A';
     final int scanCount = (product['scans'] as List?)?.length ?? 0;
     
-    // Calculate total scanned weight for this product
-    double scannedWeight = 0;
+    // Calculate total scanned quantity (EA count or KG weight) for this product
+    double totalScannedQty = 0;
     final String unit = (product['unit'] ?? 'KG').toString().toUpperCase();
     final scans = product['scans'] as List<dynamic>? ?? [];
     for (var scan in scans) {
-      scannedWeight += (scan['weight'] as num?)?.toDouble() ?? 0.0;
+      // Use scannedQty for the QTY display (this is the piece count for EA)
+      totalScannedQty += (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
     }
 
     return Container(
@@ -668,7 +673,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildMiniInfo('SCANS', scanCount.toString()),
-                      _buildMiniInfo('QTY', '${_formatQuantity(scannedWeight, unit)} $unit'),
+                      _buildMiniInfo('QTY', '${_formatQuantity(totalScannedQty, unit)} $unit'),
                     ],
                   ),
                 ),

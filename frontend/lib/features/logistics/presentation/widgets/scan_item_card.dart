@@ -115,16 +115,26 @@ class ScanItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0) is double ? (unit == 'EA' || unit == 'PCS' ? (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toInt().toString() : (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(3)) : scan['weight']} $unit',
+                unit == 'EA' || unit == 'PCS' 
+                  ? 'W: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(3)} KG'
+                  : 'M: ${(scan['manufacturedQty'] ?? scan['weight'] ?? 0.0).toStringAsFixed(3)} $unit',
                 style: TextStyle(
                   color: orange,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
-              if (scan['scannedQty'] != null)
+              if (unit == 'EA' || unit == 'PCS')
                 Text(
-                  'S: ${scan['scannedQty']}',
+                  'E: ${(scan['scannedQty'] ?? 0.0).toStringAsFixed(2)} EA',
+                  style: TextStyle(
+                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45),
+                    fontSize: 10,
+                  ),
+                )
+              else if (scan['scannedQty'] != null)
+                Text(
+                  'S: ${scan['scannedQty'] is double ? (scan['scannedQty'] as double).toStringAsFixed(3) : scan['scannedQty']}',
                   style: TextStyle(
                     color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45),
                     fontSize: 10,

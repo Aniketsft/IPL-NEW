@@ -307,7 +307,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       }
 
       final String targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
-      final String targetUnit = matchedProduct[LocalDatabaseHelper.colProdStu] ?? 'KG';
+      final String targetUnit = matchedProduct[LocalDatabaseHelper.colProdSau] ?? 'KG';
       final double targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
 
       final result = BarcodeProcessor.process(

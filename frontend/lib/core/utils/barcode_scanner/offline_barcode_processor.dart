@@ -6,6 +6,8 @@ class ScanResult {
   final String itemCode;
   final String description;
   final double weight;
+  final double standardWeight;
+  final String unit;
   final String? lotNumber;
 
   ScanResult({
@@ -13,6 +15,8 @@ class ScanResult {
     required this.itemCode,
     required this.description,
     required this.weight,
+    required this.standardWeight,
+    required this.unit,
     this.lotNumber,
   });
 }
@@ -79,6 +83,8 @@ class OfflineBarcodeProcessor {
         itemCode: model.itemCode == 'BATCH' ? rawBarcode : model.itemCode,
         description: description,
         weight: model.manufacturedQty,
+        standardWeight: stdWeight,
+        unit: unit,
         lotNumber: null,
       );
     }
