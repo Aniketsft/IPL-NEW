@@ -46,13 +46,13 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
     try {
       final repository = context.read<DeliveryRepository>();
-      
+
       // Fetch tolerance first
       final settings = await repository.getAppSettings();
       final results = await repository.fetchSalesOrderDetails(
         widget.order.orderNumber,
       );
-      
+
       if (mounted) {
         setState(() {
           _tolerancePercentage = settings.tolerancePercentage ?? 0.0;
@@ -94,16 +94,20 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       return;
     }
 
-    final bool currentStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
+    final bool currentStatus = widget.isDeliveryMode
+        ? item.isValidated
+        : item.isPrepared;
     String? choice;
 
     if (currentStatus) {
       // Removing status logic (Simple Confirmation)
-      final String title = widget.isDeliveryMode ? 'Remove Validation' : 'Remove Prepared Status';
+      final String title = widget.isDeliveryMode
+          ? 'Remove Validation'
+          : 'Remove Prepared Status';
       final String content = widget.isDeliveryMode
           ? 'Are you sure you want to remove the shipment validation from this item?'
           : 'Are you sure you want to remove the prepared status from this item?';
-      
+
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) {
@@ -111,16 +115,28 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           final isDark = theme.brightness == Brightness.dark;
           return AlertDialog(
             backgroundColor: theme.colorScheme.surface,
-            title: Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-            content: Text(content, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+            title: Text(
+              title,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            ),
+            content: Text(
+              content,
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+                child: const Text(
+                  'Confirm',
+                  style: TextStyle(color: Colors.orange),
+                ),
               ),
             ],
           );
@@ -138,16 +154,30 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             final isDark = theme.brightness == Brightness.dark;
             return AlertDialog(
               backgroundColor: theme.colorScheme.surface,
-              title: Text('Validate for Shipment', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-              content: Text('Are you sure you want to validate this item for shipment?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              title: Text(
+                'Validate for Shipment',
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              content: Text(
+                'Are you sure you want to validate this item for shipment?',
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(color: Colors.orange),
+                  ),
                 ),
               ],
             );
@@ -180,17 +210,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             await LabelPrintingHandler.showLabelPreview(
               context: context,
               item: item,
-              onPrintRequested: (item, auditId) => LabelPrintingHandler.printLabel(
-                context: context,
-                item: item,
-                auditId: auditId,
-              ),
+              onPrintRequested: (item, auditId) =>
+                  LabelPrintingHandler.printLabel(
+                    context: context,
+                    item: item,
+                    auditId: auditId,
+                  ),
             );
           } else if (choice == 'print') {
-            await LabelPrintingHandler.printLabel(
-              context: context,
-              item: item,
-            );
+            await LabelPrintingHandler.printLabel(context: context, item: item);
           }
         }
 
@@ -219,15 +247,21 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   void _toggleSelectAll() {
     final filtered = _filteredDetails;
     // Only select items that aren't already locked
-    final selectables = filtered.where((item) {
-      final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
-      return !(itemStatus ||
-          widget.order.isPreparedForShipment ||
-          (!widget.isDeliveryMode && widget.order.isClosed));
-    }).map((e) => e.itemCode).toList();
+    final selectables = filtered
+        .where((item) {
+          final itemStatus = widget.isDeliveryMode
+              ? item.isValidated
+              : item.isPrepared;
+          return !(itemStatus ||
+              widget.order.isPreparedForShipment ||
+              (!widget.isDeliveryMode && widget.order.isClosed));
+        })
+        .map((e) => e.itemCode)
+        .toList();
 
     setState(() {
-      if (_selectedItemCodes.length >= selectables.length && selectables.every((code) => _selectedItemCodes.contains(code))) {
+      if (_selectedItemCodes.length >= selectables.length &&
+          selectables.every((code) => _selectedItemCodes.contains(code))) {
         _selectedItemCodes.clear();
       } else {
         _selectedItemCodes.addAll(selectables);
@@ -238,8 +272,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   Future<void> _bulkUpdateStatus() async {
     if (_selectedItemCodes.isEmpty) return;
 
-    final String title = widget.isDeliveryMode ? 'Bulk Validate' : 'Bulk Prepare';
-    final String content = 'Are you sure you want to ${widget.isDeliveryMode ? 'validate' : 'prepare'} ${_selectedItemCodes.length} selected items?';
+    final String title = widget.isDeliveryMode
+        ? 'Bulk Validate'
+        : 'Bulk Prepare';
+    final String content =
+        'Are you sure you want to ${widget.isDeliveryMode ? 'validate' : 'prepare'} ${_selectedItemCodes.length} selected items?';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -248,8 +285,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         final isDark = theme.brightness == Brightness.dark;
         return AlertDialog(
           backgroundColor: theme.colorScheme.surface,
-          title: Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-          content: Text(content, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+          title: Text(
+            title,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          ),
+          content: Text(
+            content,
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -257,7 +300,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirm', style: TextStyle(color: Colors.orange)),
+              child: const Text(
+                'Confirm',
+                style: TextStyle(color: Colors.orange),
+              ),
             ),
           ],
         );
@@ -274,10 +320,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           status: true,
           isValidation: widget.isDeliveryMode,
         );
-        
+
         _selectedItemCodes.clear();
         await _fetchDetails();
-        
+
         // --- NEW: Printing Prompt for Production Mode ---
         if (mounted && !widget.isDeliveryMode && codesToUpdate.isNotEmpty) {
           final bool? printAll = await showDialog<bool>(
@@ -287,11 +333,33 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               final isDark = theme.brightness == Brightness.dark;
               return AlertDialog(
                 backgroundColor: theme.colorScheme.surface,
-                title: Text('Print Labels?', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                content: Text('Marked ${codesToUpdate.length} items as Prepared. Would you like to print labels for these items now?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                title: Text(
+                  'Print Labels?',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                content: Text(
+                  'Marked ${codesToUpdate.length} items as Prepared. Would you like to print labels for these items now?',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('NO', style: TextStyle(color: Colors.grey))),
-                  TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('YES, PRINT ALL', style: TextStyle(color: Colors.orange))),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text(
+                      'NO',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text(
+                      'YES, PRINT ALL',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                  ),
                 ],
               );
             },
@@ -299,10 +367,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
           if (printAll == true) {
             // Filter details to find the exact objects for the items we just prepared
-            final itemsToPrint = _details.where((d) => codesToUpdate.contains(d.itemCode)).toList();
+            final itemsToPrint = _details
+                .where((d) => codesToUpdate.contains(d.itemCode))
+                .toList();
             for (var item in itemsToPrint) {
               if (!mounted) break;
-              await LabelPrintingHandler.printLabel(context: context, item: item);
+              await LabelPrintingHandler.printLabel(
+                context: context,
+                item: item,
+              );
             }
           }
         }
@@ -366,7 +439,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order marked as Prepared for Shipment')),
+          const SnackBar(
+            content: Text('Order marked as Prepared for Shipment'),
+          ),
         );
         Navigator.pop(context, true);
       }
@@ -450,7 +525,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   }
 
   bool get _isAllItemsPrepared =>
-      _details.isNotEmpty && _details.every((d) => widget.isDeliveryMode ? d.isValidated : d.isPrepared);
+      _details.isNotEmpty &&
+      _details.every(
+        (d) => widget.isDeliveryMode ? d.isValidated : d.isPrepared,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -468,14 +546,19 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, size: 20, color: isDark ? Colors.white : Colors.black87),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
             icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
             tooltip: 'Back to Home',
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            onPressed: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
           ),
           const SizedBox(width: 16),
         ],
@@ -488,6 +571,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             searchController: _codeFilter,
             searchHint: 'Product Code...',
             onSearchChanged: (_) => setState(() {}),
+            showFilterButton: false,
             hasActiveFilters: _descFilter.text.isNotEmpty,
             onReset: () {
               _codeFilter.clear();
@@ -561,14 +645,24 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                 SizedBox(
                   width: 30,
                   child: Checkbox(
-                    value: _selectedItemCodes.length == _filteredDetails.where((item) {
-                      final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
-                      return !(itemStatus || widget.order.isPreparedForShipment || (!widget.isDeliveryMode && widget.order.isClosed));
-                    }).length && _selectedItemCodes.isNotEmpty,
+                    value:
+                        _selectedItemCodes.length ==
+                            _filteredDetails.where((item) {
+                              final itemStatus = widget.isDeliveryMode
+                                  ? item.isValidated
+                                  : item.isPrepared;
+                              return !(itemStatus ||
+                                  widget.order.isPreparedForShipment ||
+                                  (!widget.isDeliveryMode &&
+                                      widget.order.isClosed));
+                            }).length &&
+                        _selectedItemCodes.isNotEmpty,
                     onChanged: (val) => _toggleSelectAll(),
                     activeColor: orange,
                     checkColor: Colors.black,
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -626,7 +720,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? theme.colorScheme.surfaceContainerHigh : theme.colorScheme.surface,
+        color: isDark
+            ? theme.colorScheme.surfaceContainerHigh
+            : theme.colorScheme.surface,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -704,7 +800,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
         Text(
           label,
           style: TextStyle(
-            color: isDark ? Colors.white.withValues(alpha: 0.35) : Colors.black38,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.35)
+                : Colors.black38,
             fontSize: 10,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -723,15 +821,25 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
     );
   }
 
-  Widget _buildProductCard(SalesOrderDetail item, Color orange, Color cardColor, bool isDark) {
+  Widget _buildProductCard(
+    SalesOrderDetail item,
+    Color orange,
+    Color cardColor,
+    bool isDark,
+  ) {
     final theme = Theme.of(context);
-    final itemStatus = widget.isDeliveryMode ? item.isValidated : item.isPrepared;
-    final isLocked = itemStatus ||
+    final itemStatus = widget.isDeliveryMode
+        ? item.isValidated
+        : item.isPrepared;
+    final isLocked =
+        itemStatus ||
         widget.order.isPreparedForShipment ||
         (!widget.isDeliveryMode && widget.order.isClosed);
 
     return InkWell(
-      onLongPress: (widget.order.isPreparedForShipment || (!widget.isDeliveryMode && widget.order.isClosed))
+      onLongPress:
+          (widget.order.isPreparedForShipment ||
+              (!widget.isDeliveryMode && widget.order.isClosed))
           ? null
           : () => _toggleItemPreparation(item),
       onTap: () async {
@@ -786,7 +894,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
           decoration: BoxDecoration(
             color: Colors.transparent,
             border: Border(
-              bottom: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+              bottom: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.05),
+              ),
             ),
           ),
           child: Column(
@@ -805,7 +917,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                           onChanged: (val) => _toggleSelection(item.itemCode),
                           activeColor: orange,
                           checkColor: isDark ? Colors.black : Colors.white,
-                          side: BorderSide(color: isDark ? Colors.white30 : Colors.black26),
+                          side: BorderSide(
+                            color: isDark ? Colors.white30 : Colors.black26,
+                          ),
                         ),
                       ),
                     ),
@@ -828,55 +942,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                             color: isDark ? Colors.grey : Colors.grey[600],
                             fontSize: 13,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
+                          overflow: TextOverflow.visible,
                         ),
-                        if ((item.customerCode != null && item.customerCode!.trim().isNotEmpty) || 
-                            (item.customerName != null && item.customerName!.trim().isNotEmpty)) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.person_outline,
-                                size: 14,
-                                color: orange.withValues(alpha: 0.7),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  '${item.customerCode ?? ''} ${item.customerName != null ? '- ${item.customerName}' : ''}',
-                                  style: TextStyle(
-                                    color: orange.withValues(alpha: 0.8),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        // Customer info hidden as per request
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.orange.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Text(
-                            item.barcodeType.toLowerCase().contains('variable') ? 'VW' : 'FW',
-                            style: const TextStyle(
-                              color: Colors.orange,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        // VW/FW badge hidden as per request
                       ],
                     ),
                   ),
@@ -897,18 +968,28 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Builder(builder: (context) {
-                        final effectiveLimit = item.quantity * (1 + _tolerancePercentage / 100);
-                        final effectiveRemaining = effectiveLimit - item.manufacturedQuantity;
-                        return Text(
-                          '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: effectiveRemaining < 0 ? Colors.green : Colors.red,
-                          ),
-                        );
-                      }),
+                      Builder(
+                        builder: (context) {
+                          final bool isEA = item.unit.toUpperCase() == 'EA';
+                          final double tolerance = isEA
+                              ? 0.0
+                              : _tolerancePercentage;
+                          final effectiveLimit =
+                              item.quantity * (1 + tolerance / 100);
+                          final effectiveRemaining =
+                              effectiveLimit - item.manufacturedQuantity;
+                          return Text(
+                            '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: effectiveRemaining <= 0
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ],
@@ -920,7 +1001,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   if (itemStatus)
                     Row(
                       children: [
-                        const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                          size: 16,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           widget.isDeliveryMode ? 'Validated' : 'Prepared',
@@ -945,7 +1030,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: item.progress,
-                  backgroundColor: isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow,
+                  backgroundColor: isDark
+                      ? theme.colorScheme.surfaceContainerHighest
+                      : theme.colorScheme.surfaceContainerLow,
                   valueColor: AlwaysStoppedAnimation<Color>(orange),
                   minHeight: 4,
                 ),
@@ -1028,7 +1115,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
               backgroundColor: Colors.orange,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
             ),
           ),
         ),
@@ -1077,67 +1166,67 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                           ),
                   )
                 : (isAllPrepared
-                    ? ElevatedButton(
-                        onPressed: _isLoading ? null : _closeOrder,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2C2C2E),
-                          disabledBackgroundColor: Colors.white.withValues(
-                            alpha: 0.05,
+                      ? ElevatedButton(
+                          onPressed: _isLoading ? null : _closeOrder,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2C2C2E),
+                            disabledBackgroundColor: Colors.white.withValues(
+                              alpha: 0.05,
+                            ),
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white24,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
                           ),
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor: Colors.white24,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Close Production',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                'Close Production',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                      )
-                    : ElevatedButton.icon(
-                        onPressed: _isLoading
-                            ? null
-                            : () => Navigator.push(
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: _isLoading
+                              ? null
+                              : () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
                                         ProductionTrackingScanner(
-                                      order: widget.order,
-                                      details: _details,
-                                    ),
+                                          order: widget.order,
+                                          details: _details,
+                                        ),
                                   ),
                                 ).then((_) => _fetchDetails()),
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text(
-                          'Scan Product to Track',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text(
+                            'Scan Product to Track',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
                           ),
-                        ),
-                      )),
+                        )),
           ),
           if (!isAllPrepared && !_isLoading)
             Padding(
@@ -1190,9 +1279,7 @@ class _StatusBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.green.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.green.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
         ),
         child: const Text(
           'PREPARED',
@@ -1212,22 +1299,24 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isClosed 
-            ? (isDark ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.surfaceContainerLow) 
+        color: isClosed
+            ? (isDark
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : theme.colorScheme.surfaceContainerLow)
             : orange.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isClosed 
-              ? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1)) 
+          color: isClosed
+              ? (isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.1))
               : orange.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
         isClosed ? 'CLOSED' : 'OPEN',
         style: TextStyle(
-          color: isClosed 
-              ? (isDark ? Colors.white60 : Colors.black45) 
-              : orange,
+          color: isClosed ? (isDark ? Colors.white60 : Colors.black45) : orange,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1,

@@ -46,6 +46,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   String? _selectedLot;
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocation;
+  final TextEditingController _lotController = TextEditingController();
   bool _isScannerVisible = false;
   bool _isSettingsExpanded = false;
   List<Map<String, dynamic>> _excessPools = [];
@@ -65,6 +66,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         setState(() => _isScannerVisible = true);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _lotController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchInitialData() async {
@@ -229,12 +236,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       
       // Integrate Global Daily Lot Number
       final settings = await repository.getAppSettings();
-      final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
       String? globalLot;
       
-      if (settings.dailyLotNumber != null && 
-          settings.dailyLotNumber!.isNotEmpty && 
-          settings.lastLotDate == todayStr) {
+      // Relaxed check: if it exists and looks like a valid lot, use it
+      if (settings.dailyLotNumber != null && settings.dailyLotNumber!.isNotEmpty) {
         globalLot = settings.dailyLotNumber;
       }
 
@@ -242,14 +247,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         setState(() {
           _lots = lots;
           
-          // If global lot is available and not in the list, add it (or prioritize it)
           if (globalLot != null) {
             if (!_lots.contains(globalLot)) {
               _lots.insert(0, globalLot!);
             }
             _selectedLot = globalLot;
+            _lotController.text = globalLot!;
           } else if (_selectedLot == null || !_lots.contains(_selectedLot)) {
             _selectedLot = _lots.isNotEmpty ? _lots.first : null;
+            if (_selectedLot != null) _lotController.text = _selectedLot!;
           }
         });
       }
@@ -331,12 +337,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                                  widget.order.orderNumber.startsWith('CUTS-') || 
                                  widget.order.orderNumber.startsWith('FRZ-');
           if (!isCutBulkOrder && _status == 'A') {
-            final effectiveLimit = widget.product.quantity * (1 + _tolerancePercentage / 100);
+            final bool isEA = widget.product.unit.toUpperCase() == 'EA';
+            final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+            final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
+            
             final remaining = effectiveLimit - widget.product.manufacturedQuantity - _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
               AudioService.instance.playError();
               HapticFeedback.heavyImpact();
-              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit (with $_tolerancePercentage% tolerance).');
+              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.');
               return false;
             }
           }
@@ -352,6 +361,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
             };
+            
+            // --- Instant Save (Removes 2FA / Confirmation) ---
+            _savePendingScan();
           });
 
           AudioService.instance.playSuccess();
@@ -411,7 +423,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
       _scans.insert(0, scanWithMetadata);
       if (_status == 'A') {
-        _cumulativeQty += _pendingScan!['manufacturedQty'] as double;
+        _cumulativeQty += _pendingScan!['scannedQty'] as double;
       }
       _pendingScan = null;
     });
@@ -431,12 +443,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                            widget.order.orderNumber.startsWith('CUTS-') || 
                            widget.order.orderNumber.startsWith('FRZ-');
     if (!isCutBulkOrder) {
-      final effectiveLimit = widget.product.quantity * (1 + _tolerancePercentage / 100);
+      final bool isEA = widget.product.unit.toUpperCase() == 'EA';
+      final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+      final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
+      
       final remaining = effectiveLimit - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty;
       if (qty > remaining + 0.001) {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
-        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit (with $_tolerancePercentage% tolerance).');
+        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.');
         return;
       }
     }
@@ -606,7 +621,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                               setState(() {
                                 _scans.removeAt(index);
                                 if (scan['status'] == 'A') {
-                                  _cumulativeQty -= (scan['manufacturedQty'] as num).toDouble();
+                                  _cumulativeQty -= (scan['scannedQty'] as num).toDouble();
                                 }
                               });
                             },
@@ -842,23 +857,35 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         Text('Production Lot', style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Autocomplete<String>(
-          initialValue: TextEditingValue(text: _selectedLot ?? ''),
+          key: ValueKey('lot_auto_${_lotController.text}'), // Force rebuild if text changes from empty
           optionsBuilder: (v) => v.text.isEmpty ? _lots : _lots.where((s) => s.contains(v.text)),
-          onSelected: (s) => setState(() => _selectedLot = s),
-          fieldViewBuilder: (ctx, ctrl, node, onSub) => TextField(
-            controller: ctrl,
-            focusNode: node,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: theme.scaffoldBackgroundColor,
-              hintText: 'Enter or search lot',
-              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-            ),
-          ),
+          onSelected: (s) => setState(() {
+            _selectedLot = s;
+            _lotController.text = s;
+          }),
+          fieldViewBuilder: (ctx, ctrl, node, onSub) {
+             if (ctrl.text != _lotController.text && _lotController.text.isNotEmpty && ctrl.text.isEmpty) {
+                ctrl.text = _lotController.text;
+             }
+             return TextField(
+              controller: ctrl,
+              focusNode: node,
+              onChanged: (val) {
+                _selectedLot = val;
+                _lotController.text = val;
+              },
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: theme.scaffoldBackgroundColor,
+                hintText: 'Enter or search lot',
+                hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -899,6 +926,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
 
+    final bool isEA = widget.product.unit.toUpperCase() == 'EA';
+    final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -911,7 +941,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}', isDark),
-              _statTile('Remaining', '${widget.product.formatQuantity((widget.product.quantity * (1 + _tolerancePercentage / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', isDark, color: orange),
+              _statTile('Remaining', '${widget.product.formatQuantity((widget.product.quantity * (1 + tolerance / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', isDark, color: orange),
             ],
           ),
           const SizedBox(height: 16),
@@ -1508,46 +1538,48 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           Row(
             children: [
               // +1 KG pill
-              Expanded(
-                child: InkWell(
-                  onTap: () => _addManualQty(1.0),
-                  borderRadius: BorderRadius.circular(32),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? theme.colorScheme.surfaceContainerHighest
-                          : theme.colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(32),
-                      border: Border.all(
+              if (widget.product.unit.toUpperCase() != 'EA')
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _addManualQty(1.0),
+                    borderRadius: BorderRadius.circular(32),
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.12)
-                            : Colors.black.withValues(alpha: 0.10),
+                            ? theme.colorScheme.surfaceContainerHighest
+                            : theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.10),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.add_rounded,
-                          color: isDark ? Colors.white70 : Colors.black54,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '+1 KG',
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_rounded,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            size: 20,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Text(
+                            '+1 KG',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+              if (widget.product.unit.toUpperCase() != 'EA')
+                const SizedBox(width: 12),
               // Manual Entry pill
               Expanded(
                 child: InkWell(

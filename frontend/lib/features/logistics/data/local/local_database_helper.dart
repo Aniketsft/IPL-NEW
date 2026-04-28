@@ -965,6 +965,7 @@ class LocalDatabaseHelper {
         det.*,
         det.$colDetIsPrepared,
         det.$colDetIsValidated,
+        prod.$colProdSau as masterUnit,
         ord.$colStatus as headerStatus,
         ord.$colStatusLabel as headerStatusLabel,
         ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
@@ -975,6 +976,7 @@ class LocalDatabaseHelper {
         (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining
       FROM $tableDetails det
       LEFT JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
+      LEFT JOIN $tableProducts prod ON det.$colDetItemCode = prod.$colProdCode
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode

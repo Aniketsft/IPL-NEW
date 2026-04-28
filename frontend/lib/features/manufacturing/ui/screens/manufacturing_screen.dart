@@ -10,6 +10,7 @@ import '../../bloc/manufacturing_state.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../widgets/sync_progress_dialog.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import './end_of_day_screen.dart';
 
 class ManufacturingScreen extends StatefulWidget {
@@ -23,14 +24,14 @@ class ManufacturingScreen extends StatefulWidget {
 
 class _MenuItem {
   final String title;
-  final IconData icon;
+  final IconData? icon;
   final Widget? targetScreen;
   final VoidCallback? onTap;
   final String? subtitle;
 
   _MenuItem({
     required this.title,
-    required this.icon,
+    this.icon,
     this.targetScreen,
     this.onTap,
     this.subtitle,
@@ -46,6 +47,34 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
     }
     return widget.permissions.contains('$module.$submodule.read');
   }
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadLastSync();
+  }
+
+  Future<void> _loadLastSync() async {
+    try {
+      final history = await LocalDatabaseHelper.instance.getSyncHistory();
+      if (history.isNotEmpty) {
+        // Find latest 'Success' entry
+        final last = history.firstWhere(
+          (h) => h[LocalDatabaseHelper.colSyncStatus] == 'Success',
+          orElse: () => history.first,
+        );
+        final timestampStr = last[LocalDatabaseHelper.colSyncTimestamp] as String;
+        final timestamp = DateTime.tryParse(timestampStr);
+        if (timestamp != null) {
+          setState(() {
+            _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(timestamp);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Manufacturing: Error loading last sync: $e");
+    }
+  }
 
   void _triggerSync() {
     final authState = context.read<AuthBloc>().state;
@@ -60,9 +89,10 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
       builder: (_) => const SyncProgressDialog(),
     );
     context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
-    setState(() {
-      _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    });
+    
+    // Periodically check if sync is done to refresh timestamp
+    Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
+    Future.delayed(const Duration(seconds: 10), () => _loadLastSync());
   }
 
 
@@ -80,12 +110,14 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
             onTap: _triggerSync,
             subtitle: 'Last: $_lastSyncStr',
           ),
+          /*
           if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Work order',
               icon: Icons.timer_outlined,
               onTap: () => Navigator.pop(context),
             ),
+          */
           if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'View sales order',
@@ -94,10 +126,11 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
             ),
           if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
-              title: 'Production order tracking',
+              title: 'Manufacturing Tracking',
               icon: Icons.description_outlined,
               targetScreen: const ProductionTrackingProductListScreen(),
             ),
+          /*
           if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
               title: 'Component products',
@@ -110,6 +143,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
               icon: Icons.view_in_ar_rounded,
               onTap: () => Navigator.pop(context),
             ),
+          */
           _MenuItem(
             title: 'End of Day',
             icon: Icons.event_busy_rounded,
@@ -200,7 +234,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
   Widget _buildMenuCard(
     BuildContext context,
     String title,
-    IconData icon,
+    IconData? icon,
     Widget? targetScreen, {
     VoidCallback? onTapOverride,
     String? subtitle,
@@ -231,8 +265,10 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 36, color: orange),
-              const SizedBox(height: 16),
+              if (icon != null) ...[
+                Icon(icon, size: 36, color: orange),
+                const SizedBox(height: 16),
+              ],
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text(

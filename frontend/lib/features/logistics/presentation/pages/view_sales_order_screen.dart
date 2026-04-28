@@ -39,10 +39,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   List<SalesOrder> _filteredOrders = [];
+  String _poTypeFilter = 'POD'; // Default to POD as requested
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = DateTime.now();
+    _selectedSite = Site(code: 'IPL', name: 'IPL');
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
     _loadLookups();
@@ -64,17 +67,17 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   void _applyLocalFilters() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      if (query.isEmpty) {
-        _filteredOrders = List.from(_orders);
-      } else {
-        _filteredOrders = _orders.where((o) {
-          final matchesSearch =
-              o.orderNumber.toLowerCase().contains(query) ||
-              o.customerName.toLowerCase().contains(query) ||
-              o.customerCode.toLowerCase().contains(query);
-          return matchesSearch;
-        }).toList();
-      }
+      _filteredOrders = _orders.where((o) {
+        final matchesSearch = query.isEmpty ||
+            o.orderNumber.toLowerCase().contains(query) ||
+            o.customerName.toLowerCase().contains(query) ||
+            o.customerCode.toLowerCase().contains(query);
+        
+        final po = o.purchaseOrderNumber?.toUpperCase() ?? '';
+        final matchesPoType = po.contains(_poTypeFilter.toUpperCase());
+
+        return matchesSearch && matchesPoType;
+      }).toList();
     });
   }
 
@@ -270,7 +273,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         children: [
           Column(
             children: [
-              SyncStatusHeader(lastSync: _lastSync),
+              SyncStatusHeader(lastSync: _lastSync, showSyncButton: false),
               StandardFilter(
                 onApply: _fetchOrders,
                 searchController: _searchController,
@@ -288,6 +291,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                     _selectedSite = null;
                     _selectedDate = null;
                     _status = 'all';
+                    _poTypeFilter = 'POD';
                     _searchController.clear();
                   });
                   _fetchOrders();
@@ -434,6 +438,23 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   );
                 },
               ),
+              
+              // POD / PTT Tabs
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    _buildPoTab(context, 'POD'),
+                    _buildPoTab(context, 'PTT'),
+                  ],
+                ),
+              ),
+
               Expanded(
                 child: _isLoading
                     ? Center(
@@ -490,6 +511,48 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
         },
         backgroundColor: orange,
         child: const Icon(Icons.add, color: Colors.white, size: 30),
+      ),
+    );
+  }
+
+  Widget _buildPoTab(BuildContext context, String type) {
+    final theme = Theme.of(context);
+    final isSelected = _poTypeFilter == type;
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _poTypeFilter = type);
+          _applyLocalFilters();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? (isDark ? orange.withValues(alpha: 0.2) : orange) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected && !isDark ? [
+              BoxShadow(
+                color: orange.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              )
+            ] : null,
+          ),
+          child: Text(
+            type,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected 
+                  ? (isDark ? orange : Colors.white) 
+                  : (isDark ? Colors.white38 : Colors.black38),
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+              letterSpacing: 1.1,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -8,8 +8,13 @@ import '../../../auth/presentation/bloc/auth_state.dart';
 
 class SyncStatusHeader extends StatelessWidget {
   final String lastSync;
+  final bool showSyncButton;
 
-  const SyncStatusHeader({super.key, required this.lastSync});
+  const SyncStatusHeader({
+    super.key,
+    required this.lastSync,
+    this.showSyncButton = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,19 +95,20 @@ class SyncStatusHeader extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(Icons.sync_rounded, size: 24, color: orange),
-                  onPressed: () {
-                    final authState = context.read<AuthBloc>().state;
-                    if (authState is Authenticated) {
-                      context.read<SyncBloc>().add(
-                        StartSyncRequested(siteCode: authState.siteCode),
-                      );
-                    }
-                  },
-                ),
+                if (showSyncButton)
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(Icons.sync_rounded, size: 24, color: orange),
+                    onPressed: () {
+                      final authState = context.read<AuthBloc>().state;
+                      if (authState is Authenticated) {
+                        context.read<SyncBloc>().add(
+                          StartSyncRequested(siteCode: authState.siteCode),
+                        );
+                      }
+                    },
+                  ),
                 const SizedBox(width: 12),
                 Icon(
                   Icons.arrow_forward_ios_rounded,

@@ -9,6 +9,7 @@ import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
 import 'dart:ui' show ImageFilter;
+import 'package:intl/intl.dart';
 import '../../../features/logistics/presentation/widgets/scan_item_card.dart';
 import '../../app_theme.dart';
 
@@ -22,7 +23,10 @@ class ProductScanFloatingScreen extends StatefulWidget {
     required this.product,
     required this.initialScans,
     required this.onConfirm,
+    this.initialLot,
   });
+
+  final String? initialLot;
 
   @override
   State<ProductScanFloatingScreen> createState() => _ProductScanFloatingScreenState();
@@ -48,8 +52,37 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   void initState() {
     super.initState();
     _scans = List.from(widget.initialScans);
+    if (widget.initialLot != null && widget.initialLot!.isNotEmpty) {
+      _lotController.text = widget.initialLot!;
+      _selectedLot = widget.initialLot;
+    }
     _loadPreferences();
     _fetchSites();
+    _fetchAppSettings();
+  }
+
+  Future<void> _fetchAppSettings() async {
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final settings = await repository.getAppSettings();
+      if (mounted) {
+        final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        // Relaxed date check: as long as there is a lot number, we check if the date is close enough or exists
+        if (settings.dailyLotNumber != null && settings.dailyLotNumber!.isNotEmpty) {
+           final settingsDate = settings.lastLotDate;
+           if (settingsDate == todayStr || _lotController.text.isEmpty) {
+              setState(() {
+                if (_lotController.text.isEmpty) {
+                  _lotController.text = settings.dailyLotNumber!;
+                  _selectedLot = settings.dailyLotNumber;
+                }
+              });
+           }
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch app settings in scan screen: $e');
+    }
   }
 
   Future<void> _fetchSites() async {
@@ -222,6 +255,9 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
 
           if (isManual) {
             _showConfirmationPrompt(result);
+          } else {
+            // --- Instant Save (Removes 2FA / Confirmation) ---
+            _savePendingScan();
           }
         } else {
           AudioService.instance.playError();
@@ -385,7 +421,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                           ],
                                         ),
                                         Text(
-                                          'Product ID: ${widget.product['productId']}',
+                                          'Product ID: ${widget.product['productId'] ?? widget.product['code'] ?? 'N/A'}',
                                           style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                                         ),
                                       ],
@@ -552,7 +588,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                           });
                                         });
                                       },
-                                      manualEntries: _unitLabel == 'EA' || _unitLabel == 'PCS' ? const {'+1 EA': 1.0} : const {'+1 KG': 1.0},
+                                      manualEntries: const {},
                                       themeColor: orange,
                                     ),
                                   ),

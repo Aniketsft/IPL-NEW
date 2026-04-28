@@ -60,7 +60,7 @@ class DeliveryRepository implements ILogisticsRepository {
           manufacturedQuantity: (map['reconciledManufactured'] as num?)?.toDouble() ?? (map['reconciledProduced'] as num).toDouble(),
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
-          unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
+          unit: map['masterUnit'] as String? ?? map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
           headerIsClosed: map['headerStatus'] == 2,
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
           customerName: map['customerName'] as String?,

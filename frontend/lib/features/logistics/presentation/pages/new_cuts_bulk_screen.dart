@@ -186,8 +186,17 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildOrderTypeToggle(orange),
+                const SizedBox(height: 16),
                 _buildModeToggle(orange),
                 const SizedBox(height: 24),
+                
+                if (!_isNewSO) ...[
+                  _buildLabel('SELECT EXISTING SO'),
+                  const SizedBox(height: 8),
+                  _buildExistingSOPicker(orange),
+                  const SizedBox(height: 24),
+                ],
 
                 // Defaults Info Banner
                 _buildDefaultsBanner(orange),
@@ -257,6 +266,80 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
           _buildToggleButton('bulks', 'Bulks', orange),
         ],
       ),
+    );
+  }
+
+  Widget _buildOrderTypeToggle(Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          _buildOrderTypeButton(true, 'New SO', orange),
+          _buildOrderTypeButton(false, 'Existing SO', orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderTypeButton(bool value, String label, Color orange) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final isSelected = _isNewSO == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _isNewSO = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? (isDark ? Colors.white.withValues(alpha: 0.05) : theme.primaryColor.withValues(alpha: 0.05)) 
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? orange : (isDark ? Colors.white38 : Colors.black38),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isDark ? Colors.white38 : Colors.black38,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExistingSOPicker(Color orange) {
+    return _buildDropdownTile(
+      'Existing SO',
+      _selectedExistingSO,
+      [], // We would need to fetch actual SOs here, but for now we'll allow manual entry or mock
+      (val) => setState(() => _selectedExistingSO = val),
     );
   }
 
@@ -573,6 +656,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
       builder: (context) => ProductScanFloatingScreen(
         product: product,
         initialScans: scans,
+        initialLot: _settings?.dailyLotNumber,
         onConfirm: (result) {
           setState(() {
             _selectedProducts[index]['scans'] = result;
@@ -730,16 +814,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   }
 
 
-  Widget _buildLabel(String text) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
-      child: Text(
-        text,
-        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13),
-      ),
-    );
-  }
 
   Widget _buildDatePicker() {
     final theme = Theme.of(context);
