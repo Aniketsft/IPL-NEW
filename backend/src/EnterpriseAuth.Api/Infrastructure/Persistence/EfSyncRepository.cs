@@ -63,11 +63,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     COALESCE(NULLIF(m.ORISOCUST_0, ''), f0.BPCORD_0) COLLATE DATABASE_DEFAULT as [CustomerCode],
                     COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) COLLATE DATABASE_DEFAULT as [CustomerName],
                     LTRIM(RTRIM(f0.REP_0)) COLLATE DATABASE_DEFAULT as [Rep0],
-                    LTRIM(RTRIM(f0.REP_1)) COLLATE DATABASE_DEFAULT as [Rep1],
+                    f0.REP_1 COLLATE DATABASE_DEFAULT as [Rep1],
                     f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
+                    ISNULL(CONCAT(LTRIM(RTRIM(sdh.REPNUM2_0)), ' - ', LTRIM(RTRIM(sdh.REP2_0))), LTRIM(RTRIM(f0.REP_0))) COLLATE DATABASE_DEFAULT as [Salesman],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 ORDER BY f0.ORDDAT_0 DESC");
@@ -857,13 +859,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             foreach (var dto in orderDtos)
             {
                 var existing = existingOrders.FirstOrDefault(o => o.SourceOrderId == dto.SohNum);
-                var salesman = string.IsNullOrEmpty(dto.Rep1) ? dto.Rep0 : $"{dto.Rep0} / {dto.Rep1}";
+                var salesman = !string.IsNullOrEmpty(dto.Salesman) 
+                    ? dto.Salesman 
+                    : (string.IsNullOrEmpty(dto.Rep1) ? dto.Rep0 : $"{dto.Rep0} / {dto.Rep1}");
 
                 if (existing != null)
                 {
                     existing.PoNumber = dto.PoNo;
                     existing.DeliveryDate = dto.DeliveryDate;
                     existing.Salesman = salesman;
+                    existing.Rep0 = dto.Rep0;
+                    existing.Rep1 = dto.Rep1;
                     existing.CustomerCode = dto.CustomerCode;
                     existing.CustomerName = dto.CustomerName;
                     existing.Site = dto.Site;
@@ -880,6 +886,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         OrderDate = dto.OrderDate,
                         DeliveryDate = dto.DeliveryDate,
                         Salesman = salesman,
+                        Rep0 = dto.Rep0,
+                        Rep1 = dto.Rep1,
                         CustomerCode = dto.CustomerCode,
                         CustomerName = dto.CustomerName,
                         Site = dto.Site,

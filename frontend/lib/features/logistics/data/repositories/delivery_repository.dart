@@ -174,7 +174,8 @@ class DeliveryRepository implements ILogisticsRepository {
           date: DateTime.tryParse(dto.deliveryDate) ?? DateTime.now(),
           purchaseOrderNumber: dto.poNo,
           salesManCode1: dto.rep0 ?? '',
-          salesManCode2: dto.rep1 ?? '',
+          salesManCode2: (dto.salesman != null && dto.salesman!.isNotEmpty) ? '' : (dto.rep1 ?? ''),
+          salesmanName: dto.salesman,
           deliveryNo: null, // Placeholder for delivery specific logic
           deliveryFrom: null,
           deliveryLorry: null,
@@ -240,7 +241,8 @@ class DeliveryRepository implements ILogisticsRepository {
       }
 
       if (rep1 != null && rep1.isNotEmpty) {
-        whereClause += ' AND TRIM(${LocalDatabaseHelper.colRep1}) = ?';
+        whereClause += ' AND (TRIM(${LocalDatabaseHelper.colRep1}) = ? OR ${LocalDatabaseHelper.colSalesman} = ?)';
+        whereArgs.add(rep1);
         whereArgs.add(rep1);
       }
 
@@ -1164,8 +1166,10 @@ class DeliveryRepository implements ILogisticsRepository {
           DateTime.now(),
       purchaseOrderNumber: row[LocalDatabaseHelper.colPoNum],
       salesManCode1: row[LocalDatabaseHelper.colRep0] ?? '',
-      salesManCode2: row[LocalDatabaseHelper.colRep1] ?? '',
-      salesmanName: row['salesmanName'],
+      salesManCode2: (row[LocalDatabaseHelper.colSalesman] != null && (row[LocalDatabaseHelper.colSalesman] as String).isNotEmpty)
+          ? '' // If we have the unified name, don't use the code separately to avoid doubling
+          : (row[LocalDatabaseHelper.colRep1] ?? ''),
+      salesmanName: row[LocalDatabaseHelper.colSalesman] ?? row['salesmanName'],
       site: row[LocalDatabaseHelper.colSite],
       isClosed: row[LocalDatabaseHelper.colStatus] == 2,
       isEditable: true,

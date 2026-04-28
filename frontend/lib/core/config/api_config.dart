@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   /// Base IP Address for the backend server.
   /// Update this value to change the IP globally across the app.
-  static const String serverIp = '172.26.106.82';
+  static const String serverIp = '192.168.100.10';
   //'172.26.106.42'; POKEMON
 
   //'192.168.100.13';
@@ -12,7 +12,7 @@ class ApiConfig {
   //'192.168.100.156'; Home
   // 192.168.100.10 innodis winter
   // 172.26.106.82 innodis wifi pokemon
-  
+
   /// Port number for the backend server. (Default is 5004)
   static const String serverPort = '5004';
 

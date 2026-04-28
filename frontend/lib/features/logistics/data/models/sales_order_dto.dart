@@ -11,6 +11,7 @@ class SalesOrderDto {
   final String? source;
   final String? statusLabel;
   final String? poNo;
+  final String? salesman;
   final bool isPreparedForShipment;
   final bool isProcessed;
 
@@ -27,6 +28,7 @@ class SalesOrderDto {
     this.source,
     this.statusLabel,
     this.poNo,
+    this.salesman,
     this.isPreparedForShipment = false,
     this.isProcessed = false,
   });
@@ -52,6 +54,7 @@ class SalesOrderDto {
       source: json['source']?.toString(),
       statusLabel: json['statusLabel']?.toString(),
       poNo: json['poNo'] ?? json['poNumber'],
+      salesman: json['salesman']?.toString(),
       isPreparedForShipment: json['isPreparedForShipment'] == true,
       isProcessed: json['isProcessed'] == true,
     );
@@ -67,6 +70,7 @@ class SalesOrderDto {
       'customerName': customerName,
       'rep0': rep0,
       'rep1': rep1,
+      'salesman': salesman,
       'site': site,
       'status': status,
       'source': source,

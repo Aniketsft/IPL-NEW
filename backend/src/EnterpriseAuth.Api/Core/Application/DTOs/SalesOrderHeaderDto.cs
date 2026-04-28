@@ -13,6 +13,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Rep0 { get; set; } = string.Empty;
         public string Rep1 { get; set; } = string.Empty;
         public string Site { get; set; } = string.Empty;
+        public string Salesman { get; set; } = string.Empty;
         public int Status { get; set; }
         public string Source { get; set; } = string.Empty;
         public bool IsPreparedForShipment { get; set; }

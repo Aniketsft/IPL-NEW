@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260428062147_AddSalesmanSchema")]
+    partial class AddSalesmanSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -456,11 +459,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("DeliveryDate")
                         .HasColumnType("datetime2")
                         .HasColumnName("DeliveryDate");
-
-                    b.Property<string>("DeliveryRepCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("DeliveryRepCode");
 
                     b.Property<string>("DeliverySalesman")
                         .HasMaxLength(200)

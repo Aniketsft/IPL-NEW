@@ -14,6 +14,7 @@ class SalesOrderDetailDto {
   final double scannedQuantity;
   final String? salesMan1;
   final String? salesMan2;
+  final String? salesman;
   final String? site;
   final String? location;
   final String? lot;
@@ -32,6 +33,7 @@ class SalesOrderDetailDto {
     this.deliveryDate,
     this.salesMan1,
     this.salesMan2,
+    this.salesman,
     this.site,
     this.location,
     this.lot,
@@ -58,6 +60,7 @@ class SalesOrderDetailDto {
       deliveryDate: json['deliveryDate']?.toString(),
       salesMan1: json['salesMan1']?.toString(),
       salesMan2: json['salesMan2']?.toString(),
+      salesman: json['salesman']?.toString(),
       site: json['site']?.toString(),
       location: json['location']?.toString(),
       lot: json['lot']?.toString(),

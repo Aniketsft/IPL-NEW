@@ -36,6 +36,14 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("Salesman")]
         public string? Salesman { get; set; }
 
+        [MaxLength(50)]
+        [Column("Rep0")]
+        public string? Rep0 { get; set; }
+
+        [MaxLength(50)]
+        [Column("Rep1")]
+        public string? Rep1 { get; set; }
+
         [MaxLength(100)]
         [Column("CustomerCode")]
         public string? CustomerCode { get; set; }

@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 36;
+  static const _databaseVersion = 37;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -61,6 +61,7 @@ class LocalDatabaseHelper {
   static const colCustomerName = 'customerName';
   static const colRep0 = 'rep0';
   static const colRep1 = 'rep1';
+  static const colSalesman = 'salesman';
   static const colSite = 'site';
   static const colStatus = 'status';
   static const colSource = 'source';
@@ -590,7 +591,14 @@ class LocalDatabaseHelper {
         await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerCode TEXT');
         await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerName TEXT');
       } catch (e) {
-        debugPrint("Migration error v36: $e");
+      }
+    }
+    if (oldVersion < 37) {
+      debugPrint('DB Upgrade: Adding salesman column to tbl_sales_orders (v37)');
+      try {
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colSalesman TEXT');
+      } catch (e) {
+        debugPrint("Migration error v37: $e");
       }
     }
   }
@@ -625,6 +633,7 @@ class LocalDatabaseHelper {
         $colCustomerName TEXT,
         $colRep0 TEXT,
         $colRep1 TEXT,
+        $colSalesman TEXT,
         $colSite TEXT,
         $colStatus INTEGER,
         $colSource TEXT,
@@ -1336,11 +1345,23 @@ class LocalDatabaseHelper {
       args.add(siteCode);
     }
 
-    // We join with tableReps to get the salesman name
-    return await db.rawQuery('''
-      SELECT DISTINCT r.$colCode, r.$colName
+    // Try to get distinct values from the unified colSalesman first
+    final List<Map<String, dynamic>> fromOrders = await db.rawQuery('''
+      SELECT DISTINCT o.$colSalesman AS code, o.$colSalesman AS name
       FROM $tableOrders o
-      INNER JOIN $tableReps r ON o.$colRep1 = r.$colCode
+      WHERE $whereClause AND o.$colSalesman IS NOT NULL AND o.$colSalesman != ''
+      ORDER BY o.$colSalesman
+    ''', args);
+
+    if (fromOrders.isNotEmpty) {
+      return fromOrders;
+    }
+
+    // Fallback to tableReps join for legacy data or when unified salesman is not populated
+    return await db.rawQuery('''
+      SELECT DISTINCT r.$colCode AS code, r.$colName AS name
+      FROM $tableOrders o
+      INNER JOIN $tableReps r ON (o.$colRep1 = r.$colCode OR o.$colRep0 = r.$colCode)
       WHERE $whereClause
       ORDER BY r.$colName
     ''', args);
@@ -1361,7 +1382,9 @@ class LocalDatabaseHelper {
     }
 
     if (salesmanCode != null && salesmanCode.isNotEmpty) {
-      whereClause += ' AND o.$colRep1 = ?';
+      whereClause += ' AND (o.$colRep1 = ? OR o.$colRep0 = ? OR o.$colSalesman = ?)';
+      args.add(salesmanCode);
+      args.add(salesmanCode);
       args.add(salesmanCode);
     }
 
