@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import 'dart:ui' show ImageFilter;
 
 import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
@@ -409,6 +410,38 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
+  Future<bool> _confirmDelete() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Confirm Delete', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to delete this scan line?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   void _savePendingScan() {
     if (_pendingScan == null) return;
     setState(() {
@@ -617,13 +650,34 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                             scan: scan,
                             unit: widget.product.unit,
                             canDelete: !isSaved,
-                            onDelete: isSaved ? null : () {
-                              setState(() {
-                                _scans.removeAt(index);
-                                if (scan['status'] == 'A') {
-                                  _cumulativeQty -= (scan['scannedQty'] as num).toDouble();
+                            onDelete: isSaved ? null : () async {
+                              final confirmed = await _confirmDelete();
+                              if (confirmed && mounted) {
+                                try {
+                                  final db = LocalDatabaseHelper.instance;
+                                  await db.insertOfflineAuditLog(
+                                    entity: 'ProductionScan',
+                                    action: 'DELETE',
+                                    payload: jsonEncode({
+                                      'barcode': scan['barcode'],
+                                      'soNumber': widget.order.orderNumber,
+                                      'productCode': widget.product.itemCode,
+                                      'scannedQty': scan['scannedQty'],
+                                      'manufacturedQty': scan['manufacturedQty'],
+                                      'timestamp': DateTime.now().toIso8601String(),
+                                    }),
+                                  );
+                                } catch (e) {
+                                  debugPrint('Failed to log deletion: $e');
                                 }
-                              });
+
+                                setState(() {
+                                  _scans.removeAt(index);
+                                  if (scan['status'] == 'A') {
+                                    _cumulativeQty -= (scan['scannedQty'] as num).toDouble();
+                                  }
+                                });
+                              }
                             },
                           );
                         },

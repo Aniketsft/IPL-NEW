@@ -9,6 +9,7 @@ import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
 import 'dart:ui' show ImageFilter;
+import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../../../features/logistics/presentation/widgets/scan_item_card.dart';
 import '../../app_theme.dart';
@@ -302,6 +303,39 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
         ],
       ),
     );
+  }
+
+  Future<bool> _confirmDelete() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text('Confirm Delete', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete this scan line?',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
   void _savePendingScan() {
@@ -724,10 +758,30 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                   lineNumber: _scans.length - index,
                                   scan: scan,
                                   unit: _unitLabel,
-                                  onDelete: () {
-                                    setState(() {
-                                      _scans.removeAt(index);
-                                    });
+                                  onDelete: () async {
+                                    final confirmed = await _confirmDelete();
+                                    if (confirmed && mounted) {
+                                      try {
+                                        final db = LocalDatabaseHelper.instance;
+                                        await db.insertOfflineAuditLog(
+                                          entity: 'ProductScanFloating',
+                                          action: 'DELETE',
+                                          payload: jsonEncode({
+                                            'barcode': scan['barcode'],
+                                            'productCode': widget.product['code'] ?? widget.product['productId'],
+                                            'scannedQty': scan['scannedQty'],
+                                            'manufacturedQty': scan['manufacturedQty'],
+                                            'timestamp': DateTime.now().toIso8601String(),
+                                          }),
+                                        );
+                                      } catch (e) {
+                                        debugPrint('Failed to log deletion: $e');
+                                      }
+
+                                      setState(() {
+                                        _scans.removeAt(index);
+                                      });
+                                    }
                                   },
                                 );
                               },
