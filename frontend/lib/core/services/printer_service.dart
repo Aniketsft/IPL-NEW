@@ -62,6 +62,7 @@ class PrinterService {
     String? productionDate,
     String? expiryDate,
     String? auditId,
+    String? salesman,
   }) async {
     if (_mode == PrintMode.directIp) {
       final zpl = ZplGenerator.generateItemLabel(
@@ -76,6 +77,7 @@ class PrinterService {
         productionDate: productionDate,
         expiryDate: expiryDate,
         auditId: auditId,
+        salesman: salesman,
       );
       await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
       return;
@@ -103,7 +105,13 @@ class PrinterService {
                 pw.Text(customerName.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                 pw.Text('IPLSO Number: $soNumber', style: const pw.TextStyle(fontSize: 14)),
                 pw.Divider(thickness: 1),
-                pw.Text('Lot Number: ${lotNumber ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Lot Number: ${lotNumber ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
+                    if (salesman != null) pw.Text('SM: $salesman', style: const pw.TextStyle(fontSize: 12)),
+                  ],
+                ),
                 pw.Text('Production Date: ${productionDate ?? "TODAY"}', style: const pw.TextStyle(fontSize: 12)),
                 pw.Text('Expiry Date: ${expiryDate ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
                 pw.SizedBox(height: 20),

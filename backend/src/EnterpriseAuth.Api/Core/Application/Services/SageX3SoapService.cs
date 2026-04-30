@@ -41,52 +41,72 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         {
             var result = new EndOfDayResult();
 
-            // 1. Fetch only pending (non-processed) records from Staging
-            var allRecords = await _context.StagingRecords
-                .Where(r => !r.IsProcessed)
+            // 1. Simple SQL Query to get unique SO numbers
+            var soNumbers = await _context.Database
+                .SqlQuery<string>($"SELECT DISTINCT ZSOHNUM_0 AS Value FROM Staging WHERE IsProcessed = 0 AND ZSOHNUM_0 IS NOT NULL")
                 .ToListAsync();
 
-            if (!allRecords.Any())
+            if (!soNumbers.Any())
             {
                 return result;
             }
 
-            // 2. Group by SO Number
-            var groups = allRecords.GroupBy(r => r.ZSOHNUM_0).ToList();
-            result.TotalProcessed = groups.Count;
+            result.TotalProcessed = soNumbers.Count;
 
-            foreach (var group in groups)
+            // 2. Process each SO number individually
+            foreach (var soNumber in soNumbers)
             {
-                var importResult = await ImportSalesOrderAsync(group.Key ?? "Unknown", group.ToList());
-                result.Results.Add(importResult);
-
-                if (importResult.Success)
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    result.SuccessCount++;
-                    
-                    // Mark staging records as processed
-                    foreach (var record in group)
-                    {
-                        record.IsProcessed = true;
-                        record.ZVACITM_0 = importResult.RequestNumber; // Store X3 request number (field repurposed from ZREQNUM_0)
-                    }
+                    var records = await _context.StagingRecords
+                        .Where(r => !r.IsProcessed && r.ZSOHNUM_0 == soNumber)
+                        .ToListAsync();
 
-                    // Also mark the normalized SalesOrder as processed
-                    var normalizedOrder = await _context.SalesOrders
-                        .FirstOrDefaultAsync(o => o.SourceOrderId == group.Key);
-                    if (normalizedOrder != null)
+                    var importResult = await ImportSalesOrderAsync(soNumber, records);
+                    result.Results.Add(importResult);
+
+                    if (importResult.Success)
                     {
-                        normalizedOrder.IsProcessed = true;
-                        normalizedOrder.UpdatedAt = DateTime.UtcNow;
+                        result.SuccessCount++;
+                        
+                        // Mark staging records as processed
+                        foreach (var record in records)
+                        {
+                            record.IsProcessed = true;
+                            record.ZVACITM_0 = importResult.RequestNumber;
+                        }
+
+                        // Also mark the normalized SalesOrder as processed
+                        var normalizedOrder = await _context.SalesOrders
+                            .FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
+                        if (normalizedOrder != null)
+                        {
+                            normalizedOrder.IsProcessed = true;
+                            normalizedOrder.UpdatedAt = DateTime.UtcNow;
+                        }
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+                    }
+                    else
+                    {
+                        result.FailureCount++;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
+                    await transaction.RollbackAsync();
                     result.FailureCount++;
+                    result.Results.Add(new X3ImportResult 
+                    { 
+                        Identifier = soNumber, 
+                        Success = false, 
+                        TechnicalError = $"Processing Error: {ex.Message}" 
+                    });
                 }
             }
 
-            await _context.SaveChangesAsync();
             return result;
         }
 
@@ -193,38 +213,60 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         {
             var result = new EndOfDayResult();
 
-            var allRecords = await _context.StagingEodRecords
-                .Where(r => !r.IsProcessed)
+            // 1. Simple SQL Query to get unique Work Order numbers
+            var workOrders = await _context.Database
+                .SqlQuery<string>($"SELECT DISTINCT WorkOrderNumber AS Value FROM StagingEod WHERE IsProcessed = 0 AND WorkOrderNumber IS NOT NULL")
                 .ToListAsync();
 
-            if (!allRecords.Any())
+            if (!workOrders.Any())
             {
                 return result;
             }
 
-            var groups = allRecords.GroupBy(r => r.WorkOrderNumber).ToList();
-            result.TotalProcessed = groups.Count;
+            result.TotalProcessed = workOrders.Count;
 
-            foreach (var group in groups)
+            // 2. Process each Work Order individually
+            foreach (var workOrder in workOrders)
             {
-                var importResult = await ImportProductionEodAsync(group.Key, group.ToList());
-                result.Results.Add(importResult);
-
-                if (importResult.Success)
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    result.SuccessCount++;
-                    foreach (var record in group)
+                    var records = await _context.StagingEodRecords
+                        .Where(r => !r.IsProcessed && r.WorkOrderNumber == workOrder)
+                        .ToListAsync();
+
+                    var importResult = await ImportProductionEodAsync(workOrder, records);
+                    result.Results.Add(importResult);
+
+                    if (importResult.Success)
                     {
-                        record.IsProcessed = true;
+                        result.SuccessCount++;
+                        foreach (var record in records)
+                        {
+                            record.IsProcessed = true;
+                        }
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+                    }
+                    else
+                    {
+                        result.FailureCount++;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
+                    await transaction.RollbackAsync();
                     result.FailureCount++;
+                    result.Results.Add(new X3ImportResult 
+                    { 
+                        Identifier = workOrder, 
+                        Success = false, 
+                        TechnicalError = $"Processing Error: {ex.Message}" 
+                    });
                 }
             }
 
-            await _context.SaveChangesAsync();
             return result;
         }
 

@@ -1588,52 +1588,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           ),
           const SizedBox(height: 14),
 
-          // ── Secondary row: +1 KG  |  Manual Entry ─────────────
+          // ── Secondary row: Manual Entry ─────────────
           Row(
             children: [
-              // +1 KG pill
-              if (widget.product.unit.toUpperCase() != 'EA')
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _addManualQty(1.0),
-                    borderRadius: BorderRadius.circular(32),
-                    child: Container(
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? theme.colorScheme.surfaceContainerHighest
-                            : theme.colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.12)
-                              : Colors.black.withValues(alpha: 0.10),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_rounded,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+1 KG',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (widget.product.unit.toUpperCase() != 'EA')
-                const SizedBox(width: 12),
               // Manual Entry pill
               Expanded(
                 child: InkWell(

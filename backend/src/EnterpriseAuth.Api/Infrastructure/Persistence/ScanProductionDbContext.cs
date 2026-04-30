@@ -134,6 +134,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.ZQTY_0).HasPrecision(18, 5);
                 entity.HasIndex(e => e.ZSOHNUM_0);
+                entity.HasIndex(e => new { e.IsProcessed, e.ZSOHNUM_0 })
+                      .HasDatabaseName("IX_Staging_IsProcessed_SONum");
             });
 
             // StagingEod
@@ -142,6 +144,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.TotalManufacturedQuantity).HasPrecision(18, 5);
                 entity.HasIndex(e => e.WorkOrderNumber);
+                entity.HasIndex(e => new { e.IsProcessed, e.WorkOrderNumber })
+                      .HasDatabaseName("IX_StagingEod_IsProcessed_WorkOrder");
             });
         }
     }

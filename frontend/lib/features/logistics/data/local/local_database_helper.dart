@@ -971,9 +971,22 @@ class LocalDatabaseHelper {
         ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
         COALESCE(det.$colDetCustomerName, ord.$colCustomerName) as customerName,
         COALESCE(det.$colDetCustomerCode, ord.$colCustomerCode) as customerCode,
+        ord.$colRep1 as rep1,
+        ord.$colRep0 as rep0,
+        ord.$colSalesman as salesmanName,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
-        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining
+        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
+        (
+          SELECT scn2.$columnLot 
+          FROM $tableScans scn2 
+          WHERE scn2.$columnSoNumber = det.$colDetSoNum 
+            AND scn2.$columnProductCode = det.$colDetItemCode 
+            AND scn2.$columnLot IS NOT NULL 
+            AND scn2.$columnLot != ''
+          ORDER BY scn2.$columnTimestamp DESC 
+          LIMIT 1
+        ) as latestLot
       FROM $tableDetails det
       LEFT JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
       LEFT JOIN $tableProducts prod ON det.$colDetItemCode = prod.$colProdCode

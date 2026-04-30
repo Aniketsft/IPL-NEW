@@ -15,11 +15,13 @@ class ZplGenerator {
     String? productionDate,
     String? expiryDate,
     String? auditId,
+    String? salesman,
   }) {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    final prodDate = productionDate ?? DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final prodDate =
+        productionDate ?? DateFormat('dd/MM/yyyy').format(DateTime.now());
     final expDate = expiryDate ?? "N/A";
-    
+
     return """
 ^XA
 ^CI28
@@ -27,8 +29,11 @@ class ZplGenerator {
 ^LL780
 
 -- Top Section: Code & Description --
+
+^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
 ^FO40,40^A0N,40,40^FD$productCode^FS
 ^FO400,40^A0N,30,30^FB360,2,R^FD$description^FS
+
 
 -- Customer & SO --
 ^FO40,100^A0N,35,35^FB700,1,L^FD$customerName^FS
@@ -39,15 +44,16 @@ class ZplGenerator {
 
 -- Batch/Date Info --
 ^FO40,230^A0N,30,30^FDLot Number: ${lotNumber ?? "N/A"}^FS
+^FO460,230^A0N,25,25^FDSM: ${salesman ?? ""}^FS
 ^FO40,275^A0N,30,30^FDProduction Date: $prodDate^FS
 ^FO40,320^A0N,30,30^FDExpiry Date: $expDate^FS
+
+-- QR Code (Moved up 2cm from 480 to 320) --
+^FO460,320^BQN,2,6^FDQA,$qrData^FS
 
 -- Large Quantity --
 ^FO40,400^A0N,40,40^FDQuantity:^FS
 ^FO40,450^A0N,80,80^FD${weight.toStringAsFixed(3)} $unit^FS
-
--- QR Code (Bottom Right, adjusted for safe printing) --
-^FO460,480^BQN,2,6^FDQA,$qrData^FS
 
 -- Footer / Audit --
 ^FO40,700^GB700,3,3^FS
@@ -67,7 +73,10 @@ class ZplGenerator {
     required String qrData,
     String? auditId,
   }) {
-    double total = items.fold(0.0, (val, item) => val + (double.tryParse(item['weight'] ?? '0') ?? 0.0));
+    double total = items.fold(
+      0.0,
+      (val, item) => val + (double.tryParse(item['weight'] ?? '0') ?? 0.0),
+    );
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
 
     String itemLines = "";
@@ -118,7 +127,10 @@ $itemLines
     required List<dynamic> items,
   }) {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    double totalWeight = items.fold(0.0, (sum, item) => sum + (item.manufactured ?? 0.0));
+    double totalWeight = items.fold(
+      0.0,
+      (sum, item) => sum + (item.manufactured ?? 0.0),
+    );
 
     String itemLines = "";
     int y = 350;
@@ -126,7 +138,8 @@ $itemLines
     for (var i = 0; i < items.length && i < 8; i++) {
       final item = items[i];
       itemLines += "^FO50,$y^A0N,22,22^FD${item.itemCode}^FS";
-      itemLines += "^FO200,$y^A0N,22,22^FD${item.manufactured.toStringAsFixed(2)}^FS";
+      itemLines +=
+          "^FO200,$y^A0N,22,22^FD${item.manufactured.toStringAsFixed(2)}^FS";
       itemLines += "^FO350,$y^A0N,22,22^FD${item.location}^FS";
       itemLines += "^FO500,$y^A0N,22,22^FD${item.lotNumber}^FS";
       y += 30;

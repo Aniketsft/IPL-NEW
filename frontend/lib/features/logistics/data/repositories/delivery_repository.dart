@@ -65,6 +65,13 @@ class DeliveryRepository implements ILogisticsRepository {
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
+          lot: (map['latestLot'] as String?)?.isNotEmpty == true
+              ? map['latestLot'] as String?
+              : map[LocalDatabaseHelper.colDetLot] as String?,
+          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true 
+              ? map['salesmanName'] as String? 
+              : map['rep0'] as String?,
+          salesMan2: map['rep1'] as String?,
         );
       }).toList();
     } catch (e) {
@@ -106,7 +113,10 @@ class DeliveryRepository implements ILogisticsRepository {
           COALESCE(det.${LocalDatabaseHelper.colDetCustomerCode}, ord.${LocalDatabaseHelper.colCustomerCode}) as customerCode,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalScannedQty, 0)) as reconciledProduced,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
-          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining
+          (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining,
+          ord.${LocalDatabaseHelper.colRep1} as rep1,
+          ord.${LocalDatabaseHelper.colRep0} as rep0,
+          ord.${LocalDatabaseHelper.colSalesman} as salesmanName
         FROM ${LocalDatabaseHelper.tableDetails} det
         INNER JOIN ${LocalDatabaseHelper.tableOrders} ord ON det.${LocalDatabaseHelper.colDetSoNum} = ord.${LocalDatabaseHelper.colOrderNum}
         LEFT JOIN (
@@ -140,6 +150,10 @@ class DeliveryRepository implements ILogisticsRepository {
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
+          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true 
+              ? map['salesmanName'] as String? 
+              : map['rep0'] as String?,
+          salesMan2: map['rep1'] as String?,
         );
       }).toList();
     } catch (e) {

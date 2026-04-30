@@ -190,7 +190,14 @@ class LabelPrintingHandler {
             const SizedBox(height: 8),
             Text('CUSTOMER: ${item.customerName?.toUpperCase() ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
             Text('SO REF: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 10)),
-            if (item.lot != null) Text('LOT: ${item.lot}', style: const TextStyle(color: Colors.black, fontSize: 10)),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (item.lot != null) Text('LOT: ${item.lot}', style: const TextStyle(color: Colors.black, fontSize: 10)),
+                Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 10)),
+              ],
+            ),
             const SizedBox(height: 12),
             Text('QTY: ${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
@@ -395,6 +402,9 @@ class LabelPrintingHandler {
         qrData: LabelQrGenerator.generate(item),
         lotNumber: item.lot,
         auditId: effectiveAuditId,
+        salesman: ((item.salesMan2?.trim() ?? "").isNotEmpty) 
+            ? item.salesMan2!.trim() 
+            : item.salesMan1?.trim(),
       );
     } catch (e) {
       if (context.mounted) {

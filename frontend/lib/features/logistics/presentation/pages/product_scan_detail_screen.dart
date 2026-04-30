@@ -204,8 +204,7 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                     });
                   });
                 },
-                manualEntries: (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase() == 'EA' 
-                    ? const {'+1 EA': 1.0} : const {'+1 KG': 1.0},
+                manualEntries: null,
                 themeColor: orange,
               ),
             ),
@@ -277,49 +276,6 @@ class _ProductScanDetailScreenState extends State<ProductScanDetailScreen> {
                             ),
                           ),
                         ),
-                ),
-                const SizedBox(height: 10),
-                // ── Secondary: +1 KG pill (full-width, below scanner) ──
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: InkWell(
-                    onTap: _addManualOneKg,
-                    borderRadius: BorderRadius.circular(32),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.12)
-                              : Colors.black.withValues(alpha: 0.10),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_rounded,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            (widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase() == 'EA' 
-                                ? '+1 EA' : '+1 KG',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
