@@ -58,6 +58,7 @@ class DeliveryRepository implements ILogisticsRepository {
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
           manufacturedQuantity: (map['reconciledManufactured'] as num?)?.toDouble() ?? (map['reconciledProduced'] as num).toDouble(),
+          eaScannedQuantity: (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
           unit: map['masterUnit'] as String? ?? map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
@@ -113,6 +114,7 @@ class DeliveryRepository implements ILogisticsRepository {
           COALESCE(det.${LocalDatabaseHelper.colDetCustomerCode}, ord.${LocalDatabaseHelper.colCustomerCode}) as customerCode,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalScannedQty, 0)) as reconciledProduced,
           (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
+          (COALESCE(det.${LocalDatabaseHelper.colDetEaScanned}, 0) + COALESCE(scn.totalEaQty, 0)) as reconciledEaQuantity,
           (COALESCE(det.${LocalDatabaseHelper.colDetQuantity}, 0) - (COALESCE(det.${LocalDatabaseHelper.colDetScanned}, 0) + COALESCE(scn.totalManufacturedQty, 0))) as reconciledRemaining,
           ord.${LocalDatabaseHelper.colRep1} as rep1,
           ord.${LocalDatabaseHelper.colRep0} as rep0,
@@ -124,7 +126,8 @@ class DeliveryRepository implements ILogisticsRepository {
             ${LocalDatabaseHelper.columnSoNumber}, 
             ${LocalDatabaseHelper.columnProductCode}, 
             SUM(${LocalDatabaseHelper.columnQuantity}) as totalScannedQty,
-            SUM(${LocalDatabaseHelper.columnManufacturedQuantity}) as totalManufacturedQty
+            SUM(${LocalDatabaseHelper.columnManufacturedQuantity}) as totalManufacturedQty,
+            SUM(${LocalDatabaseHelper.columnEaQuantity}) as totalEaQty
           FROM ${LocalDatabaseHelper.tableScans}
           WHERE ${LocalDatabaseHelper.columnIsReflected} = 0
           GROUP BY ${LocalDatabaseHelper.columnSoNumber}, ${LocalDatabaseHelper.columnProductCode}
@@ -145,6 +148,7 @@ class DeliveryRepository implements ILogisticsRepository {
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
           manufacturedQuantity: (map['reconciledManufactured'] as num).toDouble(),
+          eaScannedQuantity: (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
@@ -584,8 +588,9 @@ class DeliveryRepository implements ILogisticsRepository {
             await db.insert(LocalDatabaseHelper.tableScans, {
               LocalDatabaseHelper.columnSoNumber: entryNo,
               LocalDatabaseHelper.columnProductCode: productCode,
-              LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnQuantity: scan['scannedQty'] ?? scan['weight'],
               LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
+              LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
@@ -618,8 +623,9 @@ class DeliveryRepository implements ILogisticsRepository {
             await db.insert(LocalDatabaseHelper.tableScans, {
               LocalDatabaseHelper.columnSoNumber: entryNo,
               LocalDatabaseHelper.columnProductCode: scan['productCode'],
-              LocalDatabaseHelper.columnQuantity: scan['weight'],
+              LocalDatabaseHelper.columnQuantity: scan['scannedQty'] ?? scan['weight'],
               LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
+              LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
               LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
@@ -787,6 +793,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'expiryDate': e['expiryDate'],
             'location2': e['location2'],
             'location3': e['location3'],
+            'eaQuantity': e['ea_quantity'] ?? 0.0,
             'createdAt': e['createdAt'],
           }).toList(),
         };
@@ -1025,6 +1032,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'expiryDate': e['expiryDate'],
             'location2': e['location2'],
             'location3': e['location3'],
+            'eaQuantity': e['ea_quantity'] ?? 0.0,
             'createdAt': e['createdAt'],
           }).toList(),
           'offlineAudits': unsyncedAudits.map((a) => {
@@ -1185,6 +1193,7 @@ class DeliveryRepository implements ILogisticsRepository {
           : (row[LocalDatabaseHelper.colRep1] ?? ''),
       salesmanName: row[LocalDatabaseHelper.colSalesman] ?? row['salesmanName'],
       site: row[LocalDatabaseHelper.colSite],
+      source: row[LocalDatabaseHelper.colSource],
       isClosed: row[LocalDatabaseHelper.colStatus] == 2,
       isEditable: true,
       isPreparedForShipment: row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
@@ -1195,6 +1204,7 @@ class DeliveryRepository implements ILogisticsRepository {
   SalesOrderDetail _mapLocalDetailToEntity(Map<String, dynamic> row) {
     final qty = (row[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
     final manufactured = (row[LocalDatabaseHelper.colDetScanned] as num?)?.toDouble() ?? 0.0;
+    final eaScanned = (row[LocalDatabaseHelper.colDetEaScanned] as num?)?.toDouble() ?? 0.0;
     final remaining =
         (row['reconciledRemaining'] as num?)?.toDouble() ?? (qty - manufactured);
 
@@ -1207,7 +1217,8 @@ class DeliveryRepository implements ILogisticsRepository {
       quantity: qty,
       remaining: remaining,
       scannedQuantity: manufactured,
-      manufacturedQuantity: manufactured, // Fallback for simple mapping
+      manufacturedQuantity: manufactured,
+      eaScannedQuantity: eaScanned,
       site: row[LocalDatabaseHelper.colDetSite],
       location: row[LocalDatabaseHelper.colDetLocation],
       lot: row[LocalDatabaseHelper.colDetLot],
@@ -1237,6 +1248,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'itemCode': s['itemCode'] ?? s['productCode'],
               'quantity': s['quantity'],
               'manufacturedQuantity': s['manufactured_quantity'] ?? s['quantity'],
+              'eaQuantity': s['ea_quantity'] ?? 0.0,
               'scanTimestamp': s['timestamp'],
               'site': siteCode ?? s['site'],
               'lot': s[LocalDatabaseHelper.columnLot],
@@ -1265,6 +1277,7 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.columnProductCode: scan['itemCode'] ?? '',
         LocalDatabaseHelper.columnQuantity: (scan['scanAmountKg'] ?? 0.0).toDouble(),
         LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['scanAmountKg'] ?? 0.0).toDouble(),
+        LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0).toDouble(),
         LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
         LocalDatabaseHelper.columnItemStatus: scan['itemStatus'] ?? 'Q',
         LocalDatabaseHelper.columnLocationCode: scan['location'] ?? '',
@@ -1302,7 +1315,7 @@ class DeliveryRepository implements ILogisticsRepository {
         final localRow = {
           LocalDatabaseHelper.columnSoNumber: scan['soNumber']?.toString(),
           LocalDatabaseHelper.columnProductCode: scan['productCode']?.toString(),
-          LocalDatabaseHelper.columnQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnQuantity: (scan['scannedQty'] ?? scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
           LocalDatabaseHelper.columnTimestamp: scan['timestamp'],
           LocalDatabaseHelper.columnItemStatus: scan['status'] ?? 'A',
           LocalDatabaseHelper.columnLocationCode: scan['locationCode']?.toString(),
@@ -1311,6 +1324,7 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.columnIsReflected: 0,
           LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
           LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0),
           LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
         };
         await LocalDatabaseHelper.instance.insertScan(localRow);

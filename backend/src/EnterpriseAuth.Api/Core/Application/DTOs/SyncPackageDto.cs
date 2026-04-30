@@ -53,6 +53,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public DateTime? ExpiryDate { get; set; }
         public string? Location2 { get; set; } = string.Empty;
         public string? Location3 { get; set; } = string.Empty;
+        public decimal EaQuantity { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 

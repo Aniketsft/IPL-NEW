@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    [Migration("20260429082439_AddEodProcessingIndexes")]
-    partial class AddEodProcessingIndexes
+    [Migration("20260430061219_AddEaQuantityToStagingEod")]
+    partial class AddEaQuantityToStagingEod
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -337,6 +337,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastScanId");
 
+                    b.Property<decimal>("TotalEaQty")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("TotalEaQty");
+
                     b.Property<decimal>("TotalManufacturedQty")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)")
@@ -386,6 +390,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("DeviceId");
+
+                    b.Property<decimal?>("EaQuantity")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("EaQuantity");
 
                     b.Property<bool>("IsArchived")
                         .HasColumnType("bit")
@@ -706,7 +714,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("ZSOHNUM_0");
 
                     b.HasIndex("IsProcessed", "ZSOHNUM_0")
-                        .HasDatabaseName("IX_Staging_IsProcessed_SONum");
+                        .HasDatabaseName("IX_Staging_EOD_Processing");
 
                     b.ToTable("Staging");
                 });
@@ -722,6 +730,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("DateOfManufacturing")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("EaQuantity")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
 
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");

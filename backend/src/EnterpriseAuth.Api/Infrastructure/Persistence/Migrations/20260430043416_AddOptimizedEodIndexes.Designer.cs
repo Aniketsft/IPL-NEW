@@ -4,6 +4,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260430043416_AddOptimizedEodIndexes")]
+    partial class AddOptimizedEodIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -334,10 +337,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastScanId");
 
-                    b.Property<decimal>("TotalEaQty")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("TotalEaQty");
-
                     b.Property<decimal>("TotalManufacturedQty")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)")
@@ -387,10 +386,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("DeviceId");
-
-                    b.Property<decimal?>("EaQuantity")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("EaQuantity");
 
                     b.Property<bool>("IsArchived")
                         .HasColumnType("bit")
@@ -727,10 +722,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("DateOfManufacturing")
                         .HasColumnType("datetime2");
-
-                    b.Property<decimal>("EaQuantity")
-                        .HasPrecision(18, 5)
-                        .HasColumnType("decimal(18,5)");
 
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");

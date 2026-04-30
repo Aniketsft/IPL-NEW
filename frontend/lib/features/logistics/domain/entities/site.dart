@@ -2,7 +2,7 @@ class Site {
   final String code;
   final String name;
 
-  Site({
+  const Site({
     required this.code,
     required this.name,
   });

@@ -42,6 +42,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             var result = new EndOfDayResult();
 
             // 1. Simple SQL Query to get unique SO numbers
+            // 1. Fetch unique SO numbers directly from SQL to minimize memory usage
             var soNumbers = await _context.Database
                 .SqlQuery<string>($"SELECT DISTINCT ZSOHNUM_0 AS Value FROM Staging WHERE IsProcessed = 0 AND ZSOHNUM_0 IS NOT NULL")
                 .ToListAsync();
@@ -56,6 +57,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             // 2. Process each SO number individually
             foreach (var soNumber in soNumbers)
             {
+                // Each SO is processed in its own transaction for robustness
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
@@ -92,6 +94,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     else
                     {
                         result.FailureCount++;
+                        // We still allow the rest of the batch to continue
                     }
                 }
                 catch (Exception ex)
@@ -102,7 +105,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     { 
                         Identifier = soNumber, 
                         Success = false, 
-                        TechnicalError = $"Processing Error: {ex.Message}" 
+                        TechnicalError = $"Database/Processing Error: {ex.Message}" 
                     });
                 }
             }
@@ -213,7 +216,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         {
             var result = new EndOfDayResult();
 
-            // 1. Simple SQL Query to get unique Work Order numbers
+            // 1. Fetch unique Work Order numbers directly from SQL
             var workOrders = await _context.Database
                 .SqlQuery<string>($"SELECT DISTINCT WorkOrderNumber AS Value FROM StagingEod WHERE IsProcessed = 0 AND WorkOrderNumber IS NOT NULL")
                 .ToListAsync();
@@ -262,7 +265,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     { 
                         Identifier = workOrder, 
                         Success = false, 
-                        TechnicalError = $"Processing Error: {ex.Message}" 
+                        TechnicalError = $"Database/Processing Error: {ex.Message}" 
                     });
                 }
             }

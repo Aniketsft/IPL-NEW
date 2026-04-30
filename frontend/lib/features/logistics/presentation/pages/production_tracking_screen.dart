@@ -106,7 +106,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           'barcode': s['barcode'] ?? s['syncId'] ?? 'SAVED',
           'originalBarcode': s['barcode'] ?? '',
           'productCode': s['itemCode'] ?? widget.product.itemCode,
-          'scannedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+          'scannedQty': (s['eaQuantity'] != null && (s['eaQuantity'] as num).toDouble() > 0)
+              ? (s['eaQuantity'] as num).toDouble()
+              : (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
           'manufacturedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
           'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
           'unit': widget.product.unit,
@@ -995,7 +997,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}', isDark),
-              _statTile('Remaining', '${widget.product.formatQuantity((widget.product.quantity * (1 + tolerance / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)} ${widget.product.unit}', isDark, color: orange),
+              _statTile(
+                'Remaining', 
+                '${widget.product.formatQuantity(
+                  (widget.product.unit == 'EA' || widget.product.unit == 'PCS') 
+                    ? (widget.product.quantity - widget.product.eaScannedQuantity - _baseSessionScannedQty - _cumulativeQty)
+                    : ((widget.product.quantity * (1 + tolerance / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)
+                )} ${widget.product.unit}', 
+                isDark, 
+                color: orange
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1496,7 +1507,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         children: [
           // ── Quantity display ──────────────────────────────────
           Text(
-            'Total Produced (All Time)',
+            (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
+                ? 'Total EA (All Time)'
+                : 'Total Produced (All Time)',
             style: TextStyle(
               color: isDark ? Colors.grey : Colors.grey[600],
               fontSize: 13,
@@ -1517,9 +1530,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               children: [
                 Text(
                   widget.product.formatQuantity(
-                    widget.product.manufacturedQuantity +
-                        _baseSessionScannedQty +
-                        _cumulativeQty,
+                    (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
+                        ? (widget.product.eaScannedQuantity +
+                            _baseSessionScannedQty +
+                            _cumulativeQty)
+                        : (widget.product.manufacturedQuantity +
+                            _baseSessionScannedQty +
+                            _cumulativeQty),
                   ),
                   style: TextStyle(
                     color: orange,

@@ -88,9 +88,14 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   double get _totalWeight {
     double total = 0;
     for (var product in _selectedProducts) {
+      final unit = (product['unit'] ?? 'KG').toString().toUpperCase();
       final scans = product['scans'] as List<dynamic>? ?? [];
       for (var scan in scans) {
-        total += (scan['weight'] as num?)?.toDouble() ?? 0.0;
+        if (unit == 'EA' || unit == 'PCS') {
+           total += (scan['scannedQty'] as num?)?.toDouble() ?? (scan['weight'] as num?)?.toDouble() ?? 0.0;
+        } else {
+           total += (scan['weight'] as num?)?.toDouble() ?? 0.0;
+        }
       }
     }
     return total;

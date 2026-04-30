@@ -639,7 +639,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
             },
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(28, 8, 28, 8),
             child: Row(
               children: [
                 SizedBox(
@@ -671,14 +671,22 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
                 const Spacer(),
-                const Text(
-                  'Ordered',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                SizedBox(
+                  width: 90,
+                  child: const Text(
+                    'Ordered',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                 ),
-                const SizedBox(width: 24),
-                const Text(
-                  'Remaining',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 90,
+                  child: const Text(
+                    'Remaining',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -910,7 +918,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 2, right: 8),
                       child: SizedBox(
-                        width: 24,
+                        width: 30,
                         height: 24,
                         child: Checkbox(
                           value: _selectedItemCodes.contains(item.itemCode),
@@ -951,46 +959,55 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                       ],
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${item.formatQuantity(item.quantity)} ${item.unit}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: isDark ? Colors.white : Colors.black87,
+                  SizedBox(
+                    width: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${item.formatQuantity(item.quantity)} ${item.unit}',
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 24),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Builder(
-                        builder: (context) {
-                          final bool isEA = item.unit.toUpperCase() == 'EA';
-                          final double tolerance = isEA
-                              ? 0.0
-                              : _tolerancePercentage;
-                          final effectiveLimit =
-                              item.quantity * (1 + tolerance / 100);
-                          final effectiveRemaining =
-                              effectiveLimit - item.manufacturedQuantity;
-                          return Text(
-                            '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: effectiveRemaining <= 0
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            final bool isEA = item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS';
+                            final double tolerance = isEA
+                                ? 0.0
+                                : _tolerancePercentage;
+                            final effectiveLimit =
+                                item.quantity * (1 + tolerance / 100);
+                            final effectiveRemaining = isEA
+                                ? (item.quantity - item.eaScannedQuantity)
+                                : (effectiveLimit - item.manufacturedQuantity);
+                            return Text(
+                              '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: effectiveRemaining <= 0
+                                    ? Colors.green
+                                    : Colors.red,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1020,8 +1037,16 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                   else
                     const SizedBox(),
                   Text(
-                    'Scanned: ${item.formatQuantity(item.scannedQuantity)} ${item.unit}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    'Scanned: ${item.formatQuantity(
+                      (item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS')
+                          ? item.eaScannedQuantity
+                          : item.scannedQuantity
+                    )} ${item.unit}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),

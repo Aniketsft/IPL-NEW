@@ -235,6 +235,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 CustomerName = s.OrderLine.Order.CustomerName,
                 Remaining = Math.Max(0m, s.OrderLine.OrderedQuantity - s.TotalManufacturedQty),
                 Manufactured = s.TotalManufacturedQty,
+                EaQuantity = s.TotalEaQty,
                 IsPrepared = s.IsPrepared || s.IsLineCompleted
             });
         }
@@ -385,6 +386,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     SalesOrderLineId = line.Id,
                     ScanAmountKg = scanDto.ScanAmountKg,
+                    EaQuantity = scanDto.EaQuantity,
                     Barcode = scanDto.Barcode,
                     LotNumber = scanDto.Lot,
                     Location = scanDto.Location ?? string.Empty,
@@ -405,6 +407,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
                 
                 state.TotalManufacturedQty += scanDto.ScanAmountKg;
+                state.TotalEaQty += scanDto.EaQuantity ?? 0m;
                 state.LastScanId = entity.Id;
                 state.UpdatedAt = DateTime.UtcNow;
 
@@ -457,6 +460,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SoNumber = soNumber,
                 ItemCode = itemCode,
                 ScanAmountKg = t.ScanAmountKg,
+                EaQuantity = t.EaQuantity,
                 Barcode = t.Barcode,
                 Lot = t.LotNumber,
                 Location = t.Location,
@@ -501,6 +505,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     {
                         SalesOrderLineId = line.Id,
                         ScanAmountKg = scanDto.ScanAmountKg,
+                        EaQuantity = scanDto.EaQuantity,
                         Barcode = scanDto.Barcode,
                         LotNumber = scanDto.Lot,
                         Location = scanDto.Location ?? string.Empty,
@@ -529,6 +534,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
 
                 state.TotalManufacturedQty += totalNewManufactured;
+                state.TotalEaQty += scans.Where(s => s.ItemStatus == "A" || s.ItemStatus == null).Sum(s => s.EaQuantity ?? 0m);
                 state.UpdatedAt = DateTime.UtcNow;
                 
                 // If there are scans, the last one gets its ID set in state.

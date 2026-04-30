@@ -130,7 +130,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             foreach (var line in order.Lines)
             {
                 var state = lineStates.FirstOrDefault(s => s.SalesOrderLineId == line.Id);
-                if (state == null || state.TotalManufacturedQty <= 0) continue;
+                if (state == null || state.TotalManufacturedQty < 0) continue;
 
                 // Resolve VAT level: use lookup result, fallback to "STD" if not found
                 var vatLevel = (line.ItemCode != null && vatLevels.ContainsKey(line.ItemCode))

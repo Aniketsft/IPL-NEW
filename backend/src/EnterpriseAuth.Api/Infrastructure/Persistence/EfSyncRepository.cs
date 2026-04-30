@@ -211,6 +211,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (state != null)
                 {
                     detail.Manufactured = state.TotalManufacturedQty;
+                    detail.EaQuantity = state.TotalEaQty;
                     detail.Remaining = Math.Max(0m, (detail.Quantity ?? 0m) - detail.Manufactured);
                     detail.IsPrepared = state.IsPrepared || state.IsLineCompleted;
                 }
@@ -320,6 +321,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         {
                             SalesOrderLineId = line.Id,
                             ScanAmountKg = scanDto.ScanAmountKg,
+                            EaQuantity = scanDto.EaQuantity,
                             Barcode = scanDto.Barcode, 
                             LotNumber = scanDto.Lot,
                             Location = scanDto.Location,
@@ -340,6 +342,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         }
                         
                         state.TotalManufacturedQty += scanDto.ScanAmountKg;
+                        state.TotalEaQty += scanDto.EaQuantity ?? 0m;
                         state.LastScanId = transaction.Id;
                         state.UpdatedAt = DateTime.UtcNow;
 
@@ -427,10 +430,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     await scanTransaction.CommitAsync();
                     totalCount += request.Scans.Count;
                 }
-                catch
+                catch (Exception scanEx)
                 {
                     await scanTransaction.RollbackAsync();
-                    throw;
+                    // Log the scan failure but DO NOT rethrow — other sync steps
+                    // (StagingEod, LabelAudits, Settings) must still execute.
+                    Console.WriteLine($"[Sync] WARNING: Scan transaction failed and was rolled back. Continuing with remaining sync steps. Error: {scanEx.Message}");
+                    if (scanEx.InnerException != null)
+                        Console.WriteLine($"[Sync] INNER: {scanEx.InnerException.Message}");
                 }
             }
 
@@ -485,10 +492,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     await syncTransaction.CommitAsync();
                     totalCount += request.CutBulkEntries.Count;
                 }
-                catch
+                catch (Exception cbEx)
                 {
                     await syncTransaction.RollbackAsync();
-                    throw;
+                    // Log and continue — do not abort shipment/staging steps downstream
+                    Console.WriteLine($"[Sync] WARNING: CutBulk transaction failed and was rolled back. Continuing. Error: {cbEx.Message}");
+                    if (cbEx.InnerException != null)
+                        Console.WriteLine($"[Sync] INNER: {cbEx.InnerException.Message}");
                 }
             }
 
@@ -554,89 +564,107 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             // 4. Process Shipment Preparation Updates → UPSERT into OrderShipmentStatus (KEPT table)
+            Console.WriteLine($"[Sync] ShipmentPreparationUpdates received: {request.ShipmentPreparationUpdates?.Count ?? 0}");
             if (request.ShipmentPreparationUpdates != null && request.ShipmentPreparationUpdates.Any())
             {
-                foreach (var update in request.ShipmentPreparationUpdates)
+                try 
                 {
-                    var existing = await _scanContext.OrderShipmentStatuses
-                        .FirstOrDefaultAsync(s => s.SoNumber == update.SoNumber);
+                    foreach (var update in request.ShipmentPreparationUpdates)
+                    {
+                        var existing = await _scanContext.OrderShipmentStatuses
+                            .FirstOrDefaultAsync(s => s.SoNumber == update.SoNumber);
 
-                    if (existing != null)
-                    {
-                        existing.IsPreparedForShipment = update.IsPreparedForShipment;
-                        if (update.IsValidated.HasValue) existing.IsValidated = update.IsValidated.Value;
-                        existing.UpdatedAt = DateTime.UtcNow;
-                        existing.UpdatedBy = performedBy;
-                    }
-                    else
-                    {
-                        _scanContext.OrderShipmentStatuses.Add(new OrderShipmentStatus
+                        if (existing != null)
                         {
-                            SoNumber = update.SoNumber,
-                            IsPreparedForShipment = update.IsPreparedForShipment,
-                            IsValidated = update.IsValidated ?? false,
-                            UpdatedAt = DateTime.UtcNow,
-                            UpdatedBy = performedBy
+                            existing.IsPreparedForShipment = update.IsPreparedForShipment;
+                            if (update.IsValidated.HasValue) existing.IsValidated = update.IsValidated.Value;
+                            existing.UpdatedAt = DateTime.UtcNow;
+                            existing.UpdatedBy = performedBy;
+                        }
+                        else
+                        {
+                            _scanContext.OrderShipmentStatuses.Add(new OrderShipmentStatus
+                            {
+                                SoNumber = update.SoNumber,
+                                IsPreparedForShipment = update.IsPreparedForShipment,
+                                IsValidated = update.IsValidated ?? false,
+                                UpdatedAt = DateTime.UtcNow,
+                                UpdatedBy = performedBy
+                            });
+                        }
+
+                        _scanContext.AuditLogs.Add(new AuditLog
+                        {
+                            EntityName = "OrderShipmentStatus",
+                            EntityIdString = update.SoNumber,
+                            ActionType = "UPDATE_SHIP_STATUS",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
                         });
+
+                        // TRIGGER: Populate Staging Table if marked as prepared
+                        if (update.IsPreparedForShipment)
+                        {
+                            Console.WriteLine($"[Sync] Triggering Staging Population for {update.SoNumber}...");
+                            await _stagingService.PopulateStagingAsync(update.SoNumber);
+                        }
                     }
 
-                    _scanContext.AuditLogs.Add(new AuditLog
-                    {
-                        EntityName = "OrderShipmentStatus",
-                        EntityIdString = update.SoNumber,
-                        ActionType = "UPDATE_SHIP_STATUS",
-                        Payload = System.Text.Json.JsonSerializer.Serialize(update),
-                        PerformedBy = performedBy,
-                        PerformedAt = DateTime.UtcNow
-                    });
-
-                    // TRIGGER: Populate Staging Table if marked as prepared
-                    if (update.IsPreparedForShipment)
-                    {
-                        await _stagingService.PopulateStagingAsync(update.SoNumber);
-                    }
+                    await _scanContext.SaveChangesAsync();
+                    totalCount += request.ShipmentPreparationUpdates.Count;
                 }
-
-                await _scanContext.SaveChangesAsync();
-                totalCount += request.ShipmentPreparationUpdates.Count;
+                catch (Exception shipEx)
+                {
+                    Console.WriteLine($"[Sync] WARNING: Shipment Preparation processing failed. Error: {shipEx.Message}");
+                    if (shipEx.InnerException != null)
+                        Console.WriteLine($"[Sync] INNER: {shipEx.InnerException.Message}");
+                }
             }
 
             // 5. Process Order Status Updates → INSERT into OrderStatusHistory (KEPT table)
             if (request.OrderStatusUpdates != null && request.OrderStatusUpdates.Any())
             {
-                foreach (var update in request.OrderStatusUpdates)
+                try 
                 {
-                    if (update.Status == 2)
+                    foreach (var update in request.OrderStatusUpdates)
                     {
-                        // Check if already closed
-                        var alreadyClosed = await _scanContext.OrderStatusHistories
-                            .AnyAsync(h => h.SoNumber == update.SoNumber && h.Status == 2);
-
-                        if (!alreadyClosed)
+                        if (update.Status == 2)
                         {
-                            _scanContext.OrderStatusHistories.Add(new OrderStatusHistory
-                            {
-                                SoNumber = update.SoNumber,
-                                Status = 2,
-                                ChangedBy = performedBy,
-                                ChangedAt = DateTime.UtcNow
-                            });
+                            // Check if already closed
+                            var alreadyClosed = await _scanContext.OrderStatusHistories
+                                .AnyAsync(h => h.SoNumber == update.SoNumber && h.Status == 2);
 
-                            _scanContext.AuditLogs.Add(new AuditLog
+                            if (!alreadyClosed)
                             {
-                                EntityName = "OrderStatusHistory",
-                                EntityIdString = update.SoNumber,
-                                ActionType = "CLOSE_ORDER",
-                                Payload = System.Text.Json.JsonSerializer.Serialize(update),
-                                PerformedBy = performedBy,
-                                PerformedAt = DateTime.UtcNow
-                            });
+                                _scanContext.OrderStatusHistories.Add(new OrderStatusHistory
+                                {
+                                    SoNumber = update.SoNumber,
+                                    Status = 2,
+                                    ChangedBy = performedBy,
+                                    ChangedAt = DateTime.UtcNow
+                                });
+
+                                _scanContext.AuditLogs.Add(new AuditLog
+                                {
+                                    EntityName = "OrderStatusHistory",
+                                    EntityIdString = update.SoNumber,
+                                    ActionType = "CLOSE_ORDER",
+                                    Payload = System.Text.Json.JsonSerializer.Serialize(update),
+                                    PerformedBy = performedBy,
+                                    PerformedAt = DateTime.UtcNow
+                                });
+                            }
                         }
                     }
-                }
 
-                await _scanContext.SaveChangesAsync();
-                totalCount += request.OrderStatusUpdates.Count;
+                    await _scanContext.SaveChangesAsync();
+                    totalCount += request.OrderStatusUpdates.Count;
+                }
+                catch (Exception statusEx)
+                {
+                    Console.WriteLine($"[Sync] WARNING: Order Status update failed. Error: {statusEx.Message}");
+                }
             }
 
             // 6. Process Label Audits
@@ -747,11 +775,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             // 8. Process Staging EOD Entries (Offline Production Tracking)
+            Console.WriteLine($"[Sync] StagingEodEntries received: {request.StagingEodEntries?.Count ?? 0}");
             if (request.StagingEodEntries != null && request.StagingEodEntries.Any())
             {
-                // Only process entries with quantity > 0
-                var validEntries = request.StagingEodEntries.Where(e => e.TotalManufacturedQuantity > 0).ToList();
-                if (!validEntries.Any()) return totalCount;
+                // Process all entries — do not silently drop zero-quantity records
+                // (the device may have valid entries with small decimals that round to 0 in transit)
+                var validEntries = request.StagingEodEntries
+                    .Where(e => e.TotalManufacturedQuantity >= 0)
+                    .ToList();
+                
+                if (validEntries.Any())
+                {
+                    Console.WriteLine($"[Sync] Processing {validEntries.Count} valid StagingEod entries from device {request.DeviceId}");
 
                 var eodIds = validEntries.Select(e => e.Id).ToList();
                 var existingEodIds = await _scanContext.StagingEodRecords
@@ -765,16 +800,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 
                 if (productCodes.Any())
                 {
-                    using IDbConnection db = new SqlConnection(_connectionString);
-                    string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
-                    string sql = $@"SELECT ITMREF_0 as ProductCode, CCE_0 as Cce0, CCE_1 as Cce1 FROM {schema}.ITMMASTER WHERE ITMREF_0 IN @Codes";
-                    var results = await db.QueryAsync(sql, new { Codes = productCodes });
-                    foreach (var row in results)
+                    try 
                     {
-                        string prodCode = row.ProductCode;
-                        string c0 = row.Cce0?.ToString() ?? string.Empty;
-                        string c1 = row.Cce1?.ToString() ?? string.Empty;
-                        cceMapping[prodCode] = (c0, c1);
+                        using IDbConnection db = new SqlConnection(_connectionString);
+                        string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+                        string sql = $@"SELECT ITMREF_0 as ProductCode, CCE_0 as Cce0, CCE_1 as Cce1 FROM {schema}.ITMMASTER WHERE ITMREF_0 IN @Codes";
+                        var results = await db.QueryAsync(sql, new { Codes = productCodes });
+                        foreach (var row in results)
+                        {
+                            string prodCode = row.ProductCode;
+                            string c0 = row.Cce0?.ToString() ?? string.Empty;
+                            string c1 = row.Cce1?.ToString() ?? string.Empty;
+                            cceMapping[prodCode] = (c0, c1);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Sync] Warning: Could not fetch CCE mapping from X3: {ex.Message}. Falling back to DTO values.");
                     }
                 }
 
@@ -799,7 +841,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
                         Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),
                         CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,
-                        IsCompleted = true
+                        IsCompleted = true,
+                        EaQuantity = dto.EaQuantity
                     };
 
                     _scanContext.StagingEodRecords.Add(entity);
@@ -818,6 +861,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 await _scanContext.SaveChangesAsync();
                 totalCount += validEntries.Count;
+                Console.WriteLine($"[Sync] Successfully saved {validEntries.Count} StagingEod records.");
+                }
+                else
+                {
+                    Console.WriteLine($"[Sync] No valid StagingEod entries found in request (Total: {request.StagingEodEntries.Count}).");
+                }
             }
 
             // 9. Process Offline Audits

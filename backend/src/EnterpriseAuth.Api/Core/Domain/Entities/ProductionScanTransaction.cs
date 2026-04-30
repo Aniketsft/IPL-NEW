@@ -17,6 +17,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [Column("ScanAmountKg")]
         public decimal ScanAmountKg { get; set; }
+        
+        [Column("EaQuantity")]
+        public decimal? EaQuantity { get; set; }
 
         [MaxLength(100)]
         [Column("Barcode")]

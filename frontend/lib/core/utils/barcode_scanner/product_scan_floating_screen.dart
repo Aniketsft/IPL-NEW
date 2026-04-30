@@ -169,8 +169,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
     super.dispose();
   }
 
-  double get _totalWeight {
-    return _scans.fold(0.0, (sum, item) => sum + (double.tryParse(item['weight'].toString()) ?? 0.0));
+  double get _totalDisplayQty {
+    return _scans.fold(0.0, (sum, item) {
+      final unit = (item['unit'] ?? widget.product['unit'] ?? widget.product['stockUnit'] ?? 'KG').toString().toUpperCase();
+      if (unit == 'EA' || unit == 'PCS') {
+        return sum + (double.tryParse(item['scannedQty']?.toString() ?? item['weight']?.toString() ?? '0') ?? 0.0);
+      }
+      return sum + (double.tryParse(item['weight']?.toString() ?? '0.0') ?? 0.0);
+    });
   }
 
   String _formatQuantity(double qty, [String? overrideUnit]) {
@@ -581,7 +587,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Row(
                                 children: [
-                                  _buildSummaryStat(context, 'TOTAL $_unitLabel', '${_formatQuantity(_totalWeight)} $_unitLabel', orange),
+                                  _buildSummaryStat(context, 'TOTAL $_unitLabel', '${_formatQuantity(_totalDisplayQty)} $_unitLabel', orange),
                                   const SizedBox(width: 12),
                                   _buildSummaryStat(context, 'COUNT', '${_scans.length} Items', isDark ? Colors.white : Colors.black87),
                                 ],

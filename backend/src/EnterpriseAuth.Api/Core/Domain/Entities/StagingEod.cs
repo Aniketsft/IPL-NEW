@@ -44,5 +44,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public bool IsCompleted { get; set; } = false;
 
         public bool IsProcessed { get; set; } = false;
+        public decimal EaQuantity { get; set; }
     }
 }

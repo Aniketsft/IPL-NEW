@@ -13,6 +13,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [Column("TotalManufacturedQty")]
         public decimal TotalManufacturedQty { get; set; }
+        
+        [Column("TotalEaQty")]
+        public decimal TotalEaQty { get; set; }
 
         [Column("TotalPreparedQty")]
         public decimal TotalPreparedQty { get; set; }

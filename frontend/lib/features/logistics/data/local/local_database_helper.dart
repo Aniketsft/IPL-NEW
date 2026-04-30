@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 38;
+  static const _databaseVersion = 41;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -51,6 +51,7 @@ class LocalDatabaseHelper {
   static const columnSite = 'site';
   static const columnManufacturedQuantity = 'manufactured_quantity';
   static const columnLot = 'lot';
+  static const columnEaQuantity = 'ea_quantity';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -90,6 +91,7 @@ class LocalDatabaseHelper {
   static const colDetScanned = 'scanned';
   static const colDetCustomerCode = 'customerCode';
   static const colDetCustomerName = 'customerName';
+  static const colDetEaScanned = 'ea_scanned';
 
   // Common Code/Name columns
   static const colCode = 'code';
@@ -611,6 +613,27 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v38: $e");
       }
     }
+
+    if (oldVersion < 39) {
+      debugPrint('DB Upgrade: Adding EA quantity tracking (v39)');
+      try {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnEaQuantity REAL DEFAULT 0');
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetEaScanned REAL DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v39: $e");
+      }
+    }
+    if (oldVersion < 41) {
+      debugPrint('DB Upgrade: Ensuring ea_quantity exists in tbl_staging_eod (v41)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!columns.any((c) => c['name'] == columnEaQuantity)) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnEaQuantity REAL DEFAULT 0');
+        }
+      } catch (e) {
+        debugPrint("Migration error v41: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -628,7 +651,8 @@ class LocalDatabaseHelper {
         $columnSyncId TEXT,
         $columnSite TEXT,
         $columnManufacturedQuantity REAL DEFAULT 0,
-        $columnLot TEXT
+        $columnLot TEXT,
+        $columnEaQuantity REAL DEFAULT 0
       )
     ''');
 
@@ -676,6 +700,7 @@ class LocalDatabaseHelper {
         $colDetUnit TEXT DEFAULT "KG",
         $colDetCustomerCode TEXT,
         $colDetCustomerName TEXT,
+        $colDetEaScanned REAL DEFAULT 0,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
@@ -838,6 +863,7 @@ class LocalDatabaseHelper {
         location2 TEXT,
         location3 TEXT,
         createdAt TEXT,
+        $columnEaQuantity REAL DEFAULT 0,
         $columnIsSynced INTEGER DEFAULT 0
       )
     ''');
@@ -976,6 +1002,7 @@ class LocalDatabaseHelper {
         ord.$colSalesman as salesmanName,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetEaScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnEaQuantity ELSE 0 END), 0)) as reconciledEaQuantity,
         (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
         (
           SELECT scn2.$columnLot 
@@ -1622,6 +1649,7 @@ class LocalDatabaseHelper {
         ord.$colCustomerName as customerName,
         ord.$colCustomerCode as customerCode,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetEaScanned, 0) + COALESCE(scn.totalEaQty, 0)) as reconciledEaQuantity,
         scn.lot,
         scn.location,
         scn.timestamp
@@ -1632,6 +1660,7 @@ class LocalDatabaseHelper {
           $columnSoNumber, 
           $columnProductCode, 
           SUM($columnManufacturedQuantity) as totalManufacturedQty,
+          SUM($columnEaQuantity) as totalEaQty,
           MAX($columnLot) as lot,
           MAX($columnLocationCode) as location,
           MAX($columnTimestamp) as timestamp

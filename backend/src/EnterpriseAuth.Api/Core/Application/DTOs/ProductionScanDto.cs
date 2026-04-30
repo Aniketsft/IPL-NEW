@@ -16,6 +16,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         [Required]
         public decimal ScanAmountKg { get; set; }
         
+        public decimal? EaQuantity { get; set; }
+        
         [Required]
         public string SoNumber { get; set; } = string.Empty;
         

@@ -22,6 +22,7 @@ class SalesOrderDetail {
   final double remaining;
   final double scannedQuantity;
   final double manufacturedQuantity;
+  final double eaScannedQuantity;
   final bool isPrepared; // Manufacturing "Prepared"
   final bool isValidated; // Logistics "Validated for Shipment"
   final String unit;
@@ -52,6 +53,7 @@ class SalesOrderDetail {
     required this.remaining,
     required this.scannedQuantity,
     required this.manufacturedQuantity,
+    this.eaScannedQuantity = 0.0,
     this.isPrepared = false,
     this.isValidated = false,
     this.unit = 'KG',
@@ -66,7 +68,7 @@ class SalesOrderDetail {
 
   String formatQuantity(double value) {
     if (unit == 'EA' || unit == 'PCS') {
-      return value.toInt().toString();
+      return value.toStringAsFixed(2);
     }
     return value.toStringAsFixed(3);
   }
@@ -100,6 +102,7 @@ class SalesOrderDetail {
     double? remaining,
     double? scannedQuantity,
     double? manufacturedQuantity,
+    double? eaScannedQuantity,
     bool? isPrepared,
     bool? isValidated,
     String? unit,
@@ -128,6 +131,7 @@ class SalesOrderDetail {
       remaining: remaining ?? this.remaining,
       scannedQuantity: scannedQuantity ?? this.scannedQuantity,
       manufacturedQuantity: manufacturedQuantity ?? this.manufacturedQuantity,
+      eaScannedQuantity: eaScannedQuantity ?? this.eaScannedQuantity,
       isPrepared: isPrepared ?? this.isPrepared,
       isValidated: isValidated ?? this.isValidated,
       unit: unit ?? this.unit,

@@ -34,6 +34,7 @@ class ProductionTrackingItem {
   final double conversion;
   final String location;
   final String statusLabel;
+  final double eaQuantity;
   final DateTime? createdAt;
 
   const ProductionTrackingItem({
@@ -47,6 +48,7 @@ class ProductionTrackingItem {
     required this.conversion,
     required this.location,
     required this.statusLabel,
+    this.eaQuantity = 0.0,
     this.createdAt,
   });
 
@@ -62,6 +64,7 @@ class ProductionTrackingItem {
         conversion: (json['conversion'] as num?)?.toDouble() ?? 1.0,
         location: json['location'] as String? ?? '',
         statusLabel: json['statusLabel'] as String? ?? 'A',
+        eaQuantity: (json['eaQuantity'] as num?)?.toDouble() ?? 0.0,
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'].toString())
             : null,
@@ -78,6 +81,7 @@ class ProductionTrackingItem {
         'conversion': conversion,
         'location': location,
         'statusLabel': statusLabel,
+        'eaQuantity': eaQuantity,
         'createdAt': createdAt?.toIso8601String(),
       };
 }
@@ -181,6 +185,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           conversion: 1.0,
           location: e['location'] as String? ?? 'IPLCH',
           statusLabel: 'A',
+          eaQuantity: (e['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
           createdAt: e['timestamp'] != null ? DateTime.tryParse(e['timestamp'].toString()) : null,
         )).toList();
         _errorMessage = null;
@@ -252,6 +257,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'isSynced': 0,
           'location2': '',
           'location3': '',
+          'ea_quantity': item.eaQuantity,
         });
       }
 
