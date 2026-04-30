@@ -598,6 +598,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnItemStatus: 'A',
               LocalDatabaseHelper.columnSite: 'INTERNAL',
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
+              LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
             });
           }
         }
@@ -1293,17 +1294,55 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
-  /// Fetches the full history of saved production scans for a given SO line from the backend.
   Future<List<Map<String, dynamic>>> getProductionScans(String soNumber, String itemCode) async {
+    List<Map<String, dynamic>> remoteScans = [];
     try {
       final response = await _dio.get(
         'Logistics/production-scans/$soNumber/$itemCode',
       );
       final data = response.data as List;
-      return data.map((json) => Map<String, dynamic>.from(json as Map)).toList();
+      remoteScans = data.map((json) => Map<String, dynamic>.from(json as Map)).toList();
     } catch (e) {
       debugPrint('getProductionScans: Failed to fetch history from API: $e');
-      return [];
+    }
+
+    try {
+      final localScans = await LocalDatabaseHelper.instance.getLocalProductionScans(soNumber, itemCode);
+      
+      final Map<String, Map<String, dynamic>> merged = {};
+      
+      for (var scan in remoteScans) {
+        final key = scan['barcode']?.toString() ?? scan['syncId']?.toString();
+        if (key != null) merged[key] = scan;
+      }
+      
+      for (var scan in localScans) {
+        final key = scan[LocalDatabaseHelper.columnBarcode]?.toString() ?? scan[LocalDatabaseHelper.columnSyncId]?.toString();
+        if (key != null) {
+          merged[key] = {
+            'barcode': scan[LocalDatabaseHelper.columnBarcode],
+            'syncId': scan[LocalDatabaseHelper.columnSyncId],
+            'itemCode': scan[LocalDatabaseHelper.columnProductCode],
+            'scanAmountKg': scan[LocalDatabaseHelper.columnManufacturedQuantity] ?? scan[LocalDatabaseHelper.columnQuantity],
+            'eaQuantity': scan[LocalDatabaseHelper.columnEaQuantity],
+            'createdAt': scan[LocalDatabaseHelper.columnTimestamp],
+            'itemStatus': scan[LocalDatabaseHelper.columnItemStatus],
+            'location': scan[LocalDatabaseHelper.columnLocationCode],
+            'lot': scan[LocalDatabaseHelper.columnLot],
+          };
+        }
+      }
+      
+      final mergedList = merged.values.toList();
+      mergedList.sort((a, b) {
+        final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime); // Descending
+      });
+      return mergedList;
+    } catch (e) {
+      debugPrint('getProductionScans: Failed to merge local history: $e');
+      return remoteScans;
     }
   }
 
@@ -1326,6 +1365,7 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
           LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0),
           LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
+          LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
         };
         await LocalDatabaseHelper.instance.insertScan(localRow);
       } catch (e) {
@@ -1334,6 +1374,32 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+
+  Future<void> ensureSalesOrderDetailExists(SalesOrderDetail detail) async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final results = await db.query(
+      LocalDatabaseHelper.tableDetails,
+      where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+      whereArgs: [detail.soNumber, detail.itemCode],
+    );
+
+    if (results.isEmpty) {
+      await db.insert(LocalDatabaseHelper.tableDetails, {
+        LocalDatabaseHelper.colDetSoNum: detail.soNumber,
+        LocalDatabaseHelper.colDetItemCode: detail.itemCode,
+        LocalDatabaseHelper.colDetDescription: detail.description,
+        LocalDatabaseHelper.colDetBarcodeType: detail.barcodeType,
+        LocalDatabaseHelper.colDetQuantity: detail.quantity,
+        LocalDatabaseHelper.colDetScanned: 0.0,
+        LocalDatabaseHelper.colDetSite: detail.site ?? 'INTERNAL',
+        LocalDatabaseHelper.colDetLocation: detail.location,
+        LocalDatabaseHelper.colDetLot: detail.lot,
+        LocalDatabaseHelper.colDetWarehouse: detail.warehouse,
+        LocalDatabaseHelper.colDetWarehouseName: detail.warehouseName,
+        LocalDatabaseHelper.colDetUnit: detail.unit,
+      });
+    }
+  }
 
   @override
   Future<List<LocationLookup>> getLocationLookups(String site) async {

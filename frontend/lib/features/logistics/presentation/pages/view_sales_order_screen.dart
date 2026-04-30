@@ -44,8 +44,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateTime.now();
-    _selectedSite = Site(code: 'IPL', name: 'IPL');
+    _selectedDate = null;
+    _selectedSite = null;
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
     _loadLookups();
@@ -306,12 +306,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                   setState(() {
                     _selectedCustomerCode = null;
                     _selectedSalesmanCode = null;
-                    _selectedSite = const Site(code: 'IPL', name: 'IPL');
+                    _selectedSite = null;
                     _selectedDate = null;
                     _status = 'all';
                     _poTypeFilter = 'ALL';
                     _searchController.clear();
                   });
+                  _loadLookups();
                   _fetchOrders();
                 },
                 filterBuilder: (context, setModalState) {
@@ -360,6 +361,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                                   _selectedCustomerCode = null;
                                 });
                                 await _reloadSites();
+                                await _reloadSalesReps();
+                                await _reloadCustomers();
                                 setModalState(() {}); 
                               }
                             },
@@ -393,8 +396,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             label: 'Salesman',
                             value: _selectedSalesmanCode,
                             icon: Icons.person_outline,
-                            onTap: _selectedSite == null
-                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Site first')))
+                            onTap: _selectedDate == null
+                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Delivery Date first')))
                                 : () => _showSearchPicker(
                                       'Salesman',
                                       _salesRepsList,
@@ -417,8 +420,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
                             label: 'Customer',
                             value: _selectedCustomerCode,
                             icon: Icons.business,
-                            onTap: _selectedSalesmanCode == null
-                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Salesman first')))
+                            onTap: _selectedSalesmanCode == null || _selectedDate == null
+                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Date and Salesman first')))
                                 : () => _showSearchPicker(
                                       'Customer',
                                       _customersList,

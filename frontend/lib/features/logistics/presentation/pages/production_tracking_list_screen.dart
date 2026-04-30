@@ -24,7 +24,7 @@ class _ProductionTrackingListScreenState
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
-  String? _selectedSiteId = 'IPL';
+  String? _selectedSiteId; // Default to All Sites to show INTERNAL (dummy) orders
   List<Site> _sites = [];
 
   @override
@@ -159,7 +159,7 @@ class _ProductionTrackingListScreenState
           setState(() {
             _searchController.clear();
             _searchQuery = '';
-            _selectedSiteId = 'IPL';
+            _selectedSiteId = null;
           });
           _applyFilters();
         },

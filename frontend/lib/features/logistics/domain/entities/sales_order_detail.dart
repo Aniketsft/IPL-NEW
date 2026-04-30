@@ -62,9 +62,13 @@ class SalesOrderDetail {
   });
 
   // CB orders: quantity=0, manufactured grows freely. Show 100% if any production happened.
-  double get progress => quantity > 0
-      ? manufacturedQuantity / quantity
-      : (manufacturedQuantity > 0 ? 1.0 : 0.0);
+  double get progress {
+    final bool isEA = unit.toUpperCase() == 'EA' || unit.toUpperCase() == 'PCS';
+    final double produced = isEA ? eaScannedQuantity : manufacturedQuantity;
+    return quantity > 0
+        ? produced / quantity
+        : (produced > 0 ? 1.0 : 0.0);
+  }
 
   String formatQuantity(double value) {
     if (unit == 'EA' || unit == 'PCS') {

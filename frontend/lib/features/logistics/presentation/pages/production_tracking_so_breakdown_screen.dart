@@ -139,13 +139,15 @@ class _ProductionTrackingSoBreakdownScreenState
 
     final totalOrdered =
         _currentItems.fold<double>(0, (s, i) => s + i.quantity);
-    final totalManufactured =
-        _currentItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
+    final bool isEA = _currentItems.first.unit.toUpperCase() == 'EA' || _currentItems.first.unit.toUpperCase() == 'PCS';
+    final totalProduced = isEA 
+        ? _currentItems.fold<double>(0, (s, i) => s + i.eaScannedQuantity)
+        : _currentItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
     final totalPrepared = _currentItems.where((i) => i.isPrepared).length;
 
     final aggProgress = totalOrdered > 0
-        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
-        : (totalManufactured > 0 ? 1.0 : 0.0);
+        ? (totalProduced / totalOrdered).clamp(0.0, 1.0)
+        : (totalProduced > 0 ? 1.0 : 0.0);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,

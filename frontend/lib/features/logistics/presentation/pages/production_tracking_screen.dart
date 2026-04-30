@@ -16,7 +16,6 @@ import '../../domain/entities/location_lookup.dart';
 import '../widgets/scan_item_card.dart';
 import '../../data/local/local_database_helper.dart';
 
-
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
   final SalesOrderDetail product;
@@ -35,7 +34,8 @@ class ProductionTrackingScreen extends StatefulWidget {
 class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   String _status = 'A'; // A: Approved, Q: Quality, R: Rejected
   double _cumulativeQty = 0.0; // Qty of pending (unsaved) scans this session
-  double _baseSessionScannedQty = 0.0; // Qty of successfully saved batch scans this session.
+  double _baseSessionScannedQty =
+      0.0; // Qty of successfully saved batch scans this session.
   List<Map<String, dynamic>> _scans = [];
   Map<String, dynamic>? _pendingScan;
   bool _isSaving = false;
@@ -53,10 +53,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   List<Map<String, dynamic>> _excessPools = [];
   bool _isLoadingExcess = false;
   double _tolerancePercentage = 0.0;
+  double _localManufacturedQty = 0.0;
+  double _localEaScannedQty = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _localManufacturedQty = widget.product.manufacturedQuantity;
+    _localEaScannedQty = widget.product.eaScannedQuantity;
     _selectedSite = widget.product.site;
     _fetchInitialData();
     _fetchHistoricalScans();
@@ -102,27 +106,37 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         widget.product.itemCode,
       );
       if (mounted && historicalScans.isNotEmpty) {
-        final mappedScans = historicalScans.map((s) => {
-          'barcode': s['barcode'] ?? s['syncId'] ?? 'SAVED',
-          'originalBarcode': s['barcode'] ?? '',
-          'productCode': s['itemCode'] ?? widget.product.itemCode,
-          'scannedQty': (s['eaQuantity'] != null && (s['eaQuantity'] as num).toDouble() > 0)
-              ? (s['eaQuantity'] as num).toDouble()
-              : (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-          'manufacturedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-          'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-          'unit': widget.product.unit,
-          'timestamp': s['createdAt'] ?? DateTime.now().toIso8601String(),
-          'status': s['itemStatus'] ?? 'A',
-          'siteId': _selectedSite,
-          'locationCode': s['location'],
-          'lot': s['lot'],
-          'soNumber': widget.order.orderNumber,
-          'isSaved': true,
-        }).toList();
+        final mappedScans = historicalScans
+            .map(
+              (s) => {
+                'barcode': s['barcode'] ?? s['syncId'] ?? 'SAVED',
+                'originalBarcode': s['barcode'] ?? '',
+                'productCode': s['itemCode'] ?? widget.product.itemCode,
+                'scannedQty':
+                    (s['eaQuantity'] != null &&
+                        (s['eaQuantity'] as num).toDouble() > 0)
+                    ? (s['eaQuantity'] as num).toDouble()
+                    : (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+                'manufacturedQty':
+                    (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+                'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+                'unit': widget.product.unit,
+                'timestamp': s['createdAt'] ?? DateTime.now().toIso8601String(),
+                'status': s['itemStatus'] ?? 'A',
+                'siteId': _selectedSite,
+                'locationCode': s['location'],
+                'lot': s['lot'],
+                'soNumber': widget.order.orderNumber,
+                'isSaved': true,
+              },
+            )
+            .toList();
         setState(() {
           // Append historical at the end (pending scans stay at top)
-          _scans = [..._scans.where((s) => s['isSaved'] != true), ...mappedScans];
+          _scans = [
+            ..._scans.where((s) => s['isSaved'] != true),
+            ...mappedScans,
+          ];
         });
       }
     } catch (e) {
@@ -133,8 +147,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Future<void> _fetchExcessPools() async {
-    if (widget.order.orderNumber.startsWith('BLK-') || 
-        widget.order.orderNumber.startsWith('CUTS-') || 
+    if (widget.order.orderNumber.startsWith('BLK-') ||
+        widget.order.orderNumber.startsWith('CUTS-') ||
         widget.order.orderNumber.startsWith('FRZ-')) {
       return; // Can't allocate from bulk into bulk (for now)
     }
@@ -149,7 +163,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       if (mounted) {
         setState(() {
           _excessPools = pools.where((p) {
-            final double available = (p['poolQty'] as num).toDouble() - (p['allocatedQty'] as num).toDouble();
+            final double available =
+                (p['poolQty'] as num).toDouble() -
+                (p['allocatedQty'] as num).toDouble();
             return available > 0.001;
           }).toList();
         });
@@ -174,17 +190,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           _locations = locations;
           if (_selectedLocation == null && _locations.isNotEmpty) {
             final iplch = _locations.where((l) => l.location == 'IPLCH');
-            _selectedLocation = iplch.isNotEmpty ? iplch.first : _locations.first;
+            _selectedLocation = iplch.isNotEmpty
+                ? iplch.first
+                : _locations.first;
           }
-
         });
       }
     } catch (e) {
       if (mounted) {
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading locations: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading locations: $e')));
       }
     }
   }
@@ -201,12 +217,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           } else if (_selectedSite == null || !_sites.contains(_selectedSite)) {
             _selectedSite = _sites.isNotEmpty ? _sites.first : null;
           }
-
         });
       }
     } catch (e) {
       if (mounted) {
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading production sites: $e')),
         );
@@ -236,20 +250,21 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         widget.product.itemCode,
         _selectedSite!,
       );
-      
+
       // Integrate Global Daily Lot Number
       final settings = await repository.getAppSettings();
       String? globalLot;
-      
+
       // Relaxed check: if it exists and looks like a valid lot, use it
-      if (settings.dailyLotNumber != null && settings.dailyLotNumber!.isNotEmpty) {
+      if (settings.dailyLotNumber != null &&
+          settings.dailyLotNumber!.isNotEmpty) {
         globalLot = settings.dailyLotNumber;
       }
 
       if (mounted) {
         setState(() {
           _lots = lots;
-          
+
           if (globalLot != null) {
             if (!_lots.contains(globalLot)) {
               _lots.insert(0, globalLot!);
@@ -264,9 +279,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading lots: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading lots: $e')));
       }
     }
   }
@@ -301,23 +316,34 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         }
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
-        _showErrorDialog('Scan Pending', 'Please save or discard the current scan first.');
+        _showErrorDialog(
+          'Scan Pending',
+          'Please save or discard the current scan first.',
+        );
         return false;
       }
 
       final repository = context.read<DeliveryRepository>();
       final matchedProduct = await repository.getProductByBarcode(barcode);
-      
+
       if (matchedProduct == null) {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
-        _showErrorDialog('Barcode Not Found', 'This barcode is not registered in the system.');
+        _showErrorDialog(
+          'Barcode Not Found',
+          'This barcode is not registered in the system.',
+        );
         return false;
       }
 
-      final String targetItemCode = matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
-      final String targetUnit = matchedProduct[LocalDatabaseHelper.colProdSau] ?? 'KG';
-      final double targetStdWeight = (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
+      final String targetItemCode =
+          matchedProduct[LocalDatabaseHelper.colProdCode] ?? '';
+      final String targetUnit =
+          matchedProduct[LocalDatabaseHelper.colProdSau] ?? 'KG';
+      final double targetStdWeight =
+          (matchedProduct[LocalDatabaseHelper.colProdStandardWeight] as num?)
+              ?.toDouble() ??
+          0.0;
 
       final result = BarcodeProcessor.process(
         barcode: barcode,
@@ -331,24 +357,36 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           if (result.itemCode != widget.product.itemCode) {
             AudioService.instance.playError();
             HapticFeedback.heavyImpact();
-            _showErrorDialog('Wrong Product', 'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}');
+            _showErrorDialog(
+              'Wrong Product',
+              'Scanned: ${result.itemCode}\nExpected: ${widget.product.itemCode}',
+            );
             return false;
           }
 
-          final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-') || 
-                                 widget.order.orderNumber.startsWith('BLK-') || 
-                                 widget.order.orderNumber.startsWith('CUTS-') || 
-                                 widget.order.orderNumber.startsWith('FRZ-');
+          final isCutBulkOrder =
+              widget.order.orderNumber.startsWith('CB-') ||
+              widget.order.orderNumber.startsWith('BLK-') ||
+              widget.order.orderNumber.startsWith('CUT-') ||
+              widget.order.orderNumber.startsWith('CUTS-') ||
+              widget.order.orderNumber.startsWith('FRZ-');
           if (!isCutBulkOrder && _status == 'A') {
             final bool isEA = widget.product.unit.toUpperCase() == 'EA';
             final double tolerance = isEA ? 0.0 : _tolerancePercentage;
-            final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
-            
-            final remaining = effectiveLimit - widget.product.manufacturedQuantity - _cumulativeQty;
+            final double effectiveLimit =
+                widget.product.quantity * (1 + tolerance / 100);
+
+            final remaining =
+                effectiveLimit -
+                _localManufacturedQty -
+                _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
               AudioService.instance.playError();
               HapticFeedback.heavyImpact();
-              _showErrorDialog('Limit Exceeded', 'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.');
+              _showErrorDialog(
+                'Limit Exceeded',
+                'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.',
+              );
               return false;
             }
           }
@@ -364,7 +402,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
             };
-            
+
             // --- Instant Save (Removes 2FA / Confirmation) ---
             _savePendingScan();
           });
@@ -380,7 +418,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       }
       return true;
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       return false;
     } finally {
       if (mounted) setState(() => _isProcessingBarcode = false);
@@ -414,34 +455,48 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
   Future<bool> _confirmDelete() async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Confirm Delete', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: const Text(
-          'Are you sure you want to delete this scan line?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Confirm Delete', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            content: const Text(
+              'Are you sure you want to delete this scan line?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(color: Colors.white54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
+                child: const Text(
+                  'DELETE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _savePendingScan() {
@@ -473,27 +528,38 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   void _addManualQty(double qty) {
-    final isCutBulkOrder = widget.order.orderNumber.startsWith('CB-') || 
-                           widget.order.orderNumber.startsWith('BLK-') || 
-                           widget.order.orderNumber.startsWith('CUTS-') || 
-                           widget.order.orderNumber.startsWith('FRZ-');
+    final isCutBulkOrder =
+        widget.order.orderNumber.startsWith('CB-') ||
+        widget.order.orderNumber.startsWith('BLK-') ||
+        widget.order.orderNumber.startsWith('CUT-') ||
+        widget.order.orderNumber.startsWith('CUTS-') ||
+        widget.order.orderNumber.startsWith('FRZ-');
     if (!isCutBulkOrder) {
       final bool isEA = widget.product.unit.toUpperCase() == 'EA';
       final double tolerance = isEA ? 0.0 : _tolerancePercentage;
-      final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
-      
-      final remaining = effectiveLimit - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty;
+      final double effectiveLimit =
+          widget.product.quantity * (1 + tolerance / 100);
+
+      final remaining =
+          effectiveLimit -
+          _localManufacturedQty -
+          _baseSessionScannedQty -
+          _cumulativeQty;
       if (qty > remaining + 0.001) {
         AudioService.instance.playError();
         HapticFeedback.heavyImpact();
-        _showErrorDialog('Limit Exceeded', 'Adding ${qty.toStringAsFixed(3)} would exceed the limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.');
+        _showErrorDialog(
+          'Limit Exceeded',
+          'Adding ${qty.toStringAsFixed(3)} would exceed the limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.',
+        );
         return;
       }
     }
 
     setState(() {
       final manualScan = {
-        'barcode': 'MANUAL-${qty.toInt()}KG-${DateTime.now().millisecondsSinceEpoch}',
+        'barcode':
+            'MANUAL-${qty.toInt()}KG-${DateTime.now().millisecondsSinceEpoch}',
         'manufacturedQty': qty,
         'scannedQty': qty,
         'weight': qty,
@@ -518,11 +584,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   Future<void> _saveAndUpload() async {
     final pendingScans = _scans.where((s) => s['isSaved'] != true).toList();
     if (pendingScans.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No new scans to save')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No new scans to save')));
       return;
     }
     if (_selectedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select target location')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select target location')));
       return;
     }
 
@@ -540,6 +610,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         return copy;
       }).toList();
 
+      await repository.ensureSalesOrderDetailExists(widget.product);
       await repository.saveProductionScansBatch(enrichedScans);
 
       if (mounted) {
@@ -547,8 +618,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           // Mark all pending scans as saved in place
           for (int i = 0; i < _scans.length; i++) {
             if (_scans[i]['isSaved'] != true) {
-              _scans[i] = Map<String, dynamic>.from(_scans[i])..
-                ['isSaved'] = true;
+              _scans[i] = Map<String, dynamic>.from(_scans[i])
+                ..['isSaved'] = true;
             }
           }
           // Shift the pending quantity naturally into the core persistent memory for this screen session
@@ -571,7 +642,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         });
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -592,109 +666,121 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       },
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'Production Scan', 
-          style: TextStyle(
-            fontWeight: FontWeight.w900, 
-            fontSize: 18, 
-            letterSpacing: 1.0,
-            color: isDark ? Colors.white : Colors.black87,
+        appBar: AppBar(
+          title: Text(
+            'Production Scan',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              letterSpacing: 1.0,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.home_rounded, color: orange, size: 24),
+              tooltip: 'Back to Home',
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.home_rounded, color: orange, size: 24),
-            tooltip: 'Back to Home',
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        _buildHeaderCard(),
-                        const SizedBox(height: 16),
-                        _buildSettingsCard(),
-                        const SizedBox(height: 16),
-                        _buildProgressAndStatus(),
-                        const SizedBox(height: 20),
-                        _buildScannerOrSummary(),
-                        const SizedBox(height: 24),
-                        if (_scans.isNotEmpty) ...[
-                          _buildHistoryHeader(),
-                          const SizedBox(height: 12),
+        body: Column(
+          children: [
+            Expanded(
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          _buildHeaderCard(),
+                          const SizedBox(height: 16),
+                          _buildSettingsCard(),
+                          const SizedBox(height: 16),
+                          _buildProgressAndStatus(),
+                          const SizedBox(height: 20),
+                          _buildScannerOrSummary(),
+                          const SizedBox(height: 24),
+                          if (_scans.isNotEmpty) ...[
+                            _buildHistoryHeader(),
+                            const SizedBox(height: 12),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                if (_scans.isNotEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
+                  if (_scans.isNotEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
                           final scan = _scans[index];
                           final bool isSaved = scan['isSaved'] == true;
                           return ScanItemCard(
                             lineNumber: _scans.length - index,
                             scan: scan,
                             unit: widget.product.unit,
-                            canDelete: !isSaved,
-                            onDelete: isSaved ? null : () async {
-                              final confirmed = await _confirmDelete();
-                              if (confirmed && mounted) {
-                                try {
-                                  final db = LocalDatabaseHelper.instance;
-                                  await db.insertOfflineAuditLog(
-                                    entity: 'ProductionScan',
-                                    action: 'DELETE',
-                                    payload: jsonEncode({
-                                      'barcode': scan['barcode'],
-                                      'soNumber': widget.order.orderNumber,
-                                      'productCode': widget.product.itemCode,
-                                      'scannedQty': scan['scannedQty'],
-                                      'manufacturedQty': scan['manufacturedQty'],
-                                      'timestamp': DateTime.now().toIso8601String(),
-                                    }),
-                                  );
-                                } catch (e) {
-                                  debugPrint('Failed to log deletion: $e');
-                                }
+                            canDelete: true,
+                            onDelete: () async {
+                                    final confirmed = await _confirmDelete();
+                                    if (confirmed && mounted) {
+                                      try {
+                                        final db = LocalDatabaseHelper.instance;
+                                        
+                                        // Delete from local DB if it exists
+                                        final barcodeStr = scan['barcode']?.toString();
+                                        if (barcodeStr != null) {
+                                          await db.deleteScan(barcodeStr);
+                                        }
 
-                                setState(() {
-                                  _scans.removeAt(index);
-                                  if (scan['status'] == 'A') {
-                                    _cumulativeQty -= (scan['scannedQty'] as num).toDouble();
-                                  }
-                                });
-                              }
-                            },
+                                        // Always log deletion so backend can process it if synced
+                                        await db.insertOfflineAuditLog(
+                                          entity: 'ProductionScan',
+                                          action: 'DELETE',
+                                          payload: jsonEncode({
+                                            'barcode': scan['barcode'],
+                                            'soNumber': widget.order.orderNumber,
+                                            'productCode': widget.product.itemCode,
+                                            'scannedQty': scan['scannedQty'],
+                                            'manufacturedQty': scan['manufacturedQty'],
+                                            'timestamp': DateTime.now().toIso8601String(),
+                                          }),
+                                        );
+                                      } catch (e) {
+                                        debugPrint('Failed to log deletion: $e');
+                                      }
+
+                                      setState(() {
+                                        _scans.removeAt(index);
+                                        if (isSaved) {
+                                          // Update the UI state instantly for history/saved scans
+                                          _localManufacturedQty -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                          _localEaScannedQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                        } else {
+                                          if (scan['status'] == 'A') {
+                                            _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                          }
+                                        }
+                                      });
+                                    }
+                                  },
                           );
-                        },
-                        childCount: _scans.length,
+                        }, childCount: _scans.length),
                       ),
                     ),
-                  ),
-                const SliverToBoxAdapter(child: SizedBox(height: 40)),
-              ],
+                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                ],
+              ),
             ),
-          ),
-          _buildActionFooter(),
-        ],
+            _buildActionFooter(),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -712,21 +798,27 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
     final double availablePool = totalAvailableExcess;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.08)),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,7 +829,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               Expanded(
                 child: Text(
                   widget.order.customerName,
-                  style: TextStyle(color: orange, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                  style: TextStyle(
+                    color: orange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 ),
@@ -749,7 +846,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(widget.product.description, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(
+            widget.product.description,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -777,7 +881,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(width: 6),
           Text(
             'POOL: ${amount.toStringAsFixed(2)} ${widget.product.unit}',
-            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
           ),
         ],
       ),
@@ -790,16 +899,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05), 
-        borderRadius: BorderRadius.circular(6)
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        label, 
+        label,
         style: TextStyle(
-          color: isDark ? Colors.grey : Colors.grey[600], 
-          fontSize: 11, 
-          fontWeight: FontWeight.w500
-        )
+          color: isDark ? Colors.grey : Colors.grey[600],
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -813,19 +924,26 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         children: [
           InkWell(
-            onTap: () => setState(() => _isSettingsExpanded = !_isSettingsExpanded),
+            onTap: () =>
+                setState(() => _isSettingsExpanded = !_isSettingsExpanded),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -835,17 +953,19 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'PRODUCTION SETTINGS', 
+                      'PRODUCTION SETTINGS',
                       style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87, 
-                        fontSize: 12, 
-                        fontWeight: FontWeight.w900, 
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 1.0,
                       ),
                     ),
                   ),
                   Icon(
-                    _isSettingsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, 
+                    _isSettingsExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
                     color: isDark ? Colors.white38 : Colors.black38,
                   ),
                 ],
@@ -858,7 +978,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _buildDropdownField('Production Site', _selectedSite, _sites, _onSiteChanged),
+                  _buildDropdownField(
+                    'Production Site',
+                    _selectedSite,
+                    _sites,
+                    _onSiteChanged,
+                  ),
                   const SizedBox(height: 12),
                   _buildLotField(),
                   const SizedBox(height: 12),
@@ -872,29 +997,46 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     );
   }
 
-  Widget _buildDropdownField(String label, String? value, List<String> items, Function(String?) onChanged) {
+  Widget _buildDropdownField(
+    String label,
+    String? value,
+    List<String> items,
+    Function(String?) onChanged,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.grey : Colors.black54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor, 
-            borderRadius: BorderRadius.circular(12), 
-            border: Border.all(color: isDark ? Colors.white10 : Colors.black12)
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               isExpanded: true,
               dropdownColor: theme.cardColor,
               value: value,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
-              items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 14,
+              ),
+              items: items
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .toList(),
               onChanged: onChanged,
             ),
           ),
@@ -910,35 +1052,65 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Production Lot', style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+        Text(
+          'Production Lot',
+          style: TextStyle(
+            color: isDark ? Colors.grey : Colors.black54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Autocomplete<String>(
-          key: ValueKey('lot_auto_${_lotController.text}'), // Force rebuild if text changes from empty
-          optionsBuilder: (v) => v.text.isEmpty ? _lots : _lots.where((s) => s.contains(v.text)),
+          key: ValueKey(
+            'lot_auto_${_lotController.text}',
+          ), // Force rebuild if text changes from empty
+          optionsBuilder: (v) =>
+              v.text.isEmpty ? _lots : _lots.where((s) => s.contains(v.text)),
           onSelected: (s) => setState(() {
             _selectedLot = s;
             _lotController.text = s;
           }),
           fieldViewBuilder: (ctx, ctrl, node, onSub) {
-             if (ctrl.text != _lotController.text && _lotController.text.isNotEmpty && ctrl.text.isEmpty) {
-                ctrl.text = _lotController.text;
-             }
-             return TextField(
+            if (ctrl.text != _lotController.text &&
+                _lotController.text.isNotEmpty &&
+                ctrl.text.isEmpty) {
+              ctrl.text = _lotController.text;
+            }
+            return TextField(
               controller: ctrl,
               focusNode: node,
               onChanged: (val) {
                 _selectedLot = val;
                 _lotController.text = val;
               },
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 14,
+              ),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: theme.scaffoldBackgroundColor,
                 hintText: 'Enter or search lot',
-                hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white10 : Colors.black12,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white10 : Colors.black12,
+                  ),
+                ),
               ),
             );
           },
@@ -954,21 +1126,43 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Target Location', style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+        Text(
+          'Target Location',
+          style: TextStyle(
+            color: isDark ? Colors.grey : Colors.black54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         InkWell(
           onTap: _showLocationPicker,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor, 
-              borderRadius: BorderRadius.circular(12), 
-              border: Border.all(color: isDark ? Colors.white10 : Colors.black12)
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? Colors.white10 : Colors.black12,
+              ),
             ),
             child: Row(
               children: [
-                Expanded(child: Text(_selectedLocation?.location ?? 'Select Location', style: TextStyle(color: _selectedLocation == null ? (isDark ? Colors.white24 : Colors.black26) : (isDark ? Colors.white : Colors.black87), fontSize: 14))),
-                Icon(Icons.keyboard_arrow_down, color: isDark ? Colors.grey : Colors.grey[600]),
+                Expanded(
+                  child: Text(
+                    _selectedLocation?.location ?? 'Select Location',
+                    style: TextStyle(
+                      color: _selectedLocation == null
+                          ? (isDark ? Colors.white24 : Colors.black26)
+                          : (isDark ? Colors.white : Colors.black87),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  color: isDark ? Colors.grey : Colors.grey[600],
+                ),
               ],
             ),
           ),
@@ -988,24 +1182,24 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor, 
-        borderRadius: BorderRadius.circular(16)
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _statTile('Ordered', '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}', isDark),
               _statTile(
-                'Remaining', 
-                '${widget.product.formatQuantity(
-                  (widget.product.unit == 'EA' || widget.product.unit == 'PCS') 
-                    ? (widget.product.quantity - widget.product.eaScannedQuantity - _baseSessionScannedQty - _cumulativeQty)
-                    : ((widget.product.quantity * (1 + tolerance / 100)) - widget.product.manufacturedQuantity - _baseSessionScannedQty - _cumulativeQty)
-                )} ${widget.product.unit}', 
-                isDark, 
-                color: orange
+                'Ordered',
+                '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}',
+                isDark,
+              ),
+              _statTile(
+                'Remaining',
+                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty))} ${widget.product.unit}',
+                isDark,
+                color: orange,
               ),
             ],
           ),
@@ -1014,7 +1208,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Text('STATUS', style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+              Text(
+                'STATUS',
+                style: TextStyle(
+                  color: isDark ? Colors.grey : Colors.black54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                ),
+              ),
               const Spacer(),
               _buildStatusToggles(),
             ],
@@ -1026,7 +1228,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             _buildExcessAllocationButton(),
           ],
         ],
-      )    );
+      ),
+    );
   }
 
   Widget _buildExcessAllocationButton() {
@@ -1037,7 +1240,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     // Total available across all pools
     double totalAvailable = 0;
     for (var pool in _excessPools) {
-      totalAvailable += (pool['poolQty'] as num).toDouble() - (pool['allocatedQty'] as num).toDouble();
+      totalAvailable +=
+          (pool['poolQty'] as num).toDouble() -
+          (pool['allocatedQty'] as num).toDouble();
     }
 
     return Container(
@@ -1103,26 +1308,30 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final double poolAvailable = (selectedPool['poolQty'] as num).toDouble() - 
-                                     (selectedPool['allocatedQty'] as num).toDouble();
-          
-          final remainingOrder = widget.product.quantity - 
-                                widget.product.manufacturedQuantity - 
-                                _baseSessionScannedQty - 
-                                _cumulativeQty;
+          final double poolAvailable =
+              (selectedPool['poolQty'] as num).toDouble() -
+              (selectedPool['allocatedQty'] as num).toDouble();
+
+          final remainingOrder =
+              widget.product.quantity -
+              _localManufacturedQty -
+              _baseSessionScannedQty -
+              _cumulativeQty;
 
           return AlertDialog(
             backgroundColor: theme.cardColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: Row(
               children: [
                 Icon(Icons.layers_outlined, color: orange),
                 const SizedBox(width: 12),
                 Text(
-                  'Manual Allocation', 
+                  'Manual Allocation',
                   style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87, 
-                    fontSize: 18, 
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1133,27 +1342,45 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Select Source Pool:', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12)),
+                  Text(
+                    'Select Source Pool:',
+                    style: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                      fontSize: 12,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: theme.scaffoldBackgroundColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.black12,
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<Map<String, dynamic>>(
                         isExpanded: true,
                         dropdownColor: theme.cardColor,
                         value: selectedPool,
-                        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
-                        items: _excessPools.map((p) => DropdownMenuItem(
-                          value: p,
-                          child: Text('${p['soNumber']} (${widget.product.formatQuantity((p['poolQty'] as num).toDouble() - (p['allocatedQty'] as num).toDouble())} left)'),
-                        )).toList(),
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                        items: _excessPools
+                            .map(
+                              (p) => DropdownMenuItem(
+                                value: p,
+                                child: Text(
+                                  '${p['soNumber']} (${widget.product.formatQuantity((p['poolQty'] as num).toDouble() - (p['allocatedQty'] as num).toDouble())} left)',
+                                ),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (val) {
-                          if (val != null) setDialogState(() => selectedPool = val);
+                          if (val != null)
+                            setDialogState(() => selectedPool = val);
                         },
                       ),
                     ),
@@ -1162,45 +1389,81 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Amount to Allocate (KG):', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
-                      Text('Max: ${widget.product.formatQuantity(poolAvailable < remainingOrder ? poolAvailable : remainingOrder)}', 
-                        style: TextStyle(color: orange, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Text(
+                        'Amount to Allocate (KG):',
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        'Max: ${widget.product.formatQuantity(poolAvailable < remainingOrder ? poolAvailable : remainingOrder)}',
+                        style: TextStyle(
+                          color: orange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 24, fontWeight: FontWeight.bold),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: theme.scaffoldBackgroundColor,
                       hintText: '0.000',
-                      hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
-                      suffixText: widget.product.unit,
-                      suffixStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12), 
-                        borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.white24 : Colors.black26,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      suffixText: widget.product.unit,
+                      suffixStyle: TextStyle(
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? Colors.white10 : Colors.black12,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
+                      color: (isDark ? Colors.white : Colors.black).withValues(
+                        alpha: 0.03,
+                      ),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: Colors.blueAccent, size: 16),
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.blueAccent,
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Allocation will draw from ${selectedPool['soNumber']} pool and add to current order.',
-                            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 11),
+                            style: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.black54,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                       ],
@@ -1212,20 +1475,33 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+                child: Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                ),
               ),
               ElevatedButton(
                 onPressed: () async {
                   final amount = double.tryParse(amountController.text) ?? 0;
                   if (amount <= 0) return;
-                  
+
                   if (amount > poolAvailable + 0.001) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not enough excess available')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Not enough excess available'),
+                      ),
+                    );
                     return;
                   }
-                  
+
                   if (amount > remainingOrder + 0.001) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Exceeds target order limit')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Exceeds target order limit'),
+                      ),
+                    );
                     return;
                   }
 
@@ -1235,10 +1511,18 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: orange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-                child: const Text('ALLOCATE', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'ALLOCATE',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           );
@@ -1251,7 +1535,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     setState(() => _isSaving = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      
+
       await repository.allocateExcess(
         sourceBulkSoNumber: sourcePool,
         targetSoNumber: widget.order.orderNumber,
@@ -1261,7 +1545,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
       setState(() {
         _scans.insert(0, {
-          'barcode': 'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
+          'barcode':
+              'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
           'originalBarcode': 'ALLOC-$sourcePool',
           'productCode': widget.product.itemCode,
           'scannedQty': amount,
@@ -1285,7 +1570,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully allocated ${widget.product.formatQuantity(amount)} KG from $sourcePool'),
+            content: Text(
+              'Successfully allocated ${widget.product.formatQuantity(amount)} KG from $sourcePool',
+            ),
             backgroundColor: Colors.green[600],
           ),
         );
@@ -1303,9 +1590,23 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.grey : Colors.black54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: color ?? (isDark ? Colors.white : Colors.black87), fontSize: 16, fontWeight: FontWeight.w900)),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? (isDark ? Colors.white : Colors.black87),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
       ],
     );
   }
@@ -1317,8 +1618,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor, 
-        borderRadius: BorderRadius.circular(10)
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: ['Q', 'A', 'R'].map((s) {
@@ -1328,15 +1629,17 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? theme.cardColor : Colors.transparent, 
-                borderRadius: BorderRadius.circular(8)
+                color: isSelected ? theme.cardColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                s, 
+                s,
                 style: TextStyle(
-                  color: isSelected ? _getStatusColor(s) : (isDark ? Colors.white24 : Colors.black26), 
-                  fontWeight: FontWeight.bold
-                )
+                  color: isSelected
+                      ? _getStatusColor(s)
+                      : (isDark ? Colors.white24 : Colors.black26),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           );
@@ -1352,7 +1655,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
   }
 
   Widget _buildScannerOrSummary() {
-    return _isScannerVisible ? _buildScannerSection() : _buildManualSummaryCard();
+    return _isScannerVisible
+        ? _buildScannerSection()
+        : _buildManualSummaryCard();
   }
 
   Widget _buildScannerSection() {
@@ -1365,30 +1670,36 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         Container(
           height: 320,
           decoration: BoxDecoration(
-            color: Colors.black, 
-            borderRadius: BorderRadius.circular(20), 
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: orange, width: 2),
-            boxShadow: isDark ? null : [
-              BoxShadow(
-                color: orange.withValues(alpha: 0.2),
-                blurRadius: 15,
-                spreadRadius: -2,
-              ),
-            ],
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: orange.withValues(alpha: 0.2),
+                      blurRadius: 15,
+                      spreadRadius: -2,
+                    ),
+                  ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            child: AppBarcodeScanner(onScan: _handleScan, themeColor: orange, autoStart: true),
+            child: AppBarcodeScanner(
+              onScan: _handleScan,
+              themeColor: orange,
+              autoStart: true,
+            ),
           ),
         ),
         if (_pendingScan != null) _buildScanSuccessOverlay(),
         Positioned(
-          top: 12, 
-          right: 12, 
+          top: 12,
+          right: 12,
           child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70), 
-            onPressed: _toggleScanner
-          )
+            icon: const Icon(Icons.close, color: Colors.white70),
+            onPressed: _toggleScanner,
+          ),
         ),
       ],
     );
@@ -1405,39 +1716,43 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
           child: Container(
-            color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.85),
+            color: (isDark ? Colors.black : Colors.white).withValues(
+              alpha: 0.85,
+            ),
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'SCAN SUCCESSFUL', 
+                  'SCAN SUCCESSFUL',
                   style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87, 
-                    fontWeight: FontWeight.w900, 
-                    fontSize: 14, 
-                    letterSpacing: 2.0
-                  )
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    letterSpacing: 2.0,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      widget.product.formatQuantity(_pendingScan!['scannedQty']), 
+                      widget.product.formatQuantity(
+                        _pendingScan!['scannedQty'],
+                      ),
                       style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87, 
-                        fontSize: 42, 
-                        fontWeight: FontWeight.bold
-                      )
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      widget.product.unit, 
+                      widget.product.unit,
                       style: TextStyle(
-                        color: isDark ? Colors.white38 : Colors.black38, 
-                        fontSize: 18
-                      )
+                        color: isDark ? Colors.white38 : Colors.black38,
+                        fontSize: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -1446,27 +1761,32 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: () => setState(() => _pendingScan = null), 
+                        onPressed: () => setState(() => _pendingScan = null),
                         child: Text(
-                          'DISCARD', 
+                          'DISCARD',
                           style: TextStyle(
-                            color: isDark ? Colors.white54 : Colors.black54, 
-                            fontWeight: FontWeight.bold
-                          )
-                        )
-                      )
+                            color: isDark ? Colors.white54 : Colors.black54,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: _savePendingScan, 
+                        onPressed: _savePendingScan,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: orange, 
-                          foregroundColor: isDark ? Colors.black : Colors.white, 
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                        ), 
-                        child: const Text('SAVE SCAN', style: TextStyle(fontWeight: FontWeight.bold))
-                      )
+                          backgroundColor: orange,
+                          foregroundColor: isDark ? Colors.black : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'SAVE SCAN',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1490,7 +1810,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.05),
         ),
         boxShadow: isDark
             ? null
@@ -1507,7 +1829,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         children: [
           // ── Quantity display ──────────────────────────────────
           Text(
-            (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
+            (widget.product.unit.toUpperCase() == 'EA' ||
+                widget.product.unit.toUpperCase() == 'PCS')
                 ? 'Total EA (All Time)'
                 : 'Total Produced (All Time)',
             style: TextStyle(
@@ -1530,11 +1853,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
               children: [
                 Text(
                   widget.product.formatQuantity(
-                    (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
-                        ? (widget.product.eaScannedQuantity +
+                    (widget.product.unit.toUpperCase() == 'EA' ||
+                            widget.product.unit.toUpperCase() == 'PCS')
+                        ? (_localEaScannedQty +
                             _baseSessionScannedQty +
                             _cumulativeQty)
-                        : (widget.product.manufacturedQuantity +
+                        : (_localManufacturedQty +
                             _baseSessionScannedQty +
                             _cumulativeQty),
                   ),
@@ -1566,7 +1890,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [orange, HSLColor.fromColor(orange).withLightness(0.38).toColor()],
+                  colors: [
+                    orange,
+                    HSLColor.fromColor(orange).withLightness(0.38).toColor(),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -1662,51 +1989,71 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       child: Row(
         children: [
           Text(
-            'SCAN HISTORY', 
+            'SCAN HISTORY',
             style: TextStyle(
-              color: isDark ? Colors.white38 : Colors.black38, 
-              fontSize: 11, 
-              fontWeight: FontWeight.w900, 
-              letterSpacing: 1.5
-            )
+              color: isDark ? Colors.white38 : Colors.black38,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+            ),
           ),
           const Spacer(),
           Text(
-            '${_scans.length} ITEMS', 
+            '${_scans.length} ITEMS',
             style: TextStyle(
-              color: theme.primaryColor, 
-              fontSize: 11, 
-              fontWeight: FontWeight.bold
-            )
+              color: theme.primaryColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
     );
-  }  Widget _buildActionFooter() {
+  }
+
+  Widget _buildActionFooter() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        MediaQuery.of(context).padding.bottom + 16,
+      ),
       decoration: BoxDecoration(
-        color: theme.cardColor, 
+        color: theme.cardColor,
         border: Border(
           top: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
         ),
       ),
       child: ElevatedButton(
-        onPressed: (_isSaving || _scans.every((s) => s['isSaved'] == true)) ? null : _saveAndUpload,
+        onPressed: (_isSaving || _scans.every((s) => s['isSaved'] == true))
+            ? null
+            : _saveAndUpload,
         style: ElevatedButton.styleFrom(
           backgroundColor: isDark ? Colors.white : orange,
           foregroundColor: isDark ? Colors.black : Colors.white,
           minimumSize: const Size(double.infinity, 60),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: isDark ? 0 : 4,
         ),
-        child: _isSaving 
-            ? CircularProgressIndicator(color: isDark ? Colors.black : Colors.white) 
-            : const Text('SAVE ALL AND COMPLETE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
+        child: _isSaving
+            ? CircularProgressIndicator(
+                color: isDark ? Colors.black : Colors.white,
+              )
+            : const Text(
+                'SAVE ALL AND COMPLETE',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1.0,
+                ),
+              ),
       ),
     );
   }
@@ -1721,39 +2068,56 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Manual Barcode', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        title: Text(
+          'Manual Barcode',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        ),
         content: TextField(
-          controller: ctrl, 
-          style: TextStyle(color: isDark ? Colors.white : Colors.black87), 
-          keyboardType: TextInputType.number, 
+          controller: ctrl,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            hintText: 'Enter 13-digit code', 
-            hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-          )
+            hintText: 'Enter 13-digit code',
+            hintStyle: TextStyle(
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(
+                color: isDark ? Colors.white10 : Colors.black12,
+              ),
+            ),
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx), 
-            child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54))
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+            ),
           ),
           ElevatedButton(
-            onPressed: () async { 
-               final code = ctrl.text.trim();
-               if (code.length != 13) {
-                   _showErrorDialog('Invalid Barcode', 'Barcode must be exactly 13 digits.');
-                   return;
-               }
-               final success = await _handleScan(code); 
-               if (success && mounted) {
-                   Navigator.pop(ctx);
-                   if (_pendingScan != null) {
-                       _savePendingScan();
-                   }
-               }
-            }, 
-            style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
-            child: const Text('Process', style: TextStyle(color: Colors.white))
+            onPressed: () async {
+              final code = ctrl.text.trim();
+              if (code.length != 13) {
+                _showErrorDialog(
+                  'Invalid Barcode',
+                  'Barcode must be exactly 13 digits.',
+                );
+                return;
+              }
+              final success = await _handleScan(code);
+              if (success && mounted) {
+                Navigator.pop(ctx);
+                if (_pendingScan != null) {
+                  _savePendingScan();
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.primaryColor,
+            ),
+            child: const Text('Process', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1765,11 +2129,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
     final TextEditingController searchController = TextEditingController();
-    List<LocationLookup> filteredLocations = List.from(_locations);    await showModalBottomSheet(
+    List<LocationLookup> filteredLocations = List.from(_locations);
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: theme.scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Container(
           height: MediaQuery.of(context).size.height * 0.75,
@@ -1777,20 +2144,20 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           child: Column(
             children: [
               Container(
-                width: 40, 
-                height: 4, 
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.black12, 
+                  color: isDark ? Colors.white24 : Colors.black12,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                'SELECT LOCATION', 
+                'SELECT LOCATION',
                 style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87, 
-                  fontWeight: FontWeight.w900, 
-                  fontSize: 16, 
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
                   letterSpacing: 1.0,
                 ),
               ),
@@ -1799,18 +2166,35 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 controller: searchController,
                 style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                 decoration: InputDecoration(
-                  hintText: 'Search...', 
-                  hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26), 
-                  prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.black38), 
-                  filled: true, 
-                  fillColor: theme.cardColor, 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  hintText: 'Search...',
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: isDark ? Colors.white38 : Colors.black38,
+                  ),
+                  filled: true,
+                  fillColor: theme.cardColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 0,
+                  ),
                 ),
-                onChanged: (v) { 
-                  setModalState(() { 
-                    filteredLocations = _locations.where((l) => l.fullInfo.toLowerCase().contains(v.toLowerCase())).toList(); 
-                  }); 
+                onChanged: (v) {
+                  setModalState(() {
+                    filteredLocations = _locations
+                        .where(
+                          (l) => l.fullInfo.toLowerCase().contains(
+                            v.toLowerCase(),
+                          ),
+                        )
+                        .toList();
+                  });
                 },
               ),
               const SizedBox(height: 20),
@@ -1821,22 +2205,33 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                     final l = filteredLocations[idx];
                     final isSel = _selectedLocation?.location == l.location;
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
                       title: Text(
-                        l.location ?? '', 
+                        l.location ?? '',
                         style: TextStyle(
-                          color: isSel ? orange : (isDark ? Colors.white : Colors.black87), 
-                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                          color: isSel
+                              ? orange
+                              : (isDark ? Colors.white : Colors.black87),
+                          fontWeight: isSel
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                       subtitle: Text(
-                        '${l.warehouseName} | ${l.locationTypeName}', 
-                        style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 12),
+                        '${l.warehouseName} | ${l.locationTypeName}',
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black45,
+                          fontSize: 12,
+                        ),
                       ),
-                      trailing: isSel ? Icon(Icons.check_circle, color: orange) : null,
-                      onTap: () { 
-                        setState(() => _selectedLocation = l); 
-                        Navigator.pop(context); 
+                      trailing: isSel
+                          ? Icon(Icons.check_circle, color: orange)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedLocation = l);
+                        Navigator.pop(context);
                       },
                     );
                   },

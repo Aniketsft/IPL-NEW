@@ -874,6 +874,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 foreach (var dto in request.OfflineAudits)
                 {
+                    if (dto.Entity == "ProductionScan" && dto.Action == "DELETE")
+                    {
+                        try
+                        {
+                            var payload = System.Text.Json.JsonDocument.Parse(dto.Payload);
+                            var barcode = payload.RootElement.GetProperty("barcode").GetString();
+
+                            var scan = await _scanContext.ProductionScanTransactions
+                                .FirstOrDefaultAsync(t => t.Barcode == barcode);
+
+                            if (scan != null)
+                            {
+                                _scanContext.ProductionScanTransactions.Remove(scan);
+                                Console.WriteLine($"[Sync] Processed DELETE OfflineAudit for scan {barcode}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[Sync] Failed to process DELETE OfflineAudit: {ex.Message}");
+                        }
+                    }
+
                     _scanContext.AuditLogs.Add(new AuditLog
                     {
                         EntityName = dto.Entity,

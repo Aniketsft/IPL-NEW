@@ -641,64 +641,66 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                           child: Container(
                                             color: theme.cardColor.withValues(alpha: 0.85),
                                             padding: const EdgeInsets.all(20),
-                                            child: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                const Text(
-                                                  'SCAN SUCCESSFUL',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 16,
-                                                    letterSpacing: 1.5,
+                                            child: SingleChildScrollView(
+                                              child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  const Text(
+                                                    'SCAN SUCCESSFUL',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight: FontWeight.w900,
+                                                      fontSize: 16,
+                                                      letterSpacing: 1.5,
+                                                    ),
                                                   ),
-                                                ),
-                                                const SizedBox(height: 16),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: _buildOverlayStat(
-                                                        _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'QTY (EA)' : 'SCANNED',
-                                                        BarcodeProcessor.formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
-                                                        _pendingScan!['unit'],
-                                                        Colors.white70,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: _buildOverlayStat(
-                                                        _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'WEIGHT (KG)' : 'TOTAL (KG)',
-                                                        BarcodeProcessor.formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, 'KG'),
-                                                        'KG',
-                                                        AppTheme.primaryAmber,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 24),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: TextButton(
-                                                        onPressed: () => setState(() => _pendingScan = null),
-                                                        child: Text('DISCARD', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontWeight: FontWeight.bold)),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: ElevatedButton(
-                                                        onPressed: _savePendingScan,
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: AppTheme.primaryAmber,
-                                                          foregroundColor: Colors.black,
-                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                  const SizedBox(height: 16),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: _buildOverlayStat(
+                                                          _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'QTY (EA)' : 'SCANNED',
+                                                          BarcodeProcessor.formatQuantity(_pendingScan!['scannedQty'] ?? 0.0, _pendingScan!['unit']),
+                                                          _pendingScan!['unit'],
+                                                          Colors.white70,
                                                         ),
-                                                        child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: _buildOverlayStat(
+                                                          _unitLabel == 'EA' || _unitLabel == 'PCS' ? 'WEIGHT (KG)' : 'TOTAL (KG)',
+                                                          BarcodeProcessor.formatQuantity(_pendingScan!['manufacturedQty'] ?? 0.0, 'KG'),
+                                                          'KG',
+                                                          AppTheme.primaryAmber,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 24),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: TextButton(
+                                                          onPressed: () => setState(() => _pendingScan = null),
+                                                          child: Text('DISCARD', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontWeight: FontWeight.bold)),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: _savePendingScan,
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: AppTheme.primaryAmber,
+                                                            foregroundColor: Colors.black,
+                                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                          ),
+                                                          child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -767,23 +769,6 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                                   onDelete: () async {
                                     final confirmed = await _confirmDelete();
                                     if (confirmed && mounted) {
-                                      try {
-                                        final db = LocalDatabaseHelper.instance;
-                                        await db.insertOfflineAuditLog(
-                                          entity: 'ProductScanFloating',
-                                          action: 'DELETE',
-                                          payload: jsonEncode({
-                                            'barcode': scan['barcode'],
-                                            'productCode': widget.product['code'] ?? widget.product['productId'],
-                                            'scannedQty': scan['scannedQty'],
-                                            'manufacturedQty': scan['manufacturedQty'],
-                                            'timestamp': DateTime.now().toIso8601String(),
-                                          }),
-                                        );
-                                      } catch (e) {
-                                        debugPrint('Failed to log deletion: $e');
-                                      }
-
                                       setState(() {
                                         _scans.removeAt(index);
                                       });

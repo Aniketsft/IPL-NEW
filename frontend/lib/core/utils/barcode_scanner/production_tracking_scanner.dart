@@ -105,7 +105,44 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
             }
           }
         } else {
-          _showSnackBar('No product code "$itemCode" in this order.');
+          // NEW: For Cut/Bulk orders, allow adding "new" products that aren't in the detail list
+          final isCutBulkOrder =
+              widget.order.orderNumber.startsWith('CB-') ||
+              widget.order.orderNumber.startsWith('BLK-') ||
+              widget.order.orderNumber.startsWith('CUT-') ||
+              widget.order.orderNumber.startsWith('CUTS-') ||
+              widget.order.orderNumber.startsWith('FRZ-');
+
+          if (isCutBulkOrder) {
+            final newDetail = SalesOrderDetail(
+              soNumber: widget.order.orderNumber,
+              itemCode: result.itemCode,
+              description: result.description,
+              quantity: 0.0, // Default for new additions
+              unit: result.unit,
+              barcodeType: '',
+              remaining: 0.0,
+              scannedQuantity: 0.0,
+              manufacturedQuantity: 0.0,
+              isPrepared: false,
+            );
+
+            final trackingResult = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProductionTrackingScreen(
+                  order: widget.order,
+                  product: newDetail,
+                ),
+              ),
+            );
+            
+            if (mounted) {
+              Navigator.pop(context, trackingResult);
+            }
+          } else {
+            _showSnackBar('No product code "$itemCode" in this order.');
+          }
         }
       } else {
         _showSnackBar('Unknown barcode: $barcode');

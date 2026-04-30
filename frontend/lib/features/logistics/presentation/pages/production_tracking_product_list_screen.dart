@@ -239,9 +239,14 @@ class _ProductionTrackingProductListScreenState
         soItems.fold<double>(0, (s, i) => s + i.scannedQuantity);
     final totalManufactured =
         soItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
+    final bool isEA = soItems.first.unit.toUpperCase() == 'EA' || soItems.first.unit.toUpperCase() == 'PCS';
+    final totalProduced = isEA 
+        ? soItems.fold<double>(0, (s, i) => s + i.eaScannedQuantity)
+        : soItems.fold<double>(0, (s, i) => s + i.manufacturedQuantity);
+    
     final aggProgress = totalOrdered > 0
-        ? (totalManufactured / totalOrdered).clamp(0.0, 1.0)
-        : (totalManufactured > 0 ? 1.0 : 0.0);
+        ? (totalProduced / totalOrdered).clamp(0.0, 1.0)
+        : (totalProduced > 0 ? 1.0 : 0.0);
     final soCount = soItems.length;
 
     return GestureDetector(
@@ -384,7 +389,7 @@ class _ProductionTrackingProductListScreenState
                   Expanded(
                     child: _buildStat(
                       'Produced (M)',
-                      '${soItems.first.formatQuantity(totalManufactured)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
+                      '${soItems.first.formatQuantity(totalProduced)} / ${soItems.first.formatQuantity(totalOrdered)} ${soItems.first.unit}',
                       orange,
                       isDark,
                       isFullWidth: true,

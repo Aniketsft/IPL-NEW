@@ -7,7 +7,7 @@ import 'dart:convert';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 41;
+  static const _databaseVersion = 42;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -52,6 +52,7 @@ class LocalDatabaseHelper {
   static const columnManufacturedQuantity = 'manufactured_quantity';
   static const columnLot = 'lot';
   static const columnEaQuantity = 'ea_quantity';
+  static const columnBarcode = 'barcode';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -634,6 +635,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v41: $e");
       }
     }
+    if (oldVersion < 42) {
+      debugPrint('DB Upgrade: Adding barcode column to tbl_scans (v42)');
+      try {
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnBarcode TEXT');
+      } catch (e) {
+        debugPrint("Migration error v42: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -652,7 +661,8 @@ class LocalDatabaseHelper {
         $columnSite TEXT,
         $columnManufacturedQuantity REAL DEFAULT 0,
         $columnLot TEXT,
-        $columnEaQuantity REAL DEFAULT 0
+        $columnEaQuantity REAL DEFAULT 0,
+        $columnBarcode TEXT
       )
     ''');
 
@@ -1726,6 +1736,25 @@ class LocalDatabaseHelper {
       tableOfflineAuditLogs,
       {'isSynced': 1},
       where: 'id IN (${ids.join(", ")})',
+    );
+  }
+
+  Future<void> deleteScan(String barcode) async {
+    final db = await instance.database;
+    await db.delete(
+      tableScans,
+      where: '$columnBarcode = ?',
+      whereArgs: [barcode],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getLocalProductionScans(String soNumber, String productCode) async {
+    final db = await instance.database;
+    return await db.query(
+      tableScans,
+      where: '$columnSoNumber = ? AND $columnProductCode = ?',
+      whereArgs: [soNumber, productCode],
+      orderBy: '$columnTimestamp DESC',
     );
   }
 }
