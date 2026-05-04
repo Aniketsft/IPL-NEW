@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_qr_generator.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_printing_handler.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
 
 enum AggregationMode { crate, palette }
 
@@ -13,7 +13,7 @@ class QrLabelScreen extends StatefulWidget {
   State<QrLabelScreen> createState() => _QrLabelScreenState();
 }
 
-class _QrLabelScreenState extends State<QrLabelScreen> {
+class _QrLabelScreenState extends State<QrLabelScreen> with SunmiScannerMixin<QrLabelScreen> {
   AggregationMode _mode = AggregationMode.crate;
   
   // Crate State
@@ -37,51 +37,31 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
     }
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    if (!_isScannerOpen) return;
+  @override
+  void onHardwareScan(String data) {
+    final parsedData = LabelQrGenerator.parse(data);
+    if (parsedData.isEmpty) return;
+
+    final type = parsedData['type'];
     
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
-      final String? code = barcode.rawValue;
-      if (code != null) {
-        final data = LabelQrGenerator.parse(code);
-        if (data.isEmpty) continue;
-
-        // --- ENFORCE STRICT INDUSTRIAL GUARDRAILS ---
-        final type = data['type'];
-        
-        if (_mode == AggregationMode.crate) {
-          if (type != 'ITEM') {
-            _showError('CRATE MODE: Only scan individual products!');
-            _pauseScanner();
-            return;
-          }
-        } else if (_mode == AggregationMode.palette) {
-          if (type != 'CRATE') {
-            _showError('PALETTE MODE: Only scan Master Crate labels!');
-            _pauseScanner();
-            return;
-          }
-        }
-
-        setState(() {
-          if (_mode == AggregationMode.crate) {
-            _handleCrateScan(data);
-          } else {
-            _handlePaletteScan(data);
-          }
-        });
-        
-        _pauseScanner();
-        break; 
+    if (_mode == AggregationMode.crate) {
+      if (type != 'ITEM') {
+        _showError('CRATE MODE: Only scan individual products!');
+        return;
+      }
+    } else if (_mode == AggregationMode.palette) {
+      if (type != 'CRATE') {
+        _showError('PALETTE MODE: Only scan Master Crate labels!');
+        return;
       }
     }
-  }
 
-  void _pauseScanner() {
-    setState(() => _isScannerOpen = false);
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) setState(() => _isScannerOpen = true);
+    setState(() {
+      if (_mode == AggregationMode.crate) {
+        _handleCrateScan(parsedData);
+      } else {
+        _handlePaletteScan(parsedData);
+      }
     });
   }
 
@@ -185,8 +165,31 @@ class _QrLabelScreenState extends State<QrLabelScreen> {
             ),
             child: Stack(
               children: [
-                MobileScanner(
-                  onDetect: _onDetect,
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.qr_code_2, color: orange.withValues(alpha: 0.3), size: 80),
+                      const SizedBox(height: 16),
+                      Text(
+                        'HARDWARE QR READER ACTIVE',
+                        style: TextStyle(
+                          color: orange.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Trigger hardware laser to scan',
+                        style: TextStyle(
+                          color: Colors.white24,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 // Scanner Overlay
                 Center(

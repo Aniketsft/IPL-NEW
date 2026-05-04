@@ -9,6 +9,8 @@ import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
 import 'new_cuts_bulk_screen.dart';
 import '../widgets/sync_overlay.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
   const ViewSalesOrderScreen({super.key});
@@ -17,7 +19,7 @@ class ViewSalesOrderScreen extends StatefulWidget {
   State<ViewSalesOrderScreen> createState() => _ViewSalesOrderScreenState();
 }
 
-class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
+class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiScannerMixin<ViewSalesOrderScreen> {
   DateTime? _selectedDate;
   String _status = 'open';
   List<SalesOrder> _orders = [];
@@ -58,6 +60,21 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  Future<void> onHardwareScan(String data) async {
+    // Force unfocus to prevent keyboard wedge from typing into fields
+    FocusScope.of(context).unfocus();
+    
+    final processor = OfflineBarcodeProcessor();
+    final result = await processor.processBarcode(data);
+    final targetItemCode = result?.itemCode ?? data;
+    
+    setState(() {
+      _searchController.text = targetItemCode;
+    });
+    _applyLocalFilters();
   }
 
   void _onSearchChanged() {

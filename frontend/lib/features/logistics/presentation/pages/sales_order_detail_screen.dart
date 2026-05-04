@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
@@ -8,6 +9,8 @@ import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import '../widgets/label_printing_handler.dart';
 import 'production_tracking_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
   final SalesOrder order;
@@ -23,7 +26,7 @@ class SalesOrderDetailScreen extends StatefulWidget {
   State<SalesOrderDetailScreen> createState() => _SalesOrderDetailScreenState();
 }
 
-class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
+class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with SunmiScannerMixin<SalesOrderDetailScreen> {
   List<SalesOrderDetail> _details = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -36,6 +39,48 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
   void initState() {
     super.initState();
     _fetchDetails();
+  }
+
+  @override
+  Future<void> onHardwareScan(String data) async {
+    // Force unfocus to prevent keyboard wedge from typing into fields
+    FocusScope.of(context).unfocus();
+    HapticFeedback.mediumImpact();
+    try {
+      final processor = OfflineBarcodeProcessor();
+      final result = await processor.processBarcode(data);
+      final targetItemCode = result?.itemCode ?? data;
+
+      // Find the item in the list
+      final matchedItem = _details.firstWhere(
+        (d) => d.itemCode.toUpperCase() == targetItemCode.toUpperCase(),
+        orElse: () => _details.firstWhere(
+          (d) => d.description.toLowerCase().contains(targetItemCode.toLowerCase()),
+          orElse: () => throw Exception('Product "$targetItemCode" not found in this Sales Order.'),
+        ),
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductionTrackingScreen(
+              order: widget.order,
+              product: matchedItem,
+            ),
+          ),
+        ).then((_) => _fetchDetails()); // Refresh when coming back
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchDetails() async {

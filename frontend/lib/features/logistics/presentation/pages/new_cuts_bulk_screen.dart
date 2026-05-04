@@ -9,8 +9,8 @@ import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dar
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_scanner_widget.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
 
 
 class NewCutsBulkScreen extends StatefulWidget {
@@ -20,7 +20,7 @@ class NewCutsBulkScreen extends StatefulWidget {
   State<NewCutsBulkScreen> createState() => _NewCutsBulkScreenState();
 }
 
-class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
+class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScannerMixin<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO
@@ -54,6 +54,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   void dispose() {
     // Removed _poController.dispose();
     super.dispose();
+  }
+
+  @override
+  void onHardwareScan(String data) {
+    _processScannedProductCode(data);
   }
 
   Future<void> _loadLookups() async {
@@ -559,6 +564,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   void _scanProduct() {
      final theme = Theme.of(context);
      final isDark = theme.brightness == Brightness.dark;
+     final orange = theme.primaryColor;
 
      showModalBottomSheet(
       context: context,
@@ -586,12 +592,34 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            AppBarcodeScanner(
-              height: 250,
-              onScan: (code) {
-                Navigator.pop(context);
-                _processScannedProductCode(code);
-              },
+            Container(
+              height: 150,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.barcode_reader, color: orange.withValues(alpha: 0.5), size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    'HARDWARE SCANNER READY',
+                    style: TextStyle(
+                      color: orange.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Use the physical side button',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

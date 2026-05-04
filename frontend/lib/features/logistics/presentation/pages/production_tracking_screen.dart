@@ -5,9 +5,9 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:ui' show ImageFilter;
 
-import '../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart';
 import '../../../../core/utils/audio/audio_service.dart';
 import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
+import '../../../../core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
 
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
@@ -31,7 +31,7 @@ class ProductionTrackingScreen extends StatefulWidget {
       _ProductionTrackingScreenState();
 }
 
-class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
+class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> with SunmiScannerMixin<ProductionTrackingScreen> {
   String _status = 'A'; // A: Approved, Q: Quality, R: Rejected
   double _cumulativeQty = 0.0; // Qty of pending (unsaved) scans this session
   double _baseSessionScannedQty =
@@ -71,6 +71,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
         setState(() => _isScannerVisible = true);
       }
     });
+  }
+
+  @override
+  void onHardwareScan(String data) {
+    _handleScan(data);
   }
 
   @override
@@ -1683,12 +1688,36 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                     ),
                   ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: AppBarcodeScanner(
-              onScan: _handleScan,
-              themeColor: orange,
-              autoStart: true,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.barcode_reader, color: orange.withValues(alpha: 0.5), size: 64),
+                  const SizedBox(height: 16),
+                  Text(
+                    'HARDWARE SCANNER ACTIVE',
+                    style: TextStyle(
+                      color: orange.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Press physical side button to scan',
+                    style: TextStyle(
+                      color: Colors.white24,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

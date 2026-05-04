@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
 import 'package:provider/provider.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'offline_barcode_processor.dart';
@@ -21,28 +21,16 @@ class ProductionTrackingScanner extends StatefulWidget {
   State<ProductionTrackingScanner> createState() => _ProductionTrackingScannerState();
 }
 
-class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
-  final MobileScannerController _controller = MobileScannerController(
-    formats: [
-      BarcodeFormat.ean13,
-      BarcodeFormat.code128,
-      BarcodeFormat.qrCode,
-    ],
-  );
+class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> with SunmiScannerMixin<ProductionTrackingScanner> {
   bool _isProcessing = false;
   DateTime? _lastScanTime;
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void onHardwareScan(String data) {
+    _handleHardwareScan(data);
   }
 
-  Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_isProcessing) return;
-
-    final String? barcode = capture.barcodes.first.rawValue;
-    if (barcode == null || barcode.isEmpty) return;
+  Future<void> _handleHardwareScan(String barcode) async {
 
     // Pause between scans to avoid accidental multiples (2 seconds)
     if (_lastScanTime != null &&
@@ -180,35 +168,48 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> {
       ),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
-          // Scanner Overlay (visual guidework)
           Center(
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.orange, width: 2),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(40),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.barcode_reader,
+                    size: 80,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'READY TO TRACK',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Trigger physical scan button on device',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
             ),
           ),
           if (_isProcessing)
             const Center(
               child: CircularProgressIndicator(color: Colors.orange),
             ),
-          const Positioned(
-            bottom: 60,
-            left: 0,
-            right: 0,
-            child: Text(
-              'Align EAN-13 barcode within the frame',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
         ],
       ),
     );
