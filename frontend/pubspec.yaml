@@ -113,4 +113,6 @@ flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
   image_path: "assets/logo/hipo_icon.png"
-  min_sdk_android: 21 # android min sdk min:16, default:21
+  adaptive_icon_background: "#1E1E1E" # Deep charcoal matching the logo bg
+  adaptive_icon_foreground: "assets/logo/hipo_icon.png"
+  min_sdk_android: 21
