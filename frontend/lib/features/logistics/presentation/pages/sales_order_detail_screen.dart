@@ -1041,7 +1041,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> {
                       (item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS')
                           ? item.eaScannedQuantity
                           : item.scannedQuantity
-                    )} ${item.unit}',
+                    )} ${item.unit}${(item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS') ? ' (${item.formatQuantity(item.manufacturedQuantity)} KG)' : ''}',
                     style: const TextStyle(
                       color: Colors.green,
                       fontSize: 14,

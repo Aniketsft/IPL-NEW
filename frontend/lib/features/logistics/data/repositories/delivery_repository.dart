@@ -573,6 +573,13 @@ class DeliveryRepository implements ILogisticsRepository {
           final productName = product['name'];
           final scans = product['scans'] as List? ?? [];
           final totalWeight = scans.fold(0.0, (sum, s) => sum + (s['weight'] as num).toDouble());
+          
+          // Fix: For EA/PCS items, the ordered quantity should be the piece count, not weight.
+          final String productUnit = (product['unit'] ?? 'KG').toString().toUpperCase();
+          final bool isUnitBased = productUnit == 'EA' || productUnit == 'PCS';
+          final double totalPieces = scans.fold(0.0, (sum, s) => sum + (s['scannedQty'] as num).toDouble());
+          
+          final double orderedQty = isUnitBased ? totalPieces : totalWeight;
 
           // Insert detail line
           await db.insert(LocalDatabaseHelper.tableDetails, {
@@ -580,7 +587,8 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.colDetItemCode: productCode,
             LocalDatabaseHelper.colDetDescription: productName,
             LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
-            LocalDatabaseHelper.colDetQuantity: totalWeight,
+            LocalDatabaseHelper.colDetQuantity: orderedQty,
+            LocalDatabaseHelper.colDetUnit: productUnit,
           });
 
           // Insert scans

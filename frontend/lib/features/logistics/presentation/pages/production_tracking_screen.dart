@@ -1871,9 +1871,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  widget.product.unit,
+                  widget.product.unit + 
+                  ((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') 
+                   ? ' (${widget.product.formatQuantity(_localManufacturedQty + _baseSessionScannedQty + _cumulativeQty)} KG)' 
+                   : ''),
                   style: TextStyle(
-                    color: isDark ? Colors.grey : Colors.grey[600],
+                    color: isDark ? Colors.white38 : Colors.grey[600],
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
