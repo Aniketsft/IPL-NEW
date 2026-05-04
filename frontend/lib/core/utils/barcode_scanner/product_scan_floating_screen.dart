@@ -836,15 +836,20 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             controller: controller,
             style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             keyboardType: TextInputType.number,
+            maxLength: 13,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             autofocus: true,
             decoration: InputDecoration(
-              hintText: 'Enter barcode number',
+              hintText: 'Enter 13-digit barcode',
+              counterText: '',
               hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.black38),
               enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12)),
             ),
             onSubmitted: (v) {
-              Navigator.pop(context);
-              _handleScan(v, isManual: true);
+              if (v.length == 13) {
+                Navigator.pop(context);
+                _handleScan(v, isManual: true);
+              }
             },
           ),
           actions: [
@@ -854,8 +859,14 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
-                _handleScan(controller.text, isManual: true);
+                if (controller.text.length == 13) {
+                  Navigator.pop(context);
+                  _handleScan(controller.text, isManual: true);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Barcode must be exactly 13 digits')),
+                  );
+                }
               },
               child: const Text('Add'),
             ),

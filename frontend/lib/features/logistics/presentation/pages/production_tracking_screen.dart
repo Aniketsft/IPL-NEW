@@ -2108,8 +2108,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           controller: ctrl,
           style: TextStyle(color: isDark ? Colors.white : Colors.black87),
           keyboardType: TextInputType.number,
+          maxLength: 13,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
             hintText: 'Enter 13-digit code',
+            counterText: '',
             hintStyle: TextStyle(
               color: isDark ? Colors.white38 : Colors.black38,
             ),
