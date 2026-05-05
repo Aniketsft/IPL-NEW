@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -722,7 +723,8 @@ class DeliveryRepository implements ILogisticsRepository {
                 (s) => {
                   'soNumber': s['soNumber']?.toString(),
                   'itemCode': s['productCode']?.toString(),
-                  'scanAmountKg': s['quantity'],
+                  'scanAmountKg': s['manufactured_quantity'] ?? s['quantity'],
+                  'eaQuantity': s['ea_quantity'] ?? 0.0,
                   'itemStatus': s['itemStatus'] ?? 'Q',
                   'location': s['location']?.toString(),
                   'syncId': s['sync_id']?.toString(),
@@ -991,9 +993,13 @@ class DeliveryRepository implements ILogisticsRepository {
           'scans': unsyncedScans.map((s) => {
             'soNumber': s['soNumber'],
             'itemCode': s['productCode'],
-            'scanAmountKg': s['quantity'],
+            'scanAmountKg': s['manufactured_quantity'] ?? s['quantity'],
+            'eaQuantity': s['ea_quantity'] ?? 0.0,
             'itemStatus': s['itemStatus'] ?? 'Q',
             'location': s['location'],
+            'lot': s['lot'],
+            'barcode': s['barcode'],
+            'createdAt': s['timestamp'],
             'syncId': s['sync_id'],
           }).toList(),
           'cutBulkEntries': (await Future.wait(unsyncedOrders.map((o) async {
@@ -1314,18 +1320,52 @@ class DeliveryRepository implements ILogisticsRepository {
       debugPrint('getProductionScans: Failed to fetch history from API: $e');
     }
 
+    // --- Filter by Pending Deletions ---
+    final Set<String> pendingDeletions = {};
+    try {
+      final db = LocalDatabaseHelper.instance;
+      final unsyncedAudits = await db.getUnsyncedOfflineAudits();
+      for (var audit in unsyncedAudits) {
+        if (audit['action'] == 'DELETE' && audit['entity'] == 'ProductionScan') {
+          final payload = jsonDecode(audit['payload'] as String);
+          final syncId = payload['syncId']?.toString();
+          final barcode = payload['barcode']?.toString();
+          if (syncId != null) pendingDeletions.add(syncId);
+          if (barcode != null) pendingDeletions.add(barcode);
+        }
+      }
+    } catch (e) {
+      debugPrint('getProductionScans: Failed to fetch pending deletions: $e');
+    }
+
     try {
       final localScans = await LocalDatabaseHelper.instance.getLocalProductionScans(soNumber, itemCode);
       
       final Map<String, Map<String, dynamic>> merged = {};
       
       for (var scan in remoteScans) {
-        final key = scan['barcode']?.toString() ?? scan['syncId']?.toString();
+        final syncId = scan['syncId']?.toString();
+        final barcode = scan['barcode']?.toString();
+        
+        if ((syncId != null && pendingDeletions.contains(syncId)) || 
+            (barcode != null && pendingDeletions.contains(barcode))) {
+          continue; // Skip scans pending deletion
+        }
+
+        final key = syncId ?? barcode;
         if (key != null) merged[key] = scan;
       }
       
       for (var scan in localScans) {
-        final key = scan[LocalDatabaseHelper.columnBarcode]?.toString() ?? scan[LocalDatabaseHelper.columnSyncId]?.toString();
+        final syncId = scan[LocalDatabaseHelper.columnSyncId]?.toString();
+        final barcode = scan[LocalDatabaseHelper.columnBarcode]?.toString();
+
+        if ((syncId != null && pendingDeletions.contains(syncId)) || 
+            (barcode != null && pendingDeletions.contains(barcode))) {
+          continue; // Skip scans pending deletion
+        }
+
+        final key = syncId ?? barcode;
         if (key != null) {
           merged[key] = {
             'barcode': scan[LocalDatabaseHelper.columnBarcode],
@@ -1371,7 +1411,7 @@ class DeliveryRepository implements ILogisticsRepository {
           LocalDatabaseHelper.columnIsReflected: 0,
           LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
           LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
-          LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0),
+          LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
           LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
           LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
         };
@@ -1640,6 +1680,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
       LocalDatabaseHelper.columnItemStatus: 'A',
       LocalDatabaseHelper.columnLocationCode: 'ALLOC-$sourceBulkSoNumber',
+      LocalDatabaseHelper.columnBarcode: 'ALLOC-$sourceBulkSoNumber-${DateTime.now().millisecondsSinceEpoch}',
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
       LocalDatabaseHelper.columnSyncId: const Uuid().v4(),

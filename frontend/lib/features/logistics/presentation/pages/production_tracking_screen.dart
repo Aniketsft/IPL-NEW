@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:ui' show ImageFilter;
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/audio/audio_service.dart';
 import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
@@ -34,11 +35,13 @@ class ProductionTrackingScreen extends StatefulWidget {
 class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> with SunmiScannerMixin<ProductionTrackingScreen> {
   String _status = 'A'; // A: Approved, Q: Quality, R: Rejected
   double _cumulativeQty = 0.0; // Qty of pending (unsaved) scans this session
-  double _baseSessionScannedQty =
-      0.0; // Qty of successfully saved batch scans this session.
+  double _cumulativeWeight = 0.0; // Weight (KG) of pending (unsaved) scans this session
+  double _baseSessionScannedQty = 0.0; // Qty of successfully saved batch scans this session.
+  double _baseSessionScannedWeight = 0.0; // Weight of successfully saved batch scans this session.
   List<Map<String, dynamic>> _scans = [];
   Map<String, dynamic>? _pendingScan;
   bool _isSaving = false;
+  bool _isDirty = false;
   bool _isProcessingBarcode = false;
   bool _isLoadingHistory = false;
   List<String> _sites = [];
@@ -114,7 +117,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         final mappedScans = historicalScans
             .map(
               (s) => {
-                'barcode': s['barcode'] ?? s['syncId'] ?? 'SAVED',
+                'barcode': s['barcode'] ?? ((s['syncId'] != null && s['syncId'].toString().contains('-')) ? 'Synced Scan' : (s['syncId'] ?? 'SAVED')),
                 'originalBarcode': s['barcode'] ?? '',
                 'productCode': s['itemCode'] ?? widget.product.itemCode,
                 'scannedQty':
@@ -132,6 +135,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 'locationCode': s['location'],
                 'lot': s['lot'],
                 'soNumber': widget.order.orderNumber,
+                'syncId': s['syncId'],
                 'isSaved': true,
               },
             )
@@ -406,6 +410,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               'weight': result.manufacturedQty,
               'unit': targetUnit,
               'timestamp': DateTime.now().toIso8601String(),
+              'syncId': Uuid().v4(),
             };
 
             // --- Instant Save (Removes 2FA / Confirmation) ---
@@ -459,6 +464,25 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   Future<bool> _confirmDelete() async {
+    if (widget.order.deliveryDate != null) {
+      final db = LocalDatabaseHelper.instance;
+      final dateStr = DateFormat('yyyy-MM-dd').format(widget.order.date);
+      final isEodDone = await db.isEodCompleted(dateStr);
+      
+      if (isEodDone) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot delete scan. End of Day has already been performed for this date.'),
+              backgroundColor: Colors.redAccent,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return false;
+      }
+    }
+
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -519,6 +543,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       _scans.insert(0, scanWithMetadata);
       if (_status == 'A') {
         _cumulativeQty += _pendingScan!['scannedQty'] as double;
+        _cumulativeWeight += (_pendingScan!['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+        _isDirty = true;
       }
       _pendingScan = null;
     });
@@ -577,6 +603,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         'timestamp': DateTime.now().toIso8601String(),
         'unit': widget.product.unit,
         'isSaved': false,
+        'syncId': Uuid().v4(),
       };
       _scans.insert(0, manualScan);
       if (_status == 'A') _cumulativeQty += qty;
@@ -588,7 +615,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   Future<void> _saveAndUpload() async {
     final pendingScans = _scans.where((s) => s['isSaved'] != true).toList();
-    if (pendingScans.isEmpty) {
+    if (pendingScans.isEmpty && !_isDirty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('No new scans to save')));
@@ -629,7 +656,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           }
           // Shift the pending quantity naturally into the core persistent memory for this screen session
           _baseSessionScannedQty += _cumulativeQty;
+          _baseSessionScannedWeight += _cumulativeWeight;
           _cumulativeQty = 0.0;
+          _cumulativeWeight = 0.0;
+          _isDirty = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -730,51 +760,74 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                             lineNumber: _scans.length - index,
                             scan: scan,
                             unit: widget.product.unit,
-                            canDelete: true,
+                            canDelete: scan['status'] != 'REVERSED' && scan['status'] != 'DELETED_ORIGINAL',
                             onDelete: () async {
                                     final confirmed = await _confirmDelete();
-                                    if (confirmed && mounted) {
-                                      try {
-                                        final db = LocalDatabaseHelper.instance;
-                                        
-                                        // Delete from local DB if it exists
-                                        final barcodeStr = scan['barcode']?.toString();
-                                        if (barcodeStr != null) {
-                                          await db.deleteScan(barcodeStr);
-                                        }
-
-                                        // Always log deletion so backend can process it if synced
-                                        await db.insertOfflineAuditLog(
-                                          entity: 'ProductionScan',
-                                          action: 'DELETE',
-                                          payload: jsonEncode({
-                                            'barcode': scan['barcode'],
-                                            'soNumber': widget.order.orderNumber,
-                                            'productCode': widget.product.itemCode,
-                                            'scannedQty': scan['scannedQty'],
-                                            'manufacturedQty': scan['manufacturedQty'],
-                                            'timestamp': DateTime.now().toIso8601String(),
-                                          }),
-                                        );
-                                      } catch (e) {
-                                        debugPrint('Failed to log deletion: $e');
-                                      }
-
-                                      setState(() {
-                                        _scans.removeAt(index);
-                                        if (isSaved) {
-                                          // Update the UI state instantly for history/saved scans
-                                          _localManufacturedQty -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                                          _localEaScannedQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
-                                        } else {
-                                          if (scan['status'] == 'A') {
-                                            _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                      if (confirmed && mounted) {
+                                        try {
+                                          final db = LocalDatabaseHelper.instance;
+                                          
+                                          // Delete from local DB using the reliable syncId
+                                          final syncId = scan['syncId']?.toString();
+                                          if (syncId != null) {
+                                            await db.deleteScanBySyncId(syncId);
                                           }
+
+                                          if (isSaved) {
+                                            final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                            final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+
+                                            // COMMIT the deduction to the persistent summary table BEFORE updating UI
+                                            await db.deductFromDetailSummary(
+                                              soNumber: widget.order.orderNumber,
+                                              itemCode: widget.product.itemCode,
+                                              weight: weightToDeduct,
+                                              eaQuantity: eaToDeduct,
+                                            );
+
+                                            if (mounted) {
+                                              setState(() {
+                                                _scans.removeAt(index);
+                                                _localManufacturedQty -= weightToDeduct;
+                                                _localEaScannedQty -= eaToDeduct;
+                                                _isDirty = true;
+                                              });
+                                            }
+                                          } else {
+                                            if (mounted) {
+                                              setState(() {
+                                                _scans.removeAt(index);
+                                                _isDirty = true;
+                                                if (scan['status'] == 'A') {
+                                                  _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                                  _cumulativeWeight -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                                }
+                                              });
+                                            }
+                                          }
+
+                                          // Always log deletion so backend can process it if synced
+                                          await db.insertOfflineAuditLog(
+                                            entity: 'ProductionScan',
+                                            action: 'DELETE',
+                                            payload: jsonEncode({
+                                              'barcode': scan['barcode'],
+                                              'syncId': scan['syncId'],
+                                              'soNumber': widget.order.orderNumber,
+                                              'productCode': widget.product.itemCode,
+                                              'manufacturedQty': scan['manufacturedQty'],
+                                              'eaQuantity': (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
+                                                  ? (scan['scannedQty'] ?? 0.0)
+                                                  : 0.0,
+                                              'timestamp': DateTime.now().toIso8601String(),
+                                            }),
+                                          );
+                                        } catch (e) {
+                                          debugPrint('Failed to log deletion: $e');
                                         }
-                                      });
-                                    }
-                                  },
-                          );
+                                      }
+                                    },
+                            );
                         }, childCount: _scans.length),
                       ),
                     ),
@@ -1880,29 +1933,34 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               textBaseline: TextBaseline.alphabetic,
               crossAxisAlignment: CrossAxisAlignment.baseline,
               children: [
-                Text(
-                  widget.product.formatQuantity(
-                    (widget.product.unit.toUpperCase() == 'EA' ||
-                            widget.product.unit.toUpperCase() == 'PCS')
-                        ? (_localEaScannedQty +
-                            _baseSessionScannedQty +
-                            _cumulativeQty)
-                        : (_localManufacturedQty +
-                            _baseSessionScannedQty +
-                            _cumulativeQty),
-                  ),
-                  style: TextStyle(
-                    color: orange,
-                    fontSize: 56,
-                    fontWeight: FontWeight.w900,
-                    height: 1.0,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.product.formatQuantity(
+                        (widget.product.unit.toUpperCase() == 'EA' ||
+                                widget.product.unit.toUpperCase() == 'PCS')
+                            ? (_localEaScannedQty +
+                                _baseSessionScannedQty +
+                                _cumulativeQty)
+                            : (_localManufacturedQty +
+                                _baseSessionScannedQty +
+                                _cumulativeQty),
+                      ),
+                      style: TextStyle(
+                        color: orange,
+                        fontSize: 56,
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   widget.product.unit + 
                   ((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') 
-                   ? ' (${widget.product.formatQuantity(_localManufacturedQty + _baseSessionScannedQty + _cumulativeQty)} KG)' 
+                   ? ' (${widget.product.formatQuantity(_localManufacturedQty + _baseSessionScannedWeight + _cumulativeWeight)} KG)' 
                    : ''),
                   style: TextStyle(
                     color: isDark ? Colors.white38 : Colors.grey[600],
@@ -2062,7 +2120,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         ),
       ),
       child: ElevatedButton(
-        onPressed: (_isSaving || _scans.every((s) => s['isSaved'] == true))
+        onPressed: (_isSaving || (!(_isDirty || _scans.any((s) => s['isSaved'] == false))))
             ? null
             : _saveAndUpload,
         style: ElevatedButton.styleFrom(

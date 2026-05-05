@@ -1729,6 +1729,22 @@ class LocalDatabaseHelper {
     return await db.query(tableOfflineAuditLogs, where: 'isSynced = 0');
   }
 
+  Future<void> deductFromDetailSummary({
+    required String soNumber,
+    required String itemCode,
+    required double weight,
+    required double eaQuantity,
+  }) async {
+    final db = await instance.database;
+    final rows = await db.rawUpdate('''
+      UPDATE $tableDetails 
+      SET $colDetScanned = COALESCE($colDetScanned, 0) - ?,
+          $colDetEaScanned = COALESCE($colDetEaScanned, 0) - ?
+      WHERE UPPER($colDetSoNum) = UPPER(?) AND UPPER($colDetItemCode) = UPPER(?)
+    ''', [weight, eaQuantity, soNumber, itemCode]);
+    debugPrint("deductFromDetailSummary: $rows rows updated for $itemCode in $soNumber");
+  }
+
   Future<void> markOfflineAuditsAsSynced(List<int> ids) async {
     if (ids.isEmpty) return;
     final db = await instance.database;
@@ -1745,6 +1761,15 @@ class LocalDatabaseHelper {
       tableScans,
       where: '$columnBarcode = ?',
       whereArgs: [barcode],
+    );
+  }
+
+  Future<void> deleteScanBySyncId(String syncId) async {
+    final db = await instance.database;
+    await db.delete(
+      tableScans,
+      where: '$columnSyncId = ?',
+      whereArgs: [syncId],
     );
   }
 

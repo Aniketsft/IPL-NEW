@@ -1,5 +1,8 @@
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/site.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/customer.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_rep.dart';
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,7 +44,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   List<SalesOrder> _filteredOrders = [];
-  String _poTypeFilter = 'ALL'; // Default to ALL as requested
+  String _poTypeFilter = 'ALL'; 
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -56,6 +60,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _scrollController.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
@@ -71,46 +76,53 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
     final result = await processor.processBarcode(data);
     final targetItemCode = result?.itemCode ?? data;
     
+    _debounceTimer?.cancel();
     setState(() {
       _searchController.text = targetItemCode;
     });
+    // Trigger immediate filter for hardware scans to feel responsive
     _applyLocalFilters();
   }
 
   void _onSearchChanged() {
-    _applyLocalFilters();
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _applyLocalFilters();
+      }
+    });
   }
 
   void _applyLocalFilters() {
-    final query = _searchController.text.toLowerCase();
+    final query = _searchController.text.trim().toLowerCase();
+    final poType = _poTypeFilter;
+
     setState(() {
       _filteredOrders = _orders.where((o) {
-        final matchesSearch = query.isEmpty ||
-            o.orderNumber.toLowerCase().contains(query) ||
-            o.customerName.toLowerCase().contains(query) ||
-            o.customerCode.toLowerCase().contains(query);
-        
-        final po = o.purchaseOrderNumber?.toUpperCase() ?? '';
-        bool matchesPoType = false;
-
-        if (_poTypeFilter == 'POD') {
-          matchesPoType = po.contains('POD');
-        } else if (_poTypeFilter == 'PTT') {
-          matchesPoType = po.contains('PTT');
-        } else if (_poTypeFilter == 'EXCESS') {
-          // Excess orders are Internal orders (CB-, BLK-, CUT-) 
-          // or those explicitly marked as Internal source
-          final isInternal = o.orderNumber.startsWith('CB-') || 
-                            o.orderNumber.startsWith('BLK-') || 
-                            o.orderNumber.startsWith('CUT-') ||
-                            o.orderNumber.startsWith('FRZ-') ||
-                            (o.source?.toLowerCase() == 'internal');
-          matchesPoType = isInternal;
-        } else {
-          matchesPoType = true; // 'ALL' or other
+        // 1. PO Type Filter (Fast check)
+        if (poType != 'ALL') {
+          final po = o.purchaseOrderNumber?.toUpperCase() ?? '';
+          bool matchesType = false;
+          if (poType == 'POD') {
+            matchesType = po.contains('POD');
+          } else if (poType == 'PTT') {
+            matchesType = po.contains('PTT');
+          } else if (poType == 'EXCESS') {
+            matchesType = o.orderNumber.startsWith('CB-') || 
+                          o.orderNumber.startsWith('BLK-') || 
+                          o.orderNumber.startsWith('CUT-') ||
+                          o.orderNumber.startsWith('FRZ-') ||
+                          (o.source?.toLowerCase() == 'internal');
+          }
+          if (!matchesType) return false;
         }
 
-        return matchesSearch && matchesPoType;
+        // 2. Search Query Filter
+        if (query.isEmpty) return true;
+        
+        return o.orderNumber.toLowerCase().contains(query) ||
+               o.customerName.toLowerCase().contains(query) ||
+               o.customerCode.toLowerCase().contains(query);
       }).toList();
     });
   }
@@ -125,57 +137,45 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
     }
   }
 
-  Future<void> _reloadSites() async {
+  Future<void> _refreshAllLookups() async {
     if (_selectedDate == null) return;
     setState(() => _isLoadingLookups = true);
     try {
       final repository = context.read<DeliveryRepository>();
-      final sites = await repository.getFilteredSites(date: _selectedDate!);
-      setState(() {
-        _sitesList = sites.map((s) => {'code': s.code, 'name': s.name}).toList();
-        _isLoadingLookups = false;
-      });
+      
+      // Fetch all lookups in parallel to avoid sequential network/DB lag
+      final results = await Future.wait([
+        repository.getFilteredSites(date: _selectedDate!),
+        repository.getFilteredSalesReps(
+          date: _selectedDate!,
+          siteCode: _selectedSite?.code,
+        ),
+        repository.getFilteredCustomers(
+          date: _selectedDate!,
+          siteCode: _selectedSite?.code,
+          salesmanCode: _selectedSalesmanCode,
+        ),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _sitesList = (results[0] as List<Site>).map((s) => {'code': s.code, 'name': s.name}).toList();
+          _salesRepsList = (results[1] as List<SalesRep>).map((r) => {'code': r.code, 'name': r.name}).toList();
+          _customersList = (results[2] as List<Customer>).map((c) => {'code': c.code, 'name': c.name}).toList();
+          _isLoadingLookups = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingLookups = false);
+      if (mounted) {
+        setState(() => _isLoadingLookups = false);
+        debugPrint('Error refreshing lookups: $e');
+      }
     }
   }
 
-  Future<void> _reloadSalesReps() async {
-    if (_selectedDate == null) return;
-    setState(() => _isLoadingLookups = true);
-    try {
-      final repository = context.read<DeliveryRepository>();
-      final reps = await repository.getFilteredSalesReps(
-        date: _selectedDate!,
-        siteCode: _selectedSite?.code,
-      );
-      setState(() {
-        _salesRepsList = reps.map((r) => {'code': r.code, 'name': r.name}).toList();
-        _isLoadingLookups = false;
-      });
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingLookups = false);
-    }
-  }
-
-  Future<void> _reloadCustomers() async {
-    if (_selectedDate == null) return;
-    setState(() => _isLoadingLookups = true);
-    try {
-      final repository = context.read<DeliveryRepository>();
-      final customers = await repository.getFilteredCustomers(
-        date: _selectedDate!,
-        siteCode: _selectedSite?.code,
-        salesmanCode: _selectedSalesmanCode,
-      );
-      setState(() {
-        _customersList = customers.map((c) => {'code': c.code, 'name': c.name}).toList();
-        _isLoadingLookups = false;
-      });
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingLookups = false);
-    }
-  }
+  Future<void> _reloadSites() => _refreshAllLookups();
+  Future<void> _reloadSalesReps() => _refreshAllLookups();
+  Future<void> _reloadCustomers() => _refreshAllLookups();
 
   Future<void> _loadLookups() async {
     setState(() => _isLoadingLookups = true);
@@ -183,19 +183,19 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
       final repository = context.read<DeliveryRepository>();
       
       if (_selectedDate == null) {
-        final customers = await repository.getCustomers();
-        final reps = await repository.getSalesReps();
-        final sites = await repository.getSites();
+        final results = await Future.wait([
+          repository.getCustomers(),
+          repository.getSalesReps(),
+          repository.getSites(),
+        ]);
         setState(() {
-          _customersList = customers.map((c) => {'code': c.code, 'name': c.name}).toList();
-          _salesRepsList = reps.map((r) => {'code': r.code, 'name': r.name}).toList();
-          _sitesList = sites.map((s) => {'code': s.code, 'name': s.name}).toList();
+          _customersList = (results[0] as List<Customer>).map((c) => {'code': c.code, 'name': c.name}).toList();
+          _salesRepsList = (results[1] as List<SalesRep>).map((r) => {'code': r.code, 'name': r.name}).toList();
+          _sitesList = (results[2] as List<Site>).map((s) => {'code': s.code, 'name': s.name}).toList();
           _isLoadingLookups = false;
         });
       } else {
-        await _reloadSites();
-        await _reloadSalesReps();
-        await _reloadCustomers();
+        await _refreshAllLookups();
         setState(() => _isLoadingLookups = false);
       }
     } catch (e) {
@@ -377,9 +377,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
                                   _selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
                                 });
-                                await _reloadSites();
-                                await _reloadSalesReps();
-                                await _reloadCustomers();
+                                await _refreshAllLookups();
                                 setModalState(() {}); 
                               }
                             },
@@ -488,6 +486,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiS
                         controller: _scrollController,
                         itemCount: _filteredOrders.length + (_hasMore ? 1 : 0),
                         padding: const EdgeInsets.only(bottom: 20),
+                        cacheExtent: 1000, // Keep more items in memory for smoother scrolling
                         itemBuilder: (context, index) {
                           if (index == _filteredOrders.length) {
                             return Padding(

@@ -35,14 +35,22 @@ class ScanItemCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isSaved 
-            ? (isDark ? const Color(0xFF1A2A1A) : Colors.green.withValues(alpha: 0.05)) 
-            : theme.cardColor,
+        color: status == 'DELETED_ORIGINAL' 
+            ? (isDark ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05))
+            : status == 'REVERSED'
+                ? (isDark ? Colors.red.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.05))
+                : isSaved 
+                    ? (isDark ? const Color(0xFF1A2A1A) : Colors.green.withValues(alpha: 0.05)) 
+                    : theme.cardColor,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isSaved
-              ? Colors.green.withValues(alpha: 0.25)
-              : (isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.05)),
+          color: status == 'DELETED_ORIGINAL'
+              ? Colors.grey.withValues(alpha: 0.3)
+              : status == 'REVERSED'
+                  ? Colors.redAccent.withValues(alpha: 0.3)
+                  : isSaved
+                      ? Colors.green.withValues(alpha: 0.25)
+                      : (isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.05)),
         ),
         boxShadow: isDark ? null : [
           BoxShadow(
@@ -175,6 +183,14 @@ class ScanItemCard extends StatelessWidget {
       case 'R':
         color = Colors.red;
         label = 'REJECT';
+        break;
+      case 'REVERSED':
+        color = Colors.redAccent;
+        label = 'REVERSAL';
+        break;
+      case 'DELETED_ORIGINAL':
+        color = Colors.grey;
+        label = 'DELETED';
         break;
       case 'A':
       default:
