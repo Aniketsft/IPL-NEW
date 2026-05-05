@@ -684,7 +684,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       }
                     });
                   },
-                  activeColor: Theme.of(context).primaryColor,
+                  activeThumbColor: Theme.of(context).primaryColor,
                 ),
               ],
             ),

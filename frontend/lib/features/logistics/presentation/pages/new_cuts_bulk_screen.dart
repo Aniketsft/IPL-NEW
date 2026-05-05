@@ -23,15 +23,15 @@ class NewCutsBulkScreen extends StatefulWidget {
 class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
-  bool _isNewSO = true; // Toggle: new SO vs existing SO
-  bool _soDetailsExpanded = false;
-  bool _productsExpanded = true;
+  final bool _isNewSO = true; // Toggle: new SO vs existing SO
+  final bool _soDetailsExpanded = false;
+  final bool _productsExpanded = true;
 
 
   String? _selectedCustomerCode;
   String? _selectedSalesmanCode;
   String? _selectedExistingSO;
-  List<Map<String, dynamic>> _selectedProducts = [];
+  final List<Map<String, dynamic>> _selectedProducts = [];
   // Removed _poController as per request
 
   List<Map<String, String>> _customersList = [];

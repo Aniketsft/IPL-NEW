@@ -117,7 +117,7 @@ class SalesOrder extends Equatable {
       soLorry: soLorry ?? this.soLorry,
       originalSoLorry: originalSoLorry ?? this.originalSoLorry,
       salesmanName: salesmanName ?? this.salesmanName,
-      site: site ?? this.site,
+      site: site ?? site,
       isPreparedForShipment: isPreparedForShipment ?? this.isPreparedForShipment,
       isProcessed: isProcessed ?? this.isProcessed,
     );

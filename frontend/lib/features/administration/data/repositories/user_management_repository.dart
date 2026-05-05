@@ -229,13 +229,16 @@ class UserManagementRepository {
     // Generate flat permission list from ModuleAccess
     final List<Map<String, dynamic>> permissions = [];
     for (var access in role.permissions) {
-      if (access.canCreate)
+      if (access.canCreate) {
         permissions.add({'name': '${access.moduleId}.create'});
+      }
       if (access.canRead) permissions.add({'name': '${access.moduleId}.read'});
-      if (access.canUpdate)
+      if (access.canUpdate) {
         permissions.add({'name': '${access.moduleId}.update'});
-      if (access.canDelete)
+      }
+      if (access.canDelete) {
         permissions.add({'name': '${access.moduleId}.delete'});
+      }
     }
     return {'id': role.id, 'name': role.name, 'permissions': permissions};
   }

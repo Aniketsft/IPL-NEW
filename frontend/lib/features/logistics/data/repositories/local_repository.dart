@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 
 class LocalRepository {
@@ -9,6 +10,7 @@ class LocalRepository {
     required double quantity,
     String? siteCode,
   }) async {
+    if (kIsWeb) return;
     await _dbHelper.insertScan({
       LocalDatabaseHelper.columnSoNumber: soNumber,
       LocalDatabaseHelper.columnProductCode: productCode,

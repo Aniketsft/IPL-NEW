@@ -140,7 +140,7 @@ class FilterStatusToggle extends StatelessWidget {
               onChanged(val);
               FilterStateScope.of(context)?.onStateChanged();
             },
-            activeColor: orange,
+            activeThumbColor: orange,
             activeTrackColor: orange.withValues(alpha: 0.3),
             inactiveThumbColor: isDark ? Colors.white24 : Colors.black26,
             inactiveTrackColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
@@ -335,8 +335,7 @@ class FilterDateInput extends StatelessWidget {
                       onPrimary: Colors.white,
                       surface: Colors.white,
                       onSurface: Colors.black87,
-                    ),
-                dialogBackgroundColor: theme.scaffoldBackgroundColor,
+                    ), dialogTheme: DialogThemeData(backgroundColor: theme.scaffoldBackgroundColor),
               ),
               child: child!,
             );

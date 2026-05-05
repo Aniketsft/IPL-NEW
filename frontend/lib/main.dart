@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
@@ -31,13 +33,34 @@ import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize core services
-  AudioService.instance;
-  await PrinterService.instance.init();
-  
-  runApp(const MyApp());
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      debugPrint('FLUTTER_ERROR: ${details.exception}');
+      debugPrint('STACK_TRACE: ${details.stack}');
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('PLATFORM_ERROR: $error');
+      debugPrint('STACK_TRACE: $stack');
+      return true;
+    };
+
+    // Initialize core services
+    try {
+      AudioService.instance;
+      await PrinterService.instance.init();
+    } catch (e) {
+      debugPrint('INIT_SERVICE_ERROR: $e');
+    }
+    
+    runApp(const MyApp());
+  }, (error, stack) {
+    debugPrint('ZONED_ERROR: $error');
+    debugPrint('STACK_TRACE: $stack');
+  });
 }
 
 class MyApp extends StatelessWidget {

@@ -317,7 +317,7 @@ class LabelPrintingHandler {
                     Text('${i['weight'] ?? '0.00'} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 8, fontFamily: 'monospace')),
                   ],
                 ),
-              )).toList(),
+              )),
             ],
           ),
         )

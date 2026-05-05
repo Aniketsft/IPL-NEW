@@ -141,14 +141,25 @@ class LocalDatabaseHelper {
   static Database? _database;
 
   Future<Database> get database async {
+    if (kIsWeb) {
+      throw UnsupportedError('sqflite is not supported on web.');
+    }
     if (_database != null) return _database!;
     _database = await _initDatabase();
     return _database!;
   }
 
   _initDatabase() async {
-    Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String path = join(documentsDirectory.path, _databaseName);
+    if (kIsWeb) return null;
+    
+    String path;
+    if (!kIsWeb) {
+      final Directory documentsDirectory = await getApplicationDocumentsDirectory();
+      path = join(documentsDirectory.path, _databaseName);
+    } else {
+      return null;
+    }
+
     return await openDatabase(
       path,
       version: _databaseVersion,
@@ -712,12 +723,14 @@ class LocalDatabaseHelper {
 
   // Insert a scan record
   Future<int> insertScan(Map<String, dynamic> row) async {
+    if (kIsWeb) return 0;
     Database db = await instance.database;
     return await db.insert(tableScans, row);
   }
 
   // Retrieve all unsynced scans
   Future<List<Map<String, dynamic>>> getUnsyncedScans() async {
+    if (kIsWeb) return [];
     Database db = await instance.database;
     return await db.query(
       tableScans,
@@ -728,6 +741,7 @@ class LocalDatabaseHelper {
 
   // Get scans that haven't been swallowed by a refresh yet
   Future<List<Map<String, dynamic>>> getUnreflectedScans() async {
+    if (kIsWeb) return [];
     Database db = await instance.database;
     return await db.query(
       tableScans,
@@ -738,7 +752,7 @@ class LocalDatabaseHelper {
 
   // Mark scans as synced
   Future<int> markAsSynced(List<int> ids) async {
-    if (ids.isEmpty) return 0;
+    if (kIsWeb || ids.isEmpty) return 0;
     Database db = await instance.database;
     String placeholders = List.generate(ids.length, (index) => '?').join(', ');
     return await db.update(
@@ -767,6 +781,7 @@ class LocalDatabaseHelper {
   Future<List<Map<String, dynamic>>> getReconciledDetails(
     String soNumber,
   ) async {
+    if (kIsWeb) return [];
     Database db = await instance.database;
     return await db.rawQuery(
       '''
@@ -798,6 +813,7 @@ class LocalDatabaseHelper {
   Future<List<Map<String, dynamic>>> getSalesOrderDetails(
     String soNumber,
   ) async {
+    if (kIsWeb) return [];
     Database db = await instance.database;
     return await db.query(
       tableDetails,
@@ -809,6 +825,7 @@ class LocalDatabaseHelper {
   // --- INTERNAL ORDER SYNC HELPERS (Cut & Bulk) ---
 
   Future<List<Map<String, dynamic>>> getUnsyncedInternalOrders() async {
+    if (kIsWeb) return [];
     Database db = await instance.database;
     return await db.query(
       tableOrders,
@@ -818,7 +835,7 @@ class LocalDatabaseHelper {
   }
 
   Future<int> markOrdersAsSynced(List<String> soNumbers) async {
-    if (soNumbers.isEmpty) return 0;
+    if (kIsWeb || soNumbers.isEmpty) return 0;
     Database db = await instance.database;
     String placeholders = List.generate(
       soNumbers.length,
@@ -833,6 +850,7 @@ class LocalDatabaseHelper {
   }
 
   Future<int> updateOrderStatus(String soNumber, int status) async {
+    if (kIsWeb) return 0;
     final db = await instance.database;
     return await db.update(
       tableOrders,
@@ -846,6 +864,7 @@ class LocalDatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedOrderClosures() async {
+    if (kIsWeb) return [];
     final db = await instance.database;
     // status = 2 is "Closed"
     return await db.query(
@@ -857,6 +876,7 @@ class LocalDatabaseHelper {
 
   // Clear specific table
   Future<void> clearTable(String tableName) async {
+    if (kIsWeb) return;
     Database db = await instance.database;
     await db.delete(tableName);
   }
@@ -879,6 +899,7 @@ class LocalDatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> getSyncHistory() async {
+    if (kIsWeb) return [];
     final db = await instance.database;
     return await db.query(tableSyncHistory, orderBy: '$colSyncTimestamp DESC');
   }
@@ -1316,6 +1337,7 @@ class LocalDatabaseHelper {
   }
 
   Future<int> getGlobalSettingsUnsyncedCount() async {
+    if (kIsWeb) return 0;
     final db = await instance.database;
     try {
       final count = Sqflite.firstIntValue(

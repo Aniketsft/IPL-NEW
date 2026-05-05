@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/entities/user.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
@@ -27,27 +28,35 @@ class AuthRepository implements IAuthRepository {
         data: {'username': username, 'password': password},
       );
 
+      print('AuthRepository: Response data: ${response.data}');
       final dto = UserDto.fromJson(response.data);
+      print('AuthRepository: UserDto parsed successfully');
 
       // 1. Storage Service (Session tokens)
+      print('AuthRepository: Saving token and username...');
       await _storageService.saveToken(dto.token);
       await _storageService.saveUsername(dto.username);
+      print('AuthRepository: Storage updated');
 
       // 2. Local DB (Offline caching)
-      final db = await LocalDatabaseHelper.instance.database;
-      final passHash = sha256.convert(utf8.encode(password)).toString();
+      if (!kIsWeb) {
+        print('AuthRepository: Updating local DB...');
+        final db = await LocalDatabaseHelper.instance.database;
+        final passHash = sha256.convert(utf8.encode(password)).toString();
 
-      await db.insert(
-        LocalDatabaseHelper.tableCachedUsers,
-        {
-          LocalDatabaseHelper.colUserUsername: dto.username,
-          LocalDatabaseHelper.colUserPassHash: passHash,
-          LocalDatabaseHelper.colUserPermissions: jsonEncode(dto.permissions),
-          LocalDatabaseHelper.colUserEmail: dto.email,
-          LocalDatabaseHelper.colUserId: dto.id,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+        await db.insert(
+          LocalDatabaseHelper.tableCachedUsers,
+          {
+            LocalDatabaseHelper.colUserUsername: dto.username,
+            LocalDatabaseHelper.colUserPassHash: passHash,
+            LocalDatabaseHelper.colUserPermissions: jsonEncode(dto.permissions),
+            LocalDatabaseHelper.colUserEmail: dto.email,
+            LocalDatabaseHelper.colUserId: dto.id,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        print('AuthRepository: Local DB updated');
+      }
 
       return User(
         id: dto.id,
@@ -57,12 +66,18 @@ class AuthRepository implements IAuthRepository {
         siteCode: dto.siteCode,
       );
     } on DioException catch (e) {
+      print('AuthRepository DioException: $e');
       if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout) {
+        if (kIsWeb) {
+          throw 'Connection error. Offline login is not supported on web.';
+        }
         return _attemptOfflineLogin(username, password);
       }
       throw _handleDioError(e, 'Login');
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('AuthRepository Unexpected error: $e');
+      print('Stacktrace: $stackTrace');
       throw 'Unexpected error: $e';
     }
   }

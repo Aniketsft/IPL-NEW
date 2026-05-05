@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'barcode_processor.dart';
 import '../../../../features/logistics/data/local/local_database_helper.dart';
 
@@ -19,6 +20,7 @@ class ScanResult {
 
 class OfflineBarcodeProcessor {
   Future<ScanResult?> processBarcode(String rawBarcode) async {
+    if (kIsWeb) return null;
     if (rawBarcode.isEmpty) return null;
 
     final db = await LocalDatabaseHelper.instance.database;

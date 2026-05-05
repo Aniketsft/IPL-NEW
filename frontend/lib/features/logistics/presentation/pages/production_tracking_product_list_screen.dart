@@ -111,8 +111,7 @@ class _ProductionTrackingProductListScreenState
                                   surface: theme.cardColor,
                                   onSurface: isDark ? Colors.white : Colors.black87,
                                   brightness: theme.brightness,
-                                ),
-                                dialogBackgroundColor: theme.scaffoldBackgroundColor,
+                                ), dialogTheme: DialogThemeData(backgroundColor: theme.scaffoldBackgroundColor),
                               ),
                               child: child!,
                             );
@@ -292,12 +291,12 @@ class _ProductionTrackingProductListScreenState
                             ),
                           ),
                           if (state is ProductionTrackingLoaded &&
-                              (state as ProductionTrackingLoaded)
+                              (state)
                                       .excessPools[itemCode] !=
                                   null) ...[
                             const SizedBox(width: 8),
                             _buildPoolBadge(
-                              (state as ProductionTrackingLoaded)
+                              (state)
                                   .excessPools[itemCode]!,
                               soItems.first.unit,
                               isDark,

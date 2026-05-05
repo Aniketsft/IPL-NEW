@@ -135,8 +135,9 @@ class _LoginScreenState extends State<LoginScreen> {
               label: 'USERNAME / EMAIL',
               icon: Icons.person_outline_rounded,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Username is required';
+                }
                 return null;
               },
             ),
@@ -147,8 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.lock_outline_rounded,
               isPassword: true,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Password is required';
+                }
                 return null;
               },
             ),

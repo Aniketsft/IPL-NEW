@@ -44,6 +44,7 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<SalesOrderDetail>> getSalesOrderDetails(String soNumber) async {
     try {
+      if (kIsWeb) return [];
       final maps = await LocalDatabaseHelper.instance.getReconciledDetails(
         soNumber,
       );
@@ -80,6 +81,7 @@ class DeliveryRepository implements ILogisticsRepository {
     DateTime? date,
   }) async {
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
 
       List<String> filters = [];
@@ -206,6 +208,7 @@ class DeliveryRepository implements ILogisticsRepository {
     int offset = 0,
   }) async {
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
       String whereClause = '1=1';
       List<dynamic> whereArgs = [];
@@ -278,6 +281,7 @@ class DeliveryRepository implements ILogisticsRepository {
   /// ----------------------------------------
   
   Future<void> addDeliveryScan(List<String> soNumbers, String rawData) async {
+    if (kIsWeb) return;
     final db = await LocalDatabaseHelper.instance.database;
     
     for (var so in soNumbers) {
@@ -315,6 +319,7 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<SalesOrder>> fetchSalesOrderHeadersByNumbers(List<String> soNumbers) async {
     if (soNumbers.isEmpty) return [];
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
       final String orderTable = LocalDatabaseHelper.tableOrders;
       final String repTable = LocalDatabaseHelper.tableReps;
@@ -340,6 +345,7 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<void> closeOrder(String soNumber, String closedBy) async {
     try {
+      if (kIsWeb) return;
       // 1. Update local DB FIRST (Offline-First)
       await LocalDatabaseHelper.instance.updateOrderStatus(soNumber, 2);
       
@@ -353,6 +359,7 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<Site>> getSites() async {
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
       final maps = await db.query(
         LocalDatabaseHelper.tableSites,
@@ -370,6 +377,7 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<Customer>> getCustomers() async {
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
       final maps = await db.query(
         LocalDatabaseHelper.tableCustomers,
@@ -391,6 +399,7 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<SalesRep>> getSalesReps() async {
     try {
+      if (kIsWeb) return [];
       final db = await LocalDatabaseHelper.instance.database;
       final maps = await db.query(
         LocalDatabaseHelper.tableReps,
@@ -412,6 +421,11 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<String>> getProductionSites() async {
     try {
+      if (kIsWeb) {
+        // Fallback to API if local is empty (e.g., first run)
+        final response = await _dio.get('Logistics/production-sites');
+        return (response.data as List).map((s) => s.toString()).toList();
+      }
       final sites = await LocalDatabaseHelper.instance.getSites();
       if (sites.isNotEmpty) {
         return sites.map((s) => s[LocalDatabaseHelper.colCode] as String).toList();
@@ -429,6 +443,14 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<String>> getLots(String itemCode, String siteCode) async {
     try {
+      if (kIsWeb) {
+        // Fallback to API
+        final response = await _dio.get(
+          'Logistics/lots',
+          queryParameters: {'itemCode': itemCode, 'siteCode': siteCode},
+        );
+        return (response.data as List).map((s) => s.toString()).toList();
+      }
       final lots = await LocalDatabaseHelper.instance.getLotsForItemAndSite(itemCode, siteCode);
       if (lots.isNotEmpty) return lots;
 
@@ -502,7 +524,9 @@ class DeliveryRepository implements ILogisticsRepository {
 
   // --- CUT/BULK SAVE ---
 
+  @override
   Future<String> saveCutBulkEntry(Map<String, dynamic> entry) async {
+    if (kIsWeb) return 'web-no-op';
     final db = await LocalDatabaseHelper.instance.database;
     final today = DateTime.now();
     final dateStr = DateFormat('yyyyMMdd').format(today);
@@ -1011,7 +1035,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots'];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
-        final data = processedData[table] as List<Map<String, dynamic>>? ?? [];
+        final data = processedData[table] ?? [];
         counts[table] = data.length;
         yield SyncProgress(
           status: 'Updating $table (${data.length} items)...',
@@ -1178,6 +1202,7 @@ class DeliveryRepository implements ILogisticsRepository {
     return await LocalDatabaseHelper.instance.isValidProduct(code);
   }
 
+  @override
   Future<void> saveProductionScan(Map<String, dynamic> scan) async {
     try {
       final syncId = const Uuid().v4();
@@ -1219,6 +1244,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
   /// Saves each scan individually to the local queue in a batch.
   /// Scans are strictly persisted offline so they can be pushed natively via the manual Sync button.
+  @override
   Future<void> saveProductionScansBatch(List<Map<String, dynamic>> scans) async {
     for (final scan in scans) {
       try {
@@ -1462,8 +1488,6 @@ class DeliveryRepository implements ILogisticsRepository {
     required String itemCode,
     required double amount,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final username = prefs.getString('user_username') ?? 'system';
     
     // 1. Save locally with a special location identifier
     final scanRecord = {

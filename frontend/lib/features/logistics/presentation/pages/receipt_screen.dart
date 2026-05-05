@@ -22,6 +22,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     'Precision Systems',
   ];
 
+  @override
   void initState() {
     super.initState();
   }

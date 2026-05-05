@@ -1,3 +1,4 @@
+import 'package:enterprise_auth_mobile/features/Sales/ui/screens/transaction_type_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,6 +15,9 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/del
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
+// import 'package:enterprise_auth_mobile/features/Sales/ui/screens/transaction_type_screen.dart';
+
+
 
 class HomeScreen extends StatelessWidget {
   final String username;
@@ -149,6 +153,14 @@ class HomeScreen extends StatelessWidget {
           Icons.receipt_long_rounded,
           const ReceiptScreen(),
         ),
+      if (_hasAccess('sales', 'transactions'))
+        _buildMenuButton(
+          context,
+          'Sales',
+          Icons.point_of_sale_rounded,
+          const TransactionTypeScreen(),
+        ),
+
       if (_hasAccess('logistics', 'delivery'))
         _buildMenuButton(
           context,

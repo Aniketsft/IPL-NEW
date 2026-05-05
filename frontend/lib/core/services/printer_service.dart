@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -37,7 +38,7 @@ class NetPrinter {
 
   NetPrinter copyWith({bool? isDefault, String? name, String? ip, int? port}) {
     return NetPrinter(
-      id: this.id,
+      id: id,
       name: name ?? this.name,
       ip: ip ?? this.ip,
       port: port ?? this.port,
@@ -59,6 +60,10 @@ class PrinterService {
   NetPrinter? get activePrinter => _activePrinter;
 
   Future<void> init() async {
+    if (kIsWeb) {
+      print('PrinterService: Printing is not supported on web.');
+      return;
+    }
     await _loadPrinters();
   }
 

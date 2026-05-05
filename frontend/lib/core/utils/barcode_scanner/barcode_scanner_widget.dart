@@ -196,7 +196,7 @@ class _AppBarcodeScannerState extends State<AppBarcodeScanner> {
                       ),
                     ),
                   )
-                  .toList(),
+                  ,
             ],
           ],
         ),

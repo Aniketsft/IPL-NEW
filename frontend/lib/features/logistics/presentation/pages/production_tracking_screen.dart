@@ -239,7 +239,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
           // If global lot is available and not in the list, add it (or prioritize it)
           if (globalLot != null) {
             if (!_lots.contains(globalLot)) {
-              _lots.insert(0, globalLot!);
+              _lots.insert(0, globalLot);
             }
             _selectedLot = globalLot;
           } else if (_selectedLot == null || !_lots.contains(_selectedLot)) {
@@ -1152,7 +1152,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
 
       setState(() {
         _scans.insert(0, {
-          'barcode': 'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
+          'barcode': 'ALLOC-$sourcePool-${DateTime.now().millisecondsSinceEpoch}',
           'originalBarcode': 'ALLOC-$sourcePool',
           'productCode': widget.product.itemCode,
           'scannedQty': amount,

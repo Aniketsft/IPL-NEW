@@ -52,6 +52,9 @@ dependencies:
   qr_flutter: ^4.1.0
   screenshot: ^3.0.0
   esc_pos_utils_plus: ^2.0.4
+  path: ^1.9.1
+  sqflite_common_ffi: ^2.3.3
+  sqlite3_flutter_libs: ^0.5.24
 
 dev_dependencies:
   flutter_test:
