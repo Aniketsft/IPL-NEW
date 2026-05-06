@@ -729,6 +729,7 @@ class DeliveryRepository implements ILogisticsRepository {
                   'location': s['location']?.toString(),
                   'syncId': s['sync_id']?.toString(),
                   'lot': s['lot']?.toString(),
+                  'barcode': s['barcode']?.toString(),
                 },
               )
               .toList(),

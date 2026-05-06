@@ -268,7 +268,69 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             int totalCount = 0;
 
-            // 1. Process Production Scans (Enterprise Tables only)
+            // 1. Process Cut & Bulk Entries (Enterprise Tables only — no legacy writes)
+            // MUST happen before scans to ensure SO/Lines exist for on-the-fly entries
+            if (request.CutBulkEntries != null && request.CutBulkEntries.Any())
+            {
+                using var syncTransaction = await _scanContext.Database.BeginTransactionAsync();
+                try
+                {
+                    // Build DTOs for enterprise sync
+                    var headerDtos = request.CutBulkEntries.Select(cb => new SalesOrderHeaderDto
+                    {
+                        SohNum = cb.EntryNumber,
+                        PoNo = cb.PoNumber ?? "",
+                        OrderDate = cb.Date,
+                        DeliveryDate = cb.Date,
+                        CustomerCode = cb.CustomerCode,
+                        CustomerName = cb.CustomerName,
+                        Rep0 = cb.Salesman1Code ?? "",
+                        Rep1 = cb.Salesman2Code ?? "",
+                        Site = "INTERNAL",
+                        Status = 1,
+                        Source = "Internal"
+                    }).ToList();
+
+                    var detailDtos = request.CutBulkEntries.Select(cb => new SalesOrderDetailDto
+                    {
+                        SoNumber = cb.EntryNumber,
+                        ItemCode = cb.ItemCode ?? (cb.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                        Description = cb.ProductName ?? (cb.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
+                        Quantity = cb.AmountKg,
+                        Unit = "KG"
+                    }).ToList();
+
+                    await SyncEnterpriseOrdersAndLinesAsync(headerDtos, detailDtos);
+
+                    foreach (var cb in request.CutBulkEntries)
+                    {
+                        _scanContext.AuditLogs.Add(new AuditLog
+                        {
+                            EntityName = "CutBulkEntry",
+                            EntityIdString = cb.EntryNumber ?? "UNKNOWN",
+                            ActionType = "SYNC_INSERT",
+                            Payload = System.Text.Json.JsonSerializer.Serialize(cb),
+                            PerformedBy = performedBy,
+                            PerformedAt = DateTime.UtcNow
+                        });
+                    }
+
+
+                    await _scanContext.SaveChangesAsync();
+                    await syncTransaction.CommitAsync();
+                    totalCount += request.CutBulkEntries.Count;
+                }
+                catch (Exception cbEx)
+                {
+                    await syncTransaction.RollbackAsync();
+                    // Log and continue — do not abort shipment/staging steps downstream
+                    Console.WriteLine($"[Sync] WARNING: CutBulk transaction failed and was rolled back. Continuing. Error: {cbEx.Message}");
+                    if (cbEx.InnerException != null)
+                        Console.WriteLine($"[Sync] INNER: {cbEx.InnerException.Message}");
+                }
+            }
+
+            // 2. Process Production Scans (Enterprise Tables only)
             if (request.Scans != null && request.Scans.Any())
             {
                 using var scanTransaction = await _scanContext.Database.BeginTransactionAsync();
@@ -358,7 +420,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         });
 
                         // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
-                        if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-") || scanDto.SoNumber.StartsWith("FRZ-"))
+                        if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-") || scanDto.SoNumber.StartsWith("FRZ-") || scanDto.SoNumber.StartsWith("CB-") || scanDto.SoNumber.StartsWith("CUT-"))
                         {
                             if (!excessTracker.TryGetValue((scanDto.SoNumber, scanDto.ItemCode), out var excess))
                             {
@@ -441,66 +503,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            // 2. Process Cut & Bulk Entries (Enterprise Tables only — no legacy writes)
-            if (request.CutBulkEntries != null && request.CutBulkEntries.Any())
-            {
-                using var syncTransaction = await _scanContext.Database.BeginTransactionAsync();
-                try
-                {
-                    // Build DTOs for enterprise sync
-                    var headerDtos = request.CutBulkEntries.Select(cb => new SalesOrderHeaderDto
-                    {
-                        SohNum = cb.EntryNumber,
-                        PoNo = cb.PoNumber ?? "",
-                        OrderDate = cb.Date,
-                        DeliveryDate = cb.Date,
-                        CustomerCode = cb.CustomerCode,
-                        CustomerName = cb.CustomerName,
-                        Rep0 = cb.Salesman1Code ?? "",
-                        Rep1 = cb.Salesman2Code ?? "",
-                        Site = "INTERNAL",
-                        Status = 1,
-                        Source = "Internal"
-                    }).ToList();
-
-                    var detailDtos = request.CutBulkEntries.Select(cb => new SalesOrderDetailDto
-                    {
-                        SoNumber = cb.EntryNumber,
-                        ItemCode = cb.ItemCode ?? (cb.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
-                        Description = cb.ProductName ?? (cb.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
-                        Quantity = cb.AmountKg,
-                        Unit = "KG"
-                    }).ToList();
-
-                    await SyncEnterpriseOrdersAndLinesAsync(headerDtos, detailDtos);
-
-                    foreach (var cb in request.CutBulkEntries)
-                    {
-                        _scanContext.AuditLogs.Add(new AuditLog
-                        {
-                            EntityName = "CutBulkEntry",
-                            EntityIdString = cb.EntryNumber ?? "UNKNOWN",
-                            ActionType = "SYNC_INSERT",
-                            Payload = System.Text.Json.JsonSerializer.Serialize(cb),
-                            PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
-                        });
-                    }
-
-
-                    await _scanContext.SaveChangesAsync();
-                    await syncTransaction.CommitAsync();
-                    totalCount += request.CutBulkEntries.Count;
-                }
-                catch (Exception cbEx)
-                {
-                    await syncTransaction.RollbackAsync();
-                    // Log and continue — do not abort shipment/staging steps downstream
-                    Console.WriteLine($"[Sync] WARNING: CutBulk transaction failed and was rolled back. Continuing. Error: {cbEx.Message}");
-                    if (cbEx.InnerException != null)
-                        Console.WriteLine($"[Sync] INNER: {cbEx.InnerException.Message}");
-                }
-            }
 
             // 3. Process Preparation Status Updates → UPSERT into ProductionLineState.IsPrepared
             if (request.PreparationStatusUpdates != null && request.PreparationStatusUpdates.Any())
@@ -937,7 +939,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                                     // 4. Update Excess Pools (if applicable)
                                     var soNumber = scan.OrderLine.Order.SourceOrderId;
-                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-"))
+                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-") || soNumber.StartsWith("CB-") || soNumber.StartsWith("CUT-"))
                                     {
                                         var excess = await _scanContext.Excesses
                                             .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == scan.OrderLine.ItemCode);
