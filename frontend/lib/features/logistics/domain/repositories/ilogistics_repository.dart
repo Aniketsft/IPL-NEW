@@ -71,9 +71,13 @@ abstract class ILogisticsRepository {
     required String targetSoNumber,
     required String itemCode,
     required double amount,
+    String? lot,
+    String? location,
+    String? siteId,
   });
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date);
   Future<String> logLabelAudit(Map<String, dynamic> auditData);
+  Future<List<Map<String, String>>> getOpenInternalOrders();
   Future<Map<String, dynamic>> processEndOfDay();
 }
 

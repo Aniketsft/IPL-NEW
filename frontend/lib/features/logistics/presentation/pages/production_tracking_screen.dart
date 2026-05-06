@@ -1622,6 +1622,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         targetSoNumber: widget.order.orderNumber,
         itemCode: widget.product.itemCode,
         amount: amount,
+        lot: _selectedLot,
+        location: _selectedLocation?.location,
+        siteId: _selectedSite,
       );
 
       setState(() {
@@ -1637,12 +1640,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           'timestamp': DateTime.now().toIso8601String(),
           'status': 'A',
           'siteId': _selectedSite,
-          'locationCode': 'BULK-ALLOC',
+          'locationCode': _selectedLocation?.location ?? 'BULK-ALLOC',
           'lot': _selectedLot,
           'soNumber': widget.order.orderNumber,
           'isSaved': true,
         });
         _baseSessionScannedQty += amount;
+        _isDirty = true;
       });
 
       await _fetchExcessPools();

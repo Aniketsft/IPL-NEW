@@ -26,7 +26,8 @@ class SalesOrderDetailScreen extends StatefulWidget {
   State<SalesOrderDetailScreen> createState() => _SalesOrderDetailScreenState();
 }
 
-class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with SunmiScannerMixin<SalesOrderDetailScreen> {
+class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
+    with SunmiScannerMixin<SalesOrderDetailScreen> {
   List<SalesOrderDetail> _details = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -55,8 +56,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with Su
       final matchedItem = _details.firstWhere(
         (d) => d.itemCode.toUpperCase() == targetItemCode.toUpperCase(),
         orElse: () => _details.firstWhere(
-          (d) => d.description.toLowerCase().contains(targetItemCode.toLowerCase()),
-          orElse: () => throw Exception('Product "$targetItemCode" not found in this Sales Order.'),
+          (d) => d.description.toLowerCase().contains(
+            targetItemCode.toLowerCase(),
+          ),
+          orElse: () => throw Exception(
+            'Product "$targetItemCode" not found in this Sales Order.',
+          ),
         ),
       );
 
@@ -712,25 +717,25 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with Su
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'Product',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  'PRODUCT',
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
                 ),
                 const Spacer(),
                 SizedBox(
                   width: 90,
                   child: const Text(
-                    'Ordered',
+                    'ORDERED',
                     textAlign: TextAlign.end,
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
                   width: 90,
                   child: const Text(
-                    'Remaining',
+                    'REMAINING',
                     textAlign: TextAlign.end,
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ),
               ],
@@ -1029,7 +1034,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with Su
                       children: [
                         Builder(
                           builder: (context) {
-                            final bool isEA = item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS';
+                            final bool isEA =
+                                item.unit.toUpperCase() == 'EA' ||
+                                item.unit.toUpperCase() == 'PCS';
                             final double tolerance = isEA
                                 ? 0.0
                                 : _tolerancePercentage;
@@ -1082,14 +1089,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen> with Su
                   else
                     const SizedBox(),
                   Text(
-                    'Scanned: ${item.formatQuantity(
-                      (item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS')
-                          ? item.eaScannedQuantity
-                          : item.scannedQuantity
-                    )} ${item.unit}${(item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS') ? ' (${item.formatQuantity(item.manufacturedQuantity)} KG)' : ''}',
+                    'Scan : ${item.formatQuantity((item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS') ? item.eaScannedQuantity : item.scannedQuantity)} ${item.unit}${(item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS') ? ' (${item.formatQuantity(item.manufacturedQuantity)} KG)' : ''}',
                     style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 14,
+                      color: Color.fromARGB(255, 80, 214, 84),
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

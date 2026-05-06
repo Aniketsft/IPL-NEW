@@ -37,6 +37,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScanner
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
   List<Map<String, String>> _productsList = [];
+  List<Map<String, String>> _existingOrdersList = [];
   AppSettings? _settings;
 
 
@@ -79,6 +80,18 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScanner
         _productsList = products;
         _settings = settings;
       });
+
+      try {
+        final internalOrders = await repository.getOpenInternalOrders();
+        if (mounted) {
+          setState(() {
+            _existingOrdersList = internalOrders;
+            debugPrint('UI DEBUG: Populated _existingOrdersList with ${internalOrders.length} orders');
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading internal orders specifically: $e');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -158,7 +171,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScanner
       'date': _date?.toIso8601String(),
       'salesman1Code': salesmanCode,
       'salesman2Code': salesmanCode,
-      // Removed poNumber as per request
+      'existingSoNumber': _isNewSO ? null : _selectedExistingSO,
       'amount': amount,
       'amountKg': amount,
       'scans': _selectedProducts.expand((p) => p['scans'] as List).toList(),
@@ -345,10 +358,17 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScanner
   }
 
   Widget _buildExistingSOPicker(Color orange) {
+    final filteredOrders = _existingOrdersList.where((it) {
+      final code = it['code'] ?? '';
+      if (_mode == 'cuts') return code.startsWith('CUT-');
+      if (_mode == 'bulks') return code.startsWith('BLK-');
+      return true;
+    }).toList();
+
     return _buildDropdownTile(
       'Existing SO',
       _selectedExistingSO,
-      [], // We would need to fetch actual SOs here, but for now we'll allow manual entry or mock
+      filteredOrders,
       (val) => setState(() => _selectedExistingSO = val),
     );
   }
@@ -359,7 +379,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScanner
     final isSelected = _mode == key;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _mode = key),
+        onTap: () => setState(() {
+          _mode = key;
+          _selectedExistingSO = null; // Clear selection when switching mode
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(

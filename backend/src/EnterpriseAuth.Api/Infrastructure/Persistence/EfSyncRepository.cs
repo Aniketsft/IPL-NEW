@@ -150,6 +150,50 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             package.Orders = ordersTask.Result.ToList();
             package.Details = detailsTask.Result.ToList();
+
+            // --- MERGE INTERNAL ORDERS ---
+            var internalOrders = await _scanContext.SalesOrders
+                .Include(o => o.Lines)
+                .Where(o => o.SourceSystem == "Internal" && !o.IsArchived)
+                .ToListAsync();
+
+            foreach (var order in internalOrders)
+            {
+                if (!package.Orders.Any(o => o.SohNum == order.SourceOrderId))
+                {
+                    package.Orders.Add(new SalesOrderHeaderDto
+                    {
+                        SohNum = order.SourceOrderId,
+                        PoNo = order.PoNumber ?? "",
+                        OrderDate = order.OrderDate,
+                        DeliveryDate = order.DeliveryDate,
+                        CustomerCode = order.CustomerCode,
+                        CustomerName = order.CustomerName,
+                        Rep0 = order.Rep0 ?? "",
+                        Rep1 = order.Rep1 ?? "",
+                        Site = order.Site ?? "INTERNAL",
+                        Salesman = order.Salesman ?? "INTERNAL",
+                        Status = order.Status,
+                        Source = "Internal",
+                        IsProcessed = order.IsProcessed
+                    });
+
+                    foreach (var line in order.Lines)
+                    {
+                        package.Details.Add(new SalesOrderDetailDto
+                        {
+                            SoNumber = order.SourceOrderId,
+                            ItemCode = line.ItemCode,
+                            Description = line.Description,
+                            Quantity = line.OrderedQuantity,
+                            Unit = line.Unit,
+                            Soplin = line.LineNumber,
+                            Site = order.Site ?? "INTERNAL"
+                        });
+                    }
+                }
+            }
+
             package.Customers = customersTask.Result.ToList();
             package.Reps = repsTask.Result.ToList();
             package.Sites = sitesTask.Result.ToList();
@@ -222,7 +266,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             // Build Internal Orders (Cut & Bulk) from Enterprise SalesOrders
-            var internalOrders = await _scanContext.SalesOrders
+            internalOrders = await _scanContext.SalesOrders
                 .Include(o => o.Lines)
                 .Where(o => o.SourceSystem == "Internal" && !o.IsArchived)
                 .ToListAsync();
@@ -230,8 +274,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             foreach (var order in internalOrders)
             {
                 var line = order.Lines.FirstOrDefault();
-                var state = await _scanContext.ProductionLineStates
-                    .FirstOrDefaultAsync(s => s.SalesOrderLineId == (line != null ? line.Id : Guid.Empty));
+                var state = orderLineStates.FirstOrDefault(s => s.OrderLine.SalesOrderId == order.Id);
 
                 var manufactured = state?.TotalManufacturedQty ?? 0m;
 
@@ -445,9 +488,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         }
 
                         // --- HANDLE ALLOCATIONS FROM POOLS (AGGREGATED) ---
+                        string? sourceBulkSo = null;
                         if (!string.IsNullOrEmpty(scanDto.Location) && scanDto.Location.StartsWith("ALLOC-"))
                         {
-                            var sourceBulkSo = scanDto.Location.Replace("ALLOC-", "");
+                            sourceBulkSo = scanDto.Location.Replace("ALLOC-", "");
+                        }
+                        else if (!string.IsNullOrEmpty(scanDto.Barcode) && scanDto.Barcode.StartsWith("ALLOC-"))
+                        {
+                            // Barcode format: ALLOC-sourceSoNumber-timestamp
+                            var parts = scanDto.Barcode.Split('-');
+                            if (parts.Length >= 3)
+                            {
+                                // The source SO number is everything between 'ALLOC-' and the last segment (timestamp)
+                                sourceBulkSo = string.Join("-", parts.Skip(1).Take(parts.Length - 2));
+                            }
+                        }
+
+                        if (sourceBulkSo != null)
+                        {
                             if (excessTracker.TryGetValue((sourceBulkSo, scanDto.ItemCode), out var poolExcess))
                             {
                                 poolExcess.AllocatedQuantity += scanDto.ScanAmountKg;
@@ -457,8 +515,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             }
                             else
                             {
-                                // We might need to fetch it if it wasn't in the initial pre-fetch 
-                                // (because pre-fetch only looked at soNumbers of current scans)
+                                // We might need to fetch it if it wasn't in the initial pre-fetch
                                 var poolExcessFromDb = await _scanContext.Excesses
                                     .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == sourceBulkSo && e.ItemCode == scanDto.ItemCode);
                                 

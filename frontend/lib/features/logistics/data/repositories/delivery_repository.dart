@@ -602,10 +602,11 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
-              LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
+              LocalDatabaseHelper.columnSyncId: scan['syncId'] ?? const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
-              LocalDatabaseHelper.columnSite: 'INTERNAL',
+              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'INTERNAL',
+              LocalDatabaseHelper.columnLocationCode: scan['location']?.toString() ?? scan['locationCode']?.toString(),
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
               LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
             });
@@ -638,11 +639,13 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
-              LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
+              LocalDatabaseHelper.columnSyncId: scan['syncId'] ?? const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
-              LocalDatabaseHelper.columnSite: 'INTERNAL',
+              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'INTERNAL',
+              LocalDatabaseHelper.columnLocationCode: scan['location']?.toString() ?? scan['locationCode']?.toString(),
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
+              LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
             });
           }
         } else {
@@ -1451,6 +1454,39 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
+  Future<List<Map<String, String>>> getOpenInternalOrders() async {
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
+      
+      // Broader search: look for internal prefixes OR the explicit 'Internal' source tag
+      final results = await db.query(
+        LocalDatabaseHelper.tableOrders,
+        where: "(${LocalDatabaseHelper.colOrderNum} LIKE 'BLK-%' OR "
+               "${LocalDatabaseHelper.colOrderNum} LIKE 'CUT-%' OR "
+               "${LocalDatabaseHelper.colOrderNum} LIKE 'FRZ-%' OR "
+               "${LocalDatabaseHelper.colOrderNum} LIKE 'CB-%' OR "
+               "${LocalDatabaseHelper.colOrderNum} LIKE 'CUTS-%' OR "
+               "${LocalDatabaseHelper.colSource} = 'Internal')",
+        orderBy: "${LocalDatabaseHelper.colOrderDate} DESC",
+      );
+
+      debugPrint('DEBUG: Found ${results.length} internal orders in database');
+
+      return results.map((row) {
+        final orderNum = row[LocalDatabaseHelper.colOrderNum]?.toString() ?? 'N/A';
+        final custName = row[LocalDatabaseHelper.colCustomerName]?.toString() ?? 'Internal';
+        return {
+          'code': orderNum,
+          'name': '$orderNum ($custName)',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('CRITICAL ERROR fetching internal orders: $e');
+      return [];
+    }
+  }
+
+  @override
   Future<List<LocationLookup>> getLocationLookups(String site) async {
     try {
       final db = await LocalDatabaseHelper.instance.database;
@@ -1663,16 +1699,19 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<void> allocateExcess({
+   Future<void> allocateExcess({
     required String sourceBulkSoNumber,
     required String targetSoNumber,
     required String itemCode,
     required double amount,
+    String? lot,
+    String? location,
+    String? siteId,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString('user_username') ?? 'system';
     
-    // 1. Save locally with a special location identifier
+    // 1. Save locally with the physical location and lot
     final scanRecord = {
       LocalDatabaseHelper.columnSoNumber: targetSoNumber,
       LocalDatabaseHelper.columnProductCode: itemCode,
@@ -1680,7 +1719,9 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnManufacturedQuantity: amount,
       LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
       LocalDatabaseHelper.columnItemStatus: 'A',
-      LocalDatabaseHelper.columnLocationCode: 'ALLOC-$sourceBulkSoNumber',
+      LocalDatabaseHelper.columnLocationCode: location ?? 'BULK-ALLOC',
+      LocalDatabaseHelper.columnLot: lot,
+      LocalDatabaseHelper.columnSite: siteId,
       LocalDatabaseHelper.columnBarcode: 'ALLOC-$sourceBulkSoNumber-${DateTime.now().millisecondsSinceEpoch}',
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
