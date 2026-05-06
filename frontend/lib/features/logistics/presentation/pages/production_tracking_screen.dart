@@ -117,8 +117,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         final mappedScans = historicalScans
             .map(
               (s) => {
-                'barcode': s['barcode'] ?? ((s['syncId'] != null && s['syncId'].toString().contains('-')) ? 'Synced Scan' : (s['syncId'] ?? 'SAVED')),
-                'originalBarcode': s['barcode'] ?? '',
+                'barcode': (s['barcode'] ?? s['Barcode']) ?? ((s['syncId'] != null && s['syncId'].toString().contains('-')) ? 'Synced Scan' : (s['syncId'] ?? 'SAVED')),
+                'originalBarcode': (s['barcode'] ?? s['Barcode']) ?? '',
                 'productCode': s['itemCode'] ?? widget.product.itemCode,
                 'scannedQty':
                     (s['eaQuantity'] != null &&
@@ -767,42 +767,65 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                                         try {
                                           final db = LocalDatabaseHelper.instance;
                                           
-                                          // Delete from local DB using the reliable syncId
+                                          // --- AUDIT-PRESERVING REVERSAL ---
                                           final syncId = scan['syncId']?.toString();
+                                          final repository = context.read<DeliveryRepository>();
+                                          
                                           if (syncId != null) {
-                                            await db.deleteScanBySyncId(syncId);
-                                          }
+                                            if (isSaved) {
+                                              // 1. Mark original as DELETED_ORIGINAL in DB
+                                              await db.updateScanStatusBySyncId(syncId, 'DELETED_ORIGINAL');
 
-                                          if (isSaved) {
-                                            final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                                            final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                              // 2. Prepare and persist NEGATIVE LINE (Reversal) for audit and server sync
+                                              final reversalScan = Map<String, dynamic>.from(scan);
+                                              reversalScan['scannedQty'] = -((scan['scannedQty'] as num?)?.toDouble() ?? 0.0);
+                                              reversalScan['manufacturedQty'] = -((scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0);
+                                              reversalScan['weight'] = -((scan['weight'] as num?)?.toDouble() ?? 0.0);
+                                              reversalScan['status'] = 'REVERSED';
+                                              reversalScan['syncId'] = 'REV-${const Uuid().v4()}';
+                                              reversalScan['isSaved'] = true;
+                                              reversalScan['timestamp'] = DateTime.now().toIso8601String();
+                                              
+                                              await repository.saveProductionScansBatch([reversalScan]);
 
-                                            // COMMIT the deduction to the persistent summary table BEFORE updating UI
-                                            await db.deductFromDetailSummary(
-                                              soNumber: widget.order.orderNumber,
-                                              itemCode: widget.product.itemCode,
-                                              weight: weightToDeduct,
-                                              eaQuantity: eaToDeduct,
-                                            );
+                                              // 3. COMMIT the deduction to the persistent summary table (marks as unsynced automatically now)
+                                              final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                              final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                              
+                                              await db.deductFromDetailSummary(
+                                                soNumber: widget.order.orderNumber,
+                                                itemCode: widget.product.itemCode,
+                                                weight: weightToDeduct,
+                                                eaQuantity: eaToDeduct,
+                                              );
 
-                                            if (mounted) {
-                                              setState(() {
-                                                _scans.removeAt(index);
-                                                _localManufacturedQty -= weightToDeduct;
-                                                _localEaScannedQty -= eaToDeduct;
-                                                _isDirty = true;
-                                              });
-                                            }
-                                          } else {
-                                            if (mounted) {
-                                              setState(() {
-                                                _scans.removeAt(index);
-                                                _isDirty = true;
-                                                if (scan['status'] == 'A') {
-                                                  _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
-                                                  _cumulativeWeight -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                                                }
-                                              });
+                                              if (mounted) {
+                                                setState(() {
+                                                  // Update original line in local list to grey it out
+                                                  _scans[index] = Map<String, dynamic>.from(_scans[index])
+                                                    ..['status'] = 'DELETED_ORIGINAL';
+                                                  
+                                                  // Add reversal line to the list for visual confirmation
+                                                  _scans.insert(0, reversalScan);
+                                                  
+                                                  _localManufacturedQty -= weightToDeduct;
+                                                  _localEaScannedQty -= eaToDeduct;
+                                                  _isDirty = true;
+                                                });
+                                              }
+                                            } else {
+                                              // For unsaved (pending) scans, hard delete is appropriate
+                                              await db.deleteScanBySyncId(syncId);
+                                              if (mounted) {
+                                                setState(() {
+                                                  _scans.removeAt(index);
+                                                  _isDirty = true;
+                                                  if (scan['status'] == 'A') {
+                                                    _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                                    _cumulativeWeight -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                                  }
+                                                });
+                                              }
                                             }
                                           }
 

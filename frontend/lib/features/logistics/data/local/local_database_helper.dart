@@ -1739,10 +1739,11 @@ class LocalDatabaseHelper {
     final rows = await db.rawUpdate('''
       UPDATE $tableDetails 
       SET $colDetScanned = COALESCE($colDetScanned, 0) - ?,
-          $colDetEaScanned = COALESCE($colDetEaScanned, 0) - ?
+          $colDetEaScanned = COALESCE($colDetEaScanned, 0) - ?,
+          $columnIsSynced = 0
       WHERE UPPER($colDetSoNum) = UPPER(?) AND UPPER($colDetItemCode) = UPPER(?)
     ''', [weight, eaQuantity, soNumber, itemCode]);
-    debugPrint("deductFromDetailSummary: $rows rows updated for $itemCode in $soNumber");
+    debugPrint("deductFromDetailSummary: $rows rows updated for $itemCode in $soNumber (marked as unsynced)");
   }
 
   Future<void> markOfflineAuditsAsSynced(List<int> ids) async {
@@ -1768,6 +1769,16 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     await db.delete(
       tableScans,
+      where: '$columnSyncId = ?',
+      whereArgs: [syncId],
+    );
+  }
+
+  Future<void> updateScanStatusBySyncId(String syncId, String status) async {
+    final db = await instance.database;
+    await db.update(
+      tableScans,
+      {columnItemStatus: status, columnIsSynced: 0},
       where: '$columnSyncId = ?',
       whereArgs: [syncId],
     );

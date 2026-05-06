@@ -72,7 +72,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))
+                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260430' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */
                 ORDER BY f0.ORDDAT_0 DESC", new { Site = site });
 
             var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
@@ -101,7 +101,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))", new { Site = site });
+                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260430' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */", new { Site = site });
 
             var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER WITH (NOLOCK)");
             var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)");
@@ -882,12 +882,77 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             var barcode = payload.RootElement.GetProperty("barcode").GetString();
 
                             var scan = await _scanContext.ProductionScanTransactions
+                                .Include(t => t.OrderLine)
+                                .ThenInclude(l => l.Order)
                                 .FirstOrDefaultAsync(t => t.Barcode == barcode);
 
                             if (scan != null)
                             {
-                                _scanContext.ProductionScanTransactions.Remove(scan);
-                                Console.WriteLine($"[Sync] Processed DELETE OfflineAudit for scan {barcode}");
+                                // 1. EOD Check: If StagingEod exists for this Work Order, EOD is processed
+                                var eodProcessed = await _scanContext.StagingEodRecords
+                                    .AnyAsync(e => e.WorkOrderNumber == scan.OrderLine.Order.SourceOrderId);
+
+                                if (eodProcessed)
+                                {
+                                    Console.WriteLine($"[Sync] Rejected DELETE for {barcode}: EOD already processed for WO {scan.OrderLine.Order.SourceOrderId}");
+                                }
+                                else
+                                {
+                                    // 2. Create Reversal Transaction
+                                    var reversal = new ProductionScanTransaction
+                                    {
+                                        SalesOrderLineId = scan.SalesOrderLineId,
+                                        ScanAmountKg = -scan.ScanAmountKg,
+                                        EaQuantity = scan.EaQuantity.HasValue ? -scan.EaQuantity.Value : null,
+                                        Barcode = scan.Barcode,
+                                        LotNumber = scan.LotNumber,
+                                        Location = scan.Location,
+                                        SyncId = Guid.NewGuid().ToString(), // Unique SyncId for the reversal
+                                        ItemStatus = "REVERSED",
+                                        DeviceId = scan.DeviceId,
+                                        CreatedBy = performedBy,
+                                        CreatedAt = DateTime.UtcNow,
+                                        IsDeleted = false
+                                    };
+
+                                    _scanContext.ProductionScanTransactions.Add(reversal);
+
+                                    // DO NOT mark original as deleted. Both original (+) and reversal (-) 
+                                    // remain IsDeleted=false to perfectly balance the ledger sum.
+                                    scan.ItemStatus = "DELETED_ORIGINAL";
+
+                                    // 3. Update Aggregated States
+                                    var state = await _scanContext.ProductionLineStates
+                                        .FirstOrDefaultAsync(s => s.SalesOrderLineId == scan.SalesOrderLineId);
+                                    
+                                    if (state != null)
+                                    {
+                                        state.TotalManufacturedQty -= scan.ScanAmountKg;
+                                        if (scan.EaQuantity.HasValue)
+                                        {
+                                            state.TotalEaQty -= scan.EaQuantity.Value;
+                                        }
+                                        state.UpdatedAt = DateTime.UtcNow;
+                                    }
+
+                                    // 4. Update Excess Pools (if applicable)
+                                    var soNumber = scan.OrderLine.Order.SourceOrderId;
+                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-"))
+                                    {
+                                        var excess = await _scanContext.Excesses
+                                            .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == scan.OrderLine.ItemCode);
+                                        
+                                        if (excess != null)
+                                        {
+                                            excess.TotalManufacturedQuantity -= scan.ScanAmountKg;
+                                            excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
+                                            excess.UpdatedAt = DateTime.UtcNow;
+                                            excess.UpdatedBy = performedBy;
+                                        }
+                                    }
+
+                                    Console.WriteLine($"[Sync] Processed DELETE OfflineAudit for scan {barcode} (Reversal Inserted)");
+                                }
                             }
                         }
                         catch (Exception ex)
