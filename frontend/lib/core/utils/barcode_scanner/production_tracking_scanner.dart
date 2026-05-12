@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:provider/provider.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'offline_barcode_processor.dart';
@@ -21,7 +21,7 @@ class ProductionTrackingScanner extends StatefulWidget {
   State<ProductionTrackingScanner> createState() => _ProductionTrackingScannerState();
 }
 
-class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> with SunmiScannerMixin<ProductionTrackingScanner> {
+class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> with HardwareScannerMixin<ProductionTrackingScanner> {
   bool _isProcessing = false;
   DateTime? _lastScanTime;
 

@@ -1324,23 +1324,7 @@ class DeliveryRepository implements ILogisticsRepository {
       debugPrint('getProductionScans: Failed to fetch history from API: $e');
     }
 
-    // --- Filter by Pending Deletions ---
-    final Set<String> pendingDeletions = {};
-    try {
-      final db = LocalDatabaseHelper.instance;
-      final unsyncedAudits = await db.getUnsyncedOfflineAudits();
-      for (var audit in unsyncedAudits) {
-        if (audit['action'] == 'DELETE' && audit['entity'] == 'ProductionScan') {
-          final payload = jsonDecode(audit['payload'] as String);
-          final syncId = payload['syncId']?.toString();
-          final barcode = payload['barcode']?.toString();
-          if (syncId != null) pendingDeletions.add(syncId);
-          if (barcode != null) pendingDeletions.add(barcode);
-        }
-      }
-    } catch (e) {
-      debugPrint('getProductionScans: Failed to fetch pending deletions: $e');
-    }
+
 
     try {
       final localScans = await LocalDatabaseHelper.instance.getLocalProductionScans(soNumber, itemCode);
@@ -1351,10 +1335,7 @@ class DeliveryRepository implements ILogisticsRepository {
         final syncId = scan['syncId']?.toString();
         final barcode = scan['barcode']?.toString();
         
-        if ((syncId != null && pendingDeletions.contains(syncId)) || 
-            (barcode != null && pendingDeletions.contains(barcode))) {
-          continue; // Skip scans pending deletion
-        }
+
 
         final key = syncId ?? barcode;
         if (key != null) merged[key] = scan;
@@ -1364,10 +1345,7 @@ class DeliveryRepository implements ILogisticsRepository {
         final syncId = scan[LocalDatabaseHelper.columnSyncId]?.toString();
         final barcode = scan[LocalDatabaseHelper.columnBarcode]?.toString();
 
-        if ((syncId != null && pendingDeletions.contains(syncId)) || 
-            (barcode != null && pendingDeletions.contains(barcode))) {
-          continue; // Skip scans pending deletion
-        }
+
 
         final key = syncId ?? barcode;
         if (key != null) {

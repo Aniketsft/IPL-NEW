@@ -9,7 +9,7 @@ import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import '../widgets/label_printing_handler.dart';
 import 'production_tracking_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
@@ -27,7 +27,7 @@ class SalesOrderDetailScreen extends StatefulWidget {
 }
 
 class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
-    with SunmiScannerMixin<SalesOrderDetailScreen> {
+    with HardwareScannerMixin<SalesOrderDetailScreen> {
   List<SalesOrderDetail> _details = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -35,6 +35,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   final TextEditingController _descFilter = TextEditingController();
   final Set<String> _selectedItemCodes = {};
   double _tolerancePercentage = 0.0;
+  bool _isHeaderExpanded = false;
 
   @override
   void initState() {
@@ -689,7 +690,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             },
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 8, 28, 8),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: Row(
               children: [
                 SizedBox(
@@ -715,25 +716,25 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 const Text(
                   'PRODUCT',
                   style: TextStyle(color: Colors.grey, fontSize: 11),
                 ),
                 const Spacer(),
                 SizedBox(
-                  width: 90,
+                  width: 72,
                   child: const Text(
                     'ORDERED',
                     textAlign: TextAlign.end,
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 90,
+                  width: 72,
                   child: const Text(
-                    'REMAINING',
+                    'REMAIN',
                     textAlign: TextAlign.end,
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
@@ -774,77 +775,100 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark
-            ? theme.colorScheme.surfaceContainerHigh
-            : theme.colorScheme.surface,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+    return InkWell(
+      onTap: () => setState(() => _isHeaderExpanded = !_isHeaderExpanded),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: double.infinity,
+        padding: EdgeInsets.all(_isHeaderExpanded ? 24 : 16),
+        decoration: BoxDecoration(
+          color: isDark
+              ? theme.colorScheme.surfaceContainerHigh
+              : theme.colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(32),
+            bottomRight: Radius.circular(32),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.order.customerName,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontWeight: FontWeight.bold,
+                          fontSize: _isHeaderExpanded ? 22 : 18,
+                          letterSpacing: -0.5,
+                        ),
+                        maxLines: _isHeaderExpanded ? null : 1,
+                        overflow: _isHeaderExpanded ? null : TextOverflow.ellipsis,
+                      ),
+                      if (_isHeaderExpanded) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.order.customerCode,
+                          style: TextStyle(
+                            color: orange.withValues(alpha: 0.8),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.order.customerName,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                        letterSpacing: -0.5,
-                      ),
+                    _StatusBadge(
+                      isClosed: widget.order.isClosed,
+                      isPreparedForShipment: widget.order.isPreparedForShipment,
+                      isDeliveryMode: widget.isDeliveryMode,
+                      orange: orange,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.order.customerCode,
-                      style: TextStyle(
-                        color: orange.withValues(alpha: 0.8),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      _isHeaderExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: orange.withValues(alpha: 0.5),
+                      size: 24,
                     ),
                   ],
                 ),
-              ),
-              _StatusBadge(
-                isClosed: widget.order.isClosed,
-                isPreparedForShipment: widget.order.isPreparedForShipment,
-                isDeliveryMode: widget.isDeliveryMode,
-                orange: orange,
+              ],
+            ),
+            if (_isHeaderExpanded) ...[
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  _buildCompactInfo(
+                    'PO NUMBER',
+                    widget.order.purchaseOrderNumber ?? 'N/A',
+                  ),
+                  const SizedBox(width: 32),
+                  _buildCompactInfo('DELIVERY DATE', widget.order.deliveryDate),
+                ],
               ),
             ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _buildCompactInfo(
-                'PO NUMBER',
-                widget.order.purchaseOrderNumber ?? 'N/A',
-              ),
-              const SizedBox(width: 32),
-              _buildCompactInfo('DELIVERY DATE', widget.order.deliveryDate),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -989,46 +1013,54 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           item.itemCode,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            fontSize: 13,
                             color: isDark ? Colors.white : Colors.black87,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           item.description,
                           style: TextStyle(
                             color: isDark ? Colors.grey : Colors.grey[600],
-                            fontSize: 13,
+                            fontSize: 11,
                           ),
-                          softWrap: true,
-                          overflow: TextOverflow.visible,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        // Customer info hidden as per request
                         const SizedBox(height: 8),
-                        // VW/FW badge hidden as per request
                       ],
                     ),
                   ),
                   SizedBox(
-                    width: 90,
+                    width: 72,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '${item.formatQuantity(item.quantity)} ${item.unit}',
+                          '${item.formatQuantity(item.quantity)}',
                           textAlign: TextAlign.end,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontSize: 12,
                             color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          item.unit,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white60 : Colors.black54,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   SizedBox(
-                    width: 90,
+                    width: 72,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -1045,16 +1077,31 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                             final effectiveRemaining = isEA
                                 ? (item.quantity - item.eaScannedQuantity)
                                 : (effectiveLimit - item.manufacturedQuantity);
-                            return Text(
-                              '${item.formatQuantity(effectiveRemaining)} ${item.unit}',
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: effectiveRemaining <= 0
-                                    ? Colors.green
-                                    : Colors.red,
-                              ),
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${item.formatQuantity(effectiveRemaining)}',
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: effectiveRemaining <= 0
+                                        ? Colors.green
+                                        : Colors.red,
+                                  ),
+                                ),
+                                Text(
+                                  item.unit,
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: effectiveRemaining <= 0
+                                        ? Colors.green.withValues(alpha: 0.7)
+                                        : Colors.red.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),

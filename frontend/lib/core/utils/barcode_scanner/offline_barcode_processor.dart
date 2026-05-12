@@ -28,10 +28,12 @@ class OfflineBarcodeProcessor {
     final db = await LocalDatabaseHelper.instance.database;
     Map<String, dynamic>? product;
 
+    final cleanedBarcode = BarcodeProcessor.cleanBarcode(rawBarcode);
+
     // 1. Identify Prefix and Prepare Lookup Key
-    if (rawBarcode.startsWith('2')) {
+    if (cleanedBarcode.startsWith('2')) {
       // Logic: Prefix 2, take first 6 digits and prepend '0' (Total 7 digits)
-      final searchCode = "0${rawBarcode.substring(0, 6)}";
+      final searchCode = "0${cleanedBarcode.substring(0, 6)}";
       
       final results = await db.query(
         LocalDatabaseHelper.tableProducts,
@@ -40,9 +42,9 @@ class OfflineBarcodeProcessor {
       );
       if (results.isNotEmpty) product = results.first;
       
-    } else if (rawBarcode.startsWith('02') && rawBarcode.length >= 7) {
+    } else if (cleanedBarcode.startsWith('02') && cleanedBarcode.length >= 7) {
       // Logic: Prefix 02, those starting with 02 must map first 7 digits
-      final searchCode = rawBarcode.substring(0, 7);
+      final searchCode = cleanedBarcode.substring(0, 7);
       
       final results = await db.query(
         LocalDatabaseHelper.tableProducts,
@@ -55,8 +57,8 @@ class OfflineBarcodeProcessor {
       // Logic: Full barcode search (Prefix 6 or other standard codes)
       final results = await db.query(
         LocalDatabaseHelper.tableProducts,
-        where: '${LocalDatabaseHelper.colProdBarcode} = ? OR ${LocalDatabaseHelper.colProdCode} = ?',
-        whereArgs: [rawBarcode, rawBarcode],
+        where: '${LocalDatabaseHelper.colProdBarcode} = ? OR ${LocalDatabaseHelper.colProdCode} = ? OR ${LocalDatabaseHelper.colProdBarcode} = ? OR ${LocalDatabaseHelper.colProdCode} = ?',
+        whereArgs: [cleanedBarcode, cleanedBarcode, rawBarcode, rawBarcode],
       );
       if (results.isNotEmpty) product = results.first;
     }

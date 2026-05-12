@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/audio/audio_service.dart';
 import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
-import '../../../../core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import '../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
@@ -32,7 +32,7 @@ class ProductionTrackingScreen extends StatefulWidget {
       _ProductionTrackingScreenState();
 }
 
-class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> with SunmiScannerMixin<ProductionTrackingScreen> {
+class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> with HardwareScannerMixin<ProductionTrackingScreen> {
   String _status = 'A'; // A: Approved, Q: Quality, R: Rejected
   double _cumulativeQty = 0.0; // Qty of pending (unsaved) scans this session
   double _cumulativeWeight = 0.0; // Weight (KG) of pending (unsaved) scans this session
@@ -788,16 +788,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                                               
                                               await repository.saveProductionScansBatch([reversalScan]);
 
-                                              // 3. COMMIT the deduction to the persistent summary table (marks as unsynced automatically now)
+                                              // 3. Update local session state directly (deduction handled by sum in DB automatically)
                                               final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
                                               final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
-                                              
-                                              await db.deductFromDetailSummary(
-                                                soNumber: widget.order.orderNumber,
-                                                itemCode: widget.product.itemCode,
-                                                weight: weightToDeduct,
-                                                eaQuantity: eaToDeduct,
-                                              );
 
                                               if (mounted) {
                                                 setState(() {

@@ -297,7 +297,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       await EodPdfGenerator.generateAndPrint(
         workOrder: _selectedWorkOrder?.workOrder ?? 'N/A',
         productionDate: _selectedDate,
-        items: _summaryItems,
+        items: _summaryItems.where((item) => item.manufactured > 0).toList(),
       );
     } catch (e) {
       debugPrint('PDF Error: $e');
@@ -680,7 +680,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _buildProductList(bool isDark, ThemeData theme) {
-    if (_summaryItems.isEmpty) {
+    final displayItems = _summaryItems.where((item) => item.manufactured > 0).toList();
+
+    if (displayItems.isEmpty) {
       return Center(
         child: Text(
           'No production tracked for this date',
@@ -691,7 +693,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
     // Group by itemCode
     final Map<String, List<ProductionTrackingItem>> grouped = {};
-    for (final item in _summaryItems) {
+    for (final item in displayItems) {
       grouped.putIfAbsent(item.itemCode, () => []).add(item);
     }
 

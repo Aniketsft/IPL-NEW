@@ -1010,10 +1010,10 @@ class LocalDatabaseHelper {
         ord.$colRep1 as rep1,
         ord.$colRep0 as rep0,
         ord.$colSalesman as salesmanName,
-        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
-        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
-        (COALESCE(det.$colDetEaScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnEaQuantity ELSE 0 END), 0)) as reconciledEaQuantity,
-        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus = 'A' THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetEaScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') THEN scn.$columnEaQuantity ELSE 0 END), 0)) as reconciledEaQuantity,
+        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
         (
           SELECT scn2.$columnLot 
           FROM $tableScans scn2 
