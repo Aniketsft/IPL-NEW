@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_qr_generator.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_printing_handler.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 
 enum AggregationMode { crate, palette }
 
@@ -13,7 +13,7 @@ class QrLabelScreen extends StatefulWidget {
   State<QrLabelScreen> createState() => _QrLabelScreenState();
 }
 
-class _QrLabelScreenState extends State<QrLabelScreen> with SunmiScannerMixin<QrLabelScreen> {
+class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin<QrLabelScreen> {
   AggregationMode _mode = AggregationMode.crate;
   
   // Crate State
@@ -22,8 +22,6 @@ class _QrLabelScreenState extends State<QrLabelScreen> with SunmiScannerMixin<Qr
   
   // Palette State (Grouped by SO)
   final Map<String, List<Map<String, String>>> _paletteGroups = {};
-  
-  bool _isScannerOpen = true;
 
   double get _totalWeight {
     if (_mode == AggregationMode.crate) {
@@ -149,64 +147,6 @@ class _QrLabelScreenState extends State<QrLabelScreen> with SunmiScannerMixin<Qr
               children: [
                 _buildModeButton(context, 'CRATE', AggregationMode.crate, orange),
                 _buildModeButton(context, 'PALETTE', AggregationMode.palette, orange),
-              ],
-            ),
-          ),
-
-          // ── Scanner Viewport ───────────────────────────────────────────
-          Container(
-            height: 200,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.qr_code_2, color: orange.withValues(alpha: 0.3), size: 80),
-                      const SizedBox(height: 16),
-                      Text(
-                        'HARDWARE QR READER ACTIVE',
-                        style: TextStyle(
-                          color: orange.withValues(alpha: 0.6),
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Trigger hardware laser to scan',
-                        style: TextStyle(
-                          color: Colors.white24,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Scanner Overlay
-                Center(
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: orange.withValues(alpha: 0.5), width: 2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-                if (!_isScannerOpen)
-                  Container(
-                    color: Colors.black54,
-                    child: Center(child: Icon(Icons.check_circle, color: orange, size: 48)),
-                  ),
               ],
             ),
           ),
