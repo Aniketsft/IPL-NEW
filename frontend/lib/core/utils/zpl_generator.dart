@@ -32,28 +32,28 @@ class ZplGenerator {
 
 ^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
 ^FO40,40^A0N,40,40^FD$productCode^FS
-^FO400,40^A0N,30,30^FB360,2,R^FD$description^FS
+^FO40,80^A0N,30,30^FB700,2,L^FD$description^FS
 
 
 -- Customer & SO --
-^FO40,100^A0N,35,35^FB700,1,L^FD$customerName^FS
-^FO40,145^A0N,35,35^FDIPLSO Number: $soNumber^FS
+^FO40,140^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,185^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
 -- Middle Divider --
-^FO40,200^GB700,3,3^FS
+^FO40,240^GB700,3,3^FS
 
 -- Batch/Date Info --
-^FO40,230^A0N,30,30^FDLot Number: ${lotNumber ?? "N/A"}^FS
-^FO460,230^A0N,25,25^FDSM: ${salesman ?? ""}^FS
-^FO40,275^A0N,30,30^FDProduction Date: $prodDate^FS
-^FO40,320^A0N,30,30^FDExpiry Date: $expDate^FS
+^FO40,270^A0N,30,30^FDLot Number: ${lotNumber ?? "N/A"}^FS
+^FO460,270^A0N,25,25^FDSM: ${salesman ?? ""}^FS
+^FO40,315^A0N,30,30^FDProduction Date: $prodDate^FS
+^FO40,360^A0N,30,30^FDExpiry Date: $expDate^FS
 
 -- QR Code (Moved up 2cm from 480 to 320) --
-^FO460,320^BQN,2,6^FDQA,$qrData^FS
+^FO460,360^BQN,2,6^FDQA,$qrData^FS
 
 -- Large Quantity --
-^FO40,400^A0N,40,40^FDQuantity:^FS
-^FO40,450^A0N,80,80^FD${weight.toStringAsFixed(3)} $unit^FS
+^FO40,440^A0N,40,40^FDQuantity:^FS
+^FO40,490^A0N,80,80^FD${weight.toStringAsFixed(3)} $unit^FS
 
 -- Footer / Audit --
 ^FO40,700^GB700,3,3^FS

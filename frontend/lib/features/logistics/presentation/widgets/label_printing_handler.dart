@@ -93,6 +93,7 @@ class LabelPrintingHandler {
     required List<Widget> details,
     String? labelId,
     List<Widget>? manifest,
+    String? cornerCode,
   }) {
     // Dynamic height based on screen size to prevent overflows
     final maxHeight = MediaQuery.of(context).size.height * 0.70;
@@ -108,25 +109,69 @@ class LabelPrintingHandler {
           child: SingleChildScrollView(
             child: Column(
               children: [
+                SizedBox(
+                  height: 20,
+                  width: double.infinity,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Text(
+                        'INNODIS POULTRY LTD',
+                        style: TextStyle(
+                          color: Colors.black54, 
+                          fontSize: 8, 
+                          fontWeight: FontWeight.bold, 
+                          letterSpacing: 1.2
+                        ),
+                      ),
+                      if (cornerCode != null)
+                        Positioned(
+                          right: 0,
+                          child: Text(
+                            cornerCode,
+                            style: const TextStyle(
+                              color: Colors.black, 
+                              fontWeight: FontWeight.w900, 
+                              fontSize: 10
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   title.toUpperCase(),
                   style: const TextStyle(
                     color: Colors.black, 
                     fontWeight: FontWeight.bold, 
-                    fontSize: 18,
-                    letterSpacing: 1.5,
+                    fontSize: 14,
+                    letterSpacing: 1.0,
                   ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const Divider(color: Colors.black, thickness: 2.0),
-                const SizedBox(height: 8),
-                QrImageView(
-                  data: qrData,
-                  version: QrVersions.auto,
-                  size: 140.0,
-                  foregroundColor: Colors.black,
+                const Divider(color: Colors.black, thickness: 1.5, height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    QrImageView(
+                      data: qrData,
+                      version: QrVersions.auto,
+                      size: 100.0,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: details,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                ...details,
                 if (manifest != null && manifest.isNotEmpty) ...[
                   const Divider(color: Colors.black, height: 20, thickness: 1),
                   const Text('EXPLODED MANIFEST LOG', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
@@ -186,20 +231,23 @@ class LabelPrintingHandler {
           title: item.itemCode,
           qrData: qrData,
           details: [
-            Text(item.description, style: const TextStyle(color: Colors.black54, fontSize: 10, fontStyle: FontStyle.italic)),
-            const SizedBox(height: 8),
-            Text('CUSTOMER: ${item.customerName?.toUpperCase() ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
-            Text('SO REF: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 10)),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (item.lot != null) Text('LOT: ${item.lot}', style: const TextStyle(color: Colors.black, fontSize: 10)),
-                Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 10)),
-              ],
+            Text(item.description, 
+              style: const TextStyle(color: Colors.black54, fontSize: 9, fontStyle: FontStyle.italic),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 12),
-            Text('QTY: ${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('CUST: ${item.customerName?.toUpperCase() ?? "N/A"}', 
+              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text('SO: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            const SizedBox(height: 4),
+            Text('LOT: ${item.lot ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            const SizedBox(height: 6),
+            Text('${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
           ],
         ),
         actions: [
@@ -243,12 +291,17 @@ class LabelPrintingHandler {
           context: context,
           title: 'CRATE LABEL',
           qrData: qrData,
+          cornerCode: 'CL',
           details: [
-            Text('CUSTOMER: ${customerName.toUpperCase()}', style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
-            Text('SO REF: $soNumber', style: const TextStyle(color: Colors.black, fontSize: 10)),
-            Text('DELIVERY: $deliveryDate', style: const TextStyle(color: Colors.black, fontSize: 10)),
-            const SizedBox(height: 8),
-            Text('TOTAL: ${total.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20)),
+            Text('CUST: ${customerName.toUpperCase()}', 
+              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text('SO: $soNumber', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            Text('DELIV: $deliveryDate', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            const SizedBox(height: 6),
+            Text('TOTAL: ${total.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
           labelId: 'PENDING...', // Will be updated if we audit before preview
           manifest: items.map((i) => Padding(
@@ -343,11 +396,16 @@ class LabelPrintingHandler {
           context: context,
           title: 'PALETTE MASTER',
           qrData: qrData,
+          cornerCode: 'PL',
           details: [
-            Text('MASTER CUST: ${customerName.toUpperCase()}', style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
-            Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 10)),
-            const SizedBox(height: 8),
-            Text('TOTAL: ${totalWeight.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 22)),
+            Text('MASTER CUST: ${customerName.toUpperCase()}', 
+              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+            const SizedBox(height: 6),
+            Text('TOTAL: ${totalWeight.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
           ],
           labelId: 'MULTI-AUDIT',
           manifest: manifestWidgets,

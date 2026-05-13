@@ -10,7 +10,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/repositories/deli
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 
 
 class NewCutsBulkScreen extends StatefulWidget {
@@ -20,7 +20,7 @@ class NewCutsBulkScreen extends StatefulWidget {
   State<NewCutsBulkScreen> createState() => _NewCutsBulkScreenState();
 }
 
-class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with SunmiScannerMixin<NewCutsBulkScreen> {
+class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScannerMixin<NewCutsBulkScreen> {
   String _mode = 'cuts'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO

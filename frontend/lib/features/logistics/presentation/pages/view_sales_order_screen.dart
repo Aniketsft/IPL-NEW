@@ -12,7 +12,7 @@ import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
 import 'new_cuts_bulk_screen.dart';
 import '../widgets/sync_overlay.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/sunmi_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
@@ -22,7 +22,7 @@ class ViewSalesOrderScreen extends StatefulWidget {
   State<ViewSalesOrderScreen> createState() => _ViewSalesOrderScreenState();
 }
 
-class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with SunmiScannerMixin<ViewSalesOrderScreen> {
+class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with HardwareScannerMixin<ViewSalesOrderScreen> {
   DateTime? _selectedDate;
   String _status = 'open';
   List<SalesOrder> _orders = [];
