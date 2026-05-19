@@ -989,6 +989,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         END
                     END
 
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[X3SoapAudits]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[X3SoapAudits] (
+                            [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            [ActionName] NVARCHAR(100) NOT NULL DEFAULT '',
+                            [Identifier] NVARCHAR(100) NULL,
+                            [RequestPayload] NVARCHAR(MAX) NULL,
+                            [ResponsePayload] NVARCHAR(MAX) NULL,
+                            [IsSuccess] BIT NOT NULL DEFAULT 0,
+                            [ErrorMessage] NVARCHAR(2000) NULL,
+                            [TriggeredBy] NVARCHAR(200) NULL,
+                            [DeviceId] NVARCHAR(255) NULL,
+                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                        );
+                        PRINT 'Created X3SoapAudits table';
+                    END
+
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[EodProcessAudits]') AND type in (N'U'))
                     BEGIN
                         CREATE TABLE [dbo].[EodProcessAudits] (
