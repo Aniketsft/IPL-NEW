@@ -79,5 +79,6 @@ abstract class ILogisticsRepository {
   Future<String> logLabelAudit(Map<String, dynamic> auditData);
   Future<List<Map<String, String>>> getOpenInternalOrders();
   Future<Map<String, dynamic>> processEndOfDay();
+  Future<void> completeProductionEod(String workOrder, List<Map<String, dynamic>> items);
 }
 

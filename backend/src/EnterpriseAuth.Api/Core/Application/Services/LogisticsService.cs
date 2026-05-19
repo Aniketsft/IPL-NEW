@@ -1,21 +1,25 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Domain.Entities;
+using Microsoft.Extensions.Options;
 
 namespace EnterpriseAuth.Api.Core.Application.Services;
 
 public class LogisticsService : ILogisticsService
 {
     private readonly ILogisticsRepository _logisticsRepository;
+    private readonly EodSettings _eodSettings;
 
-    public LogisticsService(ILogisticsRepository logisticsRepository)
+    public LogisticsService(ILogisticsRepository logisticsRepository, IOptions<EodSettings> eodSettings)
     {
         _logisticsRepository = logisticsRepository;
+        _eodSettings = eodSettings.Value;
     }
 
     public async Task<Result<IEnumerable<ProductionTrackingDto>>> GetProductionTrackingAsync(string? siteCode)
@@ -74,27 +78,52 @@ public class LogisticsService : ILogisticsService
     {
         try
         {
-            // Get CCE_0/CCE_1 for the items from X3
-            // For simplicity, we'll fetch the work order headers again which contain this info
+            var now = DateTime.UtcNow;
+
+            // 1. Fetch work order headers from X3 for CCE_0 / CCE_1 per product
             var woHeaders = await _logisticsRepository.GetWorkOrdersAsync(workOrder);
-            
-            var records = items.Select(item => {
-                var header = woHeaders.FirstOrDefault(h => h.Product == item.ItemCode);
-                var mfgDate = item.CreatedAt ?? DateTime.UtcNow;
-                return new StagingEod
+
+            // 2. Fetch ALL BOM components using the fixed parent item codes from configuration.
+            //    These 3 parent codes (e.g. 3302, 3397, 31169) expand to ~240 component products.
+            //    The scanned items are the COMPONENTS, not the parents — do NOT use scanned codes here.
+            var parentCodes = _eodSettings.BomParentItemCodes;
+            var bomComponents = await _logisticsRepository.GetBomComponentsAsync(parentCodes);
+
+            // Deduplicated set of all BOM component codes
+            var allBomComponentCodes = bomComponents
+                .Select(b => b.ComponentItemCode)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Retrieve authoritative scans directly from server database (ProductionScanTransactions)
+            var dbItems = await _logisticsRepository.GetProductionSummaryByWorkOrderAsync(workOrder);
+            var itemsList = dbItems != null && dbItems.Any() ? dbItems.ToList() : items.ToList();
+
+            var records = new List<StagingEod>();
+
+            // ── 4a: Insert ALL scanned items with their real manufactured qty ───────
+            // This preserves actual scan data regardless of BOM membership.
+            foreach (var item in itemsList)
+            {
+                var header  = woHeaders.FirstOrDefault(h => h.Product == item.ItemCode);
+                var mfgDate = item.CreatedAt ?? now;
+
+                records.Add(new StagingEod
                 {
-                    WorkOrderNumber = workOrder,
-                    ProductCode = item.ItemCode,
+                    WorkOrderNumber           = workOrder,
+                    ProductCode               = item.ItemCode,
                     TotalManufacturedQuantity = item.Manufactured,
-                    DateOfManufacturing = mfgDate,
-                    ExpiryDate = mfgDate.AddDays(5),
-                    Unit = item.Unit,
-                    Location = item.Location ?? "",
-                    ItemStatus = item.StatusLabel ?? "A",
-                    Location2 = header?.CCE_0 ?? "",
-                    Location3 = header?.CCE_1 ?? ""
-                };
-            });
+                    EaQuantity                = 0m,                  // informational only
+                    DateOfManufacturing       = mfgDate,
+                    ExpiryDate                = mfgDate.AddDays(5),
+                    Unit                      = string.IsNullOrEmpty(item.Unit) ? "KG" : item.Unit,
+                    Location                  = string.IsNullOrEmpty(item.Location) ? "IPLCH" : item.Location,
+                    ItemStatus                = item.StatusLabel ?? "A",
+                    LotNumber                 = !string.IsNullOrEmpty(item.LotNumber) ? item.LotNumber : item.Lot,
+                    Location2                 = header?.CCE_0 ?? "",
+                    Location3                 = header?.CCE_1 ?? ""
+                });
+            }
 
             var success = await _logisticsRepository.SaveStagingEodAsync(records);
             return Result<bool>.Success(success);

@@ -4,10 +4,11 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 42;
+  static const _databaseVersion = 45;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -93,6 +94,7 @@ class LocalDatabaseHelper {
   static const colDetCustomerCode = 'customerCode';
   static const colDetCustomerName = 'customerName';
   static const colDetEaScanned = 'ea_scanned';
+  static const colDetCreatedAt = 'createdAt';
 
   // Common Code/Name columns
   static const colCode = 'code';
@@ -643,6 +645,44 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v42: $e");
       }
     }
+    if (oldVersion < 43) {
+      debugPrint('DB Upgrade: Adding createdAt to tbl_sales_order_details (v43)');
+      try {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCreatedAt TEXT');
+      } catch (e) {
+        debugPrint("Migration error v43: $e");
+      }
+    }
+    if (oldVersion < 44) {
+      debugPrint('DB Upgrade: Adding deviceId column to Label Audits and Offline Audit Logs (v44)');
+      try {
+        var labelColumns = await db.rawQuery('PRAGMA table_info($tableLabelAudits)');
+        if (!labelColumns.any((c) => c['name'] == 'deviceId')) {
+          await db.execute('ALTER TABLE $tableLabelAudits ADD COLUMN deviceId TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v44 label audits: $e");
+      }
+      try {
+        var auditColumns = await db.rawQuery('PRAGMA table_info($tableOfflineAuditLogs)');
+        if (!auditColumns.any((c) => c['name'] == 'deviceId')) {
+          await db.execute('ALTER TABLE $tableOfflineAuditLogs ADD COLUMN deviceId TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v44 offline audits: $e");
+      }
+    }
+    if (oldVersion < 45) {
+      debugPrint('DB Upgrade: Adding lot column to tbl_staging_eod (v45)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!columns.any((c) => c['name'] == columnLot)) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnLot TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v45: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -711,6 +751,7 @@ class LocalDatabaseHelper {
         $colDetCustomerCode TEXT,
         $colDetCustomerName TEXT,
         $colDetEaScanned REAL DEFAULT 0,
+        $colDetCreatedAt TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
@@ -822,6 +863,7 @@ class LocalDatabaseHelper {
         $colManifestJson TEXT,
         $colPrintedBy TEXT,
         $colCreatedAt TEXT,
+        deviceId TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -874,6 +916,7 @@ class LocalDatabaseHelper {
         location3 TEXT,
         createdAt TEXT,
         $columnEaQuantity REAL DEFAULT 0,
+        $columnLot TEXT,
         $columnIsSynced INTEGER DEFAULT 0
       )
     ''');
@@ -894,6 +937,7 @@ class LocalDatabaseHelper {
         action TEXT,
         payload TEXT,
         timestamp TEXT,
+        deviceId TEXT,
         $columnIsSynced INTEGER DEFAULT 0
       )
     ''');
@@ -902,7 +946,27 @@ class LocalDatabaseHelper {
   // Insert a scan record
   Future<int> insertScan(Map<String, dynamic> row) async {
     Database db = await instance.database;
-    return await db.insert(tableScans, row);
+    final id = await db.insert(tableScans, row);
+    
+    try {
+      await insertOfflineAuditLog(
+        entity: 'ProductionScan',
+        action: 'INSERT',
+        payload: jsonEncode({
+          'barcode': row[columnBarcode],
+          'manufacturedQty': row[columnManufacturedQuantity] ?? row[columnQuantity],
+          'eaQuantity': row[columnEaQuantity] ?? 0.0,
+          'syncId': row[columnSyncId],
+          'soNumber': row[columnSoNumber],
+          'productCode': row[columnProductCode],
+          'timestamp': row[columnTimestamp] ?? DateTime.now().toIso8601String(),
+        }),
+      );
+    } catch (e) {
+      debugPrint("Failed to automatically audit scan insertion: $e");
+    }
+    
+    return id;
   }
 
   // Retrieve all unsynced scans
@@ -949,6 +1013,17 @@ class LocalDatabaseHelper {
       {columnIsSynced: 1},
       where: '$columnId IN ($placeholders)',
       whereArgs: ids,
+    );
+  }
+
+  /// Deletes all unsynced staging EOD rows for a given Work Order.
+  /// Called before re-confirming EOD to avoid duplicate snapshots accumulating locally.
+  Future<int> deleteUnsyncedStagingEodByWorkOrder(String workOrder) async {
+    Database db = await instance.database;
+    return await db.delete(
+      tableStagingEod,
+      where: 'soNumber = ? AND $columnIsSynced = ?',
+      whereArgs: [workOrder, 0],
     );
   }
 
@@ -1459,13 +1534,13 @@ class LocalDatabaseHelper {
     ''', args);
   }
 
-  /// Calculates available excess from virtual orders (BLK, CUTS, FRZ) matching the delivery date.
+  /// Calculates available excess from virtual orders (BLK, CUTS) matching the delivery date.
   Future<List<Map<String, dynamic>>> getExcessPools({
     required String dateStr,
     required String itemCode,
   }) async {
     final db = await instance.database;
-    // We look for orders starting with BLK, CUTS, or FRZ matching the same delivery date.
+    // We look for orders starting with BLK, or CUTS matching the same delivery date.
     // poolQty: Total quantity scanned into the bulk order.
     // allocatedQty: Total quantity already "drawn" from this bulk order into real orders.
     return await db.rawQuery('''
@@ -1481,8 +1556,7 @@ class LocalDatabaseHelper {
            AND s.$columnProductCode = ?) AS allocatedQty
       FROM $tableOrders o
       WHERE (o.$colOrderNum LIKE 'BLK-%' 
-          OR o.$colOrderNum LIKE 'CUTS-%' 
-          OR o.$colOrderNum LIKE 'FRZ-%')
+          OR o.$colOrderNum LIKE 'CUTS-%')
         AND o.$colDeliveryDate LIKE ?
     ''', [itemCode, itemCode, '$dateStr%']);
   }
@@ -1492,7 +1566,7 @@ class LocalDatabaseHelper {
     final List<Map<String, dynamic>> results = await db.rawQuery('''
       SELECT 
         s.$columnProductCode,
-        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%' OR s.$columnSoNumber LIKE 'FRZ-%') AND s.$columnLocationCode NOT LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS poolQty,
+        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnLocationCode NOT LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS poolQty,
         SUM(CASE WHEN s.$columnLocationCode LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS allocatedQty
       FROM $tableScans s
       INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
@@ -1516,9 +1590,11 @@ class LocalDatabaseHelper {
 
   Future<int> insertLabelAudit(Map<String, dynamic> audit) async {
     final db = await instance.database;
+    final row = Map<String, dynamic>.from(audit);
+    row['deviceId'] = DeviceInfoService.instance.deviceInfo;
     return await db.insert(
       tableLabelAudits,
-      audit,
+      row,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -1660,22 +1736,21 @@ class LocalDatabaseHelper {
         ord.$colCustomerCode as customerCode,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(scn.totalManufacturedQty, 0)) as reconciledManufactured,
         (COALESCE(det.$colDetEaScanned, 0) + COALESCE(scn.totalEaQty, 0)) as reconciledEaQuantity,
-        scn.lot,
-        scn.location,
-        scn.timestamp
+        COALESCE(scn.lot, det.$colDetLot) as lot,
+        COALESCE(scn.location, det.$colDetLocation) as location,
+        COALESCE(scn.timestamp, det.$colDetCreatedAt) as timestamp
       FROM $tableDetails det
       INNER JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
       LEFT JOIN (
         SELECT 
           $columnSoNumber, 
           $columnProductCode, 
-          SUM($columnManufacturedQuantity) as totalManufacturedQty,
-          SUM($columnEaQuantity) as totalEaQty,
+          SUM(CASE WHEN $columnIsReflected = 0 THEN $columnManufacturedQuantity ELSE 0 END) as totalManufacturedQty,
+          SUM(CASE WHEN $columnIsReflected = 0 THEN $columnEaQuantity ELSE 0 END) as totalEaQty,
           MAX($columnLot) as lot,
           MAX($columnLocationCode) as location,
           MAX($columnTimestamp) as timestamp
         FROM $tableScans
-        WHERE $columnIsReflected = 0
         GROUP BY $columnSoNumber, $columnProductCode
       ) scn ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode
@@ -1720,6 +1795,7 @@ class LocalDatabaseHelper {
       'action': action,
       'payload': payload,
       'timestamp': DateTime.now().toIso8601String(),
+      'deviceId': DeviceInfoService.instance.deviceInfo,
       'isSynced': 0,
     });
   }

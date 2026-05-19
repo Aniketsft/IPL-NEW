@@ -7,7 +7,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
         
         /// <summary>
-        /// Source bulk sales order number (e.g. BLK-20261015, CUTS-20261015, FRZ-20261015)
+        /// Source bulk sales order number (e.g. BLK-20261015, CUTS-20261015)
         /// </summary>
         public string SourceBulkSoNumber { get; set; }
         

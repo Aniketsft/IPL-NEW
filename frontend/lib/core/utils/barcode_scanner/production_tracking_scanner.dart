@@ -95,11 +95,8 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> w
         } else {
           // NEW: For Cut/Bulk orders, allow adding "new" products that aren't in the detail list
           final isCutBulkOrder =
-              widget.order.orderNumber.startsWith('CB-') ||
               widget.order.orderNumber.startsWith('BLK-') ||
-              widget.order.orderNumber.startsWith('CUT-') ||
-              widget.order.orderNumber.startsWith('CUTS-') ||
-              widget.order.orderNumber.startsWith('FRZ-');
+              widget.order.orderNumber.startsWith('CUTS-');
 
           if (isCutBulkOrder) {
             final newDetail = SalesOrderDetail(

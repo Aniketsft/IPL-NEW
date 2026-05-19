@@ -150,6 +150,9 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
         ),
       );
 
+      // Hold success checkmark feedback for 1.5 seconds
+      await Future.delayed(const Duration(milliseconds: 1500));
+
       // Reload local data after sync
       final result = await _getProductionTracking.execute(
         siteCode: event.siteCode ?? state.currentSiteCode,

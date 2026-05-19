@@ -37,6 +37,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Entity { get; set; } = string.Empty;
         public string Action { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
+        public string? DeviceId { get; set; }
         public DateTime Timestamp { get; set; }
     }
 
@@ -55,6 +56,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Location3 { get; set; } = string.Empty;
         public decimal EaQuantity { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string? LotNumber { get; set; }
     }
 
     public class GlobalSettingUpdateDto
@@ -76,6 +78,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? PrintedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public bool IsOfflineCreated { get; set; }
+        public string? DeviceId { get; set; }
     }
 
     public class PreparationStatusUpdateDto

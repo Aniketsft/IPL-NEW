@@ -15,6 +15,7 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
        super(SyncInitial()) {
     on<StartSyncRequested>(_onStartSyncRequested);
     on<SyncProgressUpdated>(_onSyncProgressUpdated);
+    on<ResetSyncRequested>((event, emit) => emit(SyncInitial()));
   }
 
   Future<void> _onStartSyncRequested(

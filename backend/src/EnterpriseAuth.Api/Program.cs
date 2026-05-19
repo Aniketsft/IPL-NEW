@@ -87,6 +87,9 @@ builder.Services.AddScoped<IX3SchemaProvider, HeaderX3SchemaProvider>();
 // Configure SyncSettings
 builder.Services.Configure<SyncSettings>(builder.Configuration.GetSection("SyncSettings"));
 
+// Configure EodSettings
+builder.Services.Configure<EodSettings>(builder.Configuration.GetSection("EodSettings"));
+
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

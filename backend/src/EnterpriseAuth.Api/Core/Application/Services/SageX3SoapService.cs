@@ -13,6 +13,8 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
+using Dapper;
+using Microsoft.Data.SqlClient;
 
 namespace EnterpriseAuth.Api.Core.Application.Services
 {
@@ -24,17 +26,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private readonly string _poolAlias;
         private readonly string _username;
         private readonly string _password;
+        private readonly string _innodisConnectionString;
 
         public SageX3SoapService(ScanProductionDbContext context, IConfiguration configuration, IHttpClientFactory httpClientFactory)
         {
             _context = context;
             _httpClient = httpClientFactory.CreateClient();
+            _httpClient.Timeout = TimeSpan.FromMinutes(10);
             
             var settings = configuration.GetSection("X3SoapService");
             _soapUrl = settings["Url"] ?? "http://192.168.120.6:8124/soap-generic/syracuse/collaboration/syracuse/CAdxWebServiceXmlCC";
             _poolAlias = settings["PoolAlias"] ?? "IMPORT-EXPORT";
             _username = settings["Username"] ?? "ADMIN";
             _password = settings["Password"] ?? "PASSWORD_HERE";
+            _innodisConnectionString = configuration.GetConnectionString("Innodis")
+                ?? throw new InvalidOperationException("Innodis connection string is missing.");
         }
 
         public async Task<EndOfDayResult> ProcessEndOfDayAsync()
@@ -238,24 +244,103 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         .Where(r => !r.IsProcessed && r.WorkOrderNumber == workOrder)
                         .ToListAsync();
 
-                    var importResult = await ImportProductionEodAsync(workOrder, records);
-                    result.Results.Add(importResult);
+                    /*
+                    // Fetch missing BOM components dynamically for this specific Work Order
+                    var missingBomCodes = await GetMissingBomProductCodesAsync(workOrder);
 
-                    if (importResult.Success)
+                    // ── Append missing BOM products to this Work Order's batch ──
+                    // These are virtual in-memory records — never written to StagingEod.
+                    if (missingBomCodes.Any())
                     {
-                        result.SuccessCount++;
-                        foreach (var record in records)
+                        var today = DateTime.Today;
+                        var virtualRecords = missingBomCodes.Select(code => new StagingEod
                         {
-                            record.IsProcessed = true;
-                        }
+                            WorkOrderNumber           = workOrder,
+                            ProductCode               = code,
+                            TotalManufacturedQuantity = 0m,
+                            EaQuantity                = 0m,
+                            DateOfManufacturing       = today,
+                            ExpiryDate                = today.AddDays(5),
+                            Unit                      = "KG",
+                            Location                  = "IPLCH",
+                            ItemStatus                = "A",
+                            Location2                 = "LPOULTRY",  // CCE_0
+                            Location3                 = "CHILLED"    // CCE_1
+                        }).ToList();
 
-                        await _context.SaveChangesAsync();
-                        await transaction.CommitAsync();
+                        Console.WriteLine($"[EOD] Appending {virtualRecords.Count} missing BOM components (qty=0) to Work Order [{workOrder}] SOAP batch.");
+                        records.AddRange(virtualRecords);
                     }
-                    else
+                    */
+
+                    // Batch records into chunks of 50 to prevent Sage X3/Syracuse timeouts
+                    const int batchSize = 50;
+                    for (int i = 0; i < records.Count; i += batchSize)
                     {
-                        result.FailureCount++;
+                        var batch = records.Skip(i).Take(batchSize).ToList();
+                        var importResult = await ImportProductionEodAsync(workOrder, batch);
+                        result.Results.Add(importResult);
+
+                        if (importResult.Success)
+                        {
+                            // Only mark REAL (tracked) records as processed — virtual records have no Id
+                            result.SuccessCount += batch.Count;
+                            foreach (var record in batch.Where(r => r.Id != Guid.Empty && _context.Entry(r).State != Microsoft.EntityFrameworkCore.EntityState.Detached))
+                            {
+                                record.IsProcessed = true;
+                            }
+                            await _context.SaveChangesAsync();
+                        }
+                        else
+                        {
+                            // TRACE LOG SALVAGE: Parse logs to find successfully created tracking records in the failed batch.
+                            // Sage X3 output format:
+                            // "Production reporting on WO : IPLWO260400001 33519"
+                            // "IPL Creation of WO tracking IPLTK260500002"
+                            var successfulProducts = new HashSet<string>();
+                            string currentProduct = null;
+                            
+                            foreach (var msg in importResult.Messages)
+                            {
+                                if (msg.StartsWith("Production reporting on WO : "))
+                                {
+                                    var parts = msg.Split(' ');
+                                    currentProduct = parts.LastOrDefault();
+                                }
+                                else if (msg.StartsWith("IPL Creation of WO tracking "))
+                                {
+                                    if (!string.IsNullOrEmpty(currentProduct))
+                                    {
+                                        successfulProducts.Add(currentProduct);
+                                    }
+                                }
+                            }
+
+                            if (successfulProducts.Any())
+                            {
+                                int salvagedCount = 0;
+                                foreach (var record in batch.Where(r => r.Id != Guid.Empty && _context.Entry(r).State != Microsoft.EntityFrameworkCore.EntityState.Detached))
+                                {
+                                    if (successfulProducts.Contains(record.ProductCode))
+                                    {
+                                        record.IsProcessed = true;
+                                        salvagedCount++;
+                                    }
+                                }
+                                
+                                result.SuccessCount += salvagedCount;
+                                result.FailureCount += (batch.Count - salvagedCount);
+                                
+                                await _context.SaveChangesAsync();
+                            }
+                            else
+                            {
+                                result.FailureCount += batch.Count;
+                            }
+                        }
                     }
+
+                    await transaction.CommitAsync();
                 }
                 catch (Exception ex)
                 {
@@ -273,6 +358,49 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return result;
         }
 
+        /*
+        /// <summary>
+        /// Queries the Sage X3 BOM tables to find component products that are missing
+        /// from today's StagingEod entries for the specific Work Order. These will be
+        /// appended to the SOAP payload with qty=0 so Sage X3 always receives the complete BOM set.
+        /// </summary>
+        private async Task<IEnumerable<string>> GetMissingBomProductCodesAsync(string workOrder)
+        {
+            const string sql = @"
+                SELECT DISTINCT f1.CPNITMREF_0
+                FROM x3.INLDRYRUN.BOM f0
+                JOIN x3.INLDRYRUN.BOMD f1 ON f0.ITMREF_0 = f1.ITMREF_0
+                JOIN x3.INLDRYRUN.MFGITM f2 ON f0.ITMREF_0 = f2.ITMREF_0
+                JOIN x3.INLDRYRUN.MFGHEAD f3 ON f2.MFGNUM_0 = f3.MFGNUM_0
+                WHERE f0.ITMREF_0 = (
+                    SELECT TOP 1 m.ITMREF_0
+                    FROM x3.INLDRYRUN.MFGITM m
+                    WHERE m.MFGNUM_0 = @WorkOrder
+                      AND m.MFGLIN_0 = '1000'
+                )
+                AND f1.CPNTYP_0 = '4'
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM [Hipo].[dbo].[StagingEod] H
+                    WHERE H.ProductCode COLLATE DATABASE_DEFAULT = f1.CPNITMREF_0 COLLATE DATABASE_DEFAULT
+                      AND H.WorkOrderNumber = @WorkOrder
+                )";
+
+            try
+            {
+                using var db = new SqlConnection(_innodisConnectionString);
+                var codes = await db.QueryAsync<string>(sql, new { WorkOrder = workOrder });
+                Console.WriteLine($"[EOD] Found {codes.Count()} BOM components missing from StagingEod for Work Order {workOrder}.");
+                return codes;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EOD] Warning: Could not fetch missing BOM components for Work Order {workOrder}: {ex.Message}");
+                return Enumerable.Empty<string>();
+            }
+        }
+        */
+
         private async Task<X3ImportResult> ImportProductionEodAsync(string workOrder, List<StagingEod> records)
         {
             var result = new X3ImportResult { Identifier = workOrder };
@@ -285,7 +413,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 {
                     string mfgDate = rec.DateOfManufacturing.ToString("yyyyMMdd");
                     string expDate = rec.ExpiryDate?.ToString("yyyyMMdd") ?? "";
-                    string qty = rec.TotalManufacturedQuantity.ToString("F3");
+                    
+                    string qty = string.Equals(rec.Unit, "EA", StringComparison.OrdinalIgnoreCase) 
+                        ? rec.EaQuantity.ToString("F3") 
+                        : rec.TotalManufacturedQuantity.ToString("F3");
 
                     // Mapping according to requirement:
                     // M;Site;WorkOrderNumber;ProductCode;TotalManufacturedQuantity;Unit;1;;dateOfManufacturing;STD;|
@@ -343,6 +474,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var response = await _httpClient.SendAsync(request);
                 string responseXml = await response.Content.ReadAsStringAsync();
 
+                Console.WriteLine("====== SAGE X3 PRODUCTION EOD SOAP RESPONSE ======");
+                Console.WriteLine(responseXml);
+                Console.WriteLine("===================================================");
+
                 if (!response.IsSuccessStatusCode)
                 {
                     result.Success = false;
@@ -366,27 +501,56 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             {
                 var doc = XDocument.Parse(xml);
                 
-                // 1. Result JSON extraction (optional detail)
+                bool importSuccess = false;
+                
+                // 1. Result XML extraction (Sage X3 returned CDATA containing XML)
                 var resultNode = doc.Descendants("resultXml").FirstOrDefault();
                 if (resultNode != null && !string.IsNullOrEmpty(resultNode.Value))
                 {
                     try 
                     {
-                        using var jsonDoc = JsonDocument.Parse(resultNode.Value);
-                        if (jsonDoc.RootElement.TryGetProperty("GRP1", out var grp1))
+                        var innerDoc = XDocument.Parse(resultNode.Value);
+                        var grp = innerDoc.Descendants("GRP").FirstOrDefault(g => (string?)g.Attribute("ID") == "GRP1");
+                        if (grp != null)
                         {
-                            if (grp1.TryGetProperty("O_REQNUM", out var reqNum))
-                                result.RequestNumber = reqNum.GetString();
+                            var fields = grp.Descendants("FLD").ToDictionary(
+                                f => (string?)f.Attribute("NAME") ?? "",
+                                f => f.Value
+                            );
+
+                            if (fields.TryGetValue("O_REQNUM", out var reqNum))
+                            {
+                                result.RequestNumber = reqNum;
+                            }
+
+                            if (fields.TryGetValue("O_STATUS", out var oStatusStr) && int.TryParse(oStatusStr, out int oStatus))
+                            {
+                                // Sage X3 AOWS template import success:
+                                // O_STATUS >= 1 typically indicates successfully completed (or imported with warnings).
+                                // O_STATUS = 0 indicates failure.
+                                importSuccess = oStatus >= 1;
+                            }
+
+                            if (fields.TryGetValue("O_MESSA", out var oMessa) && !string.IsNullOrWhiteSpace(oMessa))
+                            {
+                                result.Messages.Add($"Sage X3: {oMessa}");
+                            }
                         }
                     }
-                    catch { /* Ignore JSON parse errors in resultXml */ }
+                    catch (Exception innerEx)
+                    {
+                        result.Messages.Add("Inner XML Parse warning: " + innerEx.Message);
+                    }
                 }
 
-                // 2. Global Status in the XML: 1 = Success, 0 = Error
+                // 2. Global Status in the SOAP XML: 1 = Success, 0 = Error
                 var statusNode = doc.Descendants("status").FirstOrDefault();
-                result.Success = statusNode?.Value == "1";
+                bool endpointSuccess = statusNode?.Value == "1";
 
-                // 3. Extract all messages from multiRef blocks
+                // Success is true ONLY if the SOAP call completed successfully AND the Sage X3 import completed successfully
+                result.Success = endpointSuccess && importSuccess;
+
+                // 3. Extract all messages from multiRef blocks (if any validation errors exist)
                 var messages = doc.Descendants().Where(d => d.Name.LocalName == "message").Select(m => m.Value).ToList();
                 result.Messages.AddRange(messages);
 

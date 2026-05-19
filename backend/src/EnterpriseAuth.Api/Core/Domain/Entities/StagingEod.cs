@@ -45,5 +45,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         public bool IsProcessed { get; set; } = false;
         public decimal EaQuantity { get; set; }
+
+        [MaxLength(100)]
+        public string? LotNumber { get; set; }
     }
 }

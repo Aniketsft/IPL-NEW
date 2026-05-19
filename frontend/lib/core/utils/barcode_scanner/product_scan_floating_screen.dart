@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'barcode_scanner_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../features/logistics/data/repositories/delivery_repository.dart';
 import '../../../features/logistics/domain/entities/location_lookup.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import '../../../features/logistics/data/local/local_database_helper.dart';
 import 'barcode_processor.dart';
+import 'hardware_scanner_mixin.dart';
 import 'dart:ui' show ImageFilter;
-import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../../../features/logistics/presentation/widgets/scan_item_card.dart';
 import '../../app_theme.dart';
@@ -33,7 +32,7 @@ class ProductScanFloatingScreen extends StatefulWidget {
   State<ProductScanFloatingScreen> createState() => _ProductScanFloatingScreenState();
 }
 
-class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
+class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> with HardwareScannerMixin<ProductScanFloatingScreen> {
   late List<Map<String, dynamic>> _scans;
   Map<String, dynamic>? _pendingScan;
 
@@ -167,6 +166,11 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
   void dispose() {
     _lotController.dispose();
     super.dispose();
+  }
+
+  @override
+  void onHardwareScan(String data) {
+    _handleScan(data);
   }
 
   double get _totalDisplayQty {
@@ -601,35 +605,49 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Stack(
                                 children: [
-                                  SizedBox(
+                                  Container(
+                                    height: 180,
                                     width: double.infinity,
-                                    child: AppBarcodeScanner(
-                                      onScan: _handleScan,
-                                      onManualAdd: (weight) {
-                                        double finalWeight = weight;
-                                        final unit = _unitLabel;
-                                        if (unit == 'EA' || unit == 'PCS') {
-                                          // Use standard weight for EA products if manual add is used as "+1 Unit"
-                                          final stdWeight = (widget.product['standardWeight'] as num?)?.toDouble() ?? 
-                                                           (widget.product['conversion'] as num?)?.toDouble() ?? 1.0;
-                                          finalWeight = stdWeight;
-                                        }
-
-                                        setState(() {
-                                          _scans.insert(0, {
-                                            'barcode': 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-                                            'productName': widget.product['productName'],
-                                            'weight': finalWeight,
-                                            'site': _selectedSite,
-                                            'location': _selectedLocationEntity?.location,
-                                            'lot': _selectedLot,
-                                            'timestamp': DateTime.now().toIso8601String(),
-                                            'status': 'A',
-                                          });
-                                        });
-                                      },
-                                      manualEntries: const {},
-                                      themeColor: orange,
+                                    decoration: BoxDecoration(
+                                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.05)
+                                            : Colors.black.withValues(alpha: 0.08),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: orange.withValues(alpha: 0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(Icons.barcode_reader, color: orange, size: 28),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'HARDWARE SCANNER ACTIVE',
+                                          style: TextStyle(
+                                            color: orange,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 12,
+                                            letterSpacing: 1.0,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Press physical side button to scan weights',
+                                          style: TextStyle(
+                                            color: isDark ? Colors.white38 : Colors.black38,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   if (_pendingScan != null)

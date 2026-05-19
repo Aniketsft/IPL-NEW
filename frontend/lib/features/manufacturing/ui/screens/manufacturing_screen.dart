@@ -9,7 +9,6 @@ import '../../bloc/manufacturing_event.dart';
 import '../../bloc/manufacturing_state.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
-import '../widgets/sync_progress_dialog.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import './end_of_day_screen.dart';
 
@@ -83,11 +82,6 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
       siteCode = authState.siteCode;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const SyncProgressDialog(),
-    );
     context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
     
     // Periodically check if sync is done to refresh timestamp
@@ -153,8 +147,6 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
 
         final filteredItems =
             menuItems.where((item) => item.title.toLowerCase().contains(query)).toList();
-
-        final theme = Theme.of(context);
 
         return IndustrialModuleLayout(
           title: 'MANUFACTURING',

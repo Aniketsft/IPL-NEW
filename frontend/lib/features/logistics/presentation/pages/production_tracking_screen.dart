@@ -157,8 +157,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   Future<void> _fetchExcessPools() async {
     if (widget.order.orderNumber.startsWith('BLK-') ||
-        widget.order.orderNumber.startsWith('CUTS-') ||
-        widget.order.orderNumber.startsWith('FRZ-')) {
+        widget.order.orderNumber.startsWith('CUTS-')) {
       return; // Can't allocate from bulk into bulk (for now)
     }
 
@@ -374,11 +373,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           }
 
           final isCutBulkOrder =
-              widget.order.orderNumber.startsWith('CB-') ||
               widget.order.orderNumber.startsWith('BLK-') ||
-              widget.order.orderNumber.startsWith('CUT-') ||
-              widget.order.orderNumber.startsWith('CUTS-') ||
-              widget.order.orderNumber.startsWith('FRZ-');
+              widget.order.orderNumber.startsWith('CUTS-');
           if (!isCutBulkOrder && _status == 'A') {
             final bool isEA = widget.product.unit.toUpperCase() == 'EA';
             final double tolerance = isEA ? 0.0 : _tolerancePercentage;
@@ -560,11 +556,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _addManualQty(double qty) {
     final isCutBulkOrder =
-        widget.order.orderNumber.startsWith('CB-') ||
         widget.order.orderNumber.startsWith('BLK-') ||
-        widget.order.orderNumber.startsWith('CUT-') ||
-        widget.order.orderNumber.startsWith('CUTS-') ||
-        widget.order.orderNumber.startsWith('FRZ-');
+        widget.order.orderNumber.startsWith('CUTS-');
     if (!isCutBulkOrder) {
       final bool isEA = widget.product.unit.toUpperCase() == 'EA';
       final double tolerance = isEA ? 0.0 : _tolerancePercentage;

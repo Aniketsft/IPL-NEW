@@ -216,6 +216,18 @@ class LabelPrintingHandler {
     required SalesOrderDetail item,
     required Function(SalesOrderDetail, String? auditId) onPrintRequested,
   }) async {
+    if (item.manufacturedQuantity <= 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Print aborted: Product has 0 manufactured quantity.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
     // 1. Log Audit and get ID (Local or Server)
     final auditId = await _logAudit(context, item);
 
@@ -446,6 +458,18 @@ class LabelPrintingHandler {
     required SalesOrderDetail item,
     String? auditId,
   }) async {
+    if (item.manufacturedQuantity <= 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Print aborted: Product has 0 manufactured quantity.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       // 1. Ensure we have an audit ID (If direct print was called)
       final effectiveAuditId = auditId ?? await _logAudit(context, item);

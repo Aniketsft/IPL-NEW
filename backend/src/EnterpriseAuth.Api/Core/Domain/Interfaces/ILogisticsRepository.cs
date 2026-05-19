@@ -35,5 +35,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<bool> AllocateExcessAsync(AllocateExcessDto dto);
         Task<LabelAuditDto> LogLabelAuditAsync(LabelAuditDto auditDto);
         Task<IEnumerable<WorkOrderDto>> GetWorkOrdersAsync(string? searchQuery);
+        Task<IEnumerable<BomComponentDto>> GetBomComponentsAsync(IEnumerable<string> parentItemCodes);
     }
 }

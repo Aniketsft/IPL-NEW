@@ -29,6 +29,8 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +38,8 @@ Future<void> main() async {
   // Initialize core services
   AudioService.instance;
   await PrinterService.instance.init();
+  await DeviceInfoService.instance.init();
+  await HardwareScannerService().init(); // Warm up Zebra and Sunmi scanners globally
   
   runApp(const MyApp());
 }

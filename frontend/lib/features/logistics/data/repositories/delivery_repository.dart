@@ -27,6 +27,7 @@ import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcod
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/company.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart' as settings_site;
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
   final NetworkService _networkService;
@@ -533,11 +534,21 @@ class DeliveryRepository implements ILogisticsRepository {
       final existingSo = entry['existingSoNumber'] as String?;
 
       if (existingSo != null && existingSo.isNotEmpty) {
-        // Reuse existing SO — only add a new detail line
         entryNo = existingSo;
+        // Mark existing order as unsynced so changes are pushed
+        await db.update(
+          LocalDatabaseHelper.tableOrders,
+          {
+            LocalDatabaseHelper.columnIsSynced: 0,
+            LocalDatabaseHelper.colRep0: entry['salesman1Code'],
+            LocalDatabaseHelper.colRep1: entry['salesman2Code'],
+          },
+          where: '${LocalDatabaseHelper.colOrderNum} = ?',
+          whereArgs: [entryNo],
+        );
       } else {
         // Generate new SO number based on type
-        final prefix = entry['type'] == 'Cuts' ? 'CUT-' : (entry['type'] == 'Bulks' ? 'BLK-' : 'FRZ-');
+        final prefix = entry['type'] == 'Cuts' ? 'CUTS-' : 'BLK-';
         final existingCount =
             sqflite.Sqflite.firstIntValue(
               await db.rawQuery(
@@ -549,16 +560,20 @@ class DeliveryRepository implements ILogisticsRepository {
         entryNo =
             '$prefix$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
 
+        final String formattedDate = entry['date'] != null 
+            ? DateFormat('yyyy-MM-dd').format(DateTime.parse(entry['date'])) 
+            : DateFormat('yyyy-MM-dd').format(today);
+
         // Insert header for new SO
         await db.insert(LocalDatabaseHelper.tableOrders, {
           LocalDatabaseHelper.colOrderNum: entryNo,
-          LocalDatabaseHelper.colOrderDate: entry['date'],
-          LocalDatabaseHelper.colDeliveryDate: entry['date'],
+          LocalDatabaseHelper.colOrderDate: formattedDate,
+          LocalDatabaseHelper.colDeliveryDate: formattedDate,
           LocalDatabaseHelper.colCustomerCode: entry['customerCode'],
           LocalDatabaseHelper.colCustomerName: entry['customerName'],
           LocalDatabaseHelper.colRep0: entry['salesman1Code'],
           LocalDatabaseHelper.colRep1: entry['salesman2Code'],
-          LocalDatabaseHelper.colSite: 'INTERNAL',
+          LocalDatabaseHelper.colSite: 'IPL',
           LocalDatabaseHelper.colStatus: 1,
           LocalDatabaseHelper.colSource: 'Internal',
           LocalDatabaseHelper.colStatusLabel: 'Open',
@@ -582,7 +597,12 @@ class DeliveryRepository implements ILogisticsRepository {
           
           final double orderedQty = isUnitBased ? totalPieces : totalWeight;
 
-          // Insert detail line
+          // Extract lot and location from first scan for the detail line
+          final firstScan = scans.isNotEmpty ? scans.first : null;
+          final String? summaryLot = firstScan != null ? (firstScan['lot']?.toString() ?? firstScan['lotNumber']?.toString()) : null;
+          final String? summaryLocation = firstScan != null ? (firstScan['location']?.toString() ?? firstScan['locationCode']?.toString()) : null;
+
+          // Insert or Update detail line
           await db.insert(LocalDatabaseHelper.tableDetails, {
             LocalDatabaseHelper.colDetSoNum: entryNo,
             LocalDatabaseHelper.colDetItemCode: productCode,
@@ -590,7 +610,11 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
             LocalDatabaseHelper.colDetQuantity: orderedQty,
             LocalDatabaseHelper.colDetUnit: productUnit,
-          });
+            LocalDatabaseHelper.colDetLot: summaryLot,
+            LocalDatabaseHelper.colDetLocation: summaryLocation,
+            LocalDatabaseHelper.colDetCreatedAt: DateTime.now().toIso8601String(),
+            LocalDatabaseHelper.columnIsSynced: 0,
+          }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
 
           // Insert scans
           for (final scan in scans) {
@@ -605,7 +629,7 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.columnSyncId: scan['syncId'] ?? const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
-              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'INTERNAL',
+              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'IPL',
               LocalDatabaseHelper.columnLocationCode: scan['location']?.toString() ?? scan['locationCode']?.toString(),
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
               LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
@@ -617,6 +641,14 @@ class DeliveryRepository implements ILogisticsRepository {
         final productCode = entry['productCode'] ??
             (entry['type'] == 'Cuts' ? 'PROD-CUT' : 'PROD-BLK');
         final quantity = entry['amountKg'] ?? 0.0;
+
+        final scans = entry['scans'] as List? ?? [];
+        final totalWeight = scans.isNotEmpty 
+            ? scans.fold(0.0, (sum, s) => sum + (s['weight'] as num).toDouble())
+            : quantity;
+        final totalPieces = scans.isNotEmpty
+            ? scans.fold(0.0, (sum, s) => sum + ((s['scannedQty'] ?? 0.0) as num).toDouble())
+            : 0.0;
 
         await db.insert(LocalDatabaseHelper.tableDetails, {
           LocalDatabaseHelper.colDetSoNum: entryNo,
@@ -658,7 +690,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
             LocalDatabaseHelper.columnIsSynced: 0,
             LocalDatabaseHelper.columnItemStatus: 'A',
-            LocalDatabaseHelper.columnSite: 'INTERNAL',
+            LocalDatabaseHelper.columnSite: 'IPL',
             LocalDatabaseHelper.columnLot: entry['lot']?.toString(),
           });
         }
@@ -679,6 +711,23 @@ class DeliveryRepository implements ILogisticsRepository {
       // during manual sync. This prevents the dual-write race condition
       // that caused manufactured quantities to double when online.
       debugPrint("Offline-First: Cut/Bulk entry $entryNo saved locally. Will sync via Sync/push.");
+
+      try {
+        await LocalDatabaseHelper.instance.insertOfflineAuditLog(
+          entity: 'CutBulk',
+          action: 'CREATE',
+          payload: jsonEncode({
+            'entryNo': entryNo,
+            'customerCode': entry['customerCode'],
+            'customerName': entry['customerName'],
+            'type': entry['type'] ?? (entryNo.contains('CUT') ? 'Cuts' : 'Bulks'),
+            'productCount': products?.length ?? 1,
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+        );
+      } catch (auditEx) {
+        debugPrint("Failed to log Cut/Bulk creation audit: $auditEx");
+      }
 
       return entryNo;
     } catch (e) {
@@ -747,35 +796,23 @@ class DeliveryRepository implements ILogisticsRepository {
           'cutBulkEntries': (await Future.wait(
             unsyncedOrders.map((o) async {
               final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
-              // Fetch details for item code and amount
-              final details = await LocalDatabaseHelper.instance
-                  .getReconciledDetails(soNum);
-              double amount = 0;
-              String? itemCode;
-              String? productName;
-              if (details.isNotEmpty) {
-                amount = (details.first['reconciledProduced'] as num).toDouble();
-                itemCode = details.first[LocalDatabaseHelper.colDetItemCode]?.toString();
-                productName = details.first[LocalDatabaseHelper.colDetDescription]?.toString();
-              }
-
-              return {
+              final details = await LocalDatabaseHelper.instance.getReconciledDetails(soNum);
+              
+              return details.map((d) => {
                 'entryNumber': soNum,
-                'type': soNum.toUpperCase().contains('CUT')
-                    ? 'Cuts'
-                    : 'Bulks',
+                'type': soNum.toUpperCase().contains('CUT') ? 'Cuts' : 'Bulks',
                 'customerCode': o[LocalDatabaseHelper.colCustomerCode],
                 'customerName': o[LocalDatabaseHelper.colCustomerName],
                 'date': o[LocalDatabaseHelper.colOrderDate],
                 'poNumber': o[LocalDatabaseHelper.colPoNum],
                 'salesman1Code': o[LocalDatabaseHelper.colRep0],
                 'salesman2Code': o[LocalDatabaseHelper.colRep1],
-                'amountKg': amount,
-                'itemCode': itemCode,
-                'productName': productName,
-              };
+                'amountKg': (d['reconciledManufactured'] as num).toDouble(),
+                'itemCode': d[LocalDatabaseHelper.colDetItemCode]?.toString(),
+                'productName': d[LocalDatabaseHelper.colDetDescription]?.toString(),
+              }).toList();
             }),
-          )),
+          )).expand((x) => x).toList(),
           'preparationStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses()).map((u) => {
             'soNumber': u[LocalDatabaseHelper.colDetSoNum],
             'itemCode': u[LocalDatabaseHelper.colDetItemCode],
@@ -810,6 +847,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'location3': e['location3'],
             'eaQuantity': e['ea_quantity'] ?? 0.0,
             'createdAt': e['createdAt'],
+            'lotNumber': e['lot'],
           }).toList(),
         };
 
@@ -818,12 +856,6 @@ class DeliveryRepository implements ILogisticsRepository {
         
         try {
           await _dio.post('Sync/push', data: payload);
-          
-          // If production EOD records were synced, trigger the Sage X3 integration
-          if (unsyncedStagingEod.isNotEmpty) {
-            debugPrint("Sync: Production EOD records detected. Triggering Sage X3 SOAP integration...");
-            await _dio.post('Logistics/production-eod');
-          }
         } on DioException catch (e) {
           final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
           debugPrint("Sync: Push failed to $fullUrl. Error: ${e.error ?? e.message}");
@@ -976,6 +1008,19 @@ class DeliveryRepository implements ILogisticsRepository {
     final activeSite = siteCode ?? 'IPL';
 
     try {
+      try {
+        await LocalDatabaseHelper.instance.insertOfflineAuditLog(
+          entity: 'Synchronization',
+          action: 'PUSH',
+          payload: jsonEncode({
+            'timestamp': DateTime.now().toIso8601String(),
+            'deviceId': DeviceInfoService.instance.deviceInfo,
+          }),
+        );
+      } catch (auditEx) {
+        debugPrint("Failed to log synchronization audit: $auditEx");
+      }
+
       yield SyncProgress(status: 'Pushing local changes...', progress: 0.1);
       final unsyncedScans = await LocalDatabaseHelper.instance.getUnsyncedScans();
       final unsyncedOrders = await LocalDatabaseHelper.instance.getUnsyncedInternalOrders();
@@ -1022,7 +1067,18 @@ class DeliveryRepository implements ILogisticsRepository {
               'amountKg': amount,
             };
           }))),
-          'labelAudits': unsyncedLabels,
+          'labelAudits': unsyncedLabels.map((l) => {
+            'labelId': l[LocalDatabaseHelper.colLabelId],
+            'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
+            'labelType': l[LocalDatabaseHelper.colLabelType],
+            'productCode': l[LocalDatabaseHelper.colProductCode],
+            'customerName': l[LocalDatabaseHelper.colCustomerName],
+            'totalWeight': l[LocalDatabaseHelper.columnQuantity] ?? 0.0,
+            'manifestJson': l[LocalDatabaseHelper.colManifestJson],
+            'printedBy': l[LocalDatabaseHelper.colPrintedBy],
+            'createdAt': l[LocalDatabaseHelper.colCreatedAt],
+            'deviceId': l['deviceId'],
+          }).toList(),
           'globalSettingsUpdates': settingsPayload,
           'preparationStatusUpdates': unsyncedStatuses.map((u) => {
             'soNumber': u[LocalDatabaseHelper.colDetSoNum],
@@ -1038,7 +1094,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
             'status': o[LocalDatabaseHelper.colStatus],
           }).toList(),
-          'deviceId': 'mobile-terminal',
+          'deviceId': DeviceInfoService.instance.deviceInfo,
           'stagingEodEntries': unsyncedStagingEod.map((e) => {
             'id': e['id'],
             'workOrderNumber': e['soNumber'],
@@ -1053,12 +1109,14 @@ class DeliveryRepository implements ILogisticsRepository {
             'location3': e['location3'],
             'eaQuantity': e['ea_quantity'] ?? 0.0,
             'createdAt': e['createdAt'],
+            'lotNumber': e['lot'],
           }).toList(),
           'offlineAudits': unsyncedAudits.map((a) => {
             'entity': a['entity'],
             'action': a['action'],
             'payload': a['payload'],
             'timestamp': a['timestamp'],
+            'deviceId': a['deviceId'],
           }).toList(),
         };
 
@@ -1440,9 +1498,6 @@ class DeliveryRepository implements ILogisticsRepository {
       final results = await db.query(
         LocalDatabaseHelper.tableOrders,
         where: "(${LocalDatabaseHelper.colOrderNum} LIKE 'BLK-%' OR "
-               "${LocalDatabaseHelper.colOrderNum} LIKE 'CUT-%' OR "
-               "${LocalDatabaseHelper.colOrderNum} LIKE 'FRZ-%' OR "
-               "${LocalDatabaseHelper.colOrderNum} LIKE 'CB-%' OR "
                "${LocalDatabaseHelper.colOrderNum} LIKE 'CUTS-%' OR "
                "${LocalDatabaseHelper.colSource} = 'Internal')",
         orderBy: "${LocalDatabaseHelper.colOrderDate} DESC",
@@ -1456,6 +1511,7 @@ class DeliveryRepository implements ILogisticsRepository {
         return {
           'code': orderNum,
           'name': '$orderNum ($custName)',
+          'date': row[LocalDatabaseHelper.colOrderDate]?.toString() ?? '',
         };
       }).toList();
     } catch (e) {
@@ -1766,6 +1822,19 @@ class DeliveryRepository implements ILogisticsRepository {
       return response.data as Map<String, dynamic>;
     } catch (e) {
       throw 'Failed to process End of Day: $e';
+    }
+  }
+
+  @override
+  Future<void> completeProductionEod(String workOrder, List<Map<String, dynamic>> items) async {
+    try {
+      await _dio.post('Logistics/complete-eod', data: {
+        'workOrder': workOrder,
+        'items': items,
+      });
+    } catch (e) {
+      debugPrint('Failed to complete Production EOD via API: $e');
+      throw 'Failed to complete Production EOD: $e';
     }
   }
 

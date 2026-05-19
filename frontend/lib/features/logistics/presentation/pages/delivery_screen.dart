@@ -5,9 +5,12 @@ import '../widgets/sync_status_header.dart';
 import '../../domain/entities/sales_order.dart';
 import '../widgets/sales_order_card.dart';
 import '../../data/repositories/delivery_repository.dart';
-import '../widgets/sync_overlay.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_scanner_widget.dart';
 import '../widgets/label_qr_generator.dart';
+import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
+import '../bloc/sync_bloc.dart';
+import '../bloc/sync_event.dart';
+import '../bloc/sync_state.dart';
 
 class DeliveryScreen extends StatefulWidget {
   final List<String> permissions;
@@ -18,7 +21,12 @@ class DeliveryScreen extends StatefulWidget {
   State<DeliveryScreen> createState() => _DeliveryScreenState();
 }
 
-class _DeliveryScreenState extends State<DeliveryScreen> {
+class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMixin<DeliveryScreen> {
+  @override
+  void onHardwareScan(String data) {
+    _processScan(data);
+  }
+
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
   List<SalesOrder> _orders = [];
   List<SalesOrder> _filteredOrders = [];
@@ -245,11 +253,33 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _processEndOfDay() async {
+    if (!mounted) return;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
     final repository = context.read<DeliveryRepository>();
 
+    // Phase 1: Trigger sync first and wait for it to complete
+    final syncBloc = context.read<SyncBloc>();
+    syncBloc.add(const StartSyncRequested());
+
+    final syncResult = await syncBloc.stream.firstWhere(
+      (state) => state is SyncSuccess || state is SyncFailure,
+    );
+
+    if (!mounted) return;
+
+    if (syncResult is SyncFailure) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed before sending to X3: ${syncResult.error}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Phase 2: Sync succeeded — confirm X3 export
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -259,7 +289,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           style: TextStyle(color: isDark ? Colors.white : Colors.black87),
         ),
         content: Text(
-          'This will process all pending staging records and import them into Sage X3.\n Proceed?',
+          'Sync completed. This will process all pending staging records and import them into Sage X3.\n Proceed?',
           style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
         ),
         actions: [
@@ -418,116 +448,111 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           onPressed: _processEndOfDay,
         ),
       ],
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              SyncStatusHeader(lastSync: _lastSync),
-              
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  controller: _searchController,
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                  decoration: InputDecoration(
-                    hintText: 'Search Scanned Manifest...',
-                    hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
-                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
-                    filled: true,
-                    fillColor: theme.cardColor,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
+          SyncStatusHeader(lastSync: _lastSync),
+          
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                hintText: 'Search Scanned Manifest...',
+                hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
+                filled: true,
+                fillColor: theme.cardColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
+            ),
+          ),
 
-              // Scanner / Empty State OR List
-              Expanded(
-                child: _isLoading
-                    ? Center(child: CircularProgressIndicator(color: orange))
-                    : _errorMessage != null
-                    ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)))
-                    : _filteredOrders.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.qr_code_scanner, size: 80, color: isDark ? Colors.grey[800] : Colors.grey[300]),
-                            const SizedBox(height: 16),
-                            Text('No Items in Manifest', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 18, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 12)),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: _scanManifest,
-                              icon: const Icon(Icons.camera_alt),
-                              label: const Text('START SCANNING'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: orange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              ),
-                            )
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _filteredOrders.length,
-                        padding: const EdgeInsets.all(16),
-                        itemBuilder: (context, index) {
-                          return SalesOrderCard(
-                            order: _filteredOrders[index],
-                            onRefresh: _fetchOrders,
-                            isDeliveryMode: true,
-                          );
-                        },
-                      ),
-              ),
-              
-              // Bottom Action Bar for active manifests
-              if (_filteredOrders.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _clearManifest,
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('CLEAR QUEUE'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red[300],
-                            side: BorderSide(color: Colors.red[900]!),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton.icon(
+          // Scanner / Empty State OR List
+          Expanded(
+            child: _isLoading
+                ? Center(child: CircularProgressIndicator(color: orange))
+                : _errorMessage != null
+                ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)))
+                : _filteredOrders.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.qr_code_scanner, size: 80, color: isDark ? Colors.grey[800] : Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        Text('No Items in Manifest', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 12)),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
                           onPressed: _scanManifest,
-                          icon: const Icon(Icons.add_a_photo),
-                          label: const Text('SCAN NEXT'),
+                          icon: const Icon(Icons.camera_alt),
+                          label: const Text('START SCANNING'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: orange,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           ),
-                        ),
-                      ),
-                    ],
+                        )
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _filteredOrders.length,
+                    padding: const EdgeInsets.all(16),
+                    itemBuilder: (context, index) {
+                      return SalesOrderCard(
+                        order: _filteredOrders[index],
+                        onRefresh: _fetchOrders,
+                        isDeliveryMode: true,
+                      );
+                    },
                   ),
-                ),
-            ],
           ),
-          const SyncOverlay(),
+          
+          // Bottom Action Bar for active manifests
+          if (_filteredOrders.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _clearManifest,
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('CLEAR QUEUE'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red[300],
+                        side: BorderSide(color: Colors.red[900]!),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: _scanManifest,
+                      icon: const Icon(Icons.add_a_photo),
+                      label: const Text('SCAN NEXT'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

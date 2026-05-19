@@ -23,16 +23,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ApplicationDbContext _context;
         private readonly ScanProductionDbContext _scanContext;
         private readonly SyncSettings _syncSettings;
+        private readonly EodSettings _eodSettings;
         private readonly IStagingService _stagingService;
         private readonly IX3SchemaProvider _schemaProvider;
 
-        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IStagingService stagingService, IX3SchemaProvider schemaProvider)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IOptions<EodSettings> eodSettings, IStagingService stagingService, IX3SchemaProvider schemaProvider)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
             _context = context;
             _scanContext = scanContext;
             _syncSettings = syncSettings.Value;
+            _eodSettings = eodSettings.Value;
             _stagingService = stagingService;
             _schemaProvider = schemaProvider;
         }
@@ -155,6 +157,21 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .AsNoTracking()
                 .ToListAsync();
 
+            var itemCodes = scans.Select(s => s.OrderLine.ItemCode).Distinct().ToList();
+            var units = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (itemCodes.Any())
+            {
+                using IDbConnection db = new SqlConnection(_connectionString);
+                string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+                var sql = $"SELECT ITMREF_0, STU_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
+                var mapping = await db.QueryAsync(sql, new { Codes = itemCodes });
+                foreach(var map in mapping)
+                {
+                    if (map.ITMREF_0 != null && map.STU_0 != null)
+                        units[((string)map.ITMREF_0).Trim()] = ((string)map.STU_0).Trim();
+                }
+            }
+
             return scans.Select(s => new ProductionTrackingDto
             {
                 SoNumber = s.OrderLine.Order.SourceOrderId,
@@ -164,7 +181,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Manufactured = s.ScanAmountKg,
                 LotNumber = s.LotNumber ?? "",
                 CreatedAt = s.CreatedAt,
-                Unit = "KG", // Defaulting to KG for scans
+                Unit = units.TryGetValue(s.OrderLine.ItemCode.Trim(), out var u) && !string.IsNullOrWhiteSpace(u) ? u : "KG",
                 Site = s.OrderLine.Order.Site ?? "IPL"
             });
         }
@@ -191,7 +208,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     l.OrderedQuantity AS Quantity,
                     SUM(t.ScanAmountKg) AS Manufactured,
                     t.LotNumber     AS LotNumber,
-                    l.Unit          AS Unit,
+                    i.STU_0         AS Unit,
                     MAX(t.CreatedAt) AS CreatedAt,
                     t.Location      AS Location,
                     t.ItemStatus    AS StatusLabel,
@@ -200,7 +217,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
                 WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0
-                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, l.Unit, t.Location, t.ItemStatus, i.PCUSTU_0";
+                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
 
             var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });
             return results;
@@ -208,7 +225,42 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<bool> SaveStagingEodAsync(IEnumerable<StagingEod> records)
         {
-            await _scanContext.StagingEodRecords.AddRangeAsync(records);
+            if (records == null || !records.Any()) return true;
+
+            var workOrderNumbers = records.Select(e => e.WorkOrderNumber).Distinct().ToList();
+            
+            // Fetch existing unprocessed records for these work orders
+            var existingRecords = await _scanContext.StagingEodRecords
+                .Where(e => workOrderNumbers.Contains(e.WorkOrderNumber) && !e.IsProcessed)
+                .ToListAsync();
+
+            var existingLookup = existingRecords
+                .ToDictionary(e => $"{e.WorkOrderNumber}|{e.ProductCode}|{e.LotNumber ?? ""}", StringComparer.OrdinalIgnoreCase);
+
+            foreach (var record in records)
+            {
+                var key = $"{record.WorkOrderNumber}|{record.ProductCode}|{record.LotNumber ?? ""}";
+                if (existingLookup.TryGetValue(key, out var existing))
+                {
+                    // Update existing
+                    existing.TotalManufacturedQuantity = record.TotalManufacturedQuantity;
+                    existing.EaQuantity = record.EaQuantity;
+                    existing.DateOfManufacturing = record.DateOfManufacturing;
+                    existing.ExpiryDate = record.ExpiryDate;
+                    existing.Location = record.Location;
+                    existing.ItemStatus = record.ItemStatus;
+                    existing.Location2 = record.Location2;
+                    existing.Location3 = record.Location3;
+                    existing.LotNumber = record.LotNumber;
+                }
+                else
+                {
+                    // Insert new
+                    await _scanContext.StagingEodRecords.AddAsync(record);
+                    existingLookup[key] = record;
+                }
+            }
+
             return await _scanContext.SaveChangesAsync() > 0;
         }
 
@@ -393,7 +445,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ItemStatus = scanDto.ItemStatus ?? "Q",
                     SyncId = Guid.NewGuid().ToString(),
                     CreatedBy = scanDto.CreatedBy ?? "system",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    DeviceId = scanDto.DeviceId
                 };
 
                 _scanContext.ProductionScanTransactions.Add(entity);
@@ -421,7 +474,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ActionType = "INSERT",
                     Payload = System.Text.Json.JsonSerializer.Serialize(entity),
                     PerformedBy = entity.CreatedBy ?? "system",
-                    PerformedAt = DateTime.UtcNow
+                    PerformedAt = DateTime.UtcNow,
+                    DeviceId = scanDto.DeviceId
                 };
                 _scanContext.AuditLogs.Add(audit);
                 await _scanContext.SaveChangesAsync();
@@ -512,7 +566,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         ItemStatus = scanDto.ItemStatus ?? "A",
                         SyncId = Guid.NewGuid().ToString(),
                         CreatedBy = scanDto.CreatedBy ?? "system",
-                        CreatedAt = scanDto.CreatedAt ?? DateTime.UtcNow
+                        CreatedAt = scanDto.CreatedAt ?? DateTime.UtcNow,
+                        DeviceId = scanDto.DeviceId
                     };
 
                     _scanContext.ProductionScanTransactions.Add(entity);
@@ -529,7 +584,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         ActionType = "INSERT_BATCH",
                         Payload = System.Text.Json.JsonSerializer.Serialize(new { entity.SalesOrderLineId, entity.Barcode, entity.ScanAmountKg }),
                         PerformedBy = entity.CreatedBy ?? "system",
-                        PerformedAt = DateTime.UtcNow
+                        PerformedAt = DateTime.UtcNow,
+                        DeviceId = scanDto.DeviceId
                     });
                 }
 
@@ -546,7 +602,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
 
                 // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
-                if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-"))
+                if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-"))
                 {
                     var excess = await _scanContext.Excesses
                         .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == itemCode);
@@ -1008,7 +1064,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ManifestJson = auditDto.ManifestJson,
                 PrintedBy = auditDto.PrintedBy,
                 IsOfflineCreated = auditDto.IsOfflineCreated,
-                CreatedAt = auditDto.IsOfflineCreated ? auditDto.CreatedAt : DateTime.UtcNow
+                CreatedAt = auditDto.IsOfflineCreated ? auditDto.CreatedAt : DateTime.UtcNow,
+                DeviceId = auditDto.DeviceId
             };
 
             if (auditDto.IsOfflineCreated && !string.IsNullOrEmpty(auditDto.LabelId))
@@ -1045,7 +1102,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     entity.TotalWeight 
                 }),
                 PerformedBy = entity.PrintedBy ?? "system",
-                PerformedAt = DateTime.UtcNow
+                PerformedAt = DateTime.UtcNow,
+                DeviceId = auditDto.DeviceId
             });
 
             await _scanContext.SaveChangesAsync();
@@ -1092,6 +1150,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             return await db.QueryAsync<WorkOrderDto>(sql, param);
+        }
+
+        /// <summary>
+        /// Fetches all BOM component codes from X3 for the given parent item codes.
+        /// Used during End-of-Day to ensure zero-qty placeholder rows are inserted
+        /// for components that were not scanned on the day.
+        /// Query: SELECT f0.ITMREF_0, f1.CPNITMREF_0 FROM BOM JOIN BOMD WHERE ITMREF_0 IN (@parentCodes)
+        /// </summary>
+        public async Task<IEnumerable<BomComponentDto>> GetBomComponentsAsync(
+            IEnumerable<string> parentItemCodes)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+
+            string sql = $@"
+                SELECT f0.ITMREF_0    AS ParentItemCode,
+                       f1.CPNITMREF_0 AS ComponentItemCode
+                FROM   {schema}.BOM  f0
+                JOIN   {schema}.BOMD f1 ON f0.ITMREF_0 = f1.ITMREF_0
+                WHERE  f0.ITMREF_0 IN @ParentCodes";
+
+            return await db.QueryAsync<BomComponentDto>(
+                sql, new { ParentCodes = parentItemCodes.ToArray() });
         }
     }
 }

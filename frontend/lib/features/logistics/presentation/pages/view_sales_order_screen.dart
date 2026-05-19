@@ -108,10 +108,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
           } else if (poType == 'PTT') {
             matchesType = po.contains('PTT');
           } else if (poType == 'EXCESS') {
-            matchesType = o.orderNumber.startsWith('CB-') || 
+            matchesType = o.orderNumber.startsWith('CUTS-') || 
                           o.orderNumber.startsWith('BLK-') || 
-                          o.orderNumber.startsWith('CUT-') ||
-                          o.orderNumber.startsWith('FRZ-') ||
                           (o.source?.toLowerCase() == 'internal');
           }
           if (!matchesType) return false;

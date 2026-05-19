@@ -36,6 +36,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
         public async Task<bool> PopulateStagingAsync(string soNumber)
         {
+            // Internal orders are NOT eligible for X3 staging export
+            if (soNumber.StartsWith("CUTS-") || soNumber.StartsWith("BLK-"))
+            {
+                Console.WriteLine($"[Staging] Skipping {soNumber}: internal order, not eligible for X3 export.");
+                return false;
+            }
+
             // 1. Avoid duplicates: use ZSDHNUM_0 (STG-{soNumber}) — stable internal key
             //    We cannot use ZSOHNUM_0 for dedup because it now stores the IPL SO number (not soNumber)
             var exists = await _context.StagingRecords.AnyAsync(s => s.ZSDHNUM_0 == $"STG-{soNumber}");
@@ -82,7 +89,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             // 5. Map to Staging Entity
             var stagingRecords = new List<Staging>();
-            int lineNumber = 1000; // X3 Principle: Start at 1000
 
             // Resolve the X3 Sales Order number:
             //   soNumber           = mobile/IPL number (e.g. "IPLSO251001075")
@@ -137,7 +143,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ? vatLevels[line.ItemCode]
                     : "STD";
 
-                Console.WriteLine($"[Staging] Line {lineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={state.TotalManufacturedQty:F3}");
+                Console.WriteLine($"[Staging] Line {line.LineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={state.TotalManufacturedQty:F3}");
 
                 stagingRecords.Add(new Staging
                 {
@@ -154,7 +160,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZLOCFCY_0 = lorryCode,
                     ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
                     ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP L;{ZSOHNUM_0};...
-                    ZSOPLIN_0 = lineNumber,
+                    ZSOPLIN_0 = line.LineNumber,
                     ZITMREF_0 = line.ItemCode,
                     ZITMDES_0 = line.Description,
                     ZSAU_0 = line.Unit,
@@ -162,8 +168,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     ZVACITM_0 = vatLevel,  // VAT level from X3 ITMMASTER.VACITM_0
                     CreatedAt = DateTime.UtcNow
                 });
-
-                lineNumber += 1000;
             }
 
             if (stagingRecords.Any())

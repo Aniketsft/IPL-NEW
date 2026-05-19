@@ -9,6 +9,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal? Quantity { get; set; }
         public decimal Remaining { get; set; }
         public decimal Manufactured { get; set; }
+        public string Lot { get; set; } = string.Empty;
         public decimal? EaQuantity { get; set; }
         public string Site { get; set; } = string.Empty;
         public string Unit { get; set; } = "KG";

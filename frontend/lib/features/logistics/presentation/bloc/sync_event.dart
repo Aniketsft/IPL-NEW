@@ -25,3 +25,10 @@ class SyncProgressUpdated extends SyncEvent {
   @override
   List<Object> get props => [progress, message];
 }
+
+class ResetSyncRequested extends SyncEvent {
+  const ResetSyncRequested();
+
+  @override
+  List<Object> get props => [];
+}

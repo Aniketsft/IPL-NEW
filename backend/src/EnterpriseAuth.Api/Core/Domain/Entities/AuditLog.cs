@@ -35,5 +35,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [Column("PerformedAt")]
         public DateTime PerformedAt { get; set; } = DateTime.UtcNow;
+
+        [MaxLength(100)]
+        [Column("DeviceId")]
+        public string? DeviceId { get; set; }
     }
 }

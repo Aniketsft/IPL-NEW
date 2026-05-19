@@ -168,10 +168,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         OrderDate = order.OrderDate,
                         DeliveryDate = order.DeliveryDate,
                         CustomerCode = order.CustomerCode,
-                        CustomerName = order.CustomerName,
+                        CustomerName = order.CustomerName ?? "",
                         Rep0 = order.Rep0 ?? "",
                         Rep1 = order.Rep1 ?? "",
-                        Site = order.Site ?? "INTERNAL",
+                        Site = order.Site ?? "IPL",
                         Salesman = order.Salesman ?? "INTERNAL",
                         Status = order.Status,
                         Source = "Internal",
@@ -245,6 +245,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Where(s => allSoNumbers.Contains(s.OrderLine.Order.SourceOrderId))
                 .ToListAsync();
 
+            // Pull latest scanned lot number from active scans
+            var scans = await _scanContext.ProductionScanTransactions
+                .Where(t => !t.IsDeleted && !t.IsArchived)
+                .Join(_scanContext.SalesOrderLines,
+                    t => t.SalesOrderLineId,
+                    l => l.Id,
+                    (t, l) => new { t.CreatedAt, t.LotNumber, l.ItemCode, l.SalesOrderId })
+                .Join(_scanContext.SalesOrders,
+                    x => x.SalesOrderId,
+                    o => o.Id,
+                    (x, o) => new { x.CreatedAt, x.LotNumber, x.ItemCode, o.SourceOrderId })
+                .Where(x => allSoNumbers.Contains(x.SourceOrderId))
+                .Select(x => new { x.SourceOrderId, x.ItemCode, x.LotNumber, x.CreatedAt })
+                .ToListAsync();
+
+            var latestLots = scans
+                .GroupBy(x => new { x.SourceOrderId, x.ItemCode })
+                .ToDictionary(
+                    g => $"{g.Key.SourceOrderId}|{g.Key.ItemCode}",
+                    g => g.OrderByDescending(x => x.CreatedAt).Select(x => x.LotNumber).FirstOrDefault() ?? "",
+                    StringComparer.OrdinalIgnoreCase
+                );
+
             // Update External Order Details from Enterprise Aggregates
             foreach (var detail in package.Details)
             {
@@ -262,6 +285,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 else
                 {
                     detail.Remaining = detail.Quantity ?? 0m;
+                }
+
+                // Populate Lot number from latest scan transaction
+                var lotKey = $"{detail.SoNumber}|{detail.ItemCode}";
+                if (latestLots.TryGetValue(lotKey, out var lotNum))
+                {
+                    detail.Lot = lotNum;
                 }
             }
 
@@ -326,10 +356,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         OrderDate = cb.Date,
                         DeliveryDate = cb.Date,
                         CustomerCode = cb.CustomerCode,
-                        CustomerName = cb.CustomerName,
+                        CustomerName = cb.CustomerName ?? "",
                         Rep0 = cb.Salesman1Code ?? "",
                         Rep1 = cb.Salesman2Code ?? "",
-                        Site = "INTERNAL",
+                        Site = "IPL",
                         Status = 1,
                         Source = "Internal"
                     }).ToList();
@@ -354,7 +384,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ActionType = "SYNC_INSERT",
                             Payload = System.Text.Json.JsonSerializer.Serialize(cb),
                             PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
+                            PerformedAt = DateTime.UtcNow,
+                            DeviceId = request.DeviceId
                         });
                     }
 
@@ -459,11 +490,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ActionType = "SYNC_INSERT",
                             Payload = System.Text.Json.JsonSerializer.Serialize(new { scanDto.SoNumber, scanDto.ItemCode, scanDto.ScanAmountKg, scanDto.SyncId }),
                             PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
+                            PerformedAt = DateTime.UtcNow,
+                            DeviceId = request.DeviceId
                         });
 
                         // --- AUTO-POPULATE EXCESS TABLE (AGGREGATED) ---
-                        if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-") || scanDto.SoNumber.StartsWith("FRZ-") || scanDto.SoNumber.StartsWith("CB-") || scanDto.SoNumber.StartsWith("CUT-"))
+                        if (scanDto.SoNumber.StartsWith("BLK-") || scanDto.SoNumber.StartsWith("CUTS-"))
                         {
                             if (!excessTracker.TryGetValue((scanDto.SoNumber, scanDto.ItemCode), out var excess))
                             {
@@ -600,7 +632,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ActionType = "UPDATE_PREP_STATUS",
                             Payload = System.Text.Json.JsonSerializer.Serialize(update),
                             PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
+                            PerformedAt = DateTime.UtcNow,
+                            DeviceId = request.DeviceId
                         });
                     }
 
@@ -613,7 +646,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ActionType = "VALIDATE_ITEM",
                             Payload = System.Text.Json.JsonSerializer.Serialize(update),
                             PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
+                            PerformedAt = DateTime.UtcNow,
+                            DeviceId = request.DeviceId
                         });
                     }
                 }
@@ -659,7 +693,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ActionType = "UPDATE_SHIP_STATUS",
                             Payload = System.Text.Json.JsonSerializer.Serialize(update),
                             PerformedBy = performedBy,
-                            PerformedAt = DateTime.UtcNow
+                            PerformedAt = DateTime.UtcNow,
+                            DeviceId = request.DeviceId
                         });
 
                         // TRIGGER: Populate Staging Table if marked as prepared
@@ -711,7 +746,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                     ActionType = "CLOSE_ORDER",
                                     Payload = System.Text.Json.JsonSerializer.Serialize(update),
                                     PerformedBy = performedBy,
-                                    PerformedAt = DateTime.UtcNow
+                                    PerformedAt = DateTime.UtcNow,
+                                    DeviceId = request.DeviceId
                                 });
                             }
                         }
@@ -750,7 +786,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         ManifestJson = auditDto.ManifestJson,
                         PrintedBy = performedBy,
                         CreatedAt = auditDto.CreatedAt,
-                        IsOfflineCreated = auditDto.IsOfflineCreated
+                        IsOfflineCreated = auditDto.IsOfflineCreated,
+                        DeviceId = auditDto.DeviceId ?? request.DeviceId
                     });
                 }
                 await _scanContext.SaveChangesAsync();
@@ -799,7 +836,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         ActionType = existing == null ? "INSERT" : "UPDATE",
                         Payload = $"{{\"key\":\"{updateDto.SettingKey}\",\"old\":\"{oldValue}\",\"new\":\"{updateDto.SettingValue}\"}}",
                         PerformedBy = performedBy,
-                        PerformedAt = DateTime.UtcNow
+                        PerformedAt = DateTime.UtcNow,
+                        DeviceId = request.DeviceId
                     });
 
                     // --- CASCADE TO EXCESS TABLE ---
@@ -824,7 +862,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                 ActionType = "CASCADE_UPDATE",
                                 Payload = $"{{\"excessId\":\"{excess.Id}\",\"triggeredBySetting\":\"{updateDto.SettingKey}\",\"old\":\"{oldVal ?? "NULL"}\",\"new\":\"{updateDto.SettingValue}\"}}",
                                 PerformedBy = author,
-                                PerformedAt = DateTime.UtcNow
+                                PerformedAt = DateTime.UtcNow,
+                                DeviceId = request.DeviceId
                             });
                         }
                     }
@@ -853,9 +892,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     .Select(e => e.Id)
                     .ToListAsync();
 
-                // 1. Fetch CCE_0 and CCE_1 mapping from ITMMASTER
+                // 1. Fetch CCE_0, CCE_1 and STU_0 (stock unit) from ITMMASTER
                 var productCodes = validEntries.Select(e => e.ProductCode).Distinct().ToList();
-                var cceMapping = new Dictionary<string, (string Cce0, string Cce1)>();
+                var cceMapping = new Dictionary<string, (string Cce0, string Cce1, string Unit)>();
                 
                 if (productCodes.Any())
                 {
@@ -863,64 +902,99 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     {
                         using IDbConnection db = new SqlConnection(_connectionString);
                         string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
-                        string sql = $@"SELECT ITMREF_0 as ProductCode, CCE_0 as Cce0, CCE_1 as Cce1 FROM {schema}.ITMMASTER WHERE ITMREF_0 IN @Codes";
+                        string sql = $@"SELECT ITMREF_0 as ProductCode, CCE_0 as Cce0, CCE_1 as Cce1, STU_0 as Unit FROM {schema}.ITMMASTER WHERE ITMREF_0 IN @Codes";
                         var results = await db.QueryAsync(sql, new { Codes = productCodes });
                         foreach (var row in results)
                         {
                             string prodCode = row.ProductCode;
-                            string c0 = row.Cce0?.ToString() ?? string.Empty;
-                            string c1 = row.Cce1?.ToString() ?? string.Empty;
-                            cceMapping[prodCode] = (c0, c1);
+                            string c0   = row.Cce0?.ToString() ?? string.Empty;
+                            string c1   = row.Cce1?.ToString() ?? string.Empty;
+                            string unit = row.Unit?.ToString().Trim() ?? string.Empty;
+                            cceMapping[prodCode] = (c0, c1, unit);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[Sync] Warning: Could not fetch CCE mapping from X3: {ex.Message}. Falling back to DTO values.");
+                        Console.WriteLine($"[Sync] Warning: Could not fetch CCE/Unit mapping from X3: {ex.Message}. Falling back to DTO values.");
                     }
                 }
 
+                // Pre-fetch ALL existing unprocessed records for this work order keyed by WorkOrder|Product|Lot
+                var workOrderNumbers = validEntries.Select(e => e.WorkOrderNumber).Distinct().ToList();
+                var existingEodRecords = await _scanContext.StagingEodRecords
+                    .Where(e => workOrderNumbers.Contains(e.WorkOrderNumber) && !e.IsProcessed)
+                    .ToListAsync();
+                // Key includes LotNumber so each lot gets its own distinct row
+                var existingEodLookup = existingEodRecords
+                    .ToDictionary(e => $"{e.WorkOrderNumber}|{e.ProductCode}|{e.LotNumber ?? ""}", StringComparer.OrdinalIgnoreCase);
+
                 foreach (var dto in validEntries)
                 {                    
-                    if (existingEodIds.Contains(dto.Id)) continue;
+                    var cce = cceMapping.ContainsKey(dto.ProductCode) ? cceMapping[dto.ProductCode] : (Cce0: string.Empty, Cce1: string.Empty, Unit: string.Empty);
+                    // Resolve authoritative unit: prefer ITMMASTER.STU_0, fall back to DTO, then 'KG'
+                    var resolvedUnit = !string.IsNullOrEmpty(cce.Unit) ? cce.Unit
+                                    : !string.IsNullOrEmpty(dto.Unit)  ? dto.Unit
+                                    : "KG";
+                    // Include LotNumber in key so each lot is stored as a separate EOD row
+                    var key = $"{dto.WorkOrderNumber}|{dto.ProductCode}|{dto.LotNumber ?? ""}";
 
-                    // Get CCE values from mapping if available, otherwise fallback to DTO or empty
-                    var cce = cceMapping.ContainsKey(dto.ProductCode) ? cceMapping[dto.ProductCode] : (Cce0: string.Empty, Cce1: string.Empty);
-
-                    var entity = new StagingEod
+                    if (existingEodLookup.TryGetValue(key, out var existing))
                     {
-                        Id = dto.Id,
-                        WorkOrderNumber = dto.WorkOrderNumber,
-                        ProductCode = dto.ProductCode,
-                        TotalManufacturedQuantity = dto.TotalManufacturedQuantity,
-                        DateOfManufacturing = dto.DateOfManufacturing,
-                        Unit = dto.Unit,
-                        Location = dto.Location,
-                        ItemStatus = dto.ItemStatus,
-                        ExpiryDate = dto.ExpiryDate,
-                        Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
-                        Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),
-                        CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,
-                        IsCompleted = true,
-                        EaQuantity = dto.EaQuantity
-                    };
-
-                    _scanContext.StagingEodRecords.Add(entity);
+                        // UPSERT: update the quantity, dates, lot and unit on the existing row
+                        existing.TotalManufacturedQuantity = dto.TotalManufacturedQuantity;
+                        existing.EaQuantity = dto.EaQuantity;
+                        existing.DateOfManufacturing = dto.DateOfManufacturing;
+                        existing.ExpiryDate = dto.ExpiryDate;
+                        existing.Location = dto.Location;
+                        existing.ItemStatus = dto.ItemStatus;
+                        existing.LotNumber = dto.LotNumber;             // ← fix: persist lot
+                        existing.Unit = resolvedUnit;                   // ← fix: use ITMMASTER unit
+                        if (!string.IsNullOrEmpty(cce.Cce0)) existing.Location2 = cce.Cce0;
+                        if (!string.IsNullOrEmpty(cce.Cce1)) existing.Location3 = cce.Cce1;
+                        Console.WriteLine($"[Sync] StagingEod UPSERT (update): {dto.WorkOrderNumber} / {dto.ProductCode} / lot={dto.LotNumber ?? "none"} → qty={dto.TotalManufacturedQuantity}");
+                    }
+                    else
+                    {
+                        // INSERT new record
+                        var entity = new StagingEod
+                        {
+                            Id = dto.Id,
+                            WorkOrderNumber = dto.WorkOrderNumber,
+                            ProductCode = dto.ProductCode,
+                            TotalManufacturedQuantity = dto.TotalManufacturedQuantity,
+                            DateOfManufacturing = dto.DateOfManufacturing,
+                            Unit = resolvedUnit,                       // ← fix: use ITMMASTER unit
+                            Location = dto.Location,
+                            ItemStatus = dto.ItemStatus,
+                            ExpiryDate = dto.ExpiryDate,
+                            LotNumber = dto.LotNumber,                 // ← fix: persist lot
+                            Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
+                            Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),
+                            CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,
+                            IsCompleted = true,
+                            EaQuantity = dto.EaQuantity
+                        };
+                        _scanContext.StagingEodRecords.Add(entity);
+                        existingEodLookup[key] = entity; // track within this batch
+                        Console.WriteLine($"[Sync] StagingEod INSERT: {dto.WorkOrderNumber} / {dto.ProductCode} / lot={dto.LotNumber ?? "none"} / unit={resolvedUnit} → qty={dto.TotalManufacturedQuantity}");
+                    }
                 }
 
-                // 2. Add single consolidated Audit Log for the batch
+                // Consolidated Audit Log for the batch
                 _scanContext.AuditLogs.Add(new AuditLog
                 {
                     EntityName = "StagingEodBatch",
                     EntityIdString = validEntries.First().WorkOrderNumber,
-                    ActionType = "SYNC_INSERT_BATCH",
-                    Payload = $"Inserted {validEntries.Count} EOD records for site {request.DeviceId}",
+                    ActionType = "SYNC_UPSERT_BATCH",
+                    Payload = $"Upserted {validEntries.Count} EOD records for device {request.DeviceId}",
                     PerformedBy = performedBy,
-                    PerformedAt = DateTime.UtcNow
+                    PerformedAt = DateTime.UtcNow,
+                    DeviceId = request.DeviceId
                 });
 
                 await _scanContext.SaveChangesAsync();
                 totalCount += validEntries.Count;
-                Console.WriteLine($"[Sync] Successfully saved {validEntries.Count} StagingEod records.");
+                Console.WriteLine($"[Sync] Successfully upserted {validEntries.Count} StagingEod records.");
                 }
                 else
                 {
@@ -996,7 +1070,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                                     // 4. Update Excess Pools (if applicable)
                                     var soNumber = scan.OrderLine.Order.SourceOrderId;
-                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-") || soNumber.StartsWith("FRZ-") || soNumber.StartsWith("CB-") || soNumber.StartsWith("CUT-"))
+                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-"))
                                     {
                                         var excess = await _scanContext.Excesses
                                             .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == scan.OrderLine.ItemCode);
@@ -1020,14 +1094,62 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         }
                     }
 
+                    string entityId = request.DeviceId;
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(dto.Payload))
+                        {
+                            using (var doc = System.Text.Json.JsonDocument.Parse(dto.Payload))
+                            {
+                                if (dto.Entity == "ProductionScan")
+                                {
+                                    if (doc.RootElement.TryGetProperty("barcode", out var barcodeProp))
+                                    {
+                                        entityId = barcodeProp.GetString() ?? entityId;
+                                    }
+                                    else if (doc.RootElement.TryGetProperty("syncId", out var syncIdProp))
+                                    {
+                                        entityId = syncIdProp.GetString() ?? entityId;
+                                    }
+                                }
+                                else if (dto.Entity == "EndOfDay")
+                                {
+                                    if (doc.RootElement.TryGetProperty("workOrder", out var woProp))
+                                    {
+                                        entityId = woProp.GetString() ?? entityId;
+                                    }
+                                }
+                                else if (dto.Entity == "CutBulk")
+                                {
+                                    if (doc.RootElement.TryGetProperty("entryNo", out var entryNoProp))
+                                    {
+                                        entityId = entryNoProp.GetString() ?? entityId;
+                                    }
+                                }
+                                else if (dto.Entity == "Synchronization")
+                                {
+                                    if (doc.RootElement.TryGetProperty("timestamp", out var tsProp))
+                                    {
+                                        entityId = tsProp.GetString() ?? entityId;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Sync] Failed to parse offline audit payload for EntityIdString: {ex.Message}");
+                    }
+
                     _scanContext.AuditLogs.Add(new AuditLog
                     {
                         EntityName = dto.Entity,
                         ActionType = dto.Action,
                         Payload = dto.Payload,
-                        EntityIdString = request.DeviceId,
+                        EntityIdString = entityId,
                         PerformedBy = performedBy,
-                        PerformedAt = dto.Timestamp
+                        PerformedAt = dto.Timestamp,
+                        DeviceId = dto.DeviceId ?? request.DeviceId
                     });
                 }
                 await _scanContext.SaveChangesAsync();

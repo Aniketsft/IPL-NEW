@@ -77,8 +77,6 @@ class EodPdfGenerator {
 
   static pw.Widget _buildTable(List<ProductionTrackingItem> items, DateTime productionDate) {
     final headers = ['Code', 'Description', 'Quantity', 'Unit', 'Location', 'Lot', 'Expiry'];
-    final expiryDate = productionDate.add(const Duration(days: 5));
-    final expiryStr = DateFormat('dd/MM/yy').format(expiryDate);
     
     // Group items by itemCode for the PDF
     final Map<String, List<ProductionTrackingItem>> grouped = {};
@@ -91,13 +89,14 @@ class EodPdfGenerator {
       final productItems = grouped[code]!;
       final first = productItems.first;
       final totalQty = productItems.fold<double>(0, (sum, i) => sum + i.manufactured);
+      final totalEa = productItems.fold<double>(0, (sum, i) => sum + i.eaQuantity);
       final lot = first.lotNumber;
       final location = first.location;
+      final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
-      String qtyStr = totalQty.toStringAsFixed(3);
-      if (first.unit == 'EA') {
-        final eaQty = (totalQty / first.conversion).toStringAsFixed(0);
-        qtyStr = '${totalQty.toStringAsFixed(2)} KG / $eaQty EA';
+      String qtyStr = totalQty.toStringAsFixed(2);
+      if (isEA) {
+        qtyStr = '${totalQty.toStringAsFixed(2)} KG / ${totalEa.toStringAsFixed(2)} EA';
       }
 
       return [
@@ -107,7 +106,7 @@ class EodPdfGenerator {
         first.unit,
         location,
         lot,
-        expiryStr,
+        first.expiryDate != null ? DateFormat('dd/MM/yy').format(first.expiryDate!) : 'N/A',
       ];
     }).toList();
 
@@ -150,7 +149,7 @@ class EodPdfGenerator {
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
             pw.Text('Total Production: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.Text(totalQty.toStringAsFixed(3), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+            pw.Text(totalQty.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
             pw.SizedBox(width: 50),
           ],
         ),

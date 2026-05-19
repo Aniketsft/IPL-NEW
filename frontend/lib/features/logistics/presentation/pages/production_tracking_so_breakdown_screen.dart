@@ -90,22 +90,46 @@ class _ProductionTrackingSoBreakdownScreenState
         // Step 1: Apply the status update
         _applyPreparationUpdate(item, true);
 
+        if (!mounted) return;
+
         // Step 2: Handle follow-up action
         if (choice == 'preview') {
-          await LabelPrintingHandler.showLabelPreview(
-            context: context,
-            item: item,
-            onPrintRequested: (item, auditId) => LabelPrintingHandler.printLabel(
+          if (item.manufacturedQuantity <= 0) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Print aborted: Product has 0 manufactured quantity.'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            }
+          } else {
+            await LabelPrintingHandler.showLabelPreview(
               context: context,
               item: item,
-              auditId: auditId,
-            ),
-          );
+              onPrintRequested: (item, auditId) => LabelPrintingHandler.printLabel(
+                context: context,
+                item: item,
+                auditId: auditId,
+              ),
+            );
+          }
         } else if (choice == 'print') {
-          await LabelPrintingHandler.printLabel(
-            context: context,
-            item: item,
-          );
+          if (item.manufacturedQuantity <= 0) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Print aborted: Product has 0 manufactured quantity.'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            }
+          } else {
+            await LabelPrintingHandler.printLabel(
+              context: context,
+              item: item,
+            );
+          }
         }
       }
     }

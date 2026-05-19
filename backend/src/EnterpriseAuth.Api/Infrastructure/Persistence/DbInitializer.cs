@@ -525,6 +525,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 // Start Phase 3: Enterprise Redesign (UUID-based Architecture)
                 await MigrateEnterpriseRedesignAsync(context);
+
+                // Ensure DeviceId columns are present in LabelAudits and AuditLogs
+                await EnsureDeviceIdColumnsAsync(context);
             }
             catch (Exception ex)
             {
@@ -943,14 +946,55 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             PRINT 'Added DeliveryRepCode column to existing SalesOrders table';
                         END
                     END
+
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[StagingEod]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StagingEod' AND COLUMN_NAME = 'LotNumber')
+                        BEGIN
+                            ALTER TABLE [dbo].[StagingEod] ADD [LotNumber] [nvarchar](100) NULL;
+                            PRINT 'Added LotNumber column to existing StagingEod table';
+                        END
+                    END
                 ";
                 await context.Database.ExecuteSqlRawAsync(salesOrderMigrationSql);
 
-                Console.WriteLine("[DbInitializer] Staging and SalesOrders table migration completed.");
+                Console.WriteLine("[DbInitializer] Staging, StagingEod and SalesOrders table migration completed.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[DbInitializer] ERROR in Staging migration: {ex.Message}");
+            }
+        }
+
+        public static async Task EnsureDeviceIdColumnsAsync(ScanProductionDbContext context)
+        {
+            try
+            {
+                var sql = @"
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LabelAudits]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'LabelAudits' AND COLUMN_NAME = 'DeviceId')
+                        BEGIN
+                            ALTER TABLE [dbo].[LabelAudits] ADD [DeviceId] NVARCHAR(100) NULL;
+                            PRINT 'Added DeviceId column to LabelAudits';
+                        END
+                    END
+
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AuditLogs]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AuditLogs' AND COLUMN_NAME = 'DeviceId')
+                        BEGIN
+                            ALTER TABLE [dbo].[AuditLogs] ADD [DeviceId] NVARCHAR(100) NULL;
+                            PRINT 'Added DeviceId column to AuditLogs';
+                        END
+                    END
+                ";
+                await context.Database.ExecuteSqlRawAsync(sql);
+                Console.WriteLine("[DbInitializer] EnsureDeviceIdColumns completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] ERROR ensuring DeviceId columns: {ex.Message}");
             }
         }
     }

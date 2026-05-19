@@ -8,6 +8,9 @@ import 'package:uuid/uuid.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/logic/eod_pdf_generator.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import '../../../../core/widgets/industrial_module_layout.dart';
 
 // Model
@@ -51,6 +54,8 @@ class ProductionTrackingItem {
     this.eaQuantity = 0.0,
     this.createdAt,
   });
+
+  DateTime? get expiryDate => createdAt?.add(const Duration(days: 5));
 
   factory ProductionTrackingItem.fromJson(Map<String, dynamic> json) =>
       ProductionTrackingItem(
@@ -208,6 +213,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       return;
     }
 
+    // Read services before first async gap
+    final networkService = context.read<NetworkService>();
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -238,8 +246,13 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       final db = LocalDatabaseHelper.instance;
       final timestamp = DateTime.now().toIso8601String();
 
+      // Clean up any previous unsynced snapshots for this Work Order to prevent duplicates
+      await db.deleteUnsyncedStagingEodByWorkOrder(_selectedWorkOrder!.workOrder);
+
       // Insert staging EOD and local status
       for (var item in _summaryItems) {
+        if (item.manufactured <= 0) continue; // Filter out zero-quantity items
+
         final mfgDate = item.createdAt ?? DateTime.now();
         final expiryDate = mfgDate.add(const Duration(days: 5));
         
@@ -258,6 +271,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'location2': '',
           'location3': '',
           'ea_quantity': item.eaQuantity,
+          'lot': item.lotNumber,
         });
       }
 
@@ -270,9 +284,24 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         payload: jsonEncode({
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
           'workOrder': _selectedWorkOrder!.workOrder,
-          'itemCount': _summaryItems.length,
+          'itemCount': _summaryItems.where((i) => i.manufactured > 0).length,
         }),
       );
+
+      // Trigger BOM Expansion on server (Online Only)
+      try {
+        await networkService.dio.post('Logistics/complete-eod', data: {
+          'workOrder': _selectedWorkOrder!.workOrder,
+          'items': _summaryItems
+              .where((e) => e.manufactured > 0) // Filter out zero-quantity items
+              .map((e) => e.toJson())
+              .toList(),
+        });
+        debugPrint('Server-side processing triggered successfully');
+      } catch (e) {
+        debugPrint('Server-side BOM expansion failed (offline or error): $e');
+        // We don't throw here to allow local save to complete even if offline
+      }
 
       setState(() {
         _isEodDone = true;
@@ -313,9 +342,32 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Future<void> _processProductionEod() async {
+    if (!mounted) return;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final networkService = context.read<NetworkService>();
 
+    // Phase 1: Trigger sync first and wait for it to complete
+    final syncBloc = context.read<SyncBloc>();
+    syncBloc.add(const StartSyncRequested());
+
+    final syncResult = await syncBloc.stream.firstWhere(
+      (state) => state is SyncSuccess || state is SyncFailure,
+    );
+
+    if (!mounted) return;
+
+    if (syncResult is SyncFailure) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed before sending to X3: ${syncResult.error}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Phase 2: Sync succeeded — now confirm X3 export
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -323,7 +375,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         title: Text('Export to Sage X3',
             style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
         content: Text(
-          'This will process all pending production EOD records and import them into Sage X3.\nProceed?',
+          'Sync completed. This will process all pending production EOD records and import them into Sage X3.\nProceed?',
           style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
         ),
         actions: [
@@ -344,8 +396,13 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
     setState(() => _isSendingToX3 = true);
     try {
-      final networkService = context.read<NetworkService>();
-      final response = await networkService.dio.post('Logistics/production-eod');
+      final response = await networkService.dio.post(
+        'Logistics/production-eod',
+        options: Options(
+          receiveTimeout: const Duration(minutes: 10),
+          sendTimeout: const Duration(minutes: 10),
+        ),
+      );
       final data = response.data as Map<String, dynamic>? ?? {};
       if (mounted) {
         _showX3Results(data);
@@ -529,22 +586,6 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                     ),
                   if (!_isEodDone) const SizedBox(height: 12),
                   _actionButton(),
-                  if (_isEodDone) const SizedBox(height: 12),
-                  if (_isEodDone)
-                    ElevatedButton.icon(
-                      onPressed: _isSendingToX3 ? null : _processProductionEod,
-                      icon: _isSendingToX3
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                          : const Icon(Icons.send_and_archive, size: 20),
-                      label: Text(_isSendingToX3 ? 'SENDING TO X3...' : 'SEND TO SAGE X3'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1B5E20),
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -680,7 +721,11 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _buildProductList(bool isDark, ThemeData theme) {
-    final displayItems = _summaryItems.where((item) => item.manufactured > 0).toList();
+    final displayItems = _summaryItems.where((item) {
+      final isInternal = item.soNumber.startsWith('CUTS') ||
+                         item.soNumber.startsWith('BLK');
+      return item.manufactured > 0 || isInternal;
+    }).toList();
 
     if (displayItems.isEmpty) {
       return Center(
@@ -713,6 +758,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   Widget _buildProductCard(String itemCode, List<ProductionTrackingItem> items, bool isDark, ThemeData theme) {
     final first = items.first;
     final totalQty = items.fold<double>(0, (sum, item) => sum + item.manufactured);
+    final totalEa = items.fold<double>(0, (sum, item) => sum + item.eaQuantity);
+    final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -745,8 +792,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    first.unit == 'EA'
-                        ? '${totalQty.toStringAsFixed(2)} KG / ${(totalQty / first.conversion).toStringAsFixed(0)} EA'
+                    isEA
+                        ? '${totalQty.toStringAsFixed(2)} KG / ${totalEa.toStringAsFixed(2)} EA'
                         : '${totalQty.toStringAsFixed(2)} ${first.unit}',
                     style: const TextStyle(color: _amber, fontWeight: FontWeight.bold),
                   ),
@@ -765,12 +812,13 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                 children: [
                   _row('DESCRIPTION', first.description, isDark),
                   _row('TOTAL (KG)', '${totalQty.toStringAsFixed(2)} KG', isDark),
-                  if (first.unit == 'EA')
-                    _row('TOTAL (EA)', '${(totalQty / first.conversion).toStringAsFixed(0)} EA', isDark),
+                  if (isEA)
+                    _row('TOTAL (EA)', '${totalEa.toStringAsFixed(2)} EA', isDark),
                   _row('LOCATION', first.location, isDark),
                   _row('LOT NUMBER', first.lotNumber, isDark),
                   _row('STATUS', first.statusLabel, isDark),
                   _row('PROD DATE', first.createdAt != null ? DateFormat('dd MMM yyyy HH:mm').format(first.createdAt!) : 'N/A', isDark),
+                  _row('EXPIRY DATE', first.expiryDate != null ? DateFormat('dd MMM yyyy').format(first.expiryDate!) : 'N/A', isDark),
                 ],
               ),
             ),
@@ -783,6 +831,11 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _buildScanRow(ProductionTrackingItem scan, bool isDark) {
+    final isEA = scan.unit.toUpperCase() == 'EA' || scan.unit.toUpperCase() == 'PCS';
+    final qtyDisplay = isEA 
+        ? '${scan.manufactured.toStringAsFixed(2)} KG / ${scan.eaQuantity.toStringAsFixed(2)} EA'
+        : '${scan.manufactured.toStringAsFixed(2)} ${scan.unit}';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -796,7 +849,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
             ),
           ),
           Text(
-            '${scan.manufactured.toStringAsFixed(2)} ${scan.unit}',
+            qtyDisplay,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
           ),
         ],

@@ -360,7 +360,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
   Widget _buildExistingSOPicker(Color orange) {
     final filteredOrders = _existingOrdersList.where((it) {
       final code = it['code'] ?? '';
-      if (_mode == 'cuts') return code.startsWith('CUT-');
+      if (_mode == 'cuts') return code.startsWith('CUTS-');
       if (_mode == 'bulks') return code.startsWith('BLK-');
       return true;
     }).toList();
@@ -369,7 +369,22 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       'Existing SO',
       _selectedExistingSO,
       filteredOrders,
-      (val) => setState(() => _selectedExistingSO = val),
+      (val) {
+        setState(() {
+          _selectedExistingSO = val;
+          if (val != null) {
+            try {
+              final order = _existingOrdersList.firstWhere((it) => it['code'] == val);
+              final dateStr = order['date'];
+              if (dateStr != null && dateStr.isNotEmpty) {
+                _date = DateTime.parse(dateStr);
+              }
+            } catch (e) {
+              debugPrint('Error syncing date from existing SO: $e');
+            }
+          }
+        });
+      },
     );
   }
 
@@ -476,9 +491,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
+    final displayColor = _isNewSO ? orange : (isDark ? Colors.white24 : Colors.black26);
 
     return InkWell(
-      onTap: () async {
+      onTap: !_isNewSO ? null : () async {
         final picked = await showDatePicker(
           context: context,
           initialDate: _date ?? DateTime.now(),
@@ -502,9 +518,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       },
       child: Row(
         children: [
-          Text(intl.DateFormat('dd/MM').format(_date!), style: TextStyle(color: orange, fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(intl.DateFormat('dd/MM').format(_date!), style: TextStyle(color: displayColor, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(width: 4),
-          Icon(Icons.calendar_month, color: orange, size: 16),
+          Icon(Icons.calendar_month, color: displayColor, size: 16),
         ],
       ),
     );
