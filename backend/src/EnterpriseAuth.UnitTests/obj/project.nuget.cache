@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "EhreA1uWH/s=",
+  "dgSpecHash": "S4KIRN3K6Tg=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Aniket\\.gemini\\antigravity\\scratch\\enterprise_auth_system\\backend\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
+  "projectFilePath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Aniket\\.nuget\\packages\\automapper\\12.0.1\\automapper.12.0.1.nupkg.sha512",
     "C:\\Users\\Aniket\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",

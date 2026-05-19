@@ -48,5 +48,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [MaxLength(100)]
         public string? LotNumber { get; set; }
+
+        [MaxLength(255)]
+        public string? DeviceId { get; set; }
     }
 }

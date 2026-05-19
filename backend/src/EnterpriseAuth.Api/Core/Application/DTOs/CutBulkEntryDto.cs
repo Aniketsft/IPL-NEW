@@ -18,5 +18,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal ManufacturedQuantity { get; set; }
         public decimal RemainingQuantity { get; set; }
         public string? ExistingSoNumber { get; set; }
+        public string? DeviceId { get; set; }
     }
 }

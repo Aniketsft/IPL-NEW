@@ -404,10 +404,22 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         ),
       );
       final data = response.data as Map<String, dynamic>? ?? {};
+      // ✅ Log successful trigger to local SQLite
+      await LocalDatabaseHelper.instance.insertX3SoapAudit(
+        endpoint: 'Logistics/production-eod',
+        status: 'Success',
+        message: 'successCount=${data['successCount'] ?? 0}, failureCount=${data['failureCount'] ?? 0}',
+      );
       if (mounted) {
         _showX3Results(data);
       }
     } on DioException catch (e) {
+      // ❌ Log failed trigger to local SQLite
+      await LocalDatabaseHelper.instance.insertX3SoapAudit(
+        endpoint: 'Logistics/production-eod',
+        status: 'Failed',
+        message: e.message ?? e.error?.toString() ?? 'DioException',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -417,6 +429,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         );
       }
     } catch (e) {
+      // ❌ Log unexpected error to local SQLite
+      await LocalDatabaseHelper.instance.insertX3SoapAudit(
+        endpoint: 'Logistics/production-eod',
+        status: 'Failed',
+        message: e.toString(),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),

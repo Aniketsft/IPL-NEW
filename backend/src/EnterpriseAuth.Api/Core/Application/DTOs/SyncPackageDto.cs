@@ -57,6 +57,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal EaQuantity { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? LotNumber { get; set; }
+        public string? DeviceId { get; set; }
     }
 
     public class GlobalSettingUpdateDto
@@ -87,6 +88,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string ItemCode { get; set; } = string.Empty;
         public bool IsPrepared { get; set; }
         public bool IsValidated { get; set; }
+        public string? DeviceId { get; set; }
     }
 
     public class ShipmentPreparationUpdateDto

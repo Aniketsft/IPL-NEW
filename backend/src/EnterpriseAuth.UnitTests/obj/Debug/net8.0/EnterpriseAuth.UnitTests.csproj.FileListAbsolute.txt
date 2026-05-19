@@ -156,3 +156,13 @@ C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\Enter
 C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.pdb
 C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.genruntimeconfig.cache
 C:\Users\Aniket\.gemini\antigravity\scratch\enterprise_auth_system\backend\EnterpriseAuth.UnitTests\obj\Debug\net8.0\ref\EnterpriseAuth.UnitTests.dll
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\bin\Debug\net8.0\CoverletSourceRootsMapping_EnterpriseAuth.UnitTests
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.csproj.AssemblyReference.cache
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.AssemblyInfoInputs.cache
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.AssemblyInfo.cs
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.csproj.CoreCompileInputs.cache
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.sourcelink.json
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.dll
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\refint\EnterpriseAuth.UnitTests.dll
+C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.pdb

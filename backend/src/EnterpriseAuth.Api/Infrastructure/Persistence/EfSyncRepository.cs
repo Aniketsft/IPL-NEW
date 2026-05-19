@@ -385,7 +385,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Payload = System.Text.Json.JsonSerializer.Serialize(cb),
                             PerformedBy = performedBy,
                             PerformedAt = DateTime.UtcNow,
-                            DeviceId = request.DeviceId
+                            DeviceId = cb.DeviceId ?? request.DeviceId
                         });
                     }
 
@@ -463,7 +463,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Location = scanDto.Location,
                             SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
-                            DeviceId = request.DeviceId,
+                            DeviceId = scanDto.DeviceId ?? request.DeviceId,
                             CreatedBy = performedBy,
                             CreatedAt = DateTime.UtcNow
                         };
@@ -633,7 +633,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Payload = System.Text.Json.JsonSerializer.Serialize(update),
                             PerformedBy = performedBy,
                             PerformedAt = DateTime.UtcNow,
-                            DeviceId = request.DeviceId
+                            DeviceId = update.DeviceId ?? request.DeviceId
                         });
                     }
 
@@ -647,7 +647,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Payload = System.Text.Json.JsonSerializer.Serialize(update),
                             PerformedBy = performedBy,
                             PerformedAt = DateTime.UtcNow,
-                            DeviceId = request.DeviceId
+                            DeviceId = update.DeviceId ?? request.DeviceId
                         });
                     }
                 }
@@ -948,6 +948,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         existing.Location = dto.Location;
                         existing.ItemStatus = dto.ItemStatus;
                         existing.LotNumber = dto.LotNumber;             // ← fix: persist lot
+                        existing.DeviceId = dto.DeviceId ?? request.DeviceId; // ← fix: persist device ID
                         existing.Unit = resolvedUnit;                   // ← fix: use ITMMASTER unit
                         if (!string.IsNullOrEmpty(cce.Cce0)) existing.Location2 = cce.Cce0;
                         if (!string.IsNullOrEmpty(cce.Cce1)) existing.Location3 = cce.Cce1;
@@ -968,6 +969,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ItemStatus = dto.ItemStatus,
                             ExpiryDate = dto.ExpiryDate,
                             LotNumber = dto.LotNumber,                 // ← fix: persist lot
+                            DeviceId = dto.DeviceId ?? request.DeviceId, // ← fix: persist device ID
                             Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
                             Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),
                             CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,

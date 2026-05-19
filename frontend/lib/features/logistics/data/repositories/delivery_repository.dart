@@ -1050,6 +1050,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'barcode': s['barcode'],
             'createdAt': s['timestamp'],
             'syncId': s['sync_id'],
+            'deviceId': s['deviceId'],
           }).toList(),
           'cutBulkEntries': (await Future.wait(unsyncedOrders.map((o) async {
             final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
@@ -1065,6 +1066,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'salesman1Code': o[LocalDatabaseHelper.colRep0],
               'salesman2Code': o[LocalDatabaseHelper.colRep1],
               'amountKg': amount,
+              'deviceId': o['deviceId'],
             };
           }))),
           'labelAudits': unsyncedLabels.map((l) => {
@@ -1085,6 +1087,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'itemCode': u[LocalDatabaseHelper.colDetItemCode],
             'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
             'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
+            'deviceId': u['deviceId'],
           }).toList(),
           'shipmentPreparationUpdates': unsyncedShipments.map((o) => {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
@@ -1110,6 +1113,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'eaQuantity': e['ea_quantity'] ?? 0.0,
             'createdAt': e['createdAt'],
             'lotNumber': e['lot'],
+            'deviceId': e['deviceId'],
           }).toList(),
           'offlineAudits': unsyncedAudits.map((a) => {
             'entity': a['entity'],
@@ -1774,10 +1778,13 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<String> logLabelAudit(Map<String, dynamic> auditData) async {
     try {
-      // 1. Ensure printedBy is set
+      // 1. Ensure printedBy and deviceId are set
       final prefs = await SharedPreferences.getInstance();
       final username = prefs.getString('username') ?? 'unknown';
-      auditData['printedBy'] = username;
+      final deviceId = DeviceInfoService.instance.deviceInfo;
+      
+      auditData['deviceId'] = deviceId;
+      auditData['printedBy'] = '$username on $deviceId';
       auditData['createdAt'] = DateTime.now().toIso8601String();
 
       // 2. OFFLINE QUEUE: Save locally with offline ID
@@ -1790,7 +1797,7 @@ class DeliveryRepository implements ILogisticsRepository {
         ["${DateTime.now().toIso8601String().substring(0, 10)}%"]
       )) ?? 0;
 
-      // Unique Offline ID: OFF-LBL-260416-U1-S1 (Date-User-Seq)
+      // Unique Offline ID: OFF-LBL-$todayStr-$username-${count + 1}
       final offlineId = "OFF-LBL-$todayStr-$username-${count + 1}";
       
       await LocalDatabaseHelper.instance.insertLabelAudit({
@@ -1803,6 +1810,7 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.colManifestJson: auditData['manifestJson'],
         LocalDatabaseHelper.colPrintedBy: auditData['printedBy'],
         LocalDatabaseHelper.colCreatedAt: auditData['createdAt'],
+        LocalDatabaseHelper.colDeviceId: auditData['deviceId'],
         LocalDatabaseHelper.columnIsSynced: 0,
       });
 
@@ -1814,6 +1822,7 @@ class DeliveryRepository implements ILogisticsRepository {
       return "TMP-${DateTime.now().millisecondsSinceEpoch}";
     }
   }
+
 
   @override
   Future<Map<String, dynamic>> processEndOfDay() async {

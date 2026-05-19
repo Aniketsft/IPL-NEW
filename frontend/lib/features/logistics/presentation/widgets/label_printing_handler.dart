@@ -291,6 +291,7 @@ class LabelPrintingHandler {
     required List<Map<String, String>> items, 
     required String unit,
     required String qrData,
+    Function()? onPrinted,
   }) async {
     double total = items.fold(0.0, (sum, i) => sum + (double.tryParse(i['weight'] ?? '0') ?? 0.0));
 
@@ -333,6 +334,14 @@ class LabelPrintingHandler {
             onPressed: () async {
               Navigator.pop(context);
               try {
+                await _logCrateAudit(
+                  context,
+                  soNumber: soNumber,
+                  customerName: customerName,
+                  totalWeight: total,
+                  items: items,
+                );
+
                 await PrinterService.instance.printCrateLabel(
                   soNumber: soNumber,
                   customerName: customerName,
@@ -341,6 +350,10 @@ class LabelPrintingHandler {
                   unit: unit,
                   qrData: qrData,
                 );
+                
+                if (onPrinted != null) {
+                  onPrinted();
+                }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print Fail: $e'), backgroundColor: Colors.red));
@@ -365,6 +378,7 @@ class LabelPrintingHandler {
     required Map<String, Map<String, dynamic>> manifest,
     String customerName = "MULTIPLE",
     String deliveryDate = "MULTIPLE",
+    Function()? onPrinted,
   }) async {
     final List<Widget> manifestWidgets = [];
     manifest.forEach((so, data) {
@@ -428,6 +442,13 @@ class LabelPrintingHandler {
             onPressed: () async {
               Navigator.pop(context);
               try {
+                await _logPaletteAudit(
+                  context,
+                  totalWeight: totalWeight,
+                  manifest: manifest,
+                  customerName: customerName,
+                );
+
                 await PrinterService.instance.printPaletteLabel(
                   soCount: manifest.length,
                   totalWeight: totalWeight,
@@ -437,6 +458,10 @@ class LabelPrintingHandler {
                   customerName: customerName,
                   deliveryDate: deliveryDate,
                 );
+                
+                if (onPrinted != null) {
+                  onPrinted();
+                }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Palette Print Fail: $e'), backgroundColor: Colors.red));
@@ -513,6 +538,49 @@ class LabelPrintingHandler {
       });
     } catch (e) {
       debugPrint("LabelPrintingHandler: Failed to log audit: $e");
+      return "TMP-${DateTime.now().millisecondsSinceEpoch}";
+    }
+  }
+
+  static Future<String?> _logCrateAudit(BuildContext context, {
+    required String soNumber,
+    required String customerName,
+    required double totalWeight,
+    required List<Map<String, String>> items,
+  }) async {
+    try {
+      final repo = RepositoryProvider.of<DeliveryRepository>(context, listen: false);
+      return await repo.logLabelAudit({
+        'referenceNumber': soNumber,
+        'labelType': 'Crate',
+        'productCode': 'CRATE',
+        'customerName': customerName,
+        'totalWeight': totalWeight,
+        'manifestJson': jsonEncode(items),
+      });
+    } catch (e) {
+      debugPrint("LabelPrintingHandler: Failed to log crate audit: $e");
+      return "TMP-${DateTime.now().millisecondsSinceEpoch}";
+    }
+  }
+
+  static Future<String?> _logPaletteAudit(BuildContext context, {
+    required double totalWeight,
+    required Map<String, Map<String, dynamic>> manifest,
+    required String customerName,
+  }) async {
+    try {
+      final repo = RepositoryProvider.of<DeliveryRepository>(context, listen: false);
+      return await repo.logLabelAudit({
+        'referenceNumber': 'PALETTE-${DateTime.now().millisecondsSinceEpoch}',
+        'labelType': 'Palette',
+        'productCode': 'PALETTE',
+        'customerName': customerName,
+        'totalWeight': totalWeight,
+        'manifestJson': jsonEncode(manifest),
+      });
+    } catch (e) {
+      debugPrint("LabelPrintingHandler: Failed to log palette audit: $e");
       return "TMP-${DateTime.now().millisecondsSinceEpoch}";
     }
   }

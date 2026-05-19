@@ -289,6 +289,18 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             {
                                 record.IsProcessed = true;
                             }
+
+                            // ✅ Persist server-side SOAP audit
+                            _context.X3SoapAudits.Add(new X3SoapAudit
+                            {
+                                ActionName = "ProcessProductionEod",
+                                Identifier = workOrder,
+                                RequestPayload = $"Batch {i / batchSize + 1}: {batch.Count} records",
+                                ResponsePayload = string.Join(" | ", importResult.Messages ?? new()),
+                                IsSuccess = true,
+                                CreatedAt = DateTime.UtcNow
+                            });
+
                             await _context.SaveChangesAsync();
                         }
                         else
@@ -337,6 +349,19 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             {
                                 result.FailureCount += batch.Count;
                             }
+
+                            // ❌ Persist server-side SOAP audit for failed/partial batch
+                            _context.X3SoapAudits.Add(new X3SoapAudit
+                            {
+                                ActionName = "ProcessProductionEod",
+                                Identifier = workOrder,
+                                RequestPayload = $"Batch {i / batchSize + 1}: {batch.Count} records",
+                                ResponsePayload = string.Join(" | ", importResult.Messages ?? new()),
+                                IsSuccess = false,
+                                ErrorMessage = importResult.TechnicalError,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                            await _context.SaveChangesAsync();
                         }
                     }
 
@@ -352,6 +377,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         Success = false, 
                         TechnicalError = $"Database/Processing Error: {ex.Message}" 
                     });
+
+                    // ❌ Persist server-side SOAP audit for DB-level error
+                    try
+                    {
+                        _context.X3SoapAudits.Add(new X3SoapAudit
+                        {
+                            ActionName = "ProcessProductionEod",
+                            Identifier = workOrder,
+                            IsSuccess = false,
+                            ErrorMessage = ex.Message,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                    catch { /* Best-effort audit — do not rethrow */ }
                 }
             }
 

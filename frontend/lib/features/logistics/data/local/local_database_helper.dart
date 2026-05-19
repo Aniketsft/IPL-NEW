@@ -5,10 +5,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 45;
+  static const _databaseVersion = 48;
+
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -28,6 +31,7 @@ class LocalDatabaseHelper {
   static const tableStagingEod = 'tbl_staging_eod';
   static const tableEodStatus = 'tbl_eod_status';
   static const tableOfflineAuditLogs = 'tbl_offline_audit_logs';
+  static const tableX3SoapAudits = 'tbl_x3_soap_audits';
 
   // tbl_work_orders columns
   static const colWoWorkOrder   = 'workOrder';
@@ -142,6 +146,8 @@ class LocalDatabaseHelper {
   static const colManifestJson = 'manifestJson';
   static const colPrintedBy = 'printedBy';
   static const colCreatedAt = 'createdAt';
+  static const colDeviceId = 'deviceId';
+
   
   // tbl_global_settings columns
   static const colSettingKey = 'key';
@@ -683,9 +689,65 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v45: $e");
       }
     }
+    if (oldVersion < 46) {
+      debugPrint('DB Upgrade: Adding colDeviceId column to tbl_label_audits (v46)');
+      try {
+        var labelColumns = await db.rawQuery('PRAGMA table_info($tableLabelAudits)');
+        if (!labelColumns.any((c) => c['name'] == colDeviceId)) {
+          await db.execute('ALTER TABLE $tableLabelAudits ADD COLUMN $colDeviceId TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v46 label audits: $e");
+      }
+    }
+    if (oldVersion < 47) {
+      debugPrint('DB Upgrade: Adding colDeviceId to transaction tables (v47)');
+      try {
+        final tables = [tableScans, tableOrders, tableDetails, tableStagingEod];
+        for (final table in tables) {
+          var columns = await db.rawQuery('PRAGMA table_info($table)');
+          if (!columns.any((c) => c['name'] == colDeviceId)) {
+            await db.execute('ALTER TABLE $table ADD COLUMN $colDeviceId TEXT');
+          }
+        }
+      } catch (e) {
+        debugPrint("Migration error v47: $e");
+      }
+    }
+    if (oldVersion < 48) {
+      debugPrint('DB Upgrade: Creating tableX3SoapAudits (v48)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableX3SoapAudits (
+            $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $columnTimestamp TEXT NOT NULL,
+            endpoint TEXT,
+            status TEXT,
+            message TEXT,
+            $colDeviceId TEXT,
+            username TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v48: $e");
+      }
+    }
   }
 
+
   Future _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableX3SoapAudits (
+        $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $columnTimestamp TEXT NOT NULL,
+        endpoint TEXT,
+        status TEXT,
+        message TEXT,
+        $colDeviceId TEXT,
+        username TEXT
+      )
+    ''');
+
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableScans (
         $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -702,7 +764,8 @@ class LocalDatabaseHelper {
         $columnManufacturedQuantity REAL DEFAULT 0,
         $columnLot TEXT,
         $columnEaQuantity REAL DEFAULT 0,
-        $columnBarcode TEXT
+        $columnBarcode TEXT,
+        $colDeviceId TEXT
       )
     ''');
 
@@ -724,7 +787,8 @@ class LocalDatabaseHelper {
         $colStatusLabel TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
         $colIsPreparedForShipment INTEGER DEFAULT 0,
-        $colIsProcessed INTEGER DEFAULT 0
+        $colIsProcessed INTEGER DEFAULT 0,
+        $colDeviceId TEXT
       )
     ''');
 
@@ -753,6 +817,7 @@ class LocalDatabaseHelper {
         $colDetEaScanned REAL DEFAULT 0,
         $colDetCreatedAt TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
+        $colDeviceId TEXT,
         UNIQUE($colDetSoNum, $colDetItemCode)
       )
     ''');
@@ -863,8 +928,9 @@ class LocalDatabaseHelper {
         $colManifestJson TEXT,
         $colPrintedBy TEXT,
         $colCreatedAt TEXT,
-        deviceId TEXT,
+        $colDeviceId TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 0
+
       )
     ''');
 
@@ -917,7 +983,8 @@ class LocalDatabaseHelper {
         createdAt TEXT,
         $columnEaQuantity REAL DEFAULT 0,
         $columnLot TEXT,
-        $columnIsSynced INTEGER DEFAULT 0
+        $columnIsSynced INTEGER DEFAULT 0,
+        $colDeviceId TEXT
       )
     ''');
 
@@ -1591,13 +1658,22 @@ class LocalDatabaseHelper {
   Future<int> insertLabelAudit(Map<String, dynamic> audit) async {
     final db = await instance.database;
     final row = Map<String, dynamic>.from(audit);
-    row['deviceId'] = DeviceInfoService.instance.deviceInfo;
+    
+    // Retrieve username and device ID
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('username') ?? 'unknown';
+    final deviceId = DeviceInfoService.instance.deviceInfo;
+    
+    row[colDeviceId] = deviceId;
+    row[colPrintedBy] = '$username on $deviceId';
+    
     return await db.insert(
       tableLabelAudits,
       row,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
 
   Future<List<Map<String, dynamic>>> getUnsyncedLabelAudits() async {
     final db = await instance.database;
@@ -1858,6 +1934,25 @@ class LocalDatabaseHelper {
       where: '$columnSyncId = ?',
       whereArgs: [syncId],
     );
+  }
+
+  Future<void> insertX3SoapAudit({
+    required String endpoint,
+    required String status,
+    required String message,
+  }) async {
+    final db = await instance.database;
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('loggedInUser') ?? 'UnknownUser';
+
+    await db.insert(tableX3SoapAudits, {
+      columnTimestamp: DateTime.now().toIso8601String(),
+      'endpoint': endpoint,
+      'status': status,
+      'message': message,
+      colDeviceId: DeviceInfoService.instance.deviceInfo,
+      'username': username,
+    });
   }
 
   Future<List<Map<String, dynamic>>> getLocalProductionScans(String soNumber, String productCode) async {

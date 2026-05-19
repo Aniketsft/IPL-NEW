@@ -399,6 +399,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
         items: _crateItems, // Detailed items manifest
         unit: firstItem['unit'] ?? 'KG',
         qrData: qrData,
+        onPrinted: _resetSession,
       );
     } else {
       final firstSoGroup = _paletteGroups.values.first;
@@ -423,6 +424,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
         manifest: manifest,
         customerName: _paletteGroups.length == 1 ? (firstItem['customer'] ?? 'MULTIPLE') : 'MULTIPLE',
         deliveryDate: _paletteGroups.length == 1 ? (firstItem['deliveryDate'] ?? 'MULTIPLE') : 'MULTIPLE',
+        onPrinted: _resetSession,
       );
     }
   }
