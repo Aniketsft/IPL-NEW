@@ -27,6 +27,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
         public DbSet<Staging> StagingRecords { get; set; }
         public DbSet<X3SoapAudit> X3SoapAudits { get; set; }
+        public DbSet<EodProcessAudit> EodProcessAudits { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

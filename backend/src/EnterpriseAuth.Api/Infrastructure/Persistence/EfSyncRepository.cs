@@ -1158,6 +1158,45 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 totalCount += request.OfflineAudits.Count;
             }
 
+            // 10. Process EOD Process Audits (Offline-first audit trail for EOD completion)
+            if (request.EodProcessAudits != null && request.EodProcessAudits.Any())
+            {
+                try
+                {
+                    // Fetch existing EodDates to avoid duplicates (idempotent)
+                    var incomingDates = request.EodProcessAudits.Select(e => e.EodDate).Distinct().ToList();
+                    var existingDates = await _scanContext.EodProcessAudits
+                        .Where(e => incomingDates.Contains(e.EodDate))
+                        .Select(e => e.EodDate)
+                        .ToListAsync();
+
+                    foreach (var dto in request.EodProcessAudits)
+                    {
+                        if (existingDates.Contains(dto.EodDate)) continue;
+
+                        _scanContext.EodProcessAudits.Add(new EodProcessAudit
+                        {
+                            Id = dto.Id == Guid.Empty ? Guid.NewGuid() : dto.Id,
+                            EodDate = dto.EodDate,
+                            WorkOrderNumber = dto.WorkOrderNumber,
+                            TriggeredBy = dto.TriggeredBy,
+                            DeviceId = dto.DeviceId,
+                            CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt
+                        });
+
+                        existingDates.Add(dto.EodDate); // prevent duplicates within the same batch
+                    }
+
+                    await _scanContext.SaveChangesAsync();
+                    totalCount += request.EodProcessAudits.Count;
+                    Console.WriteLine($"[Sync] Stored {request.EodProcessAudits.Count} EodProcessAudit records.");
+                }
+                catch (Exception eodAuditEx)
+                {
+                    Console.WriteLine($"[Sync] WARNING: EodProcessAudit sync failed. Error: {eodAuditEx.Message}");
+                }
+            }
+
             return totalCount;
         }
 

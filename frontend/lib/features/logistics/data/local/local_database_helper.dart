@@ -6,11 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 48;
+  static const _databaseVersion = 49;
 
 
   static const tableScans = 'tbl_scans';
@@ -32,6 +33,7 @@ class LocalDatabaseHelper {
   static const tableEodStatus = 'tbl_eod_status';
   static const tableOfflineAuditLogs = 'tbl_offline_audit_logs';
   static const tableX3SoapAudits = 'tbl_x3_soap_audits';
+  static const tableEodProcessAudits = 'tbl_eod_process_audits';
 
   // tbl_work_orders columns
   static const colWoWorkOrder   = 'workOrder';
@@ -732,6 +734,24 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v48: $e");
       }
     }
+    if (oldVersion < 49) {
+      debugPrint('DB Upgrade: Creating tableEodProcessAudits (v49)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableEodProcessAudits (
+            id TEXT PRIMARY KEY,
+            eodDate TEXT NOT NULL UNIQUE,
+            workOrderNumber TEXT NOT NULL,
+            triggeredBy TEXT NOT NULL,
+            deviceId TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            isSynced INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v49: $e");
+      }
+    }
   }
 
 
@@ -1006,6 +1026,18 @@ class LocalDatabaseHelper {
         timestamp TEXT,
         deviceId TEXT,
         $columnIsSynced INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableEodProcessAudits (
+        id TEXT PRIMARY KEY,
+        eodDate TEXT NOT NULL UNIQUE,
+        workOrderNumber TEXT NOT NULL,
+        triggeredBy TEXT NOT NULL,
+        deviceId TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isSynced INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -1963,5 +1995,61 @@ class LocalDatabaseHelper {
       whereArgs: [soNumber, productCode],
       orderBy: '$columnTimestamp DESC',
     );
+  }
+
+  Future<void> insertEodProcessAudit({
+    required String eodDate,
+    required String workOrderNumber,
+  }) async {
+    final db = await instance.database;
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('loggedInUser') ?? 'UnknownUser';
+
+    await db.insert(
+      tableEodProcessAudits,
+      {
+        'id': const Uuid().v4(),
+        'eodDate': eodDate,
+        'workOrderNumber': workOrderNumber,
+        'triggeredBy': username,
+        'deviceId': DeviceInfoService.instance.deviceInfo,
+        'timestamp': DateTime.now().toIso8601String(),
+        'isSynced': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<bool> isEodProcessAudited(String dateStr) async {
+    final db = await instance.database;
+    final res = await db.query(
+      tableEodProcessAudits,
+      where: 'eodDate = ?',
+      whereArgs: [dateStr],
+    );
+    return res.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedEodProcessAudits() async {
+    final db = await instance.database;
+    return await db.query(
+      tableEodProcessAudits,
+      where: 'isSynced = 0',
+    );
+  }
+
+  Future<void> markEodProcessAuditsSynced(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final db = await instance.database;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.update(
+        tableEodProcessAudits,
+        {'isSynced': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 }

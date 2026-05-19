@@ -175,7 +175,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       
       // Fetch from local database to match Production Tracking screen
       final data = await db.getProductionSummaryByDate(dateStr, site: site);
-      final isDone = await db.isEodCompleted(dateStr);
+      final isDone = await db.isEodProcessAudited(dateStr);
       
       setState(() {
         _isEodDone = isDone;
@@ -276,6 +276,10 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       }
 
       await db.markEodCompleted(DateFormat('yyyy-MM-dd').format(_selectedDate), _selectedWorkOrder!.workOrder);
+      await db.insertEodProcessAudit(
+        eodDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
+        workOrderNumber: _selectedWorkOrder!.workOrder,
+      );
 
       // Offline Audit Log
       await db.insertOfflineAuditLog(

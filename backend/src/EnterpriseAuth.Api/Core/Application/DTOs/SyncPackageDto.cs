@@ -30,6 +30,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<StagingEodDto> StagingEodEntries { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
         public List<OfflineAuditDto> OfflineAudits { get; set; } = new();
+        public List<EodProcessAuditDto> EodProcessAudits { get; set; } = new();
     }
 
     public class OfflineAuditDto
@@ -102,5 +103,15 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string SoNumber { get; set; } = string.Empty;
         public int Status { get; set; }
+    }
+
+    public class EodProcessAuditDto
+    {
+        public Guid Id { get; set; }
+        public string EodDate { get; set; } = string.Empty;
+        public string WorkOrderNumber { get; set; } = string.Empty;
+        public string TriggeredBy { get; set; } = string.Empty;
+        public string DeviceId { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
     }
 }

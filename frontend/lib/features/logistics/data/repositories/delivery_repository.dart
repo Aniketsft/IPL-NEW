@@ -1030,8 +1030,9 @@ class DeliveryRepository implements ILogisticsRepository {
       final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
       final unsyncedStagingEod = await LocalDatabaseHelper.instance.getUnsyncedStagingEod();
       final unsyncedAudits = await LocalDatabaseHelper.instance.getUnsyncedOfflineAudits();
+      final unsyncedEodProcessAudits = await LocalDatabaseHelper.instance.getUnsyncedEodProcessAudits();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStagingEod.isNotEmpty || unsyncedAudits.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStagingEod.isNotEmpty || unsyncedAudits.isNotEmpty || unsyncedEodProcessAudits.isNotEmpty) {
         final settingsPayload = unsyncedSettingsRows.map((row) => {
           'settingKey': row[LocalDatabaseHelper.colSettingKey],
           'settingValue': row[LocalDatabaseHelper.colSettingValue],
@@ -1122,6 +1123,14 @@ class DeliveryRepository implements ILogisticsRepository {
             'timestamp': a['timestamp'],
             'deviceId': a['deviceId'],
           }).toList(),
+          'eodProcessAudits': unsyncedEodProcessAudits.map((e) => {
+            'id': e['id'],
+            'eodDate': e['eodDate'],
+            'workOrderNumber': e['workOrderNumber'],
+            'triggeredBy': e['triggeredBy'],
+            'deviceId': e['deviceId'],
+            'createdAt': e['timestamp'],
+          }).toList(),
         };
 
         await _dio.post('Sync/push', data: payload);
@@ -1149,6 +1158,11 @@ class DeliveryRepository implements ILogisticsRepository {
         if (unsyncedAudits.isNotEmpty) {
           final ids = unsyncedAudits.map((a) => a['id'] as int).toList();
           await LocalDatabaseHelper.instance.markOfflineAuditsAsSynced(ids);
+        }
+
+        if (unsyncedEodProcessAudits.isNotEmpty) {
+          final ids = unsyncedEodProcessAudits.map((e) => e['id'] as String).toList();
+          await LocalDatabaseHelper.instance.markEodProcessAuditsSynced(ids);
         }
       }
 

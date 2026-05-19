@@ -988,6 +988,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             PRINT 'Added DeviceId column to AuditLogs';
                         END
                     END
+
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[EodProcessAudits]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[EodProcessAudits] (
+                            [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            [EodDate] NVARCHAR(50) NOT NULL,
+                            [WorkOrderNumber] NVARCHAR(100) NOT NULL,
+                            [TriggeredBy] NVARCHAR(200) NOT NULL,
+                            [DeviceId] NVARCHAR(255) NOT NULL,
+                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                        );
+                        CREATE INDEX [IX_EodProcessAudits_EodDate] ON [dbo].[EodProcessAudits] ([EodDate]);
+                        PRINT 'Created EodProcessAudits table';
+                    END
                 ";
                 await context.Database.ExecuteSqlRawAsync(sql);
                 Console.WriteLine("[DbInitializer] EnsureDeviceIdColumns completed successfully.");
