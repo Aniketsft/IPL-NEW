@@ -954,6 +954,21 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ALTER TABLE [dbo].[StagingEod] ADD [LotNumber] [nvarchar](100) NULL;
                             PRINT 'Added LotNumber column to existing StagingEod table';
                         END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StagingEod' AND COLUMN_NAME = 'DeviceId')
+                        BEGIN
+                            ALTER TABLE [dbo].[StagingEod] ADD [DeviceId] [nvarchar](255) NULL;
+                            PRINT 'Added DeviceId column to existing StagingEod table';
+                        END
+                    END
+
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ProductionScanTransactions]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ProductionScanTransactions' AND COLUMN_NAME = 'DeviceId')
+                        BEGIN
+                            ALTER TABLE [dbo].[ProductionScanTransactions] ADD [DeviceId] [nvarchar](100) NULL;
+                            PRINT 'Added DeviceId column to existing ProductionScanTransactions table';
+                        END
                     END
                 ";
                 await context.Database.ExecuteSqlRawAsync(salesOrderMigrationSql);
