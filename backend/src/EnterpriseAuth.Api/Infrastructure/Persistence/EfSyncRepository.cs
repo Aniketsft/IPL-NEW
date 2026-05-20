@@ -72,7 +72,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260430' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */
+                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260531' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */
                 ORDER BY f0.ORDDAT_0 DESC", new { Site = site });
 
             var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
@@ -101,7 +101,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260430' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */", new { Site = site });
+                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 BETWEEN '20260417' AND '20260531' /* AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) */", new { Site = site });
 
             var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER WITH (NOLOCK)");
             var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)");
