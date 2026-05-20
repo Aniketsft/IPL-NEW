@@ -32,3 +32,17 @@ class ResetSyncRequested extends SyncEvent {
   @override
   List<Object> get props => [];
 }
+
+class StartX3SoapExportRequested extends SyncEvent {
+  final Future<dynamic> Function() exportAction;
+  final String message;
+
+  const StartX3SoapExportRequested({
+    required this.exportAction,
+    this.message = 'Exporting data to Sage X3...',
+  });
+
+  @override
+  List<Object> get props => [message];
+}
+

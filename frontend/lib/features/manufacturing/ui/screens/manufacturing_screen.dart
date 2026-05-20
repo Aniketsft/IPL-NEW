@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/production_tracking_product_list_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart';
 import '../../bloc/manufacturing_bloc.dart';
-import '../../bloc/manufacturing_event.dart';
 import '../../bloc/manufacturing_state.dart';
-import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../auth/presentation/bloc/auth_state.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import './end_of_day_screen.dart';
 
 class ManufacturingScreen extends StatefulWidget {
@@ -25,71 +20,21 @@ class _MenuItem {
   final String title;
   final IconData? icon;
   final Widget? targetScreen;
-  final VoidCallback? onTap;
-  final String? subtitle;
 
   _MenuItem({
     required this.title,
     this.icon,
     this.targetScreen,
-    this.onTap,
-    this.subtitle,
   });
 }
 
 class _ManufacturingScreenState extends State<ManufacturingScreen> {
-  String _lastSyncStr = 'Never';
-
   bool _hasAccess(String module, String submodule) {
     if (widget.permissions.contains('administration.user_management.delete')) {
       return true;
     }
     return widget.permissions.contains('$module.$submodule.read');
   }
-  
-  @override
-  void initState() {
-    super.initState();
-    _loadLastSync();
-  }
-
-  Future<void> _loadLastSync() async {
-    try {
-      final history = await LocalDatabaseHelper.instance.getSyncHistory();
-      if (history.isNotEmpty) {
-        // Find latest 'Success' entry
-        final last = history.firstWhere(
-          (h) => h[LocalDatabaseHelper.colSyncStatus] == 'Success',
-          orElse: () => history.first,
-        );
-        final timestampStr = last[LocalDatabaseHelper.colSyncTimestamp] as String;
-        final timestamp = DateTime.tryParse(timestampStr);
-        if (timestamp != null) {
-          setState(() {
-            _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(timestamp);
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Manufacturing: Error loading last sync: $e");
-    }
-  }
-
-  void _triggerSync() {
-    final authState = context.read<AuthBloc>().state;
-    String? siteCode;
-    if (authState is Authenticated) {
-      siteCode = authState.siteCode;
-    }
-
-    context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
-    
-    // Periodically check if sync is done to refresh timestamp
-    Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
-    Future.delayed(const Duration(seconds: 10), () => _loadLastSync());
-  }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -98,12 +43,6 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
         final query = state.dashboardSearchQuery.toLowerCase();
 
         final menuItems = [
-          _MenuItem(
-            title: 'Data Sync',
-            icon: Icons.sync_rounded,
-            onTap: _triggerSync,
-            subtitle: 'Last: $_lastSyncStr',
-          ),
           /*
           if (_hasAccess('logistics', 'delivery'))
             _MenuItem(
@@ -152,9 +91,7 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
           title: 'MANUFACTURING',
           showLogout: false,
           showPlantName: false,
-          extraActions: [
-            _buildSchemaSelector(context, state),
-          ],
+          extraActions: const [],
           body: GridView.builder(
             padding: const EdgeInsets.all(24),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -171,54 +108,11 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
                 item.title,
                 item.icon,
                 item.targetScreen,
-                onTapOverride: item.onTap,
-                subtitle: item.subtitle,
               );
             },
           ),
         );
       },
-    );
-  }
-
-  Widget _buildSchemaSelector(BuildContext context, ManufacturingState state) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final orange = theme.primaryColor;
-
-    return Theme(
-      data: theme.copyWith(
-        canvasColor: isDark ? theme.cardColor : Colors.white,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8.0),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: state.selectedSchema,
-            icon: Icon(Icons.keyboard_arrow_down_rounded, color: orange, size: 25),
-            style: TextStyle(
-              color: orange,
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'INLPROD',
-                child: Text('X3'),
-              ),
-              DropdownMenuItem(
-                value: 'INLDRYRUN',
-                child: Text('SC'),
-              ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                context.read<ManufacturingBloc>().add(ManufacturingSchemaChanged(value));
-              }
-            },
-          ),
-        ),
-      ),
     );
   }
 

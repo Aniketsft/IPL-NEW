@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
@@ -215,6 +216,170 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
     }
   }
 
+  Future<void> _manualLoadSalesOrder(String soCode) async {
+    setState(() => _isLoading = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final rawData = 'MANUAL:$soCode';
+      await repository.addDeliveryScan([soCode], rawData);
+      
+      await _fetchOrders();
+      if (mounted) {
+        final theme = Theme.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Successfully loaded Sales Order $soCode',
+              style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: theme.colorScheme.surface,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF422222) : Colors.red[50],
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red),
+                const SizedBox(width: 8),
+                Text('LOAD REJECTED', style: TextStyle(color: isDark ? Colors.white : Colors.red[900], fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text(e.toString(), style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: TextStyle(color: isDark ? Colors.white54 : Colors.red[900])),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _showManualEntryDialog() async {
+    if (_isLoading) return;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: isDark ? Colors.white10 : Colors.black12,
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.edit_note_rounded, color: orange, size: 28),
+              const SizedBox(width: 12),
+              Text(
+                'Manual Entry',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter the Sales Order number to manually load it into the manifest.',
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Sales Order Number',
+                  labelStyle: TextStyle(color: orange),
+                  hintText: 'e.g., SO001234',
+                  hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: orange, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white10 : Colors.black12,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'CANCEL',
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(context);
+                  _manualLoadSalesOrder(text);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: orange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                'LOAD',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _clearManifest() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -308,9 +473,26 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
 
     if (confirm != true) return;
 
+    final completer = Completer<Map<String, dynamic>>();
+
     setState(() => _isLoading = true);
+
+    syncBloc.add(StartX3SoapExportRequested(
+      message: 'Exporting Delivery Manifest to Sage X3...',
+      exportAction: () async {
+        try {
+          final response = await repository.processEndOfDay();
+          completer.complete(response);
+          return response;
+        } catch (e) {
+          completer.completeError(e.toString());
+          rethrow;
+        }
+      },
+    ));
+
     try {
-      final response = await repository.processEndOfDay();
+      final response = await completer.future;
       if (mounted) {
         _showEndOfDayResults(response);
       }
@@ -448,6 +630,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
           onPressed: _processEndOfDay,
         ),
       ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showManualEntryDialog,
+        backgroundColor: orange,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, size: 28),
+      ),
       body: Column(
         children: [
           SyncStatusHeader(lastSync: _lastSync),

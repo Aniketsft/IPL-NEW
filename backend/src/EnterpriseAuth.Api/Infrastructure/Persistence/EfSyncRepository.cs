@@ -327,6 +327,21 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Select(g => g.OrderByDescending(x => x.UpdatedAt).First())
                 .ToDictionary(s => s.SettingKey, s => s.SettingValue);
 
+            // Pull EodProcessAudits to sync down to device
+            var eodAudits = await _scanContext.EodProcessAudits
+                .Select(e => new EodProcessAuditDto
+                {
+                    Id = e.Id,
+                    EodDate = e.EodDate,
+                    WorkOrderNumber = e.WorkOrderNumber,
+                    TriggeredBy = e.TriggeredBy,
+                    DeviceId = e.DeviceId,
+                    CreatedAt = e.CreatedAt,
+                    IsDeactivated = e.IsDeactivated
+                })
+                .ToListAsync();
+            package.EodProcessAudits = eodAudits;
+
             package.SyncTimestamp = DateTime.UtcNow;
             return package;
         }
@@ -823,7 +838,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     {
                         SettingKey = updateDto.SettingKey,
                         SettingValue = updateDto.SettingValue,
-                        LastUpdatedBy = performedBy,
+                        LastUpdatedBy = author,
                         UpdatedAt = DateTime.UtcNow,
                         Action = existing == null ? "INSERT" : "UPDATE"
                     });
@@ -1165,26 +1180,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     // Fetch existing EodDates to avoid duplicates (idempotent)
                     var incomingDates = request.EodProcessAudits.Select(e => e.EodDate).Distinct().ToList();
-                    var existingDates = await _scanContext.EodProcessAudits
+                    var existingAudits = await _scanContext.EodProcessAudits
                         .Where(e => incomingDates.Contains(e.EodDate))
-                        .Select(e => e.EodDate)
                         .ToListAsync();
+                    var existingAuditsMap = existingAudits.ToDictionary(e => e.EodDate);
 
                     foreach (var dto in request.EodProcessAudits)
                     {
-                        if (existingDates.Contains(dto.EodDate)) continue;
-
-                        _scanContext.EodProcessAudits.Add(new EodProcessAudit
+                        if (existingAuditsMap.TryGetValue(dto.EodDate, out var existing))
                         {
-                            Id = dto.Id == Guid.Empty ? Guid.NewGuid() : dto.Id,
-                            EodDate = dto.EodDate,
-                            WorkOrderNumber = dto.WorkOrderNumber,
-                            TriggeredBy = dto.TriggeredBy,
-                            DeviceId = dto.DeviceId,
-                            CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt
-                        });
-
-                        existingDates.Add(dto.EodDate); // prevent duplicates within the same batch
+                            existing.IsDeactivated = dto.IsDeactivated;
+                            existing.WorkOrderNumber = dto.WorkOrderNumber;
+                            existing.TriggeredBy = dto.TriggeredBy;
+                            existing.DeviceId = dto.DeviceId;
+                            existing.CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt;
+                        }
+                        else
+                        {
+                            var newAudit = new EodProcessAudit
+                            {
+                                Id = dto.Id == Guid.Empty ? Guid.NewGuid() : dto.Id,
+                                EodDate = dto.EodDate,
+                                WorkOrderNumber = dto.WorkOrderNumber,
+                                TriggeredBy = dto.TriggeredBy,
+                                DeviceId = dto.DeviceId,
+                                CreatedAt = dto.CreatedAt == default ? DateTime.UtcNow : dto.CreatedAt,
+                                IsDeactivated = dto.IsDeactivated
+                            };
+                            _scanContext.EodProcessAudits.Add(newAudit);
+                            existingAuditsMap[dto.EodDate] = newAudit;
+                        }
                     }
 
                     await _scanContext.SaveChangesAsync();

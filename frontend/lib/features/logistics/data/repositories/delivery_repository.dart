@@ -939,6 +939,7 @@ class DeliveryRepository implements ILogisticsRepository {
         products: products,
         sites: sites,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
+        eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
       // 3. Mark preparation status updates as synced AFTER refresh
@@ -1130,6 +1131,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'triggeredBy': e['triggeredBy'],
             'deviceId': e['deviceId'],
             'createdAt': e['timestamp'],
+            'isDeactivated': e['isDeactivated'] == 1,
           }).toList(),
         };
 
@@ -1206,6 +1208,7 @@ class DeliveryRepository implements ILogisticsRepository {
         products: processedData['products'] as List<Map<String, dynamic>>,
         sites: processedData['sites'] as List<Map<String, dynamic>>,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
+        eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
       // 3. Mark preparation status updates as synced AFTER refresh
@@ -1870,6 +1873,12 @@ class DeliveryRepository implements ILogisticsRepository {
         row[LocalDatabaseHelper.colSettingKey] as String: row[LocalDatabaseHelper.colSettingValue]?.toString() ?? ''
     };
 
+    final schema = localMap['X3Schema'] ?? 'INLDRYRUN';
+    final storedSchema = await _storageService.getSchema();
+    if (storedSchema != schema) {
+      await _storageService.saveSchema(schema);
+    }
+
     return AppSettings(
       availableCompanies: Company.mockCompanies,
       availableSites: settings_site.Site.mockSites,
@@ -1882,6 +1891,7 @@ class DeliveryRepository implements ILogisticsRepository {
       excessDefaultCustomer: localMap['ExcessDefaultCustomer'],
       excessDefaultSalesman: localMap['ExcessDefaultSalesman'],
       tolerancePercentage: double.tryParse(localMap['TolerancePercentage'] ?? '0.0') ?? 0.0,
+      selectedSchema: schema,
     );
   }
 
@@ -1923,6 +1933,14 @@ class DeliveryRepository implements ILogisticsRepository {
           settings.tolerancePercentage.toString(),
           updatedBy: username,
         );
+      }
+      if (settings.selectedSchema != null) {
+        await LocalDatabaseHelper.instance.updateGlobalSetting(
+          'X3Schema',
+          settings.selectedSchema!,
+          updatedBy: username,
+        );
+        await _storageService.saveSchema(settings.selectedSchema!);
       }
     } catch (e) {
       debugPrint("Failed to update app settings in SQLite: $e");
@@ -1974,6 +1992,18 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
       .map<Map<String, dynamic>>((j) => LotDto.fromJson(j).toSqlMap())
       .toList();
 
+  final eodProcessAudits = (data['eodProcessAudits'] as List? ?? [])
+      .map<Map<String, dynamic>>((j) => {
+        'id': j['id'],
+        'eodDate': j['eodDate'],
+        'workOrderNumber': j['workOrderNumber'],
+        'triggeredBy': j['triggeredBy'],
+        'deviceId': j['deviceId'],
+        'createdAt': j['createdAt'],
+        'isDeactivated': (j['isDeactivated'] == true || j['isDeactivated'] == 1) ? 1 : 0,
+      })
+      .toList();
+
   return {
     'orders': orders,
     'details': details,
@@ -1983,5 +2013,6 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
     'products': products,
     'sites': sites,
     'lots': lots,
+    'eodProcessAudits': eodProcessAudits,
   };
 }

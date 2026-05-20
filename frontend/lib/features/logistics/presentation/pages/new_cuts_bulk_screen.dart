@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:intl/intl.dart' as intl;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
@@ -21,7 +22,7 @@ class NewCutsBulkScreen extends StatefulWidget {
 }
 
 class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScannerMixin<NewCutsBulkScreen> {
-  String _mode = 'cuts'; // 'cuts', 'bulks', or 'frozen'
+  String _mode = 'bulks'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO
   bool _soDetailsExpanded = false;
@@ -47,8 +48,39 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
   @override
   void initState() {
     super.initState();
-    _loadLookups();
+    _loadPreferences().then((_) {
+      _loadLookups();
+    });
+  }
 
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _mode = prefs.getString('new_cuts_bulk_mode') ?? 'bulks';
+          _isNewSO = prefs.getBool('new_cuts_bulk_is_new_so') ?? true;
+          _selectedExistingSO = prefs.getString('new_cuts_bulk_selected_existing_so');
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading preferences: $e');
+    }
+  }
+
+  Future<void> _savePreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('new_cuts_bulk_mode', _mode);
+      await prefs.setBool('new_cuts_bulk_is_new_so', _isNewSO);
+      if (_selectedExistingSO != null) {
+        await prefs.setString('new_cuts_bulk_selected_existing_so', _selectedExistingSO!);
+      } else {
+        await prefs.remove('new_cuts_bulk_selected_existing_so');
+      }
+    } catch (e) {
+      debugPrint('Error saving preferences: $e');
+    }
   }
 
   @override
@@ -285,8 +317,8 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       ),
       child: Row(
         children: [
-          _buildToggleButton('cuts', 'Cuts', orange),
           _buildToggleButton('bulks', 'Bulks', orange),
+          _buildToggleButton('cuts', 'Cuts', orange),
         ],
       ),
     );
@@ -318,7 +350,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     final isSelected = _isNewSO == value;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _isNewSO = value),
+        onTap: () {
+          setState(() => _isNewSO = value);
+          _savePreferences();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
@@ -384,6 +419,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
             }
           }
         });
+        _savePreferences();
       },
     );
   }
@@ -394,10 +430,13 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     final isSelected = _mode == key;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() {
-          _mode = key;
-          _selectedExistingSO = null; // Clear selection when switching mode
-        }),
+        onTap: () {
+          setState(() {
+            _mode = key;
+            _selectedExistingSO = null; // Clear selection when switching mode
+          });
+          _savePreferences();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(

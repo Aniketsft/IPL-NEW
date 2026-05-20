@@ -1258,13 +1258,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile(
-                'Ordered',
-                '${widget.product.formatQuantity(widget.product.quantity)} ${widget.product.unit}',
+                'Remaining',
+                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty))} ${widget.product.unit}',
                 isDark,
               ),
               _statTile(
-                'Remaining',
-                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty))} ${widget.product.unit}',
+                'Scanned',
+                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (_localEaScannedQty + _baseSessionScannedQty + _cumulativeQty) : (_localManufacturedQty + _baseSessionScannedQty + _cumulativeQty))} ${widget.product.unit}',
                 isDark,
                 color: orange,
               ),

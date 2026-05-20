@@ -16,6 +16,27 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     on<StartSyncRequested>(_onStartSyncRequested);
     on<SyncProgressUpdated>(_onSyncProgressUpdated);
     on<ResetSyncRequested>((event, emit) => emit(SyncInitial()));
+    on<StartX3SoapExportRequested>(_onStartX3SoapExportRequested);
+  }
+
+  Future<void> _onStartX3SoapExportRequested(
+    StartX3SoapExportRequested event,
+    Emitter<SyncState> emit,
+  ) async {
+    if (state is SyncInProgress) {
+      print("SyncBloc: Action already in progress, ignoring request.");
+      return;
+    }
+
+    emit(SyncInProgress(0.5, event.message));
+
+    try {
+      await event.exportAction();
+      final lastSync = DateTime.now().toString().substring(0, 16);
+      emit(SyncSuccess(lastSync));
+    } catch (e) {
+      emit(SyncFailure(e.toString()));
+    }
   }
 
   Future<void> _onStartSyncRequested(

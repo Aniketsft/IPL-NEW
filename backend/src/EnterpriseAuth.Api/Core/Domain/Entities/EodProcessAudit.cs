@@ -27,5 +27,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string DeviceId { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public bool IsDeactivated { get; set; } = false;
     }
 }

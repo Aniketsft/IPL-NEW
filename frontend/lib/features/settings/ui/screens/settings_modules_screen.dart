@@ -25,6 +25,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
   
   String? _selectedCustomer;
   String? _selectedSalesman;
+  String? _selectedSchema;
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
         _toleranceController.text = (_settings?.tolerancePercentage ?? 0.0).toString();
         _selectedCustomer = _settings?.excessDefaultCustomer;
         _selectedSalesman = _settings?.excessDefaultSalesman;
+        _selectedSchema = _settings?.selectedSchema;
         
         _isLoading = false;
       });
@@ -79,6 +81,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
       excessDefaultCustomer: _selectedCustomer,
       excessDefaultSalesman: _selectedSalesman,
       tolerancePercentage: double.tryParse(_toleranceController.text) ?? 0.0,
+      selectedSchema: _selectedSchema,
     );
 
     setState(() => _isLoading = true);
@@ -197,6 +200,50 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                           hint: 'Enter %...',
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           icon: Icons.tune,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // 4. SAGE X3 SCHEMA
+                      _buildModuleCard(
+                        title: 'SAGE X3 SCHEMA',
+                        icon: Icons.schema,
+                        accentColor: Colors.purpleAccent,
+                        child: Theme(
+                          data: theme.copyWith(
+                            canvasColor: isDark ? theme.cardColor : Colors.white,
+                          ),
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedSchema ?? 'INLDRYRUN',
+                            dropdownColor: isDark ? theme.cardColor : Colors.white,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'INLDRYRUN',
+                                child: Text('SC (INLDRYRUN)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'INLPROD',
+                                child: Text('X3 (INLPROD)'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedSchema = value;
+                                });
+                              }
+                            },
+                          ),
                         ),
                       ),
                     ],

@@ -15,6 +15,8 @@ using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EnterpriseAuth.Api.Core.Application.Services
 {
@@ -27,12 +29,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private readonly string _username;
         private readonly string _password;
         private readonly string _innodisConnectionString;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public SageX3SoapService(ScanProductionDbContext context, IConfiguration configuration, IHttpClientFactory httpClientFactory)
+        public SageX3SoapService(
+            ScanProductionDbContext context, 
+            IConfiguration configuration, 
+            IHttpClientFactory httpClientFactory,
+            IHttpContextAccessor httpContextAccessor,
+            IServiceScopeFactory serviceScopeFactory)
         {
             _context = context;
             _httpClient = httpClientFactory.CreateClient();
             _httpClient.Timeout = TimeSpan.FromMinutes(10);
+            _httpContextAccessor = httpContextAccessor;
+            _serviceScopeFactory = serviceScopeFactory;
             
             var settings = configuration.GetSection("X3SoapService");
             _soapUrl = settings["Url"] ?? "http://192.168.120.6:8124/soap-generic/syracuse/collaboration/syracuse/CAdxWebServiceXmlCC";
@@ -41,6 +52,55 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             _password = settings["Password"] ?? "PASSWORD_HERE";
             _innodisConnectionString = configuration.GetConnectionString("Innodis")
                 ?? throw new InvalidOperationException("Innodis connection string is missing.");
+        }
+
+        private async Task InsertSoapAuditAsync(
+            string actionName,
+            string? identifier,
+            string requestPayload,
+            string responsePayload,
+            bool isSuccess,
+            string? errorMessage = null)
+        {
+            try
+            {
+                var httpContext = _httpContextAccessor.HttpContext;
+                
+                var username = httpContext?.User?.FindFirst("username")?.Value 
+                    ?? httpContext?.User?.Identity?.Name 
+                    ?? "system";
+
+                string? deviceId = null;
+                if (httpContext != null && httpContext.Request.Headers.TryGetValue("X-Device-Id", out var deviceIdVal))
+                {
+                    deviceId = deviceIdVal.ToString();
+                }
+
+                var auditRecord = new X3SoapAudit
+                {
+                    Id = Guid.NewGuid(),
+                    ActionName = actionName,
+                    Identifier = identifier,
+                    RequestPayload = requestPayload,
+                    ResponsePayload = responsePayload,
+                    IsSuccess = isSuccess,
+                    ErrorMessage = errorMessage?.Length > 2000 ? errorMessage.Substring(0, 2000) : errorMessage,
+                    TriggeredBy = username,
+                    DeviceId = deviceId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                using (var scope = _serviceScopeFactory.CreateScope())
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<ScanProductionDbContext>();
+                    dbContext.X3SoapAudits.Add(auditRecord);
+                    await dbContext.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Audit Error] Failed to write SOAP audit: {ex.Message}");
+            }
         }
 
         public async Task<EndOfDayResult> ProcessEndOfDayAsync()
@@ -122,6 +182,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         public async Task<X3ImportResult> ImportSalesOrderAsync(string soNumber, List<Staging> records)
         {
             var result = new X3ImportResult { Identifier = soNumber };
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
 
             try
             {
@@ -163,7 +225,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                       "}}";
 
                 // 4. Construct the SOAP Envelope
-                string soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
    <soapenv:Header/>
    <soapenv:Body>
       <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
@@ -174,9 +236,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             <requestConfig xsi:type=""xsd:string""></requestConfig>
          </callContext>
          <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
-           <inputXml xsi:type=""xsd:string"">
-                 <![CDATA[{inputXmlJson}]]>
-         </inputXml>
+            <inputXml xsi:type=""xsd:string"">
+                  <![CDATA[{inputXmlJson}]]>
+          </inputXml>
       </wss:run>
    </soapenv:Body>
 </soapenv:Envelope>";
@@ -198,22 +260,26 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 request.Headers.Add("soapAction", ""); 
 
                 var response = await _httpClient.SendAsync(request);
-                string responseXml = await response.Content.ReadAsStringAsync();
+                responseXml = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
                     result.Success = false;
                     result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportSalesOrder", soNumber, soapEnvelope, responseXml, false, result.TechnicalError);
                     return result;
                 }
 
                 // 6. Parse Response
-                return ParseSoapResponse(responseXml, result);
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                await InsertSoapAuditAsync("ImportSalesOrder", soNumber, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
             }
             catch (Exception ex)
             {
                 result.Success = false;
                 result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportSalesOrder", soNumber, soapEnvelope, responseXml, false, ex.Message);
                 return result;
             }
         }
@@ -290,17 +356,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                 record.IsProcessed = true;
                             }
 
-                            // ✅ Persist server-side SOAP audit
-                            _context.X3SoapAudits.Add(new X3SoapAudit
-                            {
-                                ActionName = "ProcessProductionEod",
-                                Identifier = workOrder,
-                                RequestPayload = $"Batch {i / batchSize + 1}: {batch.Count} records",
-                                ResponsePayload = string.Join(" | ", importResult.Messages ?? new()),
-                                IsSuccess = true,
-                                CreatedAt = DateTime.UtcNow
-                            });
-
                             await _context.SaveChangesAsync();
                         }
                         else
@@ -319,7 +374,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                     var parts = msg.Split(' ');
                                     currentProduct = parts.LastOrDefault();
                                 }
-                                else if (msg.StartsWith("IPL Creation of WO tracking "))
+                                else if (msg.Trim().StartsWith("Completed qty:", StringComparison.OrdinalIgnoreCase))
                                 {
                                     if (!string.IsNullOrEmpty(currentProduct))
                                     {
@@ -341,7 +396,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                 }
                                 
                                 result.SuccessCount += salvagedCount;
-                                result.FailureCount += (batch.Count - salvagedCount);
+                                int failedCount = batch.Count - salvagedCount;
+                                result.FailureCount += failedCount;
+                                
+                                if (failedCount == 0 && salvagedCount > 0)
+                                {
+                                    importResult.Success = true;
+                                }
                                 
                                 await _context.SaveChangesAsync();
                             }
@@ -349,19 +410,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             {
                                 result.FailureCount += batch.Count;
                             }
-
-                            // ❌ Persist server-side SOAP audit for failed/partial batch
-                            _context.X3SoapAudits.Add(new X3SoapAudit
-                            {
-                                ActionName = "ProcessProductionEod",
-                                Identifier = workOrder,
-                                RequestPayload = $"Batch {i / batchSize + 1}: {batch.Count} records",
-                                ResponsePayload = string.Join(" | ", importResult.Messages ?? new()),
-                                IsSuccess = false,
-                                ErrorMessage = importResult.TechnicalError,
-                                CreatedAt = DateTime.UtcNow
-                            });
-                            await _context.SaveChangesAsync();
                         }
                     }
 
@@ -377,21 +425,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         Success = false, 
                         TechnicalError = $"Database/Processing Error: {ex.Message}" 
                     });
-
-                    // ❌ Persist server-side SOAP audit for DB-level error
-                    try
-                    {
-                        _context.X3SoapAudits.Add(new X3SoapAudit
-                        {
-                            ActionName = "ProcessProductionEod",
-                            Identifier = workOrder,
-                            IsSuccess = false,
-                            ErrorMessage = ex.Message,
-                            CreatedAt = DateTime.UtcNow
-                        });
-                        await _context.SaveChangesAsync();
-                    }
-                    catch { /* Best-effort audit — do not rethrow */ }
                 }
             }
 
@@ -433,10 +466,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 Console.WriteLine($"[EOD] Found {codes.Count()} BOM components missing from StagingEod for Work Order {workOrder}.");
                 return codes;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[EOD] Warning: Could not fetch missing BOM components for Work Order {workOrder}: {ex.Message}");
-                return Enumerable.Empty<string>();
             }
         }
         */
@@ -444,6 +473,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private async Task<X3ImportResult> ImportProductionEodAsync(string workOrder, List<StagingEod> records)
         {
             var result = new X3ImportResult { Identifier = workOrder };
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
 
             try
             { 
@@ -463,7 +494,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     fileBuilder.Append($"M;IPL;{rec.WorkOrderNumber};{rec.ProductCode};{qty};{rec.Unit};1;;{mfgDate};STD;|");
                     
                     // S;Unit;TotalManufacturedQuantity;1;Location;ItemStatus;;;;;ExpiryDate|
-                    fileBuilder.Append($"S;{rec.Unit};{qty};1;{rec.Location};{rec.ItemStatus};;;;;{expDate}|");
+                    fileBuilder.Append($"S;{rec.Unit};{qty};1;{rec.Location};{rec.ItemStatus};{rec.LotNumber ?? ""};;;{expDate}|");
                     
                     // LC;DPT;PRO;CUS;Location2;Location3;;;;|
                     fileBuilder.Append($"LC;DPT;PRO;CUS;{rec.Location2 ?? ""};{rec.Location3 ?? ""};;;;|");
@@ -480,7 +511,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                       "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
                                       "}}";
 
-                string soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
    <soapenv:Header/>
    <soapenv:Body>
       <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
@@ -491,9 +522,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             <requestConfig xsi:type=""xsd:string""></requestConfig>
          </callContext>
          <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
-           <inputXml xsi:type=""xsd:string"">
-                 <![CDATA[{inputXmlJson}]]>
-         </inputXml>
+            <inputXml xsi:type=""xsd:string"">
+                  <![CDATA[{inputXmlJson}]]>
+          </inputXml>
       </wss:run>
    </soapenv:Body>
 </soapenv:Envelope>";
@@ -512,7 +543,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 request.Headers.TryAddWithoutValidation("soapAction", "");
 
                 var response = await _httpClient.SendAsync(request);
-                string responseXml = await response.Content.ReadAsStringAsync();
+                responseXml = await response.Content.ReadAsStringAsync();
 
                 Console.WriteLine("====== SAGE X3 PRODUCTION EOD SOAP RESPONSE ======");
                 Console.WriteLine(responseXml);
@@ -522,15 +553,19 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 {
                     result.Success = false;
                     result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportProductionEod", workOrder, soapEnvelope, responseXml, false, result.TechnicalError);
                     return result;
                 }
 
-                return ParseSoapResponse(responseXml, result);
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                await InsertSoapAuditAsync("ImportProductionEod", workOrder, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
             }
             catch (Exception ex)
             {
                 result.Success = false;
                 result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportProductionEod", workOrder, soapEnvelope, responseXml, false, ex.Message);
                 return result;
             }
         }

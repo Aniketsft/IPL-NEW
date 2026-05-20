@@ -7,7 +7,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SchemaManagement
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private const string SchemaHeaderName = "X-X3-Schema";
-        private const string DefaultSchema = "INLPROD";
+        private const string DefaultSchema = "INLDRYRUN";
 
         public HeaderX3SchemaProvider(IHttpContextAccessor httpContextAccessor)
         {

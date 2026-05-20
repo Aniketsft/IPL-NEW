@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using System.Threading.Tasks;
 using System;
@@ -213,6 +214,7 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [Authorize]
     [HttpPost("end-of-day")]
     public async Task<IActionResult> ProcessEndOfDay()
     {
@@ -220,6 +222,7 @@ public class LogisticsController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize]
     [HttpPost("production-eod")]
     public async Task<IActionResult> ProcessProductionEndOfDay()
     {

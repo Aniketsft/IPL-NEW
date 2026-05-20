@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -11,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 49;
+  static const _databaseVersion = 50;
 
 
   static const tableScans = 'tbl_scans';
@@ -752,6 +753,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v49: $e");
       }
     }
+    if (oldVersion < 50) {
+      debugPrint('DB Upgrade: Adding isDeactivated to tableEodProcessAudits (v50)');
+      try {
+        await db.execute('ALTER TABLE $tableEodProcessAudits ADD COLUMN isDeactivated INTEGER NOT NULL DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v50: $e");
+      }
+    }
   }
 
 
@@ -1037,7 +1046,8 @@ class LocalDatabaseHelper {
         triggeredBy TEXT NOT NULL,
         deviceId TEXT NOT NULL,
         timestamp TEXT NOT NULL,
-        isSynced INTEGER NOT NULL DEFAULT 0
+        isSynced INTEGER NOT NULL DEFAULT 0,
+        isDeactivated INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -1310,6 +1320,7 @@ class LocalDatabaseHelper {
     required List<Map<String, dynamic>> products,
     required List<Map<String, dynamic>> sites,
     required List<Map<String, dynamic>> lots,
+    List<Map<String, dynamic>>? eodProcessAudits,
     bool incremental = true,
   }) async {
     Database db = await instance.database;
@@ -1347,6 +1358,7 @@ class LocalDatabaseHelper {
         await txn.delete(tableProducts);
         await txn.delete(tableSites);
         await txn.delete(tableLots);
+        await txn.delete(tableEodProcessAudits);
       }
 
       // 2. Batch Insert new data (UPSERT via ConflictAlgorithm.replace)
@@ -1434,6 +1446,24 @@ class LocalDatabaseHelper {
             lot,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
+        }
+        if (eodProcessAudits != null) {
+          for (var audit in eodProcessAudits) {
+            batch.insert(
+              tableEodProcessAudits,
+              {
+                'id': audit['id'],
+                'eodDate': audit['eodDate'],
+                'workOrderNumber': audit['workOrderNumber'],
+                'triggeredBy': audit['triggeredBy'],
+                'deviceId': audit['deviceId'],
+                'timestamp': audit['createdAt'] ?? audit['timestamp'] ?? DateTime.now().toIso8601String(),
+                'isSynced': 1,
+                'isDeactivated': audit['isDeactivated'] ?? 0,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
         }
 
         await batch.commit(noResult: true);
@@ -1869,13 +1899,7 @@ class LocalDatabaseHelper {
   }
 
   Future<bool> isEodCompleted(String dateStr) async {
-    final db = await instance.database;
-    final res = await db.query(
-      tableEodStatus,
-      where: 'productionDate = ?',
-      whereArgs: [dateStr],
-    );
-    return res.isNotEmpty;
+    return await isEodProcessAudited(dateStr);
   }
 
   Future<void> markEodCompleted(String dateStr, String workOrder, {String? completedBy}) async {
@@ -1974,8 +1998,7 @@ class LocalDatabaseHelper {
     required String message,
   }) async {
     final db = await instance.database;
-    final prefs = await SharedPreferences.getInstance();
-    final username = prefs.getString('loggedInUser') ?? 'UnknownUser';
+    final username = await SecureStorageService().getUsername() ?? 'UnknownUser';
 
     await db.insert(tableX3SoapAudits, {
       columnTimestamp: DateTime.now().toIso8601String(),
@@ -2002,8 +2025,7 @@ class LocalDatabaseHelper {
     required String workOrderNumber,
   }) async {
     final db = await instance.database;
-    final prefs = await SharedPreferences.getInstance();
-    final username = prefs.getString('loggedInUser') ?? 'UnknownUser';
+    final username = await SecureStorageService().getUsername() ?? 'UnknownUser';
 
     await db.insert(
       tableEodProcessAudits,
@@ -2015,6 +2037,7 @@ class LocalDatabaseHelper {
         'deviceId': DeviceInfoService.instance.deviceInfo,
         'timestamp': DateTime.now().toIso8601String(),
         'isSynced': 0,
+        'isDeactivated': 1,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -2024,7 +2047,7 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     final res = await db.query(
       tableEodProcessAudits,
-      where: 'eodDate = ?',
+      where: 'eodDate = ? AND isDeactivated = 1',
       whereArgs: [dateStr],
     );
     return res.isNotEmpty;

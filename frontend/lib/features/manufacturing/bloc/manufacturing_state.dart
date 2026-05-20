@@ -11,7 +11,7 @@ abstract class ManufacturingState extends Equatable {
     this.currentSiteCode,
     this.dashboardSearchQuery = '',
     this.selectedDate,
-    this.selectedSchema = 'INLPROD',
+    this.selectedSchema = 'INLDRYRUN',
   });
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -398,50 +399,65 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
     if (confirm != true) return;
 
+    final completer = Completer<Map<String, dynamic>>();
+
     setState(() => _isSendingToX3 = true);
+
+    syncBloc.add(StartX3SoapExportRequested(
+      message: 'Exporting Production EOD to Sage X3...',
+      exportAction: () async {
+        try {
+          final response = await networkService.dio.post(
+            'Logistics/production-eod',
+            options: Options(
+              receiveTimeout: const Duration(minutes: 10),
+              sendTimeout: const Duration(minutes: 10),
+            ),
+          );
+          final data = response.data as Map<String, dynamic>? ?? {};
+          // ✅ Log successful trigger to local SQLite
+          await LocalDatabaseHelper.instance.insertX3SoapAudit(
+            endpoint: 'Logistics/production-eod',
+            status: 'Success',
+            message: 'successCount=${data['successCount'] ?? 0}, failureCount=${data['failureCount'] ?? 0}',
+          );
+          completer.complete(data);
+          return data;
+        } on DioException catch (e) {
+          final errorMsg = e.message ?? e.error?.toString() ?? 'DioException';
+          // ❌ Log failed trigger to local SQLite
+          await LocalDatabaseHelper.instance.insertX3SoapAudit(
+            endpoint: 'Logistics/production-eod',
+            status: 'Failed',
+            message: errorMsg,
+          );
+          completer.completeError(errorMsg);
+          throw errorMsg;
+        } catch (e) {
+          // ❌ Log unexpected error to local SQLite
+          await LocalDatabaseHelper.instance.insertX3SoapAudit(
+            endpoint: 'Logistics/production-eod',
+            status: 'Failed',
+            message: e.toString(),
+          );
+          completer.completeError(e.toString());
+          rethrow;
+        }
+      },
+    ));
+
     try {
-      final response = await networkService.dio.post(
-        'Logistics/production-eod',
-        options: Options(
-          receiveTimeout: const Duration(minutes: 10),
-          sendTimeout: const Duration(minutes: 10),
-        ),
-      );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      // ✅ Log successful trigger to local SQLite
-      await LocalDatabaseHelper.instance.insertX3SoapAudit(
-        endpoint: 'Logistics/production-eod',
-        status: 'Success',
-        message: 'successCount=${data['successCount'] ?? 0}, failureCount=${data['failureCount'] ?? 0}',
-      );
+      final data = await completer.future;
       if (mounted) {
         _showX3Results(data);
       }
-    } on DioException catch (e) {
-      // ❌ Log failed trigger to local SQLite
-      await LocalDatabaseHelper.instance.insertX3SoapAudit(
-        endpoint: 'Logistics/production-eod',
-        status: 'Failed',
-        message: e.message ?? e.error?.toString() ?? 'DioException',
-      );
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('X3 Error: ${e.message ?? e.error}'),
+            content: Text('X3 Error: $e'),
             backgroundColor: Colors.red,
           ),
-        );
-      }
-    } catch (e) {
-      // ❌ Log unexpected error to local SQLite
-      await LocalDatabaseHelper.instance.insertX3SoapAudit(
-        endpoint: 'Logistics/production-eod',
-        status: 'Failed',
-        message: e.toString(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -594,19 +610,18 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 children: [
-                  if (!_isEodDone)
-                    OutlinedButton.icon(
-                      onPressed: _printReport,
-                      icon: const Icon(Icons.picture_as_pdf, size: 20),
-                      label: const Text('PREVIEW PDF'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _amber,
-                        side: const BorderSide(color: _amber),
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                  OutlinedButton.icon(
+                    onPressed: _printReport,
+                    icon: Icon(_isEodDone ? Icons.print : Icons.picture_as_pdf, size: 20),
+                    label: Text(_isEodDone ? 'PRINT REPORT' : 'PREVIEW PDF'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _amber,
+                      side: const BorderSide(color: _amber),
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  if (!_isEodDone) const SizedBox(height: 12),
+                  ),
+                  const SizedBox(height: 12),
                   _actionButton(),
                 ],
               ),
@@ -617,14 +632,6 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   // Widgets
-  Widget _label(String text, ThemeData theme) => Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: _amber,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.4,
-        ),
-      );
 
   Widget _dateFilter(bool isDark, ThemeData theme) {
     return Container(
@@ -880,12 +887,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _actionButton() => ElevatedButton.icon(
-        onPressed: _isSaving ? null : (_isEodDone ? _printReport : _completeEndOfDay),
-        icon: Icon(_isEodDone ? Icons.print : Icons.check_circle_outline, size: 20),
-        label: Text(_isSaving ? 'COMPLETING...' : (_isEodDone ? 'PRINT REPORT' : 'END OF DAY')),
+        onPressed: _isSaving || _isEodDone ? null : _completeEndOfDay,
+        icon: const Icon(Icons.check_circle_outline, size: 20),
+        label: Text(_isSaving ? 'COMPLETING...' : 'END OF DAY'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isEodDone ? Colors.blueGrey : _amber,
-          foregroundColor: _isEodDone ? Colors.white : Colors.black,
+          backgroundColor: _isEodDone ? Colors.grey : _amber,
+          foregroundColor: _isEodDone ? Colors.white70 : Colors.black,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),

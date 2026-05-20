@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'secure_storage_service.dart';
 import 'config/api_config.dart';
+import 'services/device_info_service.dart';
 
 class NetworkService {
   late final Dio dio;
@@ -38,10 +39,10 @@ class NetworkService {
             options.headers['Authorization'] = 'Bearer $token';
           }
           
-          final schema = await _storageService.getSchema();
-          if (schema != null) {
-            options.headers['X-X3-Schema'] = schema;
-          }
+          final schema = await _storageService.getSchema() ?? 'INLDRYRUN';
+          options.headers['X-X3-Schema'] = schema;
+          
+          options.headers['X-Device-Id'] = DeviceInfoService.instance.deviceInfo;
           
           return handler.next(options);
         },

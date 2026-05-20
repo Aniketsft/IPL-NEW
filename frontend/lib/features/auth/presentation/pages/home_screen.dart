@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/qr_label_screen.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/picking_screen.dart';
 import 'package:enterprise_auth_mobile/features/inventory/ui/screens/stock_control_screen.dart';
@@ -14,8 +15,16 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/del
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
+import 'package:intl/intl.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final String username;
   final List<String> permissions;
 
@@ -25,11 +34,60 @@ class HomeScreen extends StatelessWidget {
     required this.permissions,
   });
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _lastSyncStr = 'Never';
+
   bool _hasAccess(String module, String submodule) {
-    if (permissions.contains('administration.user_management.delete')) {
+    if (widget.permissions.contains('administration.user_management.delete')) {
       return true;
     }
-    return permissions.contains('$module.$submodule.read');
+    return widget.permissions.contains('$module.$submodule.read');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastSync();
+  }
+
+  Future<void> _loadLastSync() async {
+    try {
+      final history = await LocalDatabaseHelper.instance.getSyncHistory();
+      if (history.isNotEmpty) {
+        // Find latest 'Success' entry
+        final last = history.firstWhere(
+          (h) => h[LocalDatabaseHelper.colSyncStatus] == 'Success',
+          orElse: () => history.first,
+        );
+        final timestampStr = last[LocalDatabaseHelper.colSyncTimestamp] as String;
+        final timestamp = DateTime.tryParse(timestampStr);
+        if (timestamp != null) {
+          setState(() {
+            _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(timestamp);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Home: Error loading last sync: $e");
+    }
+  }
+
+  void _triggerSync() {
+    final authState = context.read<AuthBloc>().state;
+    String? siteCode;
+    if (authState is Authenticated) {
+      siteCode = authState.siteCode;
+    }
+
+    context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
+    
+    // Periodically check if sync is done to refresh timestamp
+    Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
+    Future.delayed(const Duration(seconds: 10), () => _loadLastSync());
   }
 
   @override
@@ -37,48 +95,65 @@ class HomeScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        final bool? shouldExit = await _showExitConfirmation(context);
-        if (shouldExit == true) {
-          SystemNavigator.pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: theme.colorScheme.surface,
-          elevation: 0,
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: Icon(Icons.menu, color: isDark ? Colors.white70 : Colors.black87),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          title: Text(
-            'HIPO CLOUD',
-            style: TextStyle(
-              color: theme.primaryColor,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: Icon(
-                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                color: isDark ? Colors.white70 : Colors.black87,
+    return BlocBuilder<SyncBloc, SyncState>(
+      builder: (context, syncState) {
+        return BlocBuilder<ManufacturingBloc, ManufacturingState>(
+          builder: (context, mfgState) {
+            final isSyncing = syncState is SyncInProgress ||
+                mfgState is ManufacturingSyncProgress;
+
+            return PopScope(
+              canPop: false,
+              onPopInvoked: (didPop) async {
+                if (didPop) return;
+                if (isSyncing) return; // Block exiting during sync
+                final bool? shouldExit = await _showExitConfirmation(context);
+                if (shouldExit == true) {
+                  SystemNavigator.pop();
+                }
+              },
+              child: Stack(
+                children: [
+                  Scaffold(
+                    backgroundColor: theme.scaffoldBackgroundColor,
+                    appBar: AppBar(
+                      backgroundColor: theme.colorScheme.surface,
+                      elevation: 0,
+                      leading: Builder(
+                        builder: (context) => IconButton(
+                          icon: Icon(Icons.menu, color: isDark ? Colors.white70 : Colors.black87),
+                          onPressed: isSyncing ? null : () => Scaffold.of(context).openDrawer(),
+                        ),
+                      ),
+                      title: Text(
+                        'HIPO CLOUD',
+                        style: TextStyle(
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      actions: [
+                        IconButton(
+                          icon: Icon(
+                            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          onPressed: isSyncing ? null : () => context.read<ThemeCubit>().toggleTheme(),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                    drawer: isSyncing ? null : _buildDrawer(context),
+                    body: _buildBody(context),
+                  ),
+                  const SyncOverlay(),
+                ],
               ),
-              onPressed: () => context.read<ThemeCubit>().toggleTheme(),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        drawer: _buildDrawer(context),
-        body: _buildBody(context),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -122,28 +197,36 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (permissions.isEmpty) {
+    if (widget.permissions.isEmpty) {
       return _buildRestrictedUI(
         context,
         'NO PERMISSIONS ASSIGNED',
-        'Your account ($username) has no assigned permissions. Please contact your system administrator.',
+        'Your account (${widget.username}) has no assigned permissions. Please contact your system administrator.',
       );
     }
 
     final List<Widget> menuItems = [
+      _buildMenuButton(
+        context,
+        'Data Sync',
+        Icons.sync_rounded,
+        null,
+        onTapOverride: _triggerSync,
+        subtitle: 'Last: $_lastSyncStr',
+      ),
       if (_hasAccess('logistics', 'delivery'))
         _buildMenuButton(
           context,
           'Delivery',
           Icons.local_shipping_rounded,
-          DeliveryScreen(permissions: permissions),
+          DeliveryScreen(permissions: widget.permissions),
         ),
       if (_hasAccess('manufacturing', 'all'))
         _buildMenuButton(
           context,
           'Manufacturing',
           Icons.precision_manufacturing_rounded,
-          ManufacturingScreen(permissions: permissions),
+          ManufacturingScreen(permissions: widget.permissions),
         ),
       if (_hasAccess('settings', 'general'))
         _buildMenuButton(
@@ -179,7 +262,7 @@ class HomeScreen extends StatelessWidget {
       return _buildRestrictedUI(
         context,
         'NO AUTHORIZED MODULES',
-        'Your account has permissions ${permissions.take(3).toList()}... but none match the dashboard modules.',
+        'Your account has permissions ${widget.permissions.take(3).toList()}... but none match the dashboard modules.',
       );
     }
 
@@ -239,23 +322,29 @@ class HomeScreen extends StatelessWidget {
     IconData icon,
     Widget? screen, {
     VoidCallback? onTapOverride,
+    String? subtitle,
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    final syncState = context.watch<SyncBloc>().state;
+    final mfgState = context.watch<ManufacturingBloc>().state;
+    final isSyncing = syncState is SyncInProgress || mfgState is ManufacturingSyncProgress;
 
     return Material(
       color: theme.cardColor,
       borderRadius: BorderRadius.circular(12),
       elevation: isDark ? 0 : 2,
       child: InkWell(
-        onTap:
-            onTapOverride ??
-            (screen != null
-                ? () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => screen),
-                  )
-                : null),
+        onTap: isSyncing
+            ? null
+            : (onTapOverride ??
+                (screen != null
+                    ? () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => screen),
+                      )
+                    : null)),
         borderRadius: BorderRadius.circular(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -271,6 +360,16 @@ class HomeScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -303,7 +402,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        username.toUpperCase(),
+                        widget.username.toUpperCase(),
                         style: TextStyle(
                           color: isDark ? Colors.white : Colors.black87,
                           fontSize: 18,

@@ -16,6 +16,7 @@ class AppSettings {
   final String? excessDefaultCustomer;
   final String? excessDefaultSalesman;
   final double? tolerancePercentage;
+  final String? selectedSchema;
 
   AppSettings({
     required this.availableCompanies,
@@ -29,6 +30,7 @@ class AppSettings {
     this.excessDefaultCustomer,
     this.excessDefaultSalesman,
     this.tolerancePercentage,
+    this.selectedSchema,
   });
 
   factory AppSettings.mock() {
@@ -41,6 +43,7 @@ class AppSettings {
       selectedCompanyId: companies.first.id,
       selectedSiteId: sites.first.id,
       selectedQuantityDecimals: 2,
+      selectedSchema: 'INLDRYRUN',
     );
   }
 
@@ -56,6 +59,7 @@ class AppSettings {
     String? excessDefaultCustomer,
     String? excessDefaultSalesman,
     double? tolerancePercentage,
+    String? selectedSchema,
   }) {
     return AppSettings(
       availableCompanies: availableCompanies ?? this.availableCompanies,
@@ -70,6 +74,7 @@ class AppSettings {
       excessDefaultCustomer: excessDefaultCustomer ?? this.excessDefaultCustomer,
       excessDefaultSalesman: excessDefaultSalesman ?? this.excessDefaultSalesman,
       tolerancePercentage: tolerancePercentage ?? this.tolerancePercentage,
+      selectedSchema: selectedSchema ?? this.selectedSchema,
     );
   }
 }

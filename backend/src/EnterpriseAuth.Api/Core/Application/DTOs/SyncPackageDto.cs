@@ -15,6 +15,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<LotLookupDto> Lots { get; set; } = new();
         public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
         public Dictionary<string, string> GlobalSettingsMap { get; set; } = new();
+        public List<EodProcessAuditDto> EodProcessAudits { get; set; } = new();
         public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
     }
 
@@ -113,5 +114,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string TriggeredBy { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+        public bool IsDeactivated { get; set; }
     }
 }

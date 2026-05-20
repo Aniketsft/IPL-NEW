@@ -1020,6 +1020,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         );
                         PRINT 'Created X3SoapAudits table';
                     END
+                    ELSE
+                    BEGIN
+                        IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'X3SoapAudits' AND COLUMN_NAME = 'ErrorMessage' AND CHARACTER_MAXIMUM_LENGTH > 0 AND CHARACTER_MAXIMUM_LENGTH < 2000)
+                        BEGIN
+                            ALTER TABLE [dbo].[X3SoapAudits] ALTER COLUMN [ErrorMessage] NVARCHAR(2000) NULL;
+                            PRINT 'Altered ErrorMessage column in X3SoapAudits to NVARCHAR(2000)';
+                        END
+                    END
 
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[EodProcessAudits]') AND type in (N'U'))
                     BEGIN
@@ -1029,10 +1037,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             [WorkOrderNumber] NVARCHAR(100) NOT NULL,
                             [TriggeredBy] NVARCHAR(200) NOT NULL,
                             [DeviceId] NVARCHAR(255) NOT NULL,
-                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                            [IsDeactivated] BIT NOT NULL DEFAULT 0
                         );
                         CREATE INDEX [IX_EodProcessAudits_EodDate] ON [dbo].[EodProcessAudits] ([EodDate]);
                         PRINT 'Created EodProcessAudits table';
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EodProcessAudits' AND COLUMN_NAME = 'IsDeactivated')
+                    BEGIN
+                        ALTER TABLE [dbo].[EodProcessAudits] ADD [IsDeactivated] BIT NOT NULL DEFAULT 0;
+                    END
+
+                    IF NOT EXISTS (SELECT 1 FROM [dbo].[GlobalSettings] WHERE [SettingKey] = 'X3Schema')
+                    BEGIN
+                        INSERT INTO [dbo].[GlobalSettings] ([SettingKey], [SettingValue], [LastUpdatedBy], [UpdatedAt], [Action])
+                        VALUES ('X3Schema', 'INLDRYRUN', 'SYSTEM', GETUTCDATE(), 'INSERT');
                     END
                 ";
                 await context.Database.ExecuteSqlRawAsync(sql);
