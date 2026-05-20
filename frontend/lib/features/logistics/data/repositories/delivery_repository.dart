@@ -831,7 +831,7 @@ class DeliveryRepository implements ILogisticsRepository {
             'createdAt': l[LocalDatabaseHelper.colCreatedAt],
             'isOfflineCreated': true,
           }).toList(),
-          'deviceId': 'mobile-terminal',
+          'deviceId': DeviceInfoService.instance.deviceInfo,
           'globalSettingsUpdates': settingsPayload,
           'stagingEodEntries': unsyncedStagingEod.map((e) => {
             'id': e['id'],

@@ -267,6 +267,21 @@ class PrinterService {
     String deliveryDate = "MULTIPLE",
     String? auditId,
   }) async {
+    if (_mode == PrintMode.directIp) {
+      final zpl = ZplGenerator.generatePaletteLabel(
+        soCount: soCount,
+        totalWeight: totalWeight,
+        unit: unit,
+        qrData: qrData,
+        manifest: manifest,
+        customerName: customerName,
+        deliveryDate: deliveryDate,
+        auditId: auditId,
+      );
+      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      return;
+    }
+
     final doc = pw.Document();
 
     doc.addPage(

@@ -272,6 +272,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // 6. Parse Response
                 var parsedResult = ParseSoapResponse(responseXml, result);
+                
+                // Override success based on specific delivery validation string
+                bool hasDeliveryValidated = parsedResult.Messages.Any(m => m.Contains("delivery validated", StringComparison.OrdinalIgnoreCase)) || 
+                                            responseXml.Contains("delivery validated", StringComparison.OrdinalIgnoreCase);
+                
+                parsedResult.Success = hasDeliveryValidated;
+                
                 await InsertSoapAuditAsync("ImportSalesOrder", soNumber, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
                 return parsedResult;
             }

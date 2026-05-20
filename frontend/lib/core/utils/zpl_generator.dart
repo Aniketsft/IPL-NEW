@@ -80,10 +80,10 @@ class ZplGenerator {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
 
     String itemLines = "";
-    int y = 420;
+    int y = 360;
     for (var i = 0; i < items.length && i < 8; i++) {
-      itemLines += "^FO50,$y^A0N,25,25^FD${items[i]['itemCode']}^FS";
-      itemLines += "^FO600,$y^A0N,25,25^FD${items[i]['weight']} $unit^FS";
+      itemLines += "^FO40,$y^A0N,25,25^FD${items[i]['itemCode']}^FS";
+      itemLines += "^FO300,$y^A0N,25,25^FD${items[i]['weight']} $unit^FS";
       y += 35;
     }
 
@@ -93,29 +93,39 @@ class ZplGenerator {
 ^PW780
 ^LL780
 
-^FO50,40^GB700,80,80^FS
-^FO100,60^A0N,45,45^FR^FB612,1,C^FDCRATE SUMMARY LABEL^FS
+-- Top Section: Code & Description --
 
-^FO50,150^A0N,30,30^FDCUSTOMER:^FS
-^FO220,150^A0N,40,40^FD${customerName.toUpperCase()}^FS
+^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
+^FO40,40^A0N,40,40^FDCRATE SUMMARY LABEL^FS
 
-^FO50,210^A0N,30,30^FDSALES ORDER:^FS
-^FO280,210^A0N,35,35^FD$soNumber^FS
+-- Customer & SO --
+^FO40,140^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,185^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
-^FO50,260^A0N,30,30^FDDELIVERY:^FS
-^FO220,260^A0N,35,35^FD$deliveryDate^FS
+-- Middle Divider --
+^FO40,240^GB700,3,3^FS
 
-^FO50,320^GB700,60,4^FS
-^FO70,335^A0N,30,30^FDPRODUCT^FS
-^FO600,335^A0N,30,30^FDWEIGHT^FS
+-- Delivery Date Info --
+^FO40,270^A0N,30,30^FDDELIVERY: $deliveryDate^FS
 
+-- Header --
+^FO40,320^A0N,25,25^FDPRODUCT^FS
+^FO300,320^A0N,25,25^FDWEIGHT^FS
+
+-- QR Code --
+^FO460,360^BQN,2,6^FDQA,$qrData^FS
+
+-- Items List --
 $itemLines
 
-^FO50,700^GB700,3,3^FS
-^FO50,720^A0N,30,30^FDTOTAL WEIGHT:^FS
-^FO300,715^A0N,60,60^FD${total.toStringAsFixed(2)} $unit^FS
+-- Large Quantity --
+^FO40,620^A0N,30,30^FDTOTAL WEIGHT:^FS
+^FO40,650^A0N,50,50^FD${total.toStringAsFixed(3)} $unit^FS
 
-^FO30,500^BQN,2,9^FDQA,$qrData^FS
+-- Footer / Audit --
+^FO40,700^GB700,3,3^FS
+^FO40,720^A0N,25,25^FDLabel ID: ${auditId ?? "INTERNAL"}^FS
+^FO40,750^A0N,18,18^FDPrinted at: $now^FS
 
 ^XZ
 """;
@@ -178,6 +188,86 @@ $itemLines
 
 ^FO50,770^GB700,25,25^FS
 ^FO100,775^A0N,18,18^FR^FB612,1,C^FDVERIFIED BY PRODUCTION SUPERVISOR^FS
+
+^XZ
+""";
+  }
+
+  static String generatePaletteLabel({
+    required int soCount,
+    required String customerName,
+    required String deliveryDate,
+    required double totalWeight,
+    required String unit,
+    required String qrData,
+    required Map<String, Map<String, dynamic>> manifest,
+    String? auditId,
+  }) {
+    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    String itemLines = "";
+    int y = 360;
+    
+    int lineCount = 0;
+    for (var entry in manifest.entries) {
+      if (lineCount >= 8) break;
+      final so = entry.key;
+      final data = entry.value;
+      final items = List<Map<String, String>>.from(data['items'] ?? []);
+      
+      itemLines += "^FO40,$y^A0N,20,20^FDSO: $so^FS";
+      y += 25;
+      lineCount++;
+
+      for (var item in items) {
+        if (lineCount >= 8) break;
+        String prod = item['itemCode'] ?? 'N/A';
+        String wgt = '${item['weight'] ?? '0.00'} $unit';
+        itemLines += "^FO60,$y^A0N,20,20^FD$prod^FS";
+        itemLines += "^FO300,$y^A0N,20,20^FD$wgt^FS";
+        y += 25;
+        lineCount++;
+      }
+    }
+
+    return """
+^XA
+^CI28
+^PW780
+^LL780
+
+-- Top Section: Code & Description --
+
+^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
+^FO40,40^A0N,40,40^FDPALETTE MASTER LABEL^FS
+
+-- Customer & SO --
+^FO40,140^A0N,35,35^FB700,1,L^FDCUST: $customerName^FS
+^FO40,185^A0N,35,35^FDTOTAL SOs: $soCount^FS
+
+-- Middle Divider --
+^FO40,240^GB700,3,3^FS
+
+-- Delivery Date Info --
+^FO40,270^A0N,30,30^FDDELIVERY: $deliveryDate^FS
+
+-- Header --
+^FO40,320^A0N,25,25^FDEXPLODED MANIFEST^FS
+
+-- QR Code --
+^FO460,360^BQN,2,6^FDQA,$qrData^FS
+
+-- Items List --
+$itemLines
+
+-- Large Quantity --
+^FO40,620^A0N,30,30^FDTOTAL WEIGHT:^FS
+^FO40,650^A0N,50,50^FD${totalWeight.toStringAsFixed(3)} $unit^FS
+
+-- Footer / Audit --
+^FO40,700^GB700,3,3^FS
+^FO40,720^A0N,25,25^FDLabel ID: ${auditId ?? "INTERNAL"}^FS
+^FO40,750^A0N,18,18^FDPrinted at: $now^FS
 
 ^XZ
 """;
