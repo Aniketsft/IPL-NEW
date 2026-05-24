@@ -14,6 +14,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         Task<AuthResponse?> LoginAsync(LoginRequest request);
         Task<bool> RegisterAsync(RegisterRequest request);
         Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request);
+        Task<AuthResponse?> RefreshTokenAsync(string username);
     }
 
     public class AuthService : IAuthService
@@ -56,6 +57,22 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             
             // Log login success quietly
             Console.WriteLine($"AuthService: User {user.Username} logged in with {permissions.Count} permissions.");
+
+            return new AuthResponse
+            {
+                Token = token,
+                Username = user.Username,
+                Permissions = permissions
+            };
+        }
+
+        public async Task<AuthResponse?> RefreshTokenAsync(string username)
+        {
+            var user = await _userRepository.GetByUsernameAsync(username);
+            if (user == null || !user.IsActive) return null;
+
+            var token = _tokenService.GenerateToken(user);
+            var permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).Distinct().ToList();
 
             return new AuthResponse
             {

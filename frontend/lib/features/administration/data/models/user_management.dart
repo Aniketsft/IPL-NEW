@@ -63,7 +63,7 @@ class User extends Equatable {
   final String username;
   final String email;
   final bool isActive;
-  final String? userGroupId;
+  final String? roleId;
   final List<ModuleAccess> permissions;
 
   const User({
@@ -71,7 +71,7 @@ class User extends Equatable {
     required this.username,
     required this.email,
     required this.isActive,
-    this.userGroupId,
+    this.roleId,
     this.permissions = const [],
   });
 

@@ -96,7 +96,7 @@ class UserManagementRepository {
     required String username,
     required String email,
     required String password,
-    required String groupId,
+    required String? roleId,
     List<ModuleAccess> permissions = const [],
   }) async {
     try {
@@ -115,7 +115,7 @@ class UserManagementRepository {
           'username': username,
           'email': email,
           'password': password,
-          'userGroupId': groupId,
+          'roleId': roleId,
           'isActive': true,
           'permissions': permStrings,
         },
@@ -123,6 +123,36 @@ class UserManagementRepository {
       );
     } catch (e) {
       throw 'Failed to create user: $e';
+    }
+  }
+
+  Future<void> updateUser(User user) async {
+    try {
+      await _dio.put(
+        'Users/${user.id}',
+        data: {
+          'id': user.id,
+          'username': user.username,
+          'email': user.email,
+          'isActive': user.isActive,
+          'roleId': user.roleId,
+        },
+        options: Options(contentType: Headers.jsonContentType),
+      );
+    } catch (e) {
+      throw 'Failed to update user: $e';
+    }
+  }
+
+  Future<void> createRole(UserRole role) async {
+    try {
+      await _dio.post(
+        'Roles',
+        data: _mapRoleToJson(role),
+        options: Options(contentType: Headers.jsonContentType),
+      );
+    } catch (e) {
+      throw 'Failed to create role: $e';
     }
   }
 
@@ -168,7 +198,7 @@ class UserManagementRepository {
       username: json['username'],
       email: json['email'],
       isActive: json['isActive'],
-      userGroupId: json['userGroupId'],
+      roleId: json['roleId'],
       permissions: (json['permissions'] as List? ?? [])
           .map((p) => p.toString())
           .fold<Map<String, ModuleAccess>>({}, (acc, p) {

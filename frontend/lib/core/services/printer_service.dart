@@ -1,4 +1,5 @@
-import 'dart:typed_data';
+import 'dart:convert';
+import 'package:enterprise_auth_mobile/core/models/printer_device.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -14,14 +15,47 @@ class PrinterService {
 
   late SharedPreferences _prefs;
   PrintMode _mode = PrintMode.directIp;
-  String _printerIp = '172.26.45.120';
-  int _printerPort = 9100;
+  List<PrinterDevice> _printers = [];
+  String? _defaultDirectIpPrinterId;
+  String? _defaultSystemPrinterId;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     _mode = PrintMode.values[_prefs.getInt('print_mode') ?? 1];
-    _printerIp = _prefs.getString('printer_ip') ?? '172.26.45.120';
-    _printerPort = _prefs.getInt('printer_port') ?? 9100;
+    
+    final printersJson = _prefs.getString('printers_list');
+    if (printersJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(printersJson);
+        _printers = decoded.map((e) => PrinterDevice.fromJson(e)).toList();
+      } catch(e) {
+        _printers = [];
+      }
+    } else {
+      // Migrate old data if present
+      final oldIp = _prefs.getString('printer_ip');
+      if (oldIp != null) {
+        final defaultPrinter = PrinterDevice(
+          id: 'default_migration_id',
+          name: 'Legacy Thermal Printer',
+          printerModel: 'Generic',
+          ipAddress: oldIp,
+          port: _prefs.getInt('printer_port') ?? 9100,
+          mode: PrintMode.directIp,
+        );
+        _printers = [defaultPrinter];
+        _defaultDirectIpPrinterId = defaultPrinter.id;
+        await _savePrinters();
+      }
+    }
+    
+    _defaultDirectIpPrinterId = _prefs.getString('default_direct_ip_printer_id') ?? _defaultDirectIpPrinterId;
+    _defaultSystemPrinterId = _prefs.getString('default_system_printer_id');
+  }
+
+  Future<void> _savePrinters() async {
+    final encoded = jsonEncode(_printers.map((e) => e.toJson()).toList());
+    await _prefs.setString('printers_list', encoded);
   }
 
   Future<void> setPrintMode(PrintMode mode) async {
@@ -29,19 +63,73 @@ class PrinterService {
     await _prefs.setInt('print_mode', mode.index);
   }
 
-  Future<void> setPrinterIp(String ip) async {
-    _printerIp = ip;
-    await _prefs.setString('printer_ip', ip);
+  List<PrinterDevice> get printers => List.unmodifiable(_printers);
+  
+  PrinterDevice? get defaultDirectIpPrinter {
+    try {
+      return _printers.firstWhere((p) => p.id == _defaultDirectIpPrinterId && p.mode == PrintMode.directIp);
+    } catch (_) {
+      return null;
+    }
   }
 
-  Future<void> setPrinterPort(int port) async {
-    _printerPort = port;
-    await _prefs.setInt('printer_port', port);
+  PrinterDevice? get defaultSystemPrinter {
+    try {
+      return _printers.firstWhere((p) => p.id == _defaultSystemPrinterId && p.mode == PrintMode.system);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> addPrinter(PrinterDevice printer) async {
+    _printers.add(printer);
+    await _savePrinters();
+    
+    // Auto-assign default if it's the first of its mode
+    if (printer.mode == PrintMode.directIp && _defaultDirectIpPrinterId == null) {
+      await setDefaultPrinter(printer.id, PrintMode.directIp);
+    } else if (printer.mode == PrintMode.system && _defaultSystemPrinterId == null) {
+      await setDefaultPrinter(printer.id, PrintMode.system);
+    }
+  }
+
+  Future<void> updatePrinter(PrinterDevice printer) async {
+    final index = _printers.indexWhere((p) => p.id == printer.id);
+    if (index != -1) {
+      _printers[index] = printer;
+      await _savePrinters();
+    }
+  }
+
+  Future<void> removePrinter(String id) async {
+    final printer = _printers.firstWhere((p) => p.id == id);
+    _printers.removeWhere((p) => p.id == id);
+    await _savePrinters();
+
+    if (printer.mode == PrintMode.directIp && _defaultDirectIpPrinterId == id) {
+      _defaultDirectIpPrinterId = null;
+      await _prefs.remove('default_direct_ip_printer_id');
+      final fallback = _printers.where((p) => p.mode == PrintMode.directIp).firstOrNull;
+      if (fallback != null) await setDefaultPrinter(fallback.id, PrintMode.directIp);
+    } else if (printer.mode == PrintMode.system && _defaultSystemPrinterId == id) {
+      _defaultSystemPrinterId = null;
+      await _prefs.remove('default_system_printer_id');
+      final fallback = _printers.where((p) => p.mode == PrintMode.system).firstOrNull;
+      if (fallback != null) await setDefaultPrinter(fallback.id, PrintMode.system);
+    }
+  }
+
+  Future<void> setDefaultPrinter(String id, PrintMode mode) async {
+    if (mode == PrintMode.directIp) {
+      _defaultDirectIpPrinterId = id;
+      await _prefs.setString('default_direct_ip_printer_id', id);
+    } else {
+      _defaultSystemPrinterId = id;
+      await _prefs.setString('default_system_printer_id', id);
+    }
   }
 
   PrintMode get currentMode => _mode;
-  String get printerIp => _printerIp;
-  int get printerPort => _printerPort;
 
   Future<bool> isConnected() async {
     return true;
@@ -65,6 +153,10 @@ class PrinterService {
     String? salesman,
   }) async {
     if (_mode == PrintMode.directIp) {
+      final printer = defaultDirectIpPrinter;
+      if (printer == null || printer.ipAddress == null || printer.port == null) {
+        throw Exception("No default Direct IP printer configured.");
+      }
       final zpl = ZplGenerator.generateItemLabel(
         soNumber: soNumber,
         customerName: customerName,
@@ -79,7 +171,7 @@ class PrinterService {
         auditId: auditId,
         salesman: salesman,
       );
-      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
     }
 
@@ -162,6 +254,10 @@ class PrinterService {
     String? auditId,
   }) async {
     if (_mode == PrintMode.directIp) {
+      final printer = defaultDirectIpPrinter;
+      if (printer == null || printer.ipAddress == null || printer.port == null) {
+        throw Exception("No default Direct IP printer configured.");
+      }
       final zpl = ZplGenerator.generateCrateLabel(
         soNumber: soNumber,
         customerName: customerName,
@@ -171,7 +267,7 @@ class PrinterService {
         qrData: qrData,
         auditId: auditId,
       );
-      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
     }
 
@@ -268,6 +364,10 @@ class PrinterService {
     String? auditId,
   }) async {
     if (_mode == PrintMode.directIp) {
+      final printer = defaultDirectIpPrinter;
+      if (printer == null || printer.ipAddress == null || printer.port == null) {
+        throw Exception("No default Direct IP printer configured.");
+      }
       final zpl = ZplGenerator.generatePaletteLabel(
         soCount: soCount,
         totalWeight: totalWeight,
@@ -278,7 +378,7 @@ class PrinterService {
         deliveryDate: deliveryDate,
         auditId: auditId,
       );
-      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
     }
 
@@ -376,12 +476,16 @@ class PrinterService {
     required List<dynamic> items,
   }) async {
     if (_mode == PrintMode.directIp) {
+      final printer = defaultDirectIpPrinter;
+      if (printer == null || printer.ipAddress == null || printer.port == null) {
+        throw Exception("No default Direct IP printer configured.");
+      }
       final zpl = ZplGenerator.generateEodLabel(
         workOrder: workOrder,
         dateStr: dateStr,
         items: items,
       );
-      await TcpPrintService.sendRawData(_printerIp, _printerPort, zpl);
+      await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
     }
 

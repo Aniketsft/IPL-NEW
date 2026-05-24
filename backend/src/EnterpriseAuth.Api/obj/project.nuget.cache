@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "2HT8fcQ8Z9U=",
+  "dgSpecHash": "uu9lKiuJdOI=",
   "success": true,
   "projectFilePath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
   "expectedPackageFiles": [
@@ -89,13 +89,16 @@
   ],
   "logs": [
     {
-      "code": "NU1900",
+      "code": "NU1903",
       "level": "Warning",
-      "message": "Error occurred while getting package vulnerability data: Unable to load the service index for source https://api.nuget.org/v3/index.json.",
+      "message": "Package 'AutoMapper' 12.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x",
       "projectPath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
       "warningLevel": 1,
       "filePath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
-      "targetGraphs": []
+      "libraryId": "AutoMapper",
+      "targetGraphs": [
+        "net8.0"
+      ]
     }
   ]
 }

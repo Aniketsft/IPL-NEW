@@ -31,6 +31,7 @@ import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_service.dart';
+import 'package:enterprise_auth_mobile/core/widgets/inactivity_watcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -147,22 +148,24 @@ class MyApp extends StatelessWidget {
         ],
         child: BlocBuilder<ThemeCubit, ThemeMode>(
           builder: (context, themeMode) {
-            return MaterialApp(
-              title: 'Enterprise Auth',
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: themeMode,
-              debugShowCheckedModeBanner: false,
-              home: BlocBuilder<AuthBloc, AuthState>(
-                builder: (context, state) {
-                  if (state is Authenticated) {
-                    return HomeScreen(
-                      username: state.username,
-                      permissions: state.permissions,
-                    );
-                  }
-                  return const LoginScreen();
-                },
+            return InactivityWatcher(
+              child: MaterialApp(
+                title: 'Enterprise Auth',
+                theme: AppTheme.lightTheme,
+                darkTheme: AppTheme.darkTheme,
+                themeMode: themeMode,
+                debugShowCheckedModeBanner: false,
+                home: BlocBuilder<AuthBloc, AuthState>(
+                  builder: (context, state) {
+                    if (state is Authenticated) {
+                      return HomeScreen(
+                        username: state.username,
+                        permissions: state.permissions,
+                      );
+                    }
+                    return const LoginScreen();
+                  },
+                ),
               ),
             );
           },

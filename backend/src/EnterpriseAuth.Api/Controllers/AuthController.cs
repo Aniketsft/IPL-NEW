@@ -23,6 +23,18 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(response);
         }
 
+        [HttpPost("refresh")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<IActionResult> Refresh()
+        {
+            var username = User.FindFirst("username")?.Value;
+            if (string.IsNullOrEmpty(username)) return Unauthorized();
+
+            var response = await _authService.RefreshTokenAsync(username);
+            if (response == null) return Unauthorized(new { message = "Invalid session" });
+            return Ok(response);
+        }
+
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {

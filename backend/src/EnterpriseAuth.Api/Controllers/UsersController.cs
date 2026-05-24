@@ -32,7 +32,7 @@ namespace EnterpriseAuth.Api.Controllers
                 Username = u.Username,
                 Email = u.Email,
                 IsActive = u.IsActive,
-                UserGroupId = u.UserGroupId,
+                RoleId = u.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"))?.Id,
                 Permissions = u.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).ToList()
             });
             return Ok(dtos);
@@ -50,7 +50,7 @@ namespace EnterpriseAuth.Api.Controllers
                 Username = user.Username,
                 Email = user.Email,
                 IsActive = user.IsActive,
-                UserGroupId = user.UserGroupId,
+                RoleId = user.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"))?.Id,
                 Permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).ToList()
             };
             return Ok(dto);
@@ -68,10 +68,20 @@ namespace EnterpriseAuth.Api.Controllers
                 Email = request.Email,
                 PasswordHash = passwordHash,
                 Salt = salt,
-                UserGroupId = request.UserGroupId,
+                UserGroupId = null,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
+
+            // Assign standard role if RoleId is provided
+            if (request.RoleId.HasValue && request.RoleId.Value != Guid.Empty)
+            {
+                var standardRole = await _context.Roles.FindAsync(request.RoleId.Value);
+                if (standardRole != null)
+                {
+                    user.Roles.Add(standardRole);
+                }
+            }
 
             // Handle custom permissions by creating a dedicated role for this user
             if (request.Permissions != null && request.Permissions.Any())
@@ -112,8 +122,33 @@ namespace EnterpriseAuth.Api.Controllers
             user.Username = dto.Username;
             user.Email = dto.Email;
             user.IsActive = dto.IsActive;
-            user.UserGroupId = dto.UserGroupId;
+            user.UserGroupId = null;
             user.UpdatedAt = DateTime.UtcNow;
+
+            // Handle standard role update
+            var currentStandardRole = user.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"));
+            if (dto.RoleId.HasValue && dto.RoleId.Value != Guid.Empty)
+            {
+                if (currentStandardRole == null || currentStandardRole.Id != dto.RoleId.Value)
+                {
+                    if (currentStandardRole != null)
+                    {
+                        user.Roles.Remove(currentStandardRole);
+                    }
+                    var newStandardRole = await _context.Roles.FindAsync(dto.RoleId.Value);
+                    if (newStandardRole != null)
+                    {
+                        user.Roles.Add(newStandardRole);
+                    }
+                }
+            }
+            else
+            {
+                if (currentStandardRole != null)
+                {
+                    user.Roles.Remove(currentStandardRole);
+                }
+            }
 
             await _userRepository.UpdateAsync(user);
             return NoContent();

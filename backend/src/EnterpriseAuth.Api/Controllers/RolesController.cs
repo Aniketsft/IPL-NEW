@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
+using EnterpriseAuth.Api.Infrastructure.Persistence;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -10,10 +12,12 @@ namespace EnterpriseAuth.Api.Controllers
     public class RolesController : ControllerBase
     {
         private readonly IRoleRepository _roleRepository;
+        private readonly ApplicationDbContext _context;
 
-        public RolesController(IRoleRepository roleRepository)
+        public RolesController(IRoleRepository roleRepository, ApplicationDbContext context)
         {
             _roleRepository = roleRepository;
+            _context = context;
         }
 
         [HttpGet]
@@ -57,18 +61,58 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] Role role)
+        public async Task<IActionResult> Create([FromBody] RoleDto roleDto)
         {
+            var role = new Role
+            {
+                Id = roleDto.Id != Guid.Empty ? roleDto.Id : Guid.NewGuid(),
+                Name = roleDto.Name,
+                Description = roleDto.Description,
+                Permissions = new List<Permission>()
+            };
+
+            if (roleDto.Permissions != null && roleDto.Permissions.Any())
+            {
+                var names = roleDto.Permissions.Select(p => p.Name.ToLowerInvariant()).ToList();
+                var dbPermissions = await _context.Permissions
+                    .Where(p => names.Contains(p.Name.ToLowerInvariant()))
+                    .ToListAsync();
+                foreach (var p in dbPermissions)
+                {
+                    role.Permissions.Add(p);
+                }
+            }
+
             await _roleRepository.AddAsync(role);
-            // Return only the ID or a flat DTO to avoid loops
             return CreatedAtAction(nameof(GetById), new { id = role.Id }, new { id = role.Id, name = role.Name });
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] Role role)
+        public async Task<IActionResult> Update(Guid id, [FromBody] RoleDto roleDto)
         {
-            if (id != role.Id) return BadRequest();
-            await _roleRepository.UpdateAsync(role);
+            if (id != roleDto.Id) return BadRequest();
+
+            var existingRole = await _roleRepository.GetByIdAsync(id);
+            if (existingRole == null) return NotFound();
+
+            existingRole.Name = roleDto.Name;
+            existingRole.Description = roleDto.Description;
+
+            // Safe update of permissions collection
+            existingRole.Permissions.Clear();
+            if (roleDto.Permissions != null && roleDto.Permissions.Any())
+            {
+                var names = roleDto.Permissions.Select(p => p.Name.ToLowerInvariant()).ToList();
+                var dbPermissions = await _context.Permissions
+                    .Where(p => names.Contains(p.Name.ToLowerInvariant()))
+                    .ToListAsync();
+                foreach (var p in dbPermissions)
+                {
+                    existingRole.Permissions.Add(p);
+                }
+            }
+
+            await _roleRepository.UpdateAsync(existingRole);
             return NoContent();
         }
 

@@ -127,6 +127,20 @@ class AuthRepository implements IAuthRepository {
     await _storageService.deleteAll();
   }
 
+  @override
+  Future<void> refreshToken() async {
+    try {
+      final response = await _dio.post('Auth/refresh');
+      final data = response.data;
+      if (data != null && data['token'] != null) {
+        await _storageService.saveToken(data['token']);
+      }
+    } catch (e) {
+      // If refresh fails, it might be due to offline mode or already expired session.
+      // Next API call or 401 interceptor will handle it.
+    }
+  }
+
   String _handleDioError(DioException e, String operation) {
     if (e.response != null) {
       final data = e.response?.data;

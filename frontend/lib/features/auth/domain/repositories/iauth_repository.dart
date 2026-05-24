@@ -5,4 +5,5 @@ abstract class IAuthRepository {
   Future<void> register(String email, String username, String password);
   Future<void> forgotPassword(String email);
   Future<void> logout();
+  Future<void> refreshToken();
 }

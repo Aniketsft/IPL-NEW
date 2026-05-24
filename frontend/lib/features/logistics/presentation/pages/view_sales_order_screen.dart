@@ -28,6 +28,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
   List<SalesOrder> _orders = [];
   List<Map<String, String>> _customersList = [];
   List<Map<String, String>> _salesRepsList = [];
+  // ignore: unused_field
   List<Map<String, String>> _sitesList = [];
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
@@ -69,6 +70,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
 
   @override
   Future<void> onHardwareScan(String data) async {
+    // Scanning is disabled when viewing closed orders
+    if (_status.toLowerCase() == 'closed') return;
+
     // Force unfocus to prevent keyboard wedge from typing into fields
     FocusScope.of(context).unfocus();
     
@@ -171,8 +175,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
     }
   }
 
-  Future<void> _reloadSites() => _refreshAllLookups();
-  Future<void> _reloadSalesReps() => _refreshAllLookups();
+  // _reloadSites / _reloadSalesReps removed — site and salesman pickers
+  // are no longer surfaced in the filter UI; _reloadCustomers is still used.
   Future<void> _reloadCustomers() => _refreshAllLookups();
 
   Future<void> _loadLookups() async {
@@ -506,19 +510,22 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
           const SyncOverlay(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NewCutsBulkScreen()),
-          );
-          if (result == true) {
-            _fetchOrders();
-          }
-        },
-        backgroundColor: orange,
-        child: const Icon(Icons.add, color: Colors.white, size: 30),
-      ),
+      // Hide the new-cuts FAB when the user is viewing closed orders
+      floatingActionButton: _status.toLowerCase() == 'closed'
+          ? null
+          : FloatingActionButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NewCutsBulkScreen()),
+                );
+                if (result == true) {
+                  _fetchOrders();
+                }
+              },
+              backgroundColor: orange,
+              child: const Icon(Icons.add, color: Colors.white, size: 30),
+            ),
     );
   }
 
