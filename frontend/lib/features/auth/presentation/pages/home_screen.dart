@@ -41,11 +41,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _lastSyncStr = 'Never';
 
-  bool _hasAccess(String module, String submodule) {
-    if (widget.permissions.contains('administration.user_management.delete')) {
-      return true;
-    }
-    return widget.permissions.contains('$module.$submodule.read');
+  bool _hasAccess(String permissionString) {
+    return widget.permissions.contains(permissionString);
   }
 
   @override
@@ -197,11 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (widget.permissions.isEmpty) {
+    if (!widget.permissions.any((p) => p.startsWith('app.home.'))) {
       return _buildRestrictedUI(
         context,
         'NO PERMISSIONS ASSIGNED',
-        'Your account (${widget.username}) has no assigned permissions. Please contact your system administrator.',
+        'Your account (${widget.username}) does not have dashboard access. Please contact your system administrator.',
       );
     }
 
@@ -211,50 +208,37 @@ class _HomeScreenState extends State<HomeScreen> {
         'Data Sync',
         Icons.sync_rounded,
         null,
-        onTapOverride: _triggerSync,
+        onTapOverride: _hasAccess('app.home.update') ? _triggerSync : null,
         subtitle: 'Last: $_lastSyncStr',
       ),
-      if (_hasAccess('logistics', 'delivery'))
+      if (_hasAccess('logistics.delivery.read'))
         _buildMenuButton(
           context,
           'Delivery',
           Icons.local_shipping_rounded,
           DeliveryScreen(permissions: widget.permissions),
         ),
-      if (_hasAccess('manufacturing', 'all'))
+      if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(
           context,
           'Manufacturing',
           Icons.precision_manufacturing_rounded,
           ManufacturingScreen(permissions: widget.permissions),
         ),
-      if (_hasAccess('settings', 'general'))
-        _buildMenuButton(
-          context,
-          'Settings',
-          Icons.settings_suggest_rounded,
-          const SettingsModulesScreen(),
-        ),
-      if (_hasAccess('administration', 'user_management'))
-        _buildMenuButton(
-          context,
-          'Administration',
-          Icons.admin_panel_settings_rounded,
-          const UserManagementScreen(),
-        ),
-      if (_hasAccess('inventory', 'by_identifier'))
+
+      if (_hasAccess('inventory.by_identifier.read'))
         _buildMenuButton(
           context,
           'QR Label',
           Icons.qr_code_scanner_rounded,
-          const QrLabelScreen(),
+          QrLabelScreen(permissions: widget.permissions),
         ),
-      if (_hasAccess('settings', 'printer'))
+      if (_hasAccess('settings.printer.read'))
         _buildMenuButton(
           context,
           'Printer Settings',
           Icons.print_rounded,
-          const PrinterSettingsScreen(),
+          PrinterSettingsScreen(permissions: widget.permissions),
         ),
     ];
 
@@ -430,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   onTap: () => Navigator.pop(context),
                 ),
-                if (_hasAccess('settings', 'general'))
+                if (_hasAccess('settings.general.read'))
                   ListTile(
                     leading: Icon(
                       Icons.settings,
@@ -445,6 +429,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SettingsModulesScreen()),
+                      );
+                    },
+                  ),
+                if (_hasAccess('administration.user_management.read'))
+                  ListTile(
+                    leading: Icon(
+                      Icons.admin_panel_settings_rounded,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    title: Text(
+                      'User Admin',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const UserManagementScreen()),
                       );
                     },
                   ),

@@ -96,7 +96,23 @@ public class LogisticsService : ILogisticsService
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Retrieve authoritative scans directly from server database (ProductionScanTransactions)
-            var dbItems = await _logisticsRepository.GetProductionSummaryByWorkOrderAsync(workOrder);
+            IEnumerable<ProductionTrackingDto> dbItems;
+            if (workOrder.StartsWith("ALL-") && workOrder.Length >= 12)
+            {
+                var dateStr = workOrder.Substring(4, 8);
+                if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var parsedDate))
+                {
+                    dbItems = await _logisticsRepository.GetProductionSummaryAsync(parsedDate);
+                }
+                else
+                {
+                    dbItems = await _logisticsRepository.GetProductionSummaryByWorkOrderAsync(workOrder);
+                }
+            }
+            else
+            {
+                dbItems = await _logisticsRepository.GetProductionSummaryByWorkOrderAsync(workOrder);
+            }
             var itemsList = dbItems != null && dbItems.Any() ? dbItems.ToList() : items.ToList();
 
             var records = new List<StagingEod>();

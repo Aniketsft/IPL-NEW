@@ -13,6 +13,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import '../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 
 // Model
 class WorkOrderHeader {
@@ -94,7 +95,8 @@ class ProductionTrackingItem {
 
 // Screen
 class EndOfDayScreen extends StatefulWidget {
-  const EndOfDayScreen({super.key});
+  final List<String> permissions;
+  const EndOfDayScreen({super.key, required this.permissions});
 
   @override
   State<EndOfDayScreen> createState() => _EndOfDayScreenState();
@@ -111,6 +113,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   String _selectedSite = 'IPL';
   bool _isEodDone = false;
   bool _isSendingToX3 = false;
+
+  bool get _canUpdate {
+    return widget.permissions.contains('manufacturing.all.update') ||
+           widget.permissions.contains('manufacturing.all.create') ||
+           widget.permissions.contains('manufacturing.all.delete');
+  }
 
   static const _amber = Color(0xFFFF9800);
 
@@ -171,11 +179,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   Future<void> _fetchProductionSummary(DateTime date, String site) async {
     setState(() => _isLoading = true);
     try {
+      final repository = context.read<DeliveryRepository>();
       final db = LocalDatabaseHelper.instance;
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
       
-      // Fetch from local database to match Production Tracking screen
-      final data = await db.getProductionSummaryByDate(dateStr, site: site);
+      // Fetch from server directly as the single source of truth
+      final data = await repository.getProductionSummaryFromServer(date);
       final isDone = await db.isEodProcessAudited(dateStr);
       
       setState(() {
@@ -185,19 +194,21 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           itemCode: e['itemCode'] as String? ?? '',
           description: e['description'] as String? ?? '',
           quantity: (e['quantity'] as num?)?.toDouble() ?? 0.0,
-          manufactured: (e['reconciledManufactured'] as num?)?.toDouble() ?? 0.0,
-          lotNumber: e['lot'] as String? ?? '',
+          manufactured: (e['manufactured'] as num?)?.toDouble() ?? 0.0,
+          lotNumber: e['lotNumber'] as String? ?? '',
           unit: e['unit'] as String? ?? 'KG',
-          conversion: 1.0,
+          conversion: (e['conversion'] as num?)?.toDouble() ?? 1.0,
           location: e['location'] as String? ?? 'IPLCH',
-          statusLabel: 'A',
-          eaQuantity: (e['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
-          createdAt: e['timestamp'] != null ? DateTime.tryParse(e['timestamp'].toString()) : null,
+          statusLabel: e['statusLabel'] as String? ?? 'A',
+          eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+          createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
         )).toList();
         _errorMessage = null;
       });
     } catch (e) {
-      setState(() => _errorMessage = 'Failed to load production summary locally');
+      setState(() {
+        _errorMessage = 'Failed to load: $e';
+      });
     } finally {
       setState(() => _isLoading = false);
     }
@@ -588,8 +599,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         else
           IconButton(
             tooltip: 'Export to Sage X3',
-            icon: const Icon(Icons.send_and_archive, color: _amber),
-            onPressed: _isEodDone ? _processProductionEod : null,
+            icon: Icon(Icons.send_and_archive, color: _canUpdate ? _amber : Colors.grey),
+            onPressed: (_isEodDone && _canUpdate) ? _processProductionEod : null,
           ),
       ],
       body: Column(
@@ -887,12 +898,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _actionButton() => ElevatedButton.icon(
-        onPressed: _isSaving || _isEodDone ? null : _completeEndOfDay,
+        onPressed: (_isSaving || _isEodDone || !_canUpdate) ? null : _completeEndOfDay,
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: Text(_isSaving ? 'COMPLETING...' : 'END OF DAY'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isEodDone ? Colors.grey : _amber,
-          foregroundColor: _isEodDone ? Colors.white70 : Colors.black,
+          backgroundColor: (_isEodDone || !_canUpdate) ? Colors.grey : _amber,
+          foregroundColor: (_isEodDone || !_canUpdate) ? Colors.white70 : Colors.black,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),

@@ -80,5 +80,6 @@ abstract class ILogisticsRepository {
   Future<List<Map<String, String>>> getOpenInternalOrders();
   Future<Map<String, dynamic>> processEndOfDay();
   Future<void> completeProductionEod(String workOrder, List<Map<String, dynamic>> items);
+  Future<List<Map<String, dynamic>>> getProductionSummaryFromServer(DateTime date);
 }
 

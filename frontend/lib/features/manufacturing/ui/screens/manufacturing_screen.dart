@@ -29,11 +29,8 @@ class _MenuItem {
 }
 
 class _ManufacturingScreenState extends State<ManufacturingScreen> {
-  bool _hasAccess(String module, String submodule) {
-    if (widget.permissions.contains('administration.user_management.delete')) {
-      return true;
-    }
-    return widget.permissions.contains('$module.$submodule.read');
+  bool _hasAccess(String permissionString) {
+    return widget.permissions.contains(permissionString);
   }
 
   @override
@@ -51,37 +48,24 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
               onTap: () => Navigator.pop(context),
             ),
           */
-          if (_hasAccess('logistics', 'delivery'))
+          if (_hasAccess('manufacturing.all.read'))
             _MenuItem(
               title: 'View sales order',
               icon: Icons.show_chart_rounded,
-              targetScreen: const ViewSalesOrderScreen(),
+              targetScreen: ViewSalesOrderScreen(permissions: widget.permissions),
             ),
-          if (_hasAccess('logistics', 'delivery'))
+          if (_hasAccess('manufacturing.all.read'))
             _MenuItem(
               title: 'Manufacturing Tracking',
               icon: Icons.description_outlined,
-              targetScreen: const ProductionTrackingProductListScreen(),
+              targetScreen: ProductionTrackingProductListScreen(permissions: widget.permissions),
             ),
-          /*
-          if (_hasAccess('logistics', 'delivery'))
+          if (_hasAccess('manufacturing.all.read'))
             _MenuItem(
-              title: 'Component products',
-              icon: Icons.account_tree_rounded,
-              onTap: () => Navigator.pop(context),
+              title: 'End of Day',
+              icon: Icons.event_busy_rounded,
+              targetScreen: EndOfDayScreen(permissions: widget.permissions),
             ),
-          if (_hasAccess('logistics', 'delivery'))
-            _MenuItem(
-              title: 'Parent product',
-              icon: Icons.view_in_ar_rounded,
-              onTap: () => Navigator.pop(context),
-            ),
-          */
-          _MenuItem(
-            title: 'End of Day',
-            icon: Icons.event_busy_rounded,
-            targetScreen: const EndOfDayScreen(),
-          ),
         ];
 
         final filteredItems =

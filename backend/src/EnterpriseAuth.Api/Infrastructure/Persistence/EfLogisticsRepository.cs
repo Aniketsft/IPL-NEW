@@ -151,8 +151,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var scans = await _scanContext.ProductionScanTransactions
                 .Include(t => t.OrderLine)
                 .ThenInclude(l => l.Order)
-                .Where(t => t.OrderLine.Order.DeliveryDate >= targetDate 
-                         && t.OrderLine.Order.DeliveryDate < nextDate 
+                .Where(t => t.CreatedAt >= targetDate 
+                         && t.CreatedAt < nextDate 
                          && !t.IsDeleted)
                 .AsNoTracking()
                 .ToListAsync();
@@ -172,18 +172,35 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            return scans.Select(s => new ProductionTrackingDto
-            {
-                SoNumber = s.OrderLine.Order.SourceOrderId,
-                ItemCode = s.OrderLine.ItemCode,
-                Description = s.OrderLine.Description,
-                Quantity = s.OrderLine.OrderedQuantity,
-                Manufactured = s.ScanAmountKg,
-                LotNumber = s.LotNumber ?? "",
-                CreatedAt = s.CreatedAt,
-                Unit = units.TryGetValue(s.OrderLine.ItemCode.Trim(), out var u) && !string.IsNullOrWhiteSpace(u) ? u : "KG",
-                Site = s.OrderLine.Order.Site ?? "IPL"
-            });
+            return scans
+                .GroupBy(s => new
+                {
+                    SoNumber    = s.OrderLine.Order.SourceOrderId,
+                    ItemCode    = s.OrderLine.ItemCode,
+                    LotNumber   = s.LotNumber ?? "",
+                    ItemStatus  = s.ItemStatus ?? "A",
+                    CreatedDate = s.CreatedAt.Date
+                })
+                .Select(g =>
+                {
+                    var latest   = g.OrderByDescending(s => s.CreatedAt).First();
+                    var itemCode = g.Key.ItemCode.Trim();
+                    return new ProductionTrackingDto
+                    {
+                        SoNumber     = g.Key.SoNumber,
+                        ItemCode     = itemCode,
+                        Description  = latest.OrderLine.Description,
+                        Quantity     = latest.OrderLine.OrderedQuantity,
+                        Manufactured = g.Sum(s => s.ScanAmountKg),
+                        EaQuantity   = g.Sum(s => s.EaQuantity ?? 0m),
+                        LotNumber    = g.Key.LotNumber,
+                        Location     = latest.Location ?? "",
+                        StatusLabel  = g.Key.ItemStatus,
+                        CreatedAt    = latest.CreatedAt,
+                        Unit         = units.TryGetValue(itemCode, out var u) && !string.IsNullOrWhiteSpace(u) ? u : "KG",
+                        Site         = latest.OrderLine.Order.Site ?? "IPL"
+                    };
+                });
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionSummaryByWorkOrderAsync(string workOrder)

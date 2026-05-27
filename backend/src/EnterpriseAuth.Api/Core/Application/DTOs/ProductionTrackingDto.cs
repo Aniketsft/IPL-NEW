@@ -30,5 +30,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public bool IsPrepared { get; set; }
         public string? StatusLabel { get; set; }
         public decimal Conversion { get; set; } = 1;
+        public decimal EaQuantity { get; set; }
     }
 }

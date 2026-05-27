@@ -956,6 +956,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     if (existingEodLookup.TryGetValue(key, out var existing))
                     {
                         // UPSERT: update the quantity, dates, lot and unit on the existing row
+                        // Preserve full quantity, no rounding applied
                         existing.TotalManufacturedQuantity = dto.TotalManufacturedQuantity;
                         existing.EaQuantity = dto.EaQuantity;
                         existing.DateOfManufacturing = dto.DateOfManufacturing;

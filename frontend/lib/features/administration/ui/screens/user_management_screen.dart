@@ -35,6 +35,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   bool _isLoading = true;
 
   bool _isSavingRole = false;
+  bool _isDeletingRole = false;
   bool _isCreatingUser = false;
   bool _useCustomPermissions = false;
   List<ModuleAccess> _selectedUserPermissions = [];
@@ -53,43 +54,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Define the permission tree structure based on Home Screen modules
   final List<PermissionNode> _permissionTree = [
-    PermissionNode(
-      label: 'Logistics',
-      children: [
-        PermissionNode(label: 'Receipt', moduleId: 'logistics.receipt'),
-        PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
-        PermissionNode(label: 'Transfer', moduleId: 'logistics.transfer'),
-      ],
-    ),
-    PermissionNode(
-      label: 'Manufacturing',
-      children: [
-        PermissionNode(label: 'All Production', moduleId: 'manufacturing.all'),
-      ],
-    ),
-    PermissionNode(
-      label: 'Inventory',
-      children: [
-        PermissionNode(label: 'Stock Control', moduleId: 'inventory.stock_control'),
-        PermissionNode(label: 'Picking', moduleId: 'inventory.picking'),
-        PermissionNode(label: 'By Identifier', moduleId: 'inventory.by_identifier'),
-      ],
-    ),
-    PermissionNode(
-      label: 'Administration',
-      children: [
-        PermissionNode(label: 'User Management', moduleId: 'administration.user_management'),
-      ],
-    ),
-    PermissionNode(
-      label: 'Settings',
-      children: [
-        PermissionNode(label: 'General', moduleId: 'settings.general'),
-        PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
-      ],
-    ),
+    PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
+    PermissionNode(label: 'Settings', moduleId: 'settings.general'),
+    PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
+    PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
+    PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
+    PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
+    PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
   ];
 
   @override
@@ -134,12 +106,12 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final tabColor = isDark ? const Color(0xFF1E1E1E) : theme.cardColor;
-    const teal = Color(0xFF008080);
+    final teal = theme.primaryColor;
 
     return IndustrialModuleLayout(
       title: 'User Management',
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: teal),
             )
           : Column(
@@ -287,238 +259,281 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              const Expanded(
-                child: Text(
-                  'MODULES & SUBMODULES',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ),
-              _headerLabel('MASTER'),
-              _headerLabel('C'),
-              _headerLabel('R'),
-              _headerLabel('U'),
-              _headerLabel('D'),
-            ],
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            'MODULE ACCESS',
+            style: TextStyle(
+              color: isDark ? Colors.white38 : Colors.black38,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              letterSpacing: 1.4,
+            ),
           ),
         ),
-        const SizedBox(height: 10),
         ..._permissionTree.map(
-          (categoryNode) => _buildCategoryCard(
-            categoryNode,
-            permissions,
-            isDark,
-            onUpdate,
+          (node) => _buildModuleCard(node, permissions, isDark, onUpdate),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModuleCard(
+    PermissionNode node,
+    List<ModuleAccess> permissions,
+    bool isDark,
+    Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate,
+  ) {
+    final access = permissions.firstWhere(
+      (p) => p.moduleId == node.moduleId,
+      orElse: () => ModuleAccess(moduleId: node.moduleId!),
+    );
+
+    final bool isRead = access.canRead;
+    final bool isCrud = access.canCreate && access.canRead && access.canUpdate && access.canDelete;
+
+    // Card tint based on access level
+    Color cardBg;
+    Color borderColor;
+    if (isCrud) {
+      cardBg = isDark
+          ? const Color(0xFF003D3D)
+          : const Color(0xFFE0F7F7);
+      borderColor = Theme.of(context).primaryColor.withValues(alpha: isDark ? 0.5 : 0.3);
+    } else if (isRead) {
+      cardBg = isDark
+          ? const Color(0xFF1A2A3D)
+          : const Color(0xFFE8F0FB);
+      borderColor = const Color(0xFF4A90D9).withValues(alpha: isDark ? 0.4 : 0.3);
+    } else {
+      cardBg = isDark ? const Color(0xFF1E1E24) : const Color(0xFFF5F5FA);
+      borderColor = isDark
+          ? Colors.white.withValues(alpha: 0.07)
+          : Colors.black.withValues(alpha: 0.07);
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Module header row
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _getModuleIconColor(node.label).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getModuleIcon(node.label),
+                  color: _getModuleIconColor(node.label),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      node.label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      _getModuleDescription(node.label),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Access badge
+              if (isCrud)
+                _accessBadge('FULL', Theme.of(context).primaryColor, isDark)
+              else if (isRead)
+                _accessBadge('READ', const Color(0xFF4A90D9), isDark)
+              else
+                _accessBadge('NONE', Colors.grey, isDark),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Toggle row
+          Row(
+            children: [
+              Expanded(
+                child: _buildSwitchTile(
+                  label: 'Read Only',
+                  sublabel: 'View access',
+                  value: isRead,
+                  activeColor: const Color(0xFF4A90D9),
+                  isDark: isDark,
+                  onChanged: (v) {
+                    onUpdate(node.moduleId!, 'read', v);
+                    if (!v) {
+                      onUpdate(node.moduleId!, 'create', false);
+                      onUpdate(node.moduleId!, 'update', false);
+                      onUpdate(node.moduleId!, 'delete', false);
+                    }
+                  },
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                color: isDark ? Colors.white12 : Colors.black12,
+              ),
+              Expanded(
+                child: _buildSwitchTile(
+                  label: 'Full CRUD',
+                  sublabel: 'Create, edit, delete',
+                  value: isCrud,
+                  activeColor: Theme.of(context).primaryColor,
+                  isDark: isDark,
+                  onChanged: (v) {
+                    onUpdate(node.moduleId!, 'create', v);
+                    onUpdate(node.moduleId!, 'read', v);
+                    onUpdate(node.moduleId!, 'update', v);
+                    onUpdate(node.moduleId!, 'delete', v);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required String label,
+    required String sublabel,
+    required bool value,
+    required Color activeColor,
+    required bool isDark,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      children: [
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.white,
+          activeTrackColor: activeColor,
+          inactiveThumbColor: isDark ? Colors.grey[600] : Colors.grey[400],
+          inactiveTrackColor: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.08),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: value
+                      ? activeColor
+                      : (isDark ? Colors.white54 : Colors.black54),
+                ),
+              ),
+              Text(
+                sublabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.white24 : Colors.black26,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCategoryCard(
-    PermissionNode categoryNode,
-    List<ModuleAccess> permissions,
-    bool isDark,
-    Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate,
-  ) {
-    final catState = _getCategoryState(permissions, categoryNode);
-    final subModuleIds = categoryNode.children.map((c) => c.moduleId!).toList();
-
+  Widget _accessBadge(String text, Color color, bool isDark) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF5F5FA),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Category Header Row
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-              child: Row(
-                children: [
-                  Icon(
-                    _getCategoryIcon(categoryNode.label),
-                    color: const Color(0xFF00BCD4),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      categoryNode.label.toUpperCase(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        letterSpacing: 1.0,
-                        color: Color(0xFF008080),
-                      ),
-                    ),
-                  ),
-                  // Tristate Checkbox for the entire category
-                  SizedBox(
-                    width: 40,
-                    child: Center(
-                      child: Checkbox(
-                        tristate: true,
-                        value: catState,
-                        activeColor: const Color(0xFF008080),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                        onChanged: (v) {
-                          final targetVal = v ?? true;
-                          onUpdate('', 'all_cat', targetVal, subModuleIds: subModuleIds);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 160), // Align with CRUD columns
-                ],
-              ),
-            ),
-            const Divider(height: 1, thickness: 1),
-            // Sub-modules list
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: categoryNode.children.map((childNode) {
-                  final subState = _getSubModuleState(permissions, childNode.moduleId!);
-                  final access = permissions.firstWhere(
-                    (p) => p.moduleId == childNode.moduleId,
-                    orElse: () => ModuleAccess(moduleId: childNode.moduleId!),
-                  );
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: Text(
-                              childNode.label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Master Toggle for Sub-module
-                        SizedBox(
-                          width: 40,
-                          child: Center(
-                            child: Checkbox(
-                              tristate: true,
-                              value: subState,
-                              activeColor: const Color(0xFF008080),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                              onChanged: (v) {
-                                final targetVal = v ?? true;
-                                onUpdate(childNode.moduleId!, 'all_sub', targetVal);
-                              },
-                            ),
-                          ),
-                        ),
-                        // Individual CRUD Checkboxes
-                        _matrixToggle(
-                          access.canCreate,
-                          (v) => onUpdate(childNode.moduleId!, 'create', v),
-                        ),
-                        _matrixToggle(
-                          access.canRead,
-                          (v) => onUpdate(childNode.moduleId!, 'read', v),
-                        ),
-                        _matrixToggle(
-                          access.canUpdate,
-                          (v) => onUpdate(childNode.moduleId!, 'update', v),
-                        ),
-                        _matrixToggle(
-                          access.canDelete,
-                          (v) => onUpdate(childNode.moduleId!, 'delete', v),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
         ),
       ),
     );
   }
 
-  IconData _getCategoryIcon(String label) {
-    switch (label.toLowerCase()) {
-      case 'logistics':
-        return Icons.local_shipping_outlined;
-      case 'manufacturing':
-        return Icons.precision_manufacturing_outlined;
-      case 'inventory':
-        return Icons.inventory_2_outlined;
-      case 'administration':
-        return Icons.admin_panel_settings_outlined;
-      case 'settings':
-        return Icons.settings_outlined;
-      default:
-        return Icons.folder_outlined;
+  IconData _getModuleIcon(String label) {
+    switch (label) {
+      case 'Home Screen':      return Icons.home_outlined;
+      case 'Settings':         return Icons.settings_outlined;
+      case 'Administration':   return Icons.admin_panel_settings_outlined;
+      case 'Delivery':         return Icons.local_shipping_outlined;
+      case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
+      case 'QR Label':         return Icons.qr_code_scanner_rounded;
+      case 'Printer Settings': return Icons.print_outlined;
+      default:                 return Icons.folder_outlined;
     }
   }
 
-  Widget _headerLabel(String text) {
-    return SizedBox(
-      width: 40,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.grey,
-          fontWeight: FontWeight.bold,
-          fontSize: 10,
-        ),
-      ),
-    );
+  Color _getModuleIconColor(String label) {
+    switch (label) {
+      case 'Home Screen':      return const Color(0xFFFF9800);
+      case 'Settings':         return const Color(0xFF9C27B0);
+      case 'Administration':   return const Color(0xFFF44336);
+      case 'Delivery':         return const Color(0xFF2196F3);
+      case 'Manufacturing':    return Theme.of(context).primaryColor;
+      case 'QR Label':         return const Color(0xFF4CAF50);
+      case 'Printer Settings': return const Color(0xFF607D8B);
+      default:                 return Colors.grey;
+    }
   }
 
-  Widget _matrixToggle(bool value, Function(bool) onChanged) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      width: 40,
-      child: Center(
-        child: Checkbox(
-          value: value,
-          onChanged: (v) => onChanged(v ?? false),
-          activeColor: const Color(0xFF008080),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
-          side: BorderSide(color: isDark ? Colors.grey : Colors.black26),
-        ),
-      ),
-    );
+  String _getModuleDescription(String label) {
+    switch (label) {
+      case 'Home Screen':      return 'Dashboard & data sync';
+      case 'Settings':         return 'App configuration';
+      case 'Administration':   return 'User & role management';
+      case 'Delivery':         return 'EOD, scanning & manifests';
+      case 'Manufacturing':    return 'Sales orders & tracking';
+      case 'QR Label':         return 'QR aggregation & printing';
+      case 'Printer Settings': return 'Printer configuration';
+      default:                 return '';
+    }
   }
 
   // ---------------------------------------------------------
@@ -526,102 +541,214 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   // ---------------------------------------------------------
 
   Widget _buildRolesTab(bool isDark) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 800;
+
+        // LEFT PANE: Roles List
+        final leftPane = Container(
+          width: isMobile ? double.infinity : 300,
+          decoration: BoxDecoration(
+            border: isMobile ? null : Border(right: BorderSide(color: isDark ? Colors.white12 : Colors.black12)),
+          ),
+          child: Column(
             children: [
-              Expanded(child: _buildRoleSelector(isDark)),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () => _showCreateRoleDialog(isDark),
-                icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                label: const Text('CREATE ROLE'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF008080),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showCreateRoleDialog(isDark),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                  label: const Text('CREATE ROLE'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    minimumSize: const Size(200, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _localRoles.length,
+                  itemBuilder: (context, index) {
+                    final role = _localRoles[index];
+                    final isSelected = _selectedRole?.id == role.id;
+                    return ListTile(
+                      title: Text(
+                        role.name,
+                        style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                      ),
+                      selected: isSelected,
+                      selectedTileColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      onTap: () => setState(() => _selectedRole = role),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            tooltip: 'Delete role',
+                            color: Colors.red.shade400,
+                            onPressed: _isDeletingRole
+                                ? null
+                                : () => _confirmDeleteRole(role),
+                          ),
+                          const Icon(Icons.chevron_right, size: 16),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
           ),
-        ),
-        if (_selectedRole != null)
-          Expanded(child: _buildPermissionMatrix(isDark))
-        else
-          const Expanded(
-            child: Center(
-              child: Text(
-                'Select a role or create one to manage permissions',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ),
-        _buildActionFooter('SAVE ROLE', _isSavingRole, () async {
-          setState(() => _isSavingRole = true);
-          try {
-            await _repository.updateRole(_selectedRole!);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Role permissions saved successfully!'),
+        );
+
+        // RIGHT PANE: Permissions Editor
+        final rightPane = Column(
+          children: [
+            if (_selectedRole != null)
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Editing: ${_selectedRole!.name}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildPermissionMatrixLayout(
+                        permissions: _selectedRole!.permissions,
+                        isDark: isDark,
+                        onUpdate: _updateRolePermissions,
+                      ),
+                    ],
+                  ),
                 ),
-              );
-              await _loadData();
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to save role: $e')),
-              );
-            }
-          } finally {
-            if (mounted) setState(() => _isSavingRole = false);
+              )
+            else
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Select a role to manage permissions',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ),
+            if (_selectedRole != null)
+              _buildActionFooter('SAVE CHANGES', _isSavingRole, () async {
+                setState(() => _isSavingRole = true);
+                try {
+                  await _repository.updateRole(_selectedRole!);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Role permissions saved successfully!')),
+                    );
+                    await _loadData();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to save role: $e')),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => _isSavingRole = false);
+                }
+              }),
+          ],
+        );
+
+        if (isMobile) {
+          if (_selectedRole == null) {
+            return leftPane;
+          } else {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _selectedRole = null),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Back to Roles'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(child: rightPane),
+              ],
+            );
           }
-        }),
-      ],
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            leftPane,
+            Expanded(child: rightPane),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildRoleSelector(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<UserRole>(
-          value: _selectedRole,
-          hint: const Text('Select Role'),
-          isExpanded: true,
-          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          items: _localRoles.map((r) {
-            return DropdownMenuItem(value: r, child: Text(r.name));
-          }).toList(),
-          onChanged: (val) => setState(() => _selectedRole = val),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPermissionMatrix(bool isDark) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          _buildPermissionMatrixLayout(
-            permissions: _selectedRole!.permissions,
-            isDark: isDark,
-            onUpdate: _updateRolePermissions,
+  Future<void> _confirmDeleteRole(UserRole role) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Role'),
+        content: Text('Delete "${role.name}"? This cannot be undone and will remove the role from all users assigned to it.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('DELETE'),
           ),
         ],
       ),
     );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeletingRole = true);
+    try {
+      await _repository.deleteRole(role.id);
+      if (mounted) {
+        setState(() {
+          _localRoles.removeWhere((r) => r.id == role.id);
+          if (_selectedRole?.id == role.id) _selectedRole = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Role "${role.name}" deleted.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete role: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDeletingRole = false);
+    }
   }
 
   void _updateRolePermissions(String moduleId, String type, bool value, {List<String>? subModuleIds}) {
@@ -647,93 +774,150 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   void _showCreateRoleDialog(bool isDark) {
     final nameController = TextEditingController();
     final descController = TextEditingController();
+    List<ModuleAccess> newRolePermissions = [];
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Create New Role',
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                decoration: const InputDecoration(
-                  labelText: 'Role Name',
-                  hintText: 'e.g. IT Admin',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'e.g. IT administrators with full settings access',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                if (name.isEmpty) return;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              insetPadding: const EdgeInsets.all(20),
+              child: SizedBox(
+                width: 800,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Create New Role',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: nameController,
+                              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                              decoration: const InputDecoration(
+                                labelText: 'Role Name',
+                                hintText: 'e.g. IT Admin',
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: descController,
+                              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                              decoration: const InputDecoration(
+                                labelText: 'Description',
+                                hintText: 'e.g. IT administrators with full settings access',
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            _buildPermissionMatrixLayout(
+                              permissions: newRolePermissions,
+                              isDark: isDark,
+                              onUpdate: (moduleId, type, value, {subModuleIds}) {
+                                setStateDialog(() {
+                                  newRolePermissions = _updatePermissionsList(
+                                    currentPermissions: newRolePermissions,
+                                    moduleId: moduleId,
+                                    type: type,
+                                    value: value,
+                                    subModuleIds: subModuleIds,
+                                  );
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('CANCEL'),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final name = nameController.text.trim();
+                              if (name.isEmpty) return;
 
-                Navigator.pop(context);
-                final messenger = ScaffoldMessenger.of(context);
-                setState(() => _isLoading = true);
-                try {
-                  final newRole = UserRole(
-                    id: '', // Backend creates Guid
-                    name: name,
-                    permissions: const [],
-                  );
-                  await _repository.createRole(newRole);
-                  await _loadData();
-                  if (mounted) {
-                    final created = _localRoles.firstWhere(
-                      (r) => r.name.toLowerCase() == name.toLowerCase(),
-                      orElse: () => _localRoles.first,
-                    );
-                    setState(() {
-                      _selectedRole = created;
-                    });
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Role "$name" created successfully!')),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Failed to create role: $e')),
-                    );
-                  }
-                } finally {
-                  if (mounted) setState(() => _isLoading = false);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF008080),
-                foregroundColor: Colors.white,
+                              Navigator.pop(context);
+                              final messenger = ScaffoldMessenger.of(this.context);
+                              setState(() => _isLoading = true);
+                              try {
+                                final newRole = UserRole(
+                                  id: '', 
+                                  name: name,
+                                  permissions: newRolePermissions,
+                                );
+                                await _repository.createRole(newRole);
+                                await _loadData();
+                                if (mounted) {
+                                  final created = _localRoles.firstWhere(
+                                    (r) => r.name.toLowerCase() == name.toLowerCase(),
+                                    orElse: () => _localRoles.first,
+                                  );
+                                  setState(() {
+                                    _selectedRole = created;
+                                  });
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Role "$name" created successfully!')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Failed to create role: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _isLoading = false);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(120, 48),
+                            ),
+                            child: const Text('CREATE ROLE'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: const Text('CREATE'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -784,7 +968,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
+              color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButtonHideUnderline(
@@ -811,7 +995,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
+              color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -831,8 +1015,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       }
                     });
                   },
-                  activeThumbColor: const Color(0xFF008080),
-                  activeTrackColor: const Color(0xFF008080).withValues(alpha: 0.5),
+                  activeThumbColor: Theme.of(context).primaryColor,
+                  activeTrackColor: Theme.of(context).primaryColor.withValues(alpha: 0.5),
                 ),
               ],
             ),
@@ -870,20 +1054,12 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: TextField(
-            controller: controller,
-            obscureText: isPassword,
-            style: TextStyle(
-              fontSize: 15,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            decoration: const InputDecoration(border: InputBorder.none),
+        TextFormField(
+          controller: controller,
+          obscureText: isPassword,
+          style: TextStyle(
+            fontSize: 15,
+            color: isDark ? Colors.white : Colors.black87,
           ),
         ),
       ],
@@ -1029,7 +1205,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
+        color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
@@ -1055,7 +1231,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF38383B) : Colors.black.withValues(alpha: 0.05),
+        color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonHideUnderline(
@@ -1132,7 +1308,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             child: ElevatedButton(
               onPressed: isLoading ? null : onPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF008080),
+                backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(

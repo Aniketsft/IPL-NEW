@@ -7,7 +7,8 @@ import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scann
 enum AggregationMode { crate, palette }
 
 class QrLabelScreen extends StatefulWidget {
-  const QrLabelScreen({super.key});
+  final List<String> permissions;
+  const QrLabelScreen({super.key, required this.permissions});
 
   @override
   State<QrLabelScreen> createState() => _QrLabelScreenState();
@@ -362,7 +363,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: canFinalize ? _onFinalize : null,
+              onPressed: (canFinalize && widget.permissions.any((p) => p.startsWith('inventory.by_identifier.') && p != 'inventory.by_identifier.read')) ? _onFinalize : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: orange,
                 padding: const EdgeInsets.symmetric(vertical: 16),

@@ -32,8 +32,8 @@ namespace EnterpriseAuth.Api.Controllers
                 Username = u.Username,
                 Email = u.Email,
                 IsActive = u.IsActive,
-                RoleId = u.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"))?.Id,
-                Permissions = u.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).ToList()
+                RoleId = u.Roles.FirstOrDefault()?.Id,
+                Permissions = u.Roles.SelectMany(r => r.Permissions).Concat(u.Permissions).Select(p => p.Name).Distinct().ToList()
             });
             return Ok(dtos);
         }
@@ -50,8 +50,8 @@ namespace EnterpriseAuth.Api.Controllers
                 Username = user.Username,
                 Email = user.Email,
                 IsActive = user.IsActive,
-                RoleId = user.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"))?.Id,
-                Permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).ToList()
+                RoleId = user.Roles.FirstOrDefault()?.Id,
+                Permissions = user.Roles.SelectMany(r => r.Permissions).Concat(user.Permissions).Select(p => p.Name).Distinct().ToList()
             };
             return Ok(dto);
         }
@@ -68,7 +68,6 @@ namespace EnterpriseAuth.Api.Controllers
                 Email = request.Email,
                 PasswordHash = passwordHash,
                 Salt = salt,
-                UserGroupId = null,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -83,7 +82,7 @@ namespace EnterpriseAuth.Api.Controllers
                 }
             }
 
-            // Handle custom permissions by creating a dedicated role for this user
+            // Handle custom permissions directly mapping to User
             if (request.Permissions != null && request.Permissions.Any())
             {
                 var normalizedRequestPermissions = request.Permissions.Select(p => p.ToLowerInvariant()).ToList();
@@ -94,16 +93,7 @@ namespace EnterpriseAuth.Api.Controllers
 
                 if (permissions.Any())
                 {
-                    var customRole = new Role
-                    {
-                        Id = Guid.NewGuid(),
-                        Name = $"Custom:{request.Username}:{Guid.NewGuid().ToString().Substring(0, 4)}",
-                        Description = $"Custom permissions for {request.Username}",
-                        Permissions = new List<Permission>()
-                    };
-                    _context.Roles.Add(customRole);
-                    user.Roles.Add(customRole);
-                    foreach (var p in permissions) customRole.Permissions.Add(p);
+                    foreach (var p in permissions) user.Permissions.Add(p);
                 }
             }
 
@@ -122,11 +112,10 @@ namespace EnterpriseAuth.Api.Controllers
             user.Username = dto.Username;
             user.Email = dto.Email;
             user.IsActive = dto.IsActive;
-            user.UserGroupId = null;
             user.UpdatedAt = DateTime.UtcNow;
 
             // Handle standard role update
-            var currentStandardRole = user.Roles.FirstOrDefault(r => !r.Name.StartsWith("Custom:"));
+            var currentStandardRole = user.Roles.FirstOrDefault();
             if (dto.RoleId.HasValue && dto.RoleId.Value != Guid.Empty)
             {
                 if (currentStandardRole == null || currentStandardRole.Id != dto.RoleId.Value)
@@ -165,15 +154,11 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<IActionResult> UpdatePermissions(Guid id, [FromBody] List<string> permissionNames)
         {
             var user = await _context.Users
-                .Include(u => u.Roles)
-                .ThenInclude(r => r.Permissions)
+                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null) return NotFound();
 
-            // Find or create custom role for this user
-            var customRole = user.Roles.FirstOrDefault(r => r.Name.StartsWith("Custom:"));
-            
             var normalizedRequestPermissions = permissionNames.Select(p => p.ToLowerInvariant()).ToList();
             
             // Load all permissions first to avoid EF Core translation issues with ToLower inside Contains
@@ -182,36 +167,10 @@ namespace EnterpriseAuth.Api.Controllers
                 .Where(p => normalizedRequestPermissions.Contains(p.Name.ToLowerInvariant()))
                 .ToList();
 
-            if (customRole == null)
+            user.Permissions.Clear();
+            foreach (var p in permissions)
             {
-                if (permissions.Any())
-                {
-                    customRole = new Role
-                    {
-                        Id = Guid.NewGuid(),
-                        Name = $"Custom:{user.Username}:{Guid.NewGuid().ToString().Substring(0, 4)}",
-                        Description = $"Custom permissions for {user.Username}",
-                        Permissions = new List<Permission>()
-                    };
-                    _context.Roles.Add(customRole);
-                    user.Roles.Add(customRole);
-                    foreach (var p in permissions) customRole.Permissions.Add(p);
-                }
-            }
-            else
-            {
-                // Safe update of many-to-many collection navigation
-                customRole.Permissions.Clear();
-                foreach (var p in permissions)
-                {
-                    customRole.Permissions.Add(p);
-                }
-
-                if (!permissions.Any())
-                {
-                    user.Roles.Remove(customRole);
-                    _context.Roles.Remove(customRole);
-                }
+                user.Permissions.Add(p);
             }
 
             await _context.SaveChangesAsync();

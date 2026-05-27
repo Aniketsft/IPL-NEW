@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 class SettingsModulesScreen extends StatefulWidget {
   const SettingsModulesScreen({super.key});
@@ -70,6 +72,15 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     if (_settings?.lastLotDate == null || _settings!.dailyLotNumber == null) return false;
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     return _settings!.lastLotDate == today;
+  }
+
+  bool get _canUpdate {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is Authenticated) {
+      return authState.permissions.contains('settings.general.update') ||
+             authState.permissions.contains('settings.general.create');
+    }
+    return false;
   }
 
   Future<void> _saveSettings() async {
@@ -142,7 +153,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                             _buildTextField(
                               controller: _lotController,
                               hint: 'Enter Lot Number...',
-                              enabled: !_isLotLocked,
+                              enabled: !_isLotLocked && _canUpdate,
                               icon: Icons.edit_note,
                             ),
                             if (_isLotLocked) ...[
@@ -175,7 +186,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                               'Customer',
                               _selectedCustomer,
                               _customersList,
-                              (val) => setState(() => _selectedCustomer = val),
+                              _canUpdate ? (val) => setState(() => _selectedCustomer = val) : (val) {},
                             ),
                             const SizedBox(height: 16),
                             _buildLabel('Default Salesman'),
@@ -183,7 +194,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                               'Salesman',
                               _selectedSalesman,
                               _salesRepsList,
-                              (val) => setState(() => _selectedSalesman = val),
+                              _canUpdate ? (val) => setState(() => _selectedSalesman = val) : (val) {},
                             ),
                           ],
                         ),
@@ -198,6 +209,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                         child: _buildTextField(
                           controller: _toleranceController,
                           hint: 'Enter %...',
+                          enabled: _canUpdate,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           icon: Icons.tune,
                         ),
@@ -236,13 +248,13 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                                 child: Text('X3 (INLPROD)'),
                               ),
                             ],
-                            onChanged: (value) {
+                            onChanged: _canUpdate ? (value) {
                               if (value != null) {
                                 setState(() {
                                   _selectedSchema = value;
                                 });
                               }
-                            },
+                            } : null,
                           ),
                         ),
                       ),
@@ -269,10 +281,11 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _saveSettings,
+                        onPressed: _canUpdate ? _saveSettings : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: orange,
                           foregroundColor: Colors.white,
+                          disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),

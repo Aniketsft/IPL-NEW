@@ -1864,6 +1864,26 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> getProductionSummaryFromServer(DateTime date) async {
+    try {
+      final formatted = DateFormat('yyyy-MM-dd').format(date);
+      final response = await _dio.get(
+        'Logistics/production-summary',
+        queryParameters: {'date': formatted},
+      );
+
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } else {
+        throw 'Failed to fetch production summary (status: ${response.statusCode})';
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch production summary from server: $e');
+      throw 'Failed to fetch production summary: $e';
+    }
+  }
+
   // --- APP SETTINGS REPOSITORY IMPLEMENTATION ---
 
   Future<AppSettings> getAppSettings() async {

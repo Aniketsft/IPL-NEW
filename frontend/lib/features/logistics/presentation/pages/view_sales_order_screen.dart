@@ -16,7 +16,8 @@ import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scann
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
-  const ViewSalesOrderScreen({super.key});
+  final List<String> permissions;
+  const ViewSalesOrderScreen({super.key, required this.permissions});
 
   @override
   State<ViewSalesOrderScreen> createState() => _ViewSalesOrderScreenState();
@@ -510,8 +511,8 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
           const SyncOverlay(),
         ],
       ),
-      // Hide the new-cuts FAB when the user is viewing closed orders
-      floatingActionButton: _status.toLowerCase() == 'closed'
+      // Hide the new-cuts FAB when the user is viewing closed orders or lacks create permission
+      floatingActionButton: _status.toLowerCase() == 'closed' || !widget.permissions.contains('manufacturing.all.create')
           ? null
           : FloatingActionButton(
               onPressed: () async {

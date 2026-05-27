@@ -10,12 +10,14 @@ class ProductionTrackingSoBreakdownScreen extends StatefulWidget {
   final String itemCode;
   final String description;
   final List<SalesOrderDetail> soItems;
+  final List<String> permissions;
 
   const ProductionTrackingSoBreakdownScreen({
     super.key,
     required this.itemCode,
     required this.description,
     required this.soItems,
+    required this.permissions,
   });
 
   @override
@@ -36,6 +38,13 @@ class _ProductionTrackingSoBreakdownScreenState
 
 
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
+    if (!widget.permissions.contains('manufacturing.all.update')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to update manufacturing tracking.')),
+      );
+      return;
+    }
+
     // Check header locks
     if (item.headerIsPreparedForShipment) {
       ScaffoldMessenger.of(context).showSnackBar(

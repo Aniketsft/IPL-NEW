@@ -1,3 +1,5 @@
+// This file is deprecated and pending deletion. UserGroups are no longer used.
+/*
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -61,3 +63,4 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         }
     }
 }
+*/

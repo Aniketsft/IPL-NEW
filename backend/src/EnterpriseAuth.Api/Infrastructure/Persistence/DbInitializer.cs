@@ -16,6 +16,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             await context.Database.EnsureCreatedAsync();
             Console.WriteLine("[DbInitializer] Database ensured.");
 
+            // FORCE SCHEMA CREATION: Create UserPermissions table if missing
+            try {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='UserPermissions' and xtype='U')
+                    BEGIN
+                        CREATE TABLE [UserPermissions] (
+                            [PermissionsId] uniqueidentifier NOT NULL,
+                            [UsersId] uniqueidentifier NOT NULL,
+                            CONSTRAINT [PK_UserPermissions] PRIMARY KEY ([PermissionsId], [UsersId]),
+                            CONSTRAINT [FK_UserPermissions_Permissions_PermissionsId] FOREIGN KEY ([PermissionsId]) REFERENCES [Permissions] ([Id]) ON DELETE CASCADE,
+                            CONSTRAINT [FK_UserPermissions_Users_UsersId] FOREIGN KEY ([UsersId]) REFERENCES [Users] ([Id]) ON DELETE CASCADE
+                        );
+                    END
+                ");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] Table creation warning: " + ex.Message);
+            }
+
             // FORCE CLEANSE: Clear existing permissions and associations to prevent orphan crashes
             try {
                 await context.Database.ExecuteSqlRawAsync("DELETE FROM [RolePermissions]");
@@ -31,6 +49,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             // The order here reflects the Home Screen priority requested.
             var hierarchy = new List<(string Module, string[] SubModules)>
             {
+                ( "app", new[] { "home" } ),
                 ( "logistics", new[] { "receipt", "delivery", "transfer" } ),
                 ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
@@ -95,29 +114,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             // Ensure other roles exist
-            if (!await context.Roles.AnyAsync(r => r.Name == "Operator"))
-            {
-                await context.Roles.AddAsync(new Role { 
-                    Id = Guid.NewGuid(), 
-                    Name = "Operator", 
-                    Permissions = allPermissions.Where(p => p.Name.Contains(".read")).ToList() 
-                });
-            }
-
-            await context.SaveChangesAsync();
-
-            // Seed User Groups
-            var itGroup = await context.UserGroups.FirstOrDefaultAsync(g => g.Name == "IT Administration");
-            if (itGroup == null)
-            {
-                itGroup = new UserGroup
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "IT Administration",
-                    RoleId = adminRole.Id
-                };
-                await context.UserGroups.AddAsync(itGroup);
-            }
+            // (Removed Operator role seeding per user request)
 
             await context.SaveChangesAsync();
 
@@ -138,8 +135,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Salt = salt,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
-                    Roles = new List<Role> { adminRole },
-                    UserGroupId = itGroup.Id
+                    Roles = new List<Role> { adminRole }
                 };
                 await context.Users.AddAsync(adminUser);
                 Console.WriteLine("[DbInitializer] Created 'admin' user and assigned Admin role.");
@@ -154,7 +150,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
                 
                 // Force sync the user's role permissions if they were stale
-                adminUser.UserGroupId = itGroup.Id;
             }
 
             await context.SaveChangesAsync();

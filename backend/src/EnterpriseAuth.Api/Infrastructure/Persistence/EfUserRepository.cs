@@ -22,6 +22,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
+                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(u => u.Id == id);
         }
 
@@ -30,6 +31,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
+                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
@@ -38,7 +40,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
-                .Include(u => u.UserGroup)
+                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(u => u.Username == username);
         }
 
@@ -47,7 +49,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
-                .Include(u => u.UserGroup)
+                .Include(u => u.Permissions)
                 .ToListAsync();
         }
 

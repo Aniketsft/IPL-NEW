@@ -59,6 +59,14 @@ class UserManagementRepository {
     }
   }
 
+  Future<void> deleteRole(String roleId) async {
+    try {
+      await _dio.delete('Roles/$roleId');
+    } catch (e) {
+      throw 'Failed to delete role: $e';
+    }
+  }
+
   // Groups
   Future<List<UserGroup>> getGroups() async {
     try {

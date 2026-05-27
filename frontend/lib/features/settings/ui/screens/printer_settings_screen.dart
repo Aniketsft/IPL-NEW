@@ -4,7 +4,8 @@ import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/models/printer_device.dart';
 import 'package:printing/printing.dart';
 class PrinterSettingsScreen extends StatefulWidget {
-  const PrinterSettingsScreen({super.key});
+  final List<String> permissions;
+  const PrinterSettingsScreen({super.key, required this.permissions});
 
   @override
   State<PrinterSettingsScreen> createState() => _PrinterSettingsScreenState();
@@ -12,6 +13,12 @@ class PrinterSettingsScreen extends StatefulWidget {
 
 class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   bool _isLoading = false;
+
+  bool get _canUpdate {
+    return widget.permissions.contains('settings.printer.update') ||
+           widget.permissions.contains('settings.printer.create') ||
+           widget.permissions.contains('settings.printer.delete');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,10 +80,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
           ButtonSegment(value: PrintMode.directIp, label: Text('DIRECT IP'), icon: Icon(Icons.lan)),
         ],
         selected: {mode},
-        onSelectionChanged: (newSelection) async {
+        onSelectionChanged: _canUpdate ? (newSelection) async {
           await PrinterService.instance.setPrintMode(newSelection.first);
           setState(() {});
-        },
+        } : null,
         style: SegmentedButton.styleFrom(
           selectedBackgroundColor: orange,
           selectedForegroundColor: Colors.black,
@@ -124,18 +131,18 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   child: Text('DEFAULT', style: TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                onPressed: () async {
+                icon: Icon(Icons.delete_outline, color: _canUpdate ? Colors.redAccent : Colors.grey),
+                onPressed: _canUpdate ? () async {
                   await PrinterService.instance.removePrinter(printer.id);
                   setState(() {});
-                },
+                } : null,
               ),
             ],
           ),
-          onTap: () async {
+          onTap: _canUpdate ? () async {
             await PrinterService.instance.setDefaultPrinter(printer.id, mode);
             setState(() {});
-          },
+          } : null,
         );
       },
     );
@@ -145,7 +152,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: ElevatedButton.icon(
-        onPressed: () => _showAddEditPrinterDialog(context, orange, isDark),
+        onPressed: _canUpdate ? () => _showAddEditPrinterDialog(context, orange, isDark) : null,
         icon: const Icon(Icons.add),
         label: const Text('ADD PRINTER'),
         style: ElevatedButton.styleFrom(

@@ -53,7 +53,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             var token = _tokenService.GenerateToken(user);
 
-            var permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).Distinct().ToList();
+            var permissions = user.Roles.SelectMany(r => r.Permissions)
+                .Concat(user.Permissions ?? new List<Permission>())
+                .Select(p => p.Name)
+                .Distinct()
+                .ToList();
             
             // Log login success quietly
             Console.WriteLine($"AuthService: User {user.Username} logged in with {permissions.Count} permissions.");
@@ -72,7 +76,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             if (user == null || !user.IsActive) return null;
 
             var token = _tokenService.GenerateToken(user);
-            var permissions = user.Roles.SelectMany(r => r.Permissions).Select(p => p.Name).Distinct().ToList();
+            var permissions = user.Roles.SelectMany(r => r.Permissions)
+                .Concat(user.Permissions ?? new List<Permission>())
+                .Select(p => p.Name)
+                .Distinct()
+                .ToList();
 
             return new AuthResponse
             {
@@ -88,12 +96,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             if (existingUser != null) return false;
 
             var viewerRole = await _roleRepository.GetByNameAsync("Viewer");
-            var logisticsGroup = (await _userRepository.GetAllAsync())
-                .Select(u => u.UserGroup)
-                .Where(g => g != null)
-                .FirstOrDefault(g => g!.Name == "Logistics"); 
-            
-            // Note: In a production app, we'd have a dedicated IUserGroupRepository.GetByNameAsync
+
             
             var passwordHash = _passwordHasher.HashPassword(request.Password, out string salt);
 
@@ -106,8 +109,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 Salt = salt,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                Roles = viewerRole != null ? new List<Role> { viewerRole } : new List<Role>(),
-                UserGroupId = logisticsGroup?.Id
+                Roles = viewerRole != null ? new List<Role> { viewerRole } : new List<Role>()
             };
 
             await _userRepository.AddAsync(user);

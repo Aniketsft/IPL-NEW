@@ -23,6 +23,11 @@ class DeliveryScreen extends StatefulWidget {
 }
 
 class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMixin<DeliveryScreen> {
+  bool get _canUpdate {
+    return widget.permissions.contains('logistics.delivery.update') ||
+           widget.permissions.contains('logistics.delivery.create') ||
+           widget.permissions.contains('logistics.delivery.delete');
+  }
   @override
   void onHardwareScan(String data) {
     _processScan(data);
@@ -626,18 +631,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
       extraActions: [
         IconButton(
           tooltip: 'End of Day Import',
-          icon: Icon(Icons.send_and_archive, color: orange),
-          onPressed: _processEndOfDay,
+          icon: Icon(Icons.send_and_archive, color: _canUpdate ? orange : Colors.grey),
+          onPressed: _canUpdate ? _processEndOfDay : null,
         ),
       ],
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _canUpdate ? FloatingActionButton(
         onPressed: _showManualEntryDialog,
         backgroundColor: orange,
         foregroundColor: Colors.white,
         elevation: 4,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 28),
-      ),
+      ) : null,
       body: Column(
         children: [
           SyncStatusHeader(lastSync: _lastSync),
@@ -679,12 +684,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                         Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 12)),
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
-                          onPressed: _scanManifest,
+                          onPressed: _canUpdate ? _scanManifest : null,
                           icon: const Icon(Icons.camera_alt),
                           label: const Text('START SCANNING'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: orange,
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           ),
                         )
@@ -716,12 +722,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _clearManifest,
+                      onPressed: _canUpdate ? _clearManifest : null,
                       icon: const Icon(Icons.delete_outline, size: 18),
                       label: const Text('CLEAR QUEUE'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[300],
-                        side: BorderSide(color: Colors.red[900]!),
+                        side: BorderSide(color: _canUpdate ? Colors.red[900]! : Colors.transparent),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -730,12 +736,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: _scanManifest,
+                      onPressed: _canUpdate ? _scanManifest : null,
                       icon: const Icon(Icons.add_a_photo),
                       label: const Text('SCAN NEXT'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: orange,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),

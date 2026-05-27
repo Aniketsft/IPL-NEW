@@ -10,5 +10,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string Description { get; set; } = string.Empty;
 
         public ICollection<Role> Roles { get; set; } = new List<Role>();
+        public ICollection<User> Users { get; set; } = new List<User>();
     }
 }

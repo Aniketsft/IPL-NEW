@@ -33,6 +33,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Security
             // Add Permissions as claims
             var permissions = user.Roles
                 .SelectMany(r => r.Permissions)
+                .Concat(user.Permissions ?? new List<Permission>())
                 .Select(p => p.Name)
                 .Distinct();
 
