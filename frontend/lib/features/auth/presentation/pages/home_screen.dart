@@ -208,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'Data Sync',
         Icons.sync_rounded,
         null,
-        onTapOverride: _hasAccess('app.home.update') ? _triggerSync : null,
+        onTapOverride: _triggerSync,
         subtitle: 'Last: $_lastSyncStr',
       ),
       if (_hasAccess('logistics.delivery.read'))

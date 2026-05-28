@@ -705,6 +705,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                         order: _filteredOrders[index],
                         onRefresh: _fetchOrders,
                         isDeliveryMode: true,
+                        permissions: widget.permissions,
                       );
                     },
                   ),

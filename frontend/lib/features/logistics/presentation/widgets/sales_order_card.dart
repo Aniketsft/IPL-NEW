@@ -7,10 +7,12 @@ class SalesOrderCard extends StatelessWidget {
   final SalesOrder order;
   final VoidCallback? onRefresh;
   final bool isDeliveryMode;
+  final List<String> permissions;
 
   const SalesOrderCard({
     super.key,
     required this.order,
+    required this.permissions,
     this.onRefresh,
     this.isDeliveryMode = false,
   });
@@ -43,6 +45,7 @@ class SalesOrderCard extends StatelessWidget {
               builder: (context) => SalesOrderDetailScreen(
                 order: order,
                 isDeliveryMode: isDeliveryMode,
+                permissions: permissions,
               ),
             ),
           );

@@ -12,7 +12,9 @@ import '../../domain/entities/sales_order.dart';
 import '../../../settings/data/models/site.dart';
 
 class ProductionTrackingListScreen extends StatefulWidget {
-  const ProductionTrackingListScreen({super.key});
+  final List<String> permissions;
+  
+  const ProductionTrackingListScreen({super.key, required this.permissions});
 
   @override
   State<ProductionTrackingListScreen> createState() =>
@@ -263,6 +265,7 @@ class _ProductionTrackingListScreenState
                   site: item.site,
                 ),
                 product: item,
+                permissions: widget.permissions,
               ),
             ),
           );

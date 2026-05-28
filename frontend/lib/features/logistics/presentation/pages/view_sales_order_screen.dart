@@ -310,7 +310,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
         children: [
           Column(
             children: [
-              SyncStatusHeader(lastSync: _lastSync, showSyncButton: false),
+              SyncStatusHeader(lastSync: _lastSync),
               StandardFilter(
                 onApply: _fetchOrders,
                 searchController: _searchController,
@@ -501,6 +501,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                           }
                           return SalesOrderCard(
                             order: _filteredOrders[index],
+                            permissions: widget.permissions,
                             onRefresh: _fetchOrders,
                           );
                         },

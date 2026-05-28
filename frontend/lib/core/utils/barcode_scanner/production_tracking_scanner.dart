@@ -10,11 +10,13 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/pro
 class ProductionTrackingScanner extends StatefulWidget {
   final SalesOrder order;
   final List<SalesOrderDetail> details;
+  final List<String> permissions;
 
   const ProductionTrackingScanner({
     super.key,
     required this.order,
     required this.details,
+    required this.permissions,
   });
 
   @override
@@ -84,6 +86,7 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> w
                 builder: (context) => ProductionTrackingScreen(
                   order: widget.order,
                   product: detail,
+                  permissions: widget.permissions,
                 ),
               ),
             );
@@ -118,6 +121,7 @@ class _ProductionTrackingScannerState extends State<ProductionTrackingScanner> w
                 builder: (context) => ProductionTrackingScreen(
                   order: widget.order,
                   product: newDetail,
+                  permissions: widget.permissions,
                 ),
               ),
             );

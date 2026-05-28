@@ -275,6 +275,10 @@ class UserManagementRepository {
       if (access.canDelete)
         permissions.add({'name': '${access.moduleId}.delete'});
     }
-    return {'id': role.id, 'name': role.name, 'permissions': permissions};
+    final map = {'name': role.name, 'permissions': permissions};
+    if (role.id.isNotEmpty) {
+      map['id'] = role.id;
+    }
+    return map;
   }
 }

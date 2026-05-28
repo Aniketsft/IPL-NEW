@@ -20,11 +20,13 @@ import '../../data/local/local_database_helper.dart';
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
   final SalesOrderDetail product;
+  final List<String> permissions;
 
   const ProductionTrackingScreen({
     super.key,
     required this.order,
     required this.product,
+    required this.permissions,
   });
 
   @override
@@ -78,6 +80,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   @override
   void onHardwareScan(String data) {
+    if (!widget.permissions.contains('manufacturing.all.update')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to scan items.')),
+      );
+      return;
+    }
     _handleScan(data);
   }
 
@@ -250,6 +258,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     }
   }
 
+  Future<void> _saveBatch() async {
+    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    if (_scans.isEmpty || _isSaving) return;
+    // Implementation of batch saving logic would go here...
+  }
+
   Future<void> _fetchLots() async {
     if (_selectedSite == null) return;
     try {
@@ -308,6 +322,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _toggleScanner() {
     setState(() => _isScannerVisible = !_isScannerVisible);
+  }
+
+  void _removeScan(int index) {
+    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    setState(() {
+      _scans.removeAt(index);
+    });
   }
 
   Future<bool> _handleScan(String rawString) async {
@@ -1788,14 +1809,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           ),
         ),
         if (_pendingScan != null) _buildScanSuccessOverlay(),
-        Positioned(
-          top: 12,
-          right: 12,
-          child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70),
-            onPressed: _toggleScanner,
+        if (widget.permissions.contains('manufacturing.all.update'))
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white70),
+              onPressed: _toggleScanner,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -2162,6 +2184,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   void _showManualBarcodeDialog() {
+    if (!widget.permissions.contains('manufacturing.all.update')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to add manual scans.')),
+      );
+      return;
+    }
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final ctrl = TextEditingController();

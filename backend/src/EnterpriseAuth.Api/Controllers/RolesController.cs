@@ -73,9 +73,9 @@ namespace EnterpriseAuth.Api.Controllers
 
             if (roleDto.Permissions != null && roleDto.Permissions.Any())
             {
-                var names = roleDto.Permissions.Select(p => p.Name.ToLowerInvariant()).ToList();
+                var names = roleDto.Permissions.Select(p => p.Name.ToLower()).ToList();
                 var dbPermissions = await _context.Permissions
-                    .Where(p => names.Contains(p.Name.ToLowerInvariant()))
+                    .Where(p => names.Contains(p.Name.ToLower()))
                     .ToListAsync();
                 foreach (var p in dbPermissions)
                 {
@@ -102,9 +102,9 @@ namespace EnterpriseAuth.Api.Controllers
             existingRole.Permissions.Clear();
             if (roleDto.Permissions != null && roleDto.Permissions.Any())
             {
-                var names = roleDto.Permissions.Select(p => p.Name.ToLowerInvariant()).ToList();
+                var names = roleDto.Permissions.Select(p => p.Name.ToLower()).ToList();
                 var dbPermissions = await _context.Permissions
-                    .Where(p => names.Contains(p.Name.ToLowerInvariant()))
+                    .Where(p => names.Contains(p.Name.ToLower()))
                     .ToListAsync();
                 foreach (var p in dbPermissions)
                 {

@@ -15,10 +15,12 @@ import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcod
 class SalesOrderDetailScreen extends StatefulWidget {
   final SalesOrder order;
   final bool isDeliveryMode;
+  final List<String> permissions;
 
   const SalesOrderDetailScreen({
     super.key,
     required this.order,
+    required this.permissions,
     this.isDeliveryMode = false,
   });
 
@@ -73,6 +75,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             builder: (context) => ProductionTrackingScreen(
               order: widget.order,
               product: matchedItem,
+              permissions: widget.permissions,
             ),
           ),
         ).then((_) => _fetchDetails()); // Refresh when coming back
@@ -122,6 +125,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
+    if (!widget.permissions.contains('manufacturing.all.update')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You do not have permission to perform this action.')),
+        );
+      }
+      return;
+    }
+
     // If prepared for shipment, nothing can be modified
     if (widget.order.isPreparedForShipment) {
       if (mounted) {
@@ -321,6 +333,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _bulkUpdateStatus() async {
+    if (!widget.permissions.contains('manufacturing.all.update')) return;
+
     if (_selectedItemCodes.isEmpty) return;
 
     final String title = widget.isDeliveryMode
@@ -446,6 +460,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _prepareForShipment() async {
+    if (!widget.permissions.contains('manufacturing.all.update')) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -505,6 +521,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _closeOrder() async {
+    if (!widget.permissions.contains('manufacturing.all.update')) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -764,7 +782,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                     },
                   ),
           ),
-          _buildFooter(),
+          if (widget.permissions.contains('manufacturing.all.update'))
+            _buildFooter(),
         ],
       ),
     );
@@ -960,8 +979,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                ProductionTrackingScreen(order: widget.order, product: item),
+            builder: (context) => ProductionTrackingScreen(
+              order: widget.order,
+              product: item,
+              permissions: widget.permissions,
+            ),
           ),
         );
         if (result == true) {
@@ -1327,6 +1349,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                         ProductionTrackingScanner(
                                           order: widget.order,
                                           details: _details,
+                                          permissions: widget.permissions,
                                         ),
                                   ),
                                 ).then((_) => _fetchDetails()),
