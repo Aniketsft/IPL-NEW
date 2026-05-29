@@ -1,4 +1,5 @@
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/site.dart';
+import 'sales_order_filter_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/customer.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/sales_rep.dart';
 import 'package:flutter/material.dart';
@@ -52,7 +53,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
   @override
   void initState() {
     super.initState();
-    _selectedDate = null;
+    // Restore persisted filter state
+    _selectedDate = SalesOrderFilterState.selectedDate;
+    _status = SalesOrderFilterState.status;
+    _selectedCustomerCode = SalesOrderFilterState.selectedCustomerCode;
+    _selectedSalesmanCode = SalesOrderFilterState.selectedSalesmanCode;
+    _poTypeFilter = SalesOrderFilterState.poTypeFilter;
+    _searchController.text = SalesOrderFilterState.searchQuery;
     _selectedSite = null;
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
@@ -90,6 +97,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
   }
 
   void _onSearchChanged() {
+    SalesOrderFilterState.searchQuery = _searchController.text;
     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
@@ -323,13 +331,14 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                     (_status != 'all' && _status != 'open') ||
                     _poTypeFilter != 'ALL',
                 onReset: () {
+                  SalesOrderFilterState.reset();
                   setState(() {
                     _selectedCustomerCode = null;
                     _selectedSalesmanCode = null;
                     _selectedSite = null;
                     _selectedDate = null;
-                    _status = 'all';
-                    _poTypeFilter = 'ALL';
+                    _status = SalesOrderFilterState.status;
+                    _poTypeFilter = SalesOrderFilterState.poTypeFilter;
                     _searchController.clear();
                   });
                   _loadLookups();
@@ -376,12 +385,15 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                               if (picked != null) {
                                 setState(() {
                                   _selectedDate = picked;
+                                  SalesOrderFilterState.selectedDate = picked;
                                   _selectedSite = null;
                                   _selectedSalesmanCode = null;
+                                  SalesOrderFilterState.selectedSalesmanCode = null;
                                   _selectedCustomerCode = null;
+                                  SalesOrderFilterState.selectedCustomerCode = null;
                                 });
                                 await _refreshAllLookups();
-                                setModalState(() {}); 
+                                setModalState(() {});
                               }
                             },
                           ),
@@ -399,6 +411,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                               (code) {
                                 setState(() {
                                   _poTypeFilter = code ?? 'ALL';
+                                  SalesOrderFilterState.poTypeFilter = _poTypeFilter;
                                 });
                                 _applyLocalFilters();
                                 setModalState(() {});
@@ -422,7 +435,9 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                                       (code) async {
                                         setState(() {
                                           _selectedSalesmanCode = code;
+                                          SalesOrderFilterState.selectedSalesmanCode = code;
                                           _selectedCustomerCode = null;
+                                          SalesOrderFilterState.selectedCustomerCode = null;
                                         });
                                         await _reloadCustomers();
                                         setModalState(() {});
@@ -444,7 +459,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                                       'Customer',
                                       _customersList,
                                       (code) {
-                                        setState(() => _selectedCustomerCode = code);
+                                        setState(() {
+                                          _selectedCustomerCode = code;
+                                          SalesOrderFilterState.selectedCustomerCode = code;
+                                        });
                                         setModalState(() {});
                                       },
                                     ),
@@ -457,7 +475,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                         value: _status,
                         options: const ['open', 'closed', 'all'],
                         onChanged: (value) {
-                          setState(() => _status = value);
+                          setState(() {
+                            _status = value;
+                            SalesOrderFilterState.status = value;
+                          });
                         },
                       ),
                     ],

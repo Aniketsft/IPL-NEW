@@ -146,11 +146,13 @@ class PrinterService {
     required double weight,
     required String unit,
     required String qrData,
+    String? customerCode,
     String? lotNumber,
     String? productionDate,
     String? expiryDate,
     String? auditId,
     String? salesman,
+    String? loggedInUser,
   }) async {
     if (_mode == PrintMode.directIp) {
       final printer = defaultDirectIpPrinter;
@@ -165,11 +167,13 @@ class PrinterService {
         weight: weight,
         unit: unit,
         qrData: qrData,
+        customerCode: customerCode,
         lotNumber: lotNumber,
         productionDate: productionDate,
         expiryDate: expiryDate,
         auditId: auditId,
         salesman: salesman,
+        loggedInUser: loggedInUser,
       );
       await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
@@ -194,14 +198,20 @@ class PrinterService {
                   ],
                 ),
                 pw.SizedBox(height: 12),
-                pw.Text(customerName.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                pw.Text('${customerCode != null ? "[$customerCode] " : ""}${customerName.toUpperCase()}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                 pw.Text('IPLSO Number: $soNumber', style: const pw.TextStyle(fontSize: 14)),
                 pw.Divider(thickness: 1),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text('Lot Number: ${lotNumber ?? "N/A"}', style: const pw.TextStyle(fontSize: 12)),
-                    if (salesman != null) pw.Text('SM: $salesman', style: const pw.TextStyle(fontSize: 12)),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        if (salesman != null) pw.Text('SM: $salesman', style: const pw.TextStyle(fontSize: 12)),
+                        if (loggedInUser != null) pw.Text('User: $loggedInUser', style: const pw.TextStyle(fontSize: 10)),
+                      ],
+                    ),
                   ],
                 ),
                 pw.Text('Production Date: ${productionDate ?? "TODAY"}', style: const pw.TextStyle(fontSize: 12)),

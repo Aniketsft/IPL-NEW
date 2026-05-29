@@ -4,6 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'label_qr_generator.dart';
 
@@ -102,7 +105,6 @@ class LabelPrintingHandler {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: double.infinity,
           constraints: BoxConstraints(maxHeight: maxHeight), 
           padding: const EdgeInsets.all(16),
           color: Colors.white,
@@ -238,29 +240,32 @@ class LabelPrintingHandler {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1D1D1D),
         contentPadding: const EdgeInsets.all(12),
-        content: _buildPreviewCard(
-          context: context,
-          title: item.itemCode,
-          qrData: qrData,
-          details: [
-            Text(item.description, 
-              style: const TextStyle(color: Colors.black54, fontSize: 9, fontStyle: FontStyle.italic),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text('CUST: ${item.customerName?.toUpperCase() ?? "N/A"}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text('SO: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 4),
-            Text('LOT: ${item.lot ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
+        content: SizedBox(
+          width: double.maxFinite,
+          child: _buildPreviewCard(
+            context: context,
+            title: item.itemCode,
+            qrData: qrData,
+            details: [
+              Text(item.description, 
+                style: const TextStyle(color: Colors.black54, fontSize: 9, fontStyle: FontStyle.italic),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text('CUST: ${item.customerName?.toUpperCase() ?? "N/A"}', 
+                style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text('SO: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              const SizedBox(height: 4),
+              Text('LOT: ${item.lot ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              const SizedBox(height: 6),
+              Text('${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
@@ -300,33 +305,36 @@ class LabelPrintingHandler {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1D1D1D),
         contentPadding: const EdgeInsets.all(12),
-        content: _buildPreviewCard(
-          context: context,
-          title: 'CRATE LABEL',
-          qrData: qrData,
-          cornerCode: 'CL',
-          details: [
-            Text('CUST: ${customerName.toUpperCase()}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text('SO: $soNumber', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            Text('DELIV: $deliveryDate', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('TOTAL: ${total.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-          labelId: 'PENDING...', // Will be updated if we audit before preview
-          manifest: items.map((i) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(i['itemCode'] ?? 'N/A', style: const TextStyle(color: Colors.black87, fontSize: 10, fontFamily: 'monospace')),
-                Text('${i['weight'] ?? '0.00'} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'monospace')),
-              ],
-            ),
-          )).toList(),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: _buildPreviewCard(
+            context: context,
+            title: 'CRATE LABEL',
+            qrData: qrData,
+            cornerCode: 'CL',
+            details: [
+              Text('CUST: ${customerName.toUpperCase()}', 
+                style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text('SO: $soNumber', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              Text('DELIV: $deliveryDate', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              const SizedBox(height: 6),
+              Text('TOTAL: ${total.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+            labelId: 'PENDING...', // Will be updated if we audit before preview
+            manifest: items.map((i) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(i['itemCode'] ?? 'N/A', style: const TextStyle(color: Colors.black87, fontSize: 10, fontFamily: 'monospace')),
+                  Text('${i['weight'] ?? '0.00'} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'monospace')),
+                ],
+              ),
+            )).toList(),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
@@ -387,7 +395,6 @@ class LabelPrintingHandler {
       
       manifestWidgets.add(
         Container(
-          width: double.infinity,
           margin: const EdgeInsets.only(top: 8),
           padding: const EdgeInsets.all(8),
           color: Colors.grey[200],
@@ -418,23 +425,26 @@ class LabelPrintingHandler {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1D1D1D),
         contentPadding: const EdgeInsets.all(8),
-        content: _buildPreviewCard(
-          context: context,
-          title: 'PALETTE MASTER',
-          qrData: qrData,
-          cornerCode: 'PL',
-          details: [
-            Text('MASTER CUST: ${customerName.toUpperCase()}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('TOTAL: ${totalWeight.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-          labelId: 'MULTI-AUDIT',
-          manifest: manifestWidgets,
+        content: SizedBox(
+          width: double.maxFinite,
+          child: _buildPreviewCard(
+            context: context,
+            title: 'PALETTE MASTER',
+            qrData: qrData,
+            cornerCode: 'PL',
+            details: [
+              Text('MASTER CUST: ${customerName.toUpperCase()}', 
+                style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+              const SizedBox(height: 6),
+              Text('TOTAL: ${totalWeight.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+            labelId: 'MULTI-AUDIT',
+            manifest: manifestWidgets,
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
@@ -477,14 +487,16 @@ class LabelPrintingHandler {
     );
   }
 
-  /// Sends the label to the thermal printer.
-  static Future<void> printLabel({
+  /// Sends the label to the thermal printer. Returns true if print attempted, false if aborted (e.g. 0 qty).
+  static Future<bool> printLabel({
     required BuildContext context,
     required SalesOrderDetail item,
     String? auditId,
+    bool suppressZeroQuantityWarning = false,
+    bool isReprint = false,
   }) async {
     if (item.manufacturedQuantity <= 0) {
-      if (context.mounted) {
+      if (context.mounted && !suppressZeroQuantityWarning) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Print aborted: Product has 0 manufactured quantity.'),
@@ -492,12 +504,24 @@ class LabelPrintingHandler {
           ),
         );
       }
-      return;
+      return false;
     }
 
     try {
       // 1. Ensure we have an audit ID (If direct print was called)
-      final effectiveAuditId = auditId ?? await _logAudit(context, item);
+      final effectiveAuditId = auditId ?? await _logAudit(context, item, isReprint: isReprint);
+
+      // Fetch logged-in user from AuthBloc
+      final authState = context.read<AuthBloc>().state;
+      String? loggedInUser;
+      if (authState is Authenticated) {
+        loggedInUser = authState.username;
+      }
+
+      String? formattedExpiryDate;
+      if (item.expiryDate != null) {
+        formattedExpiryDate = DateFormat('dd-MM-yyyy').format(item.expiryDate!);
+      }
 
       await PrinterService.instance.printLabel(
         soNumber: item.soNumber,
@@ -507,26 +531,31 @@ class LabelPrintingHandler {
         weight: item.manufacturedQuantity,
         unit: item.unit,
         qrData: LabelQrGenerator.generate(item),
+        customerCode: item.customerCode,
         lotNumber: item.lot,
+        expiryDate: formattedExpiryDate,
         auditId: effectiveAuditId,
+        loggedInUser: loggedInUser,
         salesman: ((item.salesMan2?.trim() ?? "").isNotEmpty) 
             ? item.salesMan2!.trim() 
             : item.salesMan1?.trim(),
       );
+      return true;
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print Fail: $e'), backgroundColor: Colors.red));
       }
+      return false;
     }
   }
 
   /// Private helper to log audit and handle both online/offline flows.
-  static Future<String?> _logAudit(BuildContext context, SalesOrderDetail item) async {
+  static Future<String?> _logAudit(BuildContext context, SalesOrderDetail item, {bool isReprint = false}) async {
     try {
       final repo = RepositoryProvider.of<DeliveryRepository>(context);
       return await repo.logLabelAudit({
         'referenceNumber': item.soNumber,
-        'labelType': 'Standard',
+        'labelType': isReprint ? 'Standard Reprint' : 'Standard',
         'productCode': item.itemCode,
         'customerName': item.customerName,
         'totalWeight': item.manufacturedQuantity,

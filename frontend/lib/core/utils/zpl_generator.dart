@@ -11,16 +11,19 @@ class ZplGenerator {
     required double weight,
     required String unit,
     required String qrData,
+    String? customerCode,
     String? lotNumber,
     String? productionDate,
     String? expiryDate,
     String? auditId,
     String? salesman,
+    String? loggedInUser,
   }) {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
     final prodDate =
         productionDate ?? DateFormat('dd/MM/yyyy').format(DateTime.now());
     final expDate = expiryDate ?? "N/A";
+    final custCodeStr = customerCode != null ? "[$customerCode] " : "";
 
     return """
 ^XA
@@ -36,7 +39,7 @@ class ZplGenerator {
 
 
 -- Customer & SO --
-^FO40,140^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,140^A0N,35,35^FB700,1,L^FD$custCodeStr$customerName^FS
 ^FO40,185^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
 -- Middle Divider --
@@ -45,6 +48,7 @@ class ZplGenerator {
 -- Batch/Date Info --
 ^FO40,270^A0N,30,30^FDLot Number: ${lotNumber ?? "N/A"}^FS
 ^FO460,270^A0N,25,25^FDSM: ${salesman ?? ""}^FS
+^FO460,300^A0N,20,20^FDUser: ${loggedInUser ?? ""}^FS
 ^FO40,315^A0N,30,30^FDProduction Date: $prodDate^FS
 ^FO40,360^A0N,30,30^FDExpiry Date: $expDate^FS
 

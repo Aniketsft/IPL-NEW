@@ -4,6 +4,7 @@ class SalesOrderDetail {
   final String? customerCode;
   final String? customerName;
   final DateTime? deliveryDate;
+  final DateTime? expiryDate;
   final String? salesMan1;
   final String? salesMan2;
 
@@ -37,6 +38,7 @@ class SalesOrderDetail {
     this.customerCode,
     this.customerName,
     this.deliveryDate,
+    this.expiryDate,
     this.salesMan1,
     this.salesMan2,
     this.site,
@@ -90,6 +92,7 @@ class SalesOrderDetail {
     String? customerCode,
     String? customerName,
     DateTime? deliveryDate,
+    DateTime? expiryDate,
     String? salesMan1,
     String? salesMan2,
     String? site,
@@ -119,6 +122,7 @@ class SalesOrderDetail {
       customerCode: customerCode ?? this.customerCode,
       customerName: customerName ?? this.customerName,
       deliveryDate: deliveryDate ?? this.deliveryDate,
+      expiryDate: expiryDate ?? this.expiryDate,
       salesMan1: salesMan1 ?? this.salesMan1,
       salesMan2: salesMan2 ?? this.salesMan2,
       site: site ?? this.site,

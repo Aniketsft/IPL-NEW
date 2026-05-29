@@ -25,6 +25,7 @@ class SalesOrderDetailDto {
   final bool isPrepared;
   final String unit;
   final double eaQuantity;
+  final String? expiryDate;
 
   SalesOrderDetailDto({
     required this.soNumber,
@@ -32,6 +33,7 @@ class SalesOrderDetailDto {
     this.customerCode,
     this.customerName,
     this.deliveryDate,
+    this.expiryDate,
     this.salesMan1,
     this.salesMan2,
     this.salesman,
@@ -60,6 +62,7 @@ class SalesOrderDetailDto {
       customerCode: json['customerCode']?.toString(),
       customerName: json['customerName']?.toString(),
       deliveryDate: json['deliveryDate']?.toString(),
+      expiryDate: json['expiryDate']?.toString(),
       salesMan1: json['salesMan1']?.toString(),
       salesMan2: json['salesMan2']?.toString(),
       salesman: json['salesman']?.toString(),
@@ -103,6 +106,7 @@ class SalesOrderDetailDto {
       LocalDatabaseHelper.colDetCustomerCode: customerCode,
       LocalDatabaseHelper.colDetCustomerName: customerName,
       LocalDatabaseHelper.colDetEaScanned: eaQuantity,
+      LocalDatabaseHelper.colDetExpiryDate: expiryDate,
     };
   }
 }

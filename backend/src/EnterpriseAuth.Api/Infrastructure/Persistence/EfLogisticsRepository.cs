@@ -291,6 +291,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .AsNoTracking()
                 .ToListAsync();
 
+            // Fetch the earliest scan date for each line to compute expiry date
+            var lineIds = states.Select(s => s.SalesOrderLineId).ToList();
+            var earliestScans = await _scanContext.ProductionScanTransactions
+                .Where(t => lineIds.Contains(t.SalesOrderLineId) && !t.IsDeleted)
+                .GroupBy(t => t.SalesOrderLineId)
+                .Select(g => new { SalesOrderLineId = g.Key, CreatedAt = g.Min(t => t.CreatedAt) })
+                .ToDictionaryAsync(k => k.SalesOrderLineId, v => v.CreatedAt);
+
             return states.Select(s => new SalesOrderDetailDto
             {
                 SoNumber = s.OrderLine.Order.SourceOrderId,
@@ -305,7 +313,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Remaining = Math.Max(0m, s.OrderLine.OrderedQuantity - s.TotalManufacturedQty),
                 Manufactured = s.TotalManufacturedQty,
                 EaQuantity = s.TotalEaQty,
-                IsPrepared = s.IsPrepared || s.IsLineCompleted
+                IsPrepared = s.IsPrepared || s.IsLineCompleted,
+                ExpiryDate = earliestScans.ContainsKey(s.SalesOrderLineId) ? earliestScans[s.SalesOrderLineId].AddDays(5) : null
             });
         }
 

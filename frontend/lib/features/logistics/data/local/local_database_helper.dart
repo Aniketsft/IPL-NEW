@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 50;
+  static const _databaseVersion = 51;
 
 
   static const tableScans = 'tbl_scans';
@@ -102,6 +102,7 @@ class LocalDatabaseHelper {
   static const colDetCustomerName = 'customerName';
   static const colDetEaScanned = 'ea_scanned';
   static const colDetCreatedAt = 'createdAt';
+  static const colDetExpiryDate = 'expiryDate';
 
   // Common Code/Name columns
   static const colCode = 'code';
@@ -761,6 +762,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v50: $e");
       }
     }
+    if (oldVersion < 51) {
+      debugPrint('DB Upgrade: Adding expiryDate to tbl_sales_order_details (v51)');
+      try {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetExpiryDate TEXT');
+      } catch (e) {
+        debugPrint("Migration error v51: $e");
+      }
+    }
   }
 
 
@@ -845,6 +854,7 @@ class LocalDatabaseHelper {
         $colDetCustomerName TEXT,
         $colDetEaScanned REAL DEFAULT 0,
         $colDetCreatedAt TEXT,
+        $colDetExpiryDate TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         $colDeviceId TEXT,
         UNIQUE($colDetSoNum, $colDetItemCode)

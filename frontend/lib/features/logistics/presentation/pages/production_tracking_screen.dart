@@ -5,17 +5,60 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:ui' show ImageFilter;
 import 'package:uuid/uuid.dart';
-
+import 'package:flutter/foundation.dart';
 import '../../../../core/utils/audio/audio_service.dart';
 import '../../../../core/utils/barcode_scanner/barcode_processor.dart';
 import '../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
-
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/sales_order_detail.dart';
 import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
 import '../widgets/scan_item_card.dart';
 import '../../data/local/local_database_helper.dart';
+
+List<Map<String, dynamic>> _mapHistoricalScans(Map<String, dynamic> args) {
+  final List<dynamic> historicalScans = args['scans'];
+  final String productCode = args['productCode'];
+  final String unit = args['unit'];
+  final String? selectedSite = args['selectedSite'];
+  final String soNumber = args['soNumber'];
+
+  final now = DateTime.now();
+  final todayStart = DateTime(now.year, now.month, now.day);
+
+  final filteredScans = historicalScans.where((s) {
+    if (s['createdAt'] != null) {
+      try {
+        final date = DateTime.parse(s['createdAt']);
+        return date.isAfter(todayStart) || date.isAtSameMomentAs(todayStart);
+      } catch (_) {
+        return false;
+      }
+    }
+    return false;
+  }).toList();
+
+  return filteredScans.map((s) => <String, dynamic>{
+    'barcode': (s['barcode'] ?? s['Barcode']) ?? ((s['syncId'] != null && s['syncId'].toString().contains('-')) ? 'Synced Scan' : (s['syncId'] ?? 'SAVED')),
+    'originalBarcode': (s['barcode'] ?? s['Barcode']) ?? '',
+    'productCode': s['itemCode'] ?? productCode,
+    'scannedQty':
+        (s['eaQuantity'] != null && (s['eaQuantity'] as num).toDouble() > 0)
+        ? (s['eaQuantity'] as num).toDouble()
+        : (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+    'manufacturedQty': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+    'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
+    'unit': unit,
+    'timestamp': s['createdAt'] ?? now.toIso8601String(),
+    'status': s['itemStatus'] ?? 'A',
+    'siteId': selectedSite,
+    'locationCode': s['location'],
+    'lot': s['lot'],
+    'soNumber': soNumber,
+    'syncId': s['syncId'],
+    'isSaved': true,
+  }).toList();
+}
 
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
@@ -122,33 +165,32 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         widget.product.itemCode,
       );
       if (mounted && historicalScans.isNotEmpty) {
-        final mappedScans = historicalScans
-            .map(
-              (s) => {
-                'barcode': (s['barcode'] ?? s['Barcode']) ?? ((s['syncId'] != null && s['syncId'].toString().contains('-')) ? 'Synced Scan' : (s['syncId'] ?? 'SAVED')),
-                'originalBarcode': (s['barcode'] ?? s['Barcode']) ?? '',
-                'productCode': s['itemCode'] ?? widget.product.itemCode,
-                'scannedQty':
-                    (s['eaQuantity'] != null &&
-                        (s['eaQuantity'] as num).toDouble() > 0)
-                    ? (s['eaQuantity'] as num).toDouble()
-                    : (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-                'manufacturedQty':
-                    (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-                'weight': (s['scanAmountKg'] as num?)?.toDouble() ?? 0.0,
-                'unit': widget.product.unit,
-                'timestamp': s['createdAt'] ?? DateTime.now().toIso8601String(),
-                'status': s['itemStatus'] ?? 'A',
-                'siteId': _selectedSite,
-                'locationCode': s['location'],
-                'lot': s['lot'],
-                'soNumber': widget.order.orderNumber,
-                'syncId': s['syncId'],
-                'isSaved': true,
-              },
-            )
-            .toList();
+        final mappedScans = await compute(_mapHistoricalScans, {
+          'scans': historicalScans,
+          'productCode': widget.product.itemCode,
+          'unit': widget.product.unit,
+          'selectedSite': _selectedSite,
+          'soNumber': widget.order.orderNumber,
+        });
+
+        // Sum quantities for today's approved scans
+        double todayEaQty = 0.0;
+        double todayManufacturedQty = 0.0;
+        for (var s in mappedScans) {
+          if (s['status'] == 'A') {
+            if (widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') {
+              todayEaQty += (s['scannedQty'] as num?)?.toDouble() ?? 0.0;
+            } else {
+              todayManufacturedQty += (s['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+            }
+          }
+        }
+
         setState(() {
+          // If the sum of today's local scans exceeds the server total, update our local totals
+          if (todayEaQty > _localEaScannedQty) _localEaScannedQty = todayEaQty;
+          if (todayManufacturedQty > _localManufacturedQty) _localManufacturedQty = todayManufacturedQty;
+
           // Append historical at the end (pending scans stay at top)
           _scans = [
             ..._scans.where((s) => s['isSaved'] != true),
@@ -405,6 +447,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             final remaining =
                 effectiveLimit -
                 _localManufacturedQty -
+                _baseSessionScannedQty -
                 _cumulativeQty;
             if (result.manufacturedQty > remaining + 0.001) {
               AudioService.instance.playError();
@@ -1280,7 +1323,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             children: [
               _statTile(
                 'Remaining',
-                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty))} ${widget.product.unit}',
+                '${widget.product.formatQuantity(((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty)).clamp(0.0, double.infinity))} ${widget.product.unit}',
                 isDark,
               ),
               _statTile(

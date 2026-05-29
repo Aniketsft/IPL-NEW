@@ -68,6 +68,7 @@ class DeliveryRepository implements ILogisticsRepository {
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
+          expiryDate: map[LocalDatabaseHelper.colDetExpiryDate] != null ? DateTime.tryParse(map[LocalDatabaseHelper.colDetExpiryDate] as String) : null,
           lot: (map['latestLot'] as String?)?.isNotEmpty == true
               ? map['latestLot'] as String?
               : map[LocalDatabaseHelper.colDetLot] as String?,
@@ -156,6 +157,7 @@ class DeliveryRepository implements ILogisticsRepository {
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
+          expiryDate: map[LocalDatabaseHelper.colDetExpiryDate] != null ? DateTime.tryParse(map[LocalDatabaseHelper.colDetExpiryDate] as String) : null,
           salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true 
               ? map['salesmanName'] as String? 
               : map['rep0'] as String?,
@@ -1306,6 +1308,11 @@ class DeliveryRepository implements ILogisticsRepository {
     final remaining =
         (row['reconciledRemaining'] as num?)?.toDouble() ?? (qty - manufactured);
 
+    DateTime? expiryDate;
+    if (row[LocalDatabaseHelper.colDetExpiryDate] != null) {
+      expiryDate = DateTime.tryParse(row[LocalDatabaseHelper.colDetExpiryDate] as String);
+    }
+
     return SalesOrderDetail(
       soNumber: row[LocalDatabaseHelper.colDetSoNum] ?? '',
       itemCode: row[LocalDatabaseHelper.colDetItemCode] ?? '',
@@ -1327,6 +1334,7 @@ class DeliveryRepository implements ILogisticsRepository {
       isPrepared: row[LocalDatabaseHelper.colDetIsPrepared] == 1,
       isValidated: row[LocalDatabaseHelper.colDetIsValidated] == 1,
       unit: row[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
+      expiryDate: expiryDate,
     );
   }
 

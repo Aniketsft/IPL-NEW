@@ -128,7 +128,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     if (!widget.permissions.contains('manufacturing.all.update')) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You do not have permission to perform this action.')),
+          const SnackBar(
+            content: Text('You do not have permission to perform this action.'),
+          ),
         );
       }
       return;
@@ -151,7 +153,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     if (!widget.isDeliveryMode && widget.order.isClosed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Production is closed and cannot be modified.'),
+          content: Text('Preparation is closed and cannot be modified.'),
         ),
       );
       return;
@@ -309,16 +311,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
 
   void _toggleSelectAll() {
     final filtered = _filteredDetails;
-    // Only select items that aren't already locked
+    // Allow selecting items even if locked, so users can reprint
     final selectables = filtered
-        .where((item) {
-          final itemStatus = widget.isDeliveryMode
-              ? item.isValidated
-              : item.isPrepared;
-          return !(itemStatus ||
-              widget.order.isPreparedForShipment ||
-              (!widget.isDeliveryMode && widget.order.isClosed));
-        })
         .map((e) => e.itemCode)
         .toList();
 
@@ -435,11 +429,28 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             final itemsToPrint = _details
                 .where((d) => codesToUpdate.contains(d.itemCode))
                 .toList();
+
+            int abortedCount = 0;
             for (var item in itemsToPrint) {
               if (!mounted) break;
-              await LabelPrintingHandler.printLabel(
+              final printed = await LabelPrintingHandler.printLabel(
                 context: context,
                 item: item,
+                suppressZeroQuantityWarning: true,
+              );
+              if (!printed && item.manufacturedQuantity <= 0) {
+                abortedCount++;
+              }
+            }
+
+            if (abortedCount > 0 && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Print aborted for $abortedCount product(s): 0 manufactured quantity.',
+                  ),
+                  backgroundColor: Colors.redAccent,
+                ),
               );
             }
           }
@@ -455,6 +466,57 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             SnackBar(content: Text('Failed to update status: $e')),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _reprintSelected() async {
+    if (_selectedItemCodes.isEmpty) return;
+
+    final itemsToPrint = _details
+        .where((d) => _selectedItemCodes.contains(d.itemCode))
+        .toList();
+
+    int abortedCount = 0;
+    int successCount = 0;
+
+    if (mounted) setState(() => _isLoading = true);
+
+    for (var item in itemsToPrint) {
+      if (!mounted) break;
+      final printed = await LabelPrintingHandler.printLabel(
+        context: context,
+        item: item,
+        suppressZeroQuantityWarning: true,
+        isReprint: true,
+      );
+      if (printed) {
+        successCount++;
+      } else if (item.manufacturedQuantity <= 0) {
+        abortedCount++;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _selectedItemCodes.clear(); // Clear selection after reprinting
+      });
+
+      if (abortedCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Reprint aborted for $abortedCount product(s): 0 manufactured quantity.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      } else if (successCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully reprinted $successCount product(s).'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     }
   }
@@ -531,11 +593,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         return AlertDialog(
           backgroundColor: theme.colorScheme.surface,
           title: Text(
-            'Close Production',
+            'Close Preparation',
             style: TextStyle(color: isDark ? Colors.white : Colors.black87),
           ),
           content: Text(
-            'Are you sure you want to close this Production? This will mark it as completed.',
+            'Are you sure you want to close this Preparation? This will mark it as completed.',
             style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
           ),
           actions: [
@@ -546,7 +608,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text(
-                'Close Production',
+                'Close Preparation',
                 style: TextStyle(color: Colors.orange),
               ),
             ),
@@ -564,14 +626,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Production closed successfully')),
+          const SnackBar(content: Text('Preparation closed successfully')),
         );
         Navigator.pop(context, true); // Return true to indicate status change
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Failed to close Production: $e';
+        _errorMessage = 'Failed to close  Preparation: $e';
       });
     }
   }
@@ -715,16 +777,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                   width: 30,
                   child: Checkbox(
                     value:
-                        _selectedItemCodes.length ==
-                            _filteredDetails.where((item) {
-                              final itemStatus = widget.isDeliveryMode
-                                  ? item.isValidated
-                                  : item.isPrepared;
-                              return !(itemStatus ||
-                                  widget.order.isPreparedForShipment ||
-                                  (!widget.isDeliveryMode &&
-                                      widget.order.isClosed));
-                            }).length &&
+                        _selectedItemCodes.length == _filteredDetails.length &&
                         _selectedItemCodes.isNotEmpty,
                     onChanged: (val) => _toggleSelectAll(),
                     activeColor: orange,
@@ -836,7 +889,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           letterSpacing: -0.5,
                         ),
                         maxLines: _isHeaderExpanded ? null : 1,
-                        overflow: _isHeaderExpanded ? null : TextOverflow.ellipsis,
+                        overflow: _isHeaderExpanded
+                            ? null
+                            : TextOverflow.ellipsis,
                       ),
                       if (_isHeaderExpanded) ...[
                         const SizedBox(height: 4),
@@ -1010,7 +1065,6 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (!isLocked)
                     Padding(
                       padding: const EdgeInsets.only(top: 2, right: 8),
                       child: SizedBox(
@@ -1187,9 +1241,61 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Widget _buildFooter() {
-    final theme = Theme.of(context);
+    final isOrderLocked = widget.isDeliveryMode
+        ? widget.order.isPreparedForShipment
+        : widget.order.isClosed;
 
-    if (widget.order.isPreparedForShipment) {
+    if (_selectedItemCodes.isNotEmpty) {
+      if (isOrderLocked) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _reprintSelected,
+              icon: const Icon(Icons.print),
+              label: Text(
+                'REPRINT (${_selectedItemCodes.length}) SELECTED',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isLoading ? null : _bulkUpdateStatus,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(
+              '${widget.isDeliveryMode ? 'VALIDATE' : 'PREPARE'} (${_selectedItemCodes.length}) SELECTED',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.isDeliveryMode && widget.order.isPreparedForShipment) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Container(
@@ -1240,31 +1346,6 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     }
 
     final isAllPrepared = _isAllItemsPrepared;
-
-    if (_selectedItemCodes.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _isLoading ? null : _bulkUpdateStatus,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: Text(
-              '${widget.isDeliveryMode ? 'VALIDATE' : 'PREPARE'} (${_selectedItemCodes.length}) SELECTED',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -1332,7 +1413,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                   ),
                                 )
                               : const Text(
-                                  'Close Production',
+                                  'Close Preparation',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -1386,7 +1467,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                   Text(
                     widget.isDeliveryMode
                         ? 'Validate all items by long-press to prepare shipment'
-                        : 'Scan or prepare all items to close production',
+                        : 'Scan or prepare all items to close preparation',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.4),
                       fontSize: 12,

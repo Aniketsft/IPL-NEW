@@ -13,7 +13,7 @@ import '../../../settings/data/models/site.dart';
 
 class ProductionTrackingListScreen extends StatefulWidget {
   final List<String> permissions;
-  
+
   const ProductionTrackingListScreen({super.key, required this.permissions});
 
   @override
@@ -26,7 +26,8 @@ class _ProductionTrackingListScreenState
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
-  String? _selectedSiteId; // Default to All Sites to show INTERNAL (dummy) orders
+  String?
+  _selectedSiteId; // Default to All Sites to show INTERNAL (dummy) orders
   List<Site> _sites = [];
 
   @override
@@ -52,7 +53,7 @@ class _ProductionTrackingListScreenState
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
-          'Production Tracking List',
+          'Manufacturing Tracking List',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
@@ -64,16 +65,24 @@ class _ProductionTrackingListScreenState
               child: BlocBuilder<ManufacturingBloc, ManufacturingState>(
                 builder: (context, state) {
                   String siteName = 'All Sites';
-                  if (state is ProductionTrackingLoaded && state.currentSiteCode != null) {
+                  if (state is ProductionTrackingLoaded &&
+                      state.currentSiteCode != null) {
                     final site = _sites.firstWhere(
                       (s) => s.id == state.currentSiteCode,
-                      orElse: () => Site(id: '', companyId: '', name: state.currentSiteCode!),
+                      orElse: () => Site(
+                        id: '',
+                        companyId: '',
+                        name: state.currentSiteCode!,
+                      ),
                     );
                     siteName = site.name;
                   }
                   return Text(
                     siteName,
-                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
+                    style: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                      fontSize: 12,
+                    ),
                   );
                 },
               ),
@@ -115,7 +124,9 @@ class _ProductionTrackingListScreenState
                         return Center(
                           child: Text(
                             'No items found',
-                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                            style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
                           ),
                         );
                       }
@@ -135,7 +146,9 @@ class _ProductionTrackingListScreenState
                     return Center(
                       child: Text(
                         'Initialize tracking...',
-                        style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
                       ),
                     );
                   },
@@ -194,14 +207,20 @@ class _ProductionTrackingListScreenState
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: theme.colorScheme.shadow.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
@@ -219,20 +238,29 @@ class _ProductionTrackingListScreenState
             const SizedBox(height: 4),
             Text(
               item.description,
-              style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 13),
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black45,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildStat('Ordered', '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}', isDark),
+                  child: _buildStat(
+                    'Ordered',
+                    '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}',
+                    isDark,
+                  ),
                 ),
                 Expanded(
                   child: _buildStat(
                     'Remaining',
                     '${item.remainingDisplay} ${item.unit}',
                     isDark,
-                    color: (item.remaining ?? 0) < 0 ? Colors.green : (isDark ? Colors.white70 : Colors.black87),
+                    color: (item.remaining ?? 0) < 0
+                        ? Colors.green
+                        : (isDark ? Colors.white70 : Colors.black87),
                   ),
                 ),
                 Expanded(
@@ -247,7 +275,10 @@ class _ProductionTrackingListScreenState
             ),
           ],
         ),
-        trailing: Icon(Icons.chevron_right, color: isDark ? Colors.white24 : Colors.black26),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: isDark ? Colors.white24 : Colors.black26,
+        ),
         onTap: () async {
           final result = await Navigator.push(
             context,
@@ -284,12 +315,20 @@ class _ProductionTrackingListScreenState
     Color color = Colors.white70,
   }) {
     // If not dark, default to black87 instead of white70
-    final displayColor = (color == Colors.white70 && !isDark) ? Colors.black87 : color;
+    final displayColor = (color == Colors.white70 && !isDark)
+        ? Colors.black87
+        : color;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 11)),
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.white24 : Colors.black38,
+            fontSize: 11,
+          ),
+        ),
         Text(
           value,
           style: TextStyle(
