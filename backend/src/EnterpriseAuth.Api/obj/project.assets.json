@@ -4408,11 +4408,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
+      "projectUniqueName": "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
       "projectName": "EnterpriseAuth.Api",
-      "projectPath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
+      "projectPath": "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj",
       "packagesPath": "C:\\Users\\Aniket\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\",
+      "outputPath": "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

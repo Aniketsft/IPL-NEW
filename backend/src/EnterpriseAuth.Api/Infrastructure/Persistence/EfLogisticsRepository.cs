@@ -176,7 +176,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return scans
                 .GroupBy(s => new
                 {
-                    SoNumber    = s.OrderLine.Order.SourceOrderId,
                     ItemCode    = s.OrderLine.ItemCode,
                     LotNumber   = s.LotNumber ?? "",
                     ItemStatus  = s.ItemStatus ?? "A",
@@ -188,7 +187,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     var itemCode = g.Key.ItemCode.Trim();
                     return new ProductionTrackingDto
                     {
-                        SoNumber     = g.Key.SoNumber,
+                        SoNumber     = latest.OrderLine.Order.SourceOrderId,
                         ItemCode     = itemCode,
                         Description  = latest.OrderLine.Description,
                         Quantity     = latest.OrderLine.OrderedQuantity,

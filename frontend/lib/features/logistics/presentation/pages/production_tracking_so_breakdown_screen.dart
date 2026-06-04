@@ -55,7 +55,7 @@ class _ProductionTrackingSoBreakdownScreenState
 
     if (item.headerIsClosed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Production is closed and cannot be modified.')),
+        const SnackBar(content: Text('Preparation is closed and cannot be modified.')),
       );
       return;
     }

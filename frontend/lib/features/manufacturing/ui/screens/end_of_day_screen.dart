@@ -264,6 +264,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       // Insert staging EOD and local status
       for (var item in _summaryItems) {
         if (item.manufactured <= 0) continue; // Filter out zero-quantity items
+        if (item.statusLabel != 'A') continue; // Only populate status A in stagingeod
 
         final mfgDate = item.createdAt ?? DateTime.now();
         final expiryDate = mfgDate.add(const Duration(days: 5));
