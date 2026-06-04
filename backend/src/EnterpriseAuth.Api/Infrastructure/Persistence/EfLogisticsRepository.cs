@@ -153,7 +153,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .ThenInclude(l => l.Order)
                 .Where(t => t.CreatedAt >= targetDate 
                          && t.CreatedAt < nextDate 
-                         && !t.IsDeleted)
+                         && !t.IsDeleted
+                         && (t.ItemStatus == "A" || t.ItemStatus == null))
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -233,7 +234,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
-                WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0
+                WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL)
                 GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
 
             var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });

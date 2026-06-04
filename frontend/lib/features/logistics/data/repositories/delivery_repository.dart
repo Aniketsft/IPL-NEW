@@ -1767,6 +1767,9 @@ class DeliveryRepository implements ILogisticsRepository {
     final username = prefs.getString('user_username') ?? 'system';
     
     // 1. Save locally with the physical location and lot
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    
+    // 1. Save positive scan for the target order
     final scanRecord = {
       LocalDatabaseHelper.columnSoNumber: targetSoNumber,
       LocalDatabaseHelper.columnProductCode: itemCode,
@@ -1777,13 +1780,31 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnLocationCode: location ?? 'BULK-ALLOC',
       LocalDatabaseHelper.columnLot: lot,
       LocalDatabaseHelper.columnSite: siteId,
-      LocalDatabaseHelper.columnBarcode: 'ALLOC-$sourceBulkSoNumber-${DateTime.now().millisecondsSinceEpoch}',
+      LocalDatabaseHelper.columnBarcode: 'ALLOC-$sourceBulkSoNumber-$timestamp',
+      LocalDatabaseHelper.columnIsSynced: 0,
+      LocalDatabaseHelper.columnIsReflected: 0,
+      LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
+    };
+
+    // 2. Save negative reconciliation scan for the dummy bulk order
+    final negativeRecord = {
+      LocalDatabaseHelper.columnSoNumber: sourceBulkSoNumber,
+      LocalDatabaseHelper.columnProductCode: itemCode,
+      LocalDatabaseHelper.columnQuantity: -amount,
+      LocalDatabaseHelper.columnManufacturedQuantity: -amount,
+      LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
+      LocalDatabaseHelper.columnItemStatus: 'A',
+      LocalDatabaseHelper.columnLocationCode: location ?? 'BULK-ALLOC',
+      LocalDatabaseHelper.columnLot: lot,
+      LocalDatabaseHelper.columnSite: siteId,
+      LocalDatabaseHelper.columnBarcode: 'ALLOC-OUT-$targetSoNumber-$timestamp',
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
       LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
     };
 
     await LocalDatabaseHelper.instance.insertScan(scanRecord);
+    await LocalDatabaseHelper.instance.insertScan(negativeRecord);
   }
 
   @override

@@ -1049,60 +1049,79 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                                 }
                                 else
                                 {
-                                    // 2. Create Reversal Transaction
-                                    var reversal = new ProductionScanTransaction
+                                    // IDEMPOTENCY GUARD: If the device already synced the REVERSED row directly
+                                    // via request.Scans (Step 2), skip creating a second reversal here.
+                                    // This prevents the duplicate DELETED_ORIGINAL bug that occurs during online sync.
+                                    var reversalAlreadySynced = await _scanContext.ProductionScanTransactions
+                                        .AnyAsync(t => t.Barcode == scan.Barcode && t.ItemStatus == "REVERSED");
+
+                                    if (reversalAlreadySynced)
                                     {
-                                        SalesOrderLineId = scan.SalesOrderLineId,
-                                        ScanAmountKg = -scan.ScanAmountKg,
-                                        EaQuantity = scan.EaQuantity.HasValue ? -scan.EaQuantity.Value : null,
-                                        Barcode = scan.Barcode,
-                                        LotNumber = scan.LotNumber,
-                                        Location = scan.Location,
-                                        SyncId = Guid.NewGuid().ToString(), // Unique SyncId for the reversal
-                                        ItemStatus = "REVERSED",
-                                        DeviceId = scan.DeviceId,
-                                        CreatedBy = performedBy,
-                                        CreatedAt = DateTime.UtcNow,
-                                        IsDeleted = false
-                                    };
-
-                                    _scanContext.ProductionScanTransactions.Add(reversal);
-
-                                    // DO NOT mark original as deleted. Both original (+) and reversal (-) 
-                                    // remain IsDeleted=false to perfectly balance the ledger sum.
-                                    scan.ItemStatus = "DELETED_ORIGINAL";
-
-                                    // 3. Update Aggregated States
-                                    var state = await _scanContext.ProductionLineStates
-                                        .FirstOrDefaultAsync(s => s.SalesOrderLineId == scan.SalesOrderLineId);
-                                    
-                                    if (state != null)
-                                    {
-                                        state.TotalManufacturedQty -= scan.ScanAmountKg;
-                                        if (scan.EaQuantity.HasValue)
+                                        // The device sent both DELETED_ORIGINAL + REVERSED rows in request.Scans.
+                                        // Only ensure the original's status is marked correctly — no new row needed.
+                                        if (scan.ItemStatus != "DELETED_ORIGINAL")
                                         {
-                                            state.TotalEaQty -= scan.EaQuantity.Value;
+                                            scan.ItemStatus = "DELETED_ORIGINAL";
                                         }
-                                        state.UpdatedAt = DateTime.UtcNow;
+                                        Console.WriteLine($"[Sync] Skipped duplicate reversal for scan {barcode}: REVERSED row already exists (synced by device).");
                                     }
-
-                                    // 4. Update Excess Pools (if applicable)
-                                    var soNumber = scan.OrderLine.Order.SourceOrderId;
-                                    if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-"))
+                                    else
                                     {
-                                        var excess = await _scanContext.Excesses
-                                            .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == scan.OrderLine.ItemCode);
-                                        
-                                        if (excess != null)
+                                        // 2. Create Reversal Transaction (offline-delete path: scan was never previously synced)
+                                        var reversal = new ProductionScanTransaction
                                         {
-                                            excess.TotalManufacturedQuantity -= scan.ScanAmountKg;
-                                            excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
-                                            excess.UpdatedAt = DateTime.UtcNow;
-                                            excess.UpdatedBy = performedBy;
-                                        }
-                                    }
+                                            SalesOrderLineId = scan.SalesOrderLineId,
+                                            ScanAmountKg = -scan.ScanAmountKg,
+                                            EaQuantity = scan.EaQuantity.HasValue ? -scan.EaQuantity.Value : null,
+                                            Barcode = scan.Barcode,
+                                            LotNumber = scan.LotNumber,
+                                            Location = scan.Location,
+                                            SyncId = Guid.NewGuid().ToString(), // Unique SyncId for the reversal
+                                            ItemStatus = "REVERSED",
+                                            DeviceId = scan.DeviceId,
+                                            CreatedBy = performedBy,
+                                            CreatedAt = DateTime.UtcNow,
+                                            IsDeleted = false
+                                        };
 
-                                    Console.WriteLine($"[Sync] Processed DELETE OfflineAudit for scan {barcode} (Reversal Inserted)");
+                                        _scanContext.ProductionScanTransactions.Add(reversal);
+
+                                        // DO NOT mark original as deleted. Both original (+) and reversal (-)
+                                        // remain IsDeleted=false to perfectly balance the ledger sum.
+                                        scan.ItemStatus = "DELETED_ORIGINAL";
+
+                                        // 3. Update Aggregated States
+                                        var state = await _scanContext.ProductionLineStates
+                                            .FirstOrDefaultAsync(s => s.SalesOrderLineId == scan.SalesOrderLineId);
+
+                                        if (state != null)
+                                        {
+                                            state.TotalManufacturedQty -= scan.ScanAmountKg;
+                                            if (scan.EaQuantity.HasValue)
+                                            {
+                                                state.TotalEaQty -= scan.EaQuantity.Value;
+                                            }
+                                            state.UpdatedAt = DateTime.UtcNow;
+                                        }
+
+                                        // 4. Update Excess Pools (if applicable)
+                                        var soNumber = scan.OrderLine.Order.SourceOrderId;
+                                        if (soNumber.StartsWith("BLK-") || soNumber.StartsWith("CUTS-"))
+                                        {
+                                            var excess = await _scanContext.Excesses
+                                                .FirstOrDefaultAsync(e => e.SourceBulkSoNumber == soNumber && e.ItemCode == scan.OrderLine.ItemCode);
+
+                                            if (excess != null)
+                                            {
+                                                excess.TotalManufacturedQuantity -= scan.ScanAmountKg;
+                                                excess.RemainingExcess = excess.TotalManufacturedQuantity - excess.AllocatedQuantity;
+                                                excess.UpdatedAt = DateTime.UtcNow;
+                                                excess.UpdatedBy = performedBy;
+                                            }
+                                        }
+
+                                        Console.WriteLine($"[Sync] Processed DELETE OfflineAudit for scan {barcode} (Reversal Inserted)");
+                                    }
                                 }
                             }
                         }

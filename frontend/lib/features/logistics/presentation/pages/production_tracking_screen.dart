@@ -486,6 +486,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       final dateStr = DateFormat('yyyy-MM-dd').format(widget.order.date);
       final isEodDone = await db.isEodCompleted(dateStr);
       
+      
       if (isEodDone) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -776,88 +777,115 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                             unit: widget.product.unit,
                             canDelete: scan['status'] != 'REVERSED' && scan['status'] != 'DELETED_ORIGINAL',
                             onDelete: () async {
-                                    final confirmed = await _confirmDelete();
-                                      if (confirmed && mounted) {
-                                        try {
-                                          final db = LocalDatabaseHelper.instance;
+                              final confirmed = await _confirmDelete();
+                              if (confirmed && mounted) {
+                                try {
+                                  final db = LocalDatabaseHelper.instance;
+                                  
+                                  // --- AUDIT-PRESERVING REVERSAL ---
+                                  final syncId = scan['syncId']?.toString();
+                                  final repository = context.read<DeliveryRepository>();
+                                  
+                                  if (syncId != null) {
+                                    if (isSaved) {
+                                      // 1. Mark original as DELETED_ORIGINAL in DB
+                                      await db.updateScanStatusBySyncId(syncId, 'DELETED_ORIGINAL');
+
+                                      // 2. Prepare and persist NEGATIVE LINE (Reversal) for audit and server sync
+                                      final reversalScan = Map<String, dynamic>.from(scan);
+                                      reversalScan['scannedQty'] = -((scan['scannedQty'] as num?)?.toDouble() ?? 0.0);
+                                      reversalScan['manufacturedQty'] = -((scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0);
+                                      reversalScan['weight'] = -((scan['weight'] as num?)?.toDouble() ?? 0.0);
+                                      reversalScan['status'] = 'REVERSED';
+                                      reversalScan['syncId'] = 'REV-${const Uuid().v4()}';
+                                      reversalScan['isSaved'] = true;
+                                      reversalScan['timestamp'] = DateTime.now().toIso8601String();
+                                      
+                                      await repository.saveProductionScansBatch([reversalScan]);
+
+                                      final barcodeStr = scan['barcode']?.toString() ?? '';
+                                      if (barcodeStr.startsWith('ALLOC-') && !barcodeStr.startsWith('ALLOC-OUT-')) {
+                                        final parts = barcodeStr.split('-');
+                                        if (parts.length >= 3) {
+                                          final timestampStr = parts.last;
+                                          final sourceBulkSoNumber = barcodeStr.substring(6, barcodeStr.lastIndexOf('-'));
+                                          final dummyNegativeBarcode = 'ALLOC-OUT-${widget.order.orderNumber}-$timestampStr';
                                           
-                                          // --- AUDIT-PRESERVING REVERSAL ---
-                                          final syncId = scan['syncId']?.toString();
-                                          final repository = context.read<DeliveryRepository>();
-                                          
-                                          if (syncId != null) {
-                                            if (isSaved) {
-                                              // 1. Mark original as DELETED_ORIGINAL in DB
-                                              await db.updateScanStatusBySyncId(syncId, 'DELETED_ORIGINAL');
-
-                                              // 2. Prepare and persist NEGATIVE LINE (Reversal) for audit and server sync
-                                              final reversalScan = Map<String, dynamic>.from(scan);
-                                              reversalScan['scannedQty'] = -((scan['scannedQty'] as num?)?.toDouble() ?? 0.0);
-                                              reversalScan['manufacturedQty'] = -((scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0);
-                                              reversalScan['weight'] = -((scan['weight'] as num?)?.toDouble() ?? 0.0);
-                                              reversalScan['status'] = 'REVERSED';
-                                              reversalScan['syncId'] = 'REV-${const Uuid().v4()}';
-                                              reversalScan['isSaved'] = true;
-                                              reversalScan['timestamp'] = DateTime.now().toIso8601String();
-                                              
-                                              await repository.saveProductionScansBatch([reversalScan]);
-
-                                              // 3. Update local session state directly (deduction handled by sum in DB automatically)
-                                              final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                                              final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
-
-                                              if (mounted) {
-                                                setState(() {
-                                                  // Update original line in local list to grey it out
-                                                  _scans[index] = Map<String, dynamic>.from(_scans[index])
-                                                    ..['status'] = 'DELETED_ORIGINAL';
-                                                  
-                                                  // Add reversal line to the list for visual confirmation
-                                                  _scans.insert(0, reversalScan);
-                                                  
-                                                  _localManufacturedQty -= weightToDeduct;
-                                                  _localEaScannedQty -= eaToDeduct;
-                                                  _isDirty = true;
-                                                });
-                                              }
-                                            } else {
-                                              // For unsaved (pending) scans, hard delete is appropriate
-                                              await db.deleteScanBySyncId(syncId);
-                                              if (mounted) {
-                                                setState(() {
-                                                  _scans.removeAt(index);
-                                                  _isDirty = true;
-                                                  if (scan['status'] == 'A') {
-                                                    _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
-                                                    _cumulativeWeight -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                                                  }
-                                                });
-                                              }
-                                            }
-                                          }
-
-                                          // Always log deletion so backend can process it if synced
-                                          await db.insertOfflineAuditLog(
-                                            entity: 'ProductionScan',
-                                            action: 'DELETE',
-                                            payload: jsonEncode({
-                                              'barcode': scan['barcode'],
-                                              'syncId': scan['syncId'],
-                                              'soNumber': widget.order.orderNumber,
-                                              'productCode': widget.product.itemCode,
-                                              'manufacturedQty': scan['manufacturedQty'],
-                                              'eaQuantity': (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
-                                                  ? (scan['scannedQty'] ?? 0.0)
-                                                  : 0.0,
-                                              'timestamp': DateTime.now().toIso8601String(),
-                                            }),
+                                          final database = await db.database;
+                                          await database.rawUpdate(
+                                            "UPDATE ${LocalDatabaseHelper.tableScans} SET ${LocalDatabaseHelper.columnItemStatus} = 'DELETED_ORIGINAL' WHERE ${LocalDatabaseHelper.columnBarcode} = ?",
+                                            [dummyNegativeBarcode],
                                           );
-                                        } catch (e) {
-                                          debugPrint('Failed to log deletion: $e');
+
+                                          final dummyReversalScan = Map<String, dynamic>.from(reversalScan);
+                                          dummyReversalScan['soNumber'] = sourceBulkSoNumber;
+                                          dummyReversalScan['barcode'] = 'REV-$dummyNegativeBarcode';
+                                          dummyReversalScan['scannedQty'] = ((scan['scannedQty'] as num?)?.toDouble() ?? 0.0);
+                                          dummyReversalScan['manufacturedQty'] = ((scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0);
+                                          dummyReversalScan['weight'] = ((scan['weight'] as num?)?.toDouble() ?? 0.0);
+                                          dummyReversalScan['syncId'] = 'REV-${const Uuid().v4()}';
+                                          
+                                          await repository.saveProductionScansBatch([dummyReversalScan]);
                                         }
                                       }
-                                    },
-                            );
+
+                                      // 3. Update local session state directly (deduction handled by sum in DB automatically)
+                                      final weightToDeduct = (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                      final eaToDeduct = (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+
+                                      if (mounted) {
+                                        setState(() {
+                                          // Update original line in local list to grey it out
+                                          _scans[index] = Map<String, dynamic>.from(_scans[index])
+                                            ..['status'] = 'DELETED_ORIGINAL';
+                                          
+                                          // Add reversal line to the list for visual confirmation
+                                          _scans.insert(0, reversalScan);
+                                          
+                                          _localManufacturedQty -= weightToDeduct;
+                                          _localEaScannedQty -= eaToDeduct;
+                                          _isDirty = true;
+                                        });
+                                      }
+                                    } else {
+                                      // For unsaved (pending) scans, hard delete is appropriate
+                                      await db.deleteScanBySyncId(syncId);
+                                      if (mounted) {
+                                        setState(() {
+                                          _scans.removeAt(index);
+                                          _isDirty = true;
+                                          if (scan['status'] == 'A') {
+                                            _cumulativeQty -= (scan['scannedQty'] as num?)?.toDouble() ?? 0.0;
+                                            _cumulativeWeight -= (scan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+                                          }
+                                        });
+                                      }
+                                    }
+                                  }
+
+                                  // Always log deletion so backend can process it if synced
+                                  await db.insertOfflineAuditLog(
+                                    entity: 'ProductionScan',
+                                    action: 'DELETE',
+                                    payload: jsonEncode({
+                                      'barcode': scan['barcode'],
+                                      'syncId': scan['syncId'],
+                                      'soNumber': widget.order.orderNumber,
+                                      'productCode': widget.product.itemCode,
+                                      'manufacturedQty': scan['manufacturedQty'],
+                                      'eaQuantity': (widget.product.unit == 'EA' || widget.product.unit == 'PCS')
+                                          ? (scan['scannedQty'] ?? 0.0)
+                                          : 0.0,
+                                      'timestamp': DateTime.now().toIso8601String(),
+                                    }),
+                                  );
+                                  await _fetchExcessPools();
+                                } catch (e) {
+                                  debugPrint('Failed to log deletion: $e');
+                                }
+                              }
+                            },
+                          );
                         }, childCount: _scans.length),
                       ),
                     ),
@@ -1647,7 +1675,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           'timestamp': DateTime.now().toIso8601String(),
           'status': 'A',
           'siteId': _selectedSite,
-          'locationCode': _selectedLocation?.location ?? 'BULK-ALLOC',
+          'locationCode': 'ALLOC-$sourcePool',
           'lot': _selectedLot,
           'soNumber': widget.order.orderNumber,
           'isSaved': true,

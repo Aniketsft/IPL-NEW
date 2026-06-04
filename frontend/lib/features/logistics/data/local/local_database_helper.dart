@@ -1678,10 +1678,14 @@ class LocalDatabaseHelper {
         (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
          FROM $tableScans s 
          WHERE s.$columnSoNumber = o.$colOrderNum 
-           AND s.$columnProductCode = ?) AS poolQty,
-        (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
+           AND s.$columnProductCode = ?
+           AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED')
+           AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%')) AS poolQty,
+        (SELECT COALESCE(SUM(-s.$columnQuantity), 0) 
          FROM $tableScans s 
-         WHERE s.$columnLocationCode = 'ALLOC-' || o.$colOrderNum 
+         WHERE s.$columnSoNumber = o.$colOrderNum
+           AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED')
+           AND s.$columnBarcode LIKE 'ALLOC-OUT-%'
            AND s.$columnProductCode = ?) AS allocatedQty
       FROM $tableOrders o
       WHERE (o.$colOrderNum LIKE 'BLK-%' 
@@ -1695,8 +1699,8 @@ class LocalDatabaseHelper {
     final List<Map<String, dynamic>> results = await db.rawQuery('''
       SELECT 
         s.$columnProductCode,
-        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnLocationCode NOT LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS poolQty,
-        SUM(CASE WHEN s.$columnLocationCode LIKE 'ALLOC-%' THEN s.$columnQuantity ELSE 0 END) AS allocatedQty
+        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') THEN s.$columnQuantity ELSE 0 END) AS poolQty,
+        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND s.$columnBarcode LIKE 'ALLOC-OUT-%' THEN -s.$columnQuantity ELSE 0 END) AS allocatedQty
       FROM $tableScans s
       INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
       WHERE o.$colDeliveryDate LIKE ?
