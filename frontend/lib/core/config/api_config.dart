@@ -14,6 +14,7 @@ class ApiConfig {
   // 192.168.120.2 innodis server
   // 172.26.106.82 innodis wifi pokemon
   // http://192.168.120.7/ server x3
+  // 10.131.28.227 IPLL pokemon
 
   /// Port number for the backend server. (Default is 5004)
   static const String serverPort = '5004';

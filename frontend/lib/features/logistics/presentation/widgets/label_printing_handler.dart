@@ -16,72 +16,78 @@ class LabelPrintingHandler {
     return await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_outline, color: Color(0xFFFF9800)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Prepare SO ${item.soNumber}',
-                style: const TextStyle(color: Colors.white, fontSize: 18),
+      builder: (context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        return Dialog(
+          backgroundColor: const Color(0xFF1D1D1D),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: SizedBox(
+            width: screenWidth - 40,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Color(0xFFFF9800)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Prepare SO ${item.soNumber}',
+                          style: const TextStyle(color: Colors.white, fontSize: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Mark this item as prepared?\nYou can also choose to preview or print the label immediately.',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 24),
+                  // Full-width buttons using Row(stretch) is unsafe; use Column with tight width from parent SizedBox
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'print'),
+                    icon: const Icon(Icons.print),
+                    label: const Text('PRINT LABEL NOW'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF9800),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'preview'),
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('PREVIEW LABEL'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF9800),
+                      side: const BorderSide(color: Color(0xFFFF9800)),
+                      minimumSize: const Size(double.infinity, 48),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, 'just_mark'),
+                    style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
+                    child: const Text('JUST MARK AS PREPARED', style: TextStyle(color: Color(0xFFFF9800))),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, 'cancel'),
+                    style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
+                    child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        content: const Text(
-          'Mark this item as prepared?\nYou can also choose to preview or print the label immediately.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(context, 'print'),
-                  icon: const Icon(Icons.print),
-                  label: const Text('PRINT LABEL NOW'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF9800),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.pop(context, 'preview'),
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('PREVIEW LABEL'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF9800),
-                    side: const BorderSide(color: Color(0xFFFF9800)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, 'just_mark'),
-                        child: const Text('JUST MARK AS PREPARED', style: TextStyle(color: Color(0xFFFF9800))),
-                      ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, 'cancel'),
-                  child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
-                ),
-              ],
-            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -97,13 +103,13 @@ class LabelPrintingHandler {
   }) {
     // Dynamic height based on screen size to prevent overflows
     final maxHeight = MediaQuery.of(context).size.height * 0.70;
-    
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: double.infinity,
-          constraints: BoxConstraints(maxHeight: maxHeight), 
+          constraints: BoxConstraints(maxHeight: maxHeight),
           padding: const EdgeInsets.all(16),
           color: Colors.white,
           child: SingleChildScrollView(
@@ -118,10 +124,10 @@ class LabelPrintingHandler {
                       const Text(
                         'INNODIS POULTRY LTD',
                         style: TextStyle(
-                          color: Colors.black54, 
-                          fontSize: 8, 
-                          fontWeight: FontWeight.bold, 
-                          letterSpacing: 1.2
+                          color: Colors.black54,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
                         ),
                       ),
                       if (cornerCode != null)
@@ -130,9 +136,9 @@ class LabelPrintingHandler {
                           child: Text(
                             cornerCode,
                             style: const TextStyle(
-                              color: Colors.black, 
-                              fontWeight: FontWeight.w900, 
-                              fontSize: 10
+                              color: Colors.black,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
                             ),
                           ),
                         ),
@@ -143,8 +149,8 @@ class LabelPrintingHandler {
                 Text(
                   title.toUpperCase(),
                   style: const TextStyle(
-                    color: Colors.black, 
-                    fontWeight: FontWeight.bold, 
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
                     fontSize: 14,
                     letterSpacing: 1.0,
                   ),
@@ -159,12 +165,12 @@ class LabelPrintingHandler {
                     QrImageView(
                       data: qrData,
                       version: QrVersions.auto,
-                      size: 100.0,
+                      size: 90.0,
                       foregroundColor: Colors.black,
                       padding: EdgeInsets.zero,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    const SizedBox(width: 10),
+                    Flexible(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: details,
@@ -174,7 +180,15 @@ class LabelPrintingHandler {
                 ),
                 if (manifest != null && manifest.isNotEmpty) ...[
                   const Divider(color: Colors.black, height: 20, thickness: 1),
-                  const Text('EXPLODED MANIFEST LOG', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  const Text(
+                    'EXPLODED MANIFEST LOG',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(8),
@@ -203,7 +217,11 @@ class LabelPrintingHandler {
         const SizedBox(height: 12),
         const Text(
           'INDUSTRIAL THERMAL PREVIEW (COMPACT)',
-          style: TextStyle(color: Colors.white38, fontSize: 7, letterSpacing: 2),
+          style: TextStyle(
+            color: Colors.white38,
+            fontSize: 7,
+            letterSpacing: 2,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
@@ -220,7 +238,9 @@ class LabelPrintingHandler {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Print aborted: Product has 0 manufactured quantity.'),
+            content: Text(
+              'Print aborted: Product has 0 manufactured quantity.',
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -232,53 +252,84 @@ class LabelPrintingHandler {
     final auditId = await _logAudit(context, item);
 
     final qrData = LabelQrGenerator.generate(item);
-    
+
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        contentPadding: const EdgeInsets.all(12),
-        content: _buildPreviewCard(
-          context: context,
-          title: item.itemCode,
-          qrData: qrData,
-          details: [
-            Text(item.description, 
-              style: const TextStyle(color: Colors.black54, fontSize: 9, fontStyle: FontStyle.italic),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text('CUST: ${item.customerName?.toUpperCase() ?? "N/A"}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text('SO: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 4),
-            Text('LOT: ${item.lot ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            Text('SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              onPrintRequested(item, auditId);
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('PRINT'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF9800), 
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      builder: (context) {
+        final sw = MediaQuery.of(context).size.width;
+        return Dialog(
+          backgroundColor: const Color(0xFF1D1D1D),
+          insetPadding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: sw - 32),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildPreviewCard(
+                    context: context,
+                    title: item.itemCode,
+                    qrData: qrData,
+                    details: [
+                      Text(
+                        item.description,
+                        style: const TextStyle(color: Colors.black54, fontSize: 9, fontStyle: FontStyle.italic),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'CUST: ${item.customerName?.toUpperCase() ?? "N/A"}',
+                        style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text('SO: ${item.soNumber}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+                      const SizedBox(height: 4),
+                      Text('LOT: ${item.lot ?? "N/A"}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+                      Text(
+                        'SM: ${((item.salesMan2?.trim() ?? "").isNotEmpty) ? item.salesMan2!.trim() : (item.salesMan1?.trim() ?? "N/A")}',
+                        style: const TextStyle(color: Colors.black, fontSize: 9),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${item.manufacturedQuantity.toStringAsFixed(3)} ${item.unit}',
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          onPrintRequested(item, auditId);
+                        },
+                        icon: const Icon(Icons.print),
+                        label: const Text('PRINT'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9800),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -287,86 +338,222 @@ class LabelPrintingHandler {
     required BuildContext context,
     required String soNumber,
     required String customerName,
+    String? customerCode,
     required String deliveryDate,
-    required List<Map<String, String>> items, 
+    required List<Map<String, String>> items,
     required String unit,
     required String qrData,
     Function()? onPrinted,
   }) async {
-    double total = items.fold(0.0, (sum, i) => sum + (double.tryParse(i['weight'] ?? '0') ?? 0.0));
+    double total = items.fold(
+      0.0,
+      (sum, i) => sum + (double.tryParse(i['weight'] ?? '0') ?? 0.0),
+    );
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        contentPadding: const EdgeInsets.all(12),
-        content: _buildPreviewCard(
-          context: context,
-          title: 'CRATE LABEL',
-          qrData: qrData,
-          cornerCode: 'CL',
-          details: [
-            Text('CUST: ${customerName.toUpperCase()}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text('SO: $soNumber', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            Text('DELIV: $deliveryDate', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('TOTAL: ${total.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-          labelId: 'PENDING...', // Will be updated if we audit before preview
-          manifest: items.map((i) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(i['itemCode'] ?? 'N/A', style: const TextStyle(color: Colors.black87, fontSize: 10, fontFamily: 'monospace')),
-                Text('${i['weight'] ?? '0.00'} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'monospace')),
+      builder: (context) {
+        final sw = MediaQuery.of(context).size.width;
+        return Dialog(
+          backgroundColor: const Color(0xFF1D1D1D),
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: sw - 32,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPreviewCard(
+                context: context,
+                title: 'CRATE LABEL',
+                qrData: qrData,
+                cornerCode: 'CL',
+                details: [
+                  Text(
+                    'CUST: ${customerName.toUpperCase()}',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'SO: $soNumber',
+                    style: const TextStyle(color: Colors.black, fontSize: 9),
+                  ),
+                  Text(
+                    'DELIV: $deliveryDate',
+                    style: const TextStyle(color: Colors.black, fontSize: 9),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'TOTAL: ${total.toStringAsFixed(2)} $unit',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+                labelId: 'PENDING...',
+                manifest: items
+                    .map(
+                      (i) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              i['itemCode'] ?? 'N/A',
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            Text(
+                              '${i['weight'] ?? '0.00'} $unit',
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'CLOSE',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      try {
+                        await _logCrateAudit(
+                          context,
+                          soNumber: soNumber,
+                          customerName: customerName,
+                          totalWeight: total,
+                          items: items,
+                        );
+
+                        await PrinterService.instance.printCrateLabel(
+                          soNumber: soNumber,
+                          customerName: customerName,
+                          customerCode: customerCode,
+                          deliveryDate: deliveryDate,
+                          items: items,
+                          unit: unit,
+                          qrData: qrData,
+                        );
+
+                        if (onPrinted != null) {
+                          onPrinted();
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Print Fail: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.print),
+                    label: const Text('PRINT CRATE'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF9800),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ],
+              ),
               ],
             ),
-          )).toList(),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await _logCrateAudit(
-                  context,
-                  soNumber: soNumber,
-                  customerName: customerName,
-                  totalWeight: total,
-                  items: items,
-                );
-
-                await PrinterService.instance.printCrateLabel(
-                  soNumber: soNumber,
-                  customerName: customerName,
-                  deliveryDate: deliveryDate,
-                  items: items,
-                  unit: unit,
-                  qrData: qrData,
-                );
-                
-                if (onPrinted != null) {
-                  onPrinted();
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print Fail: $e'), backgroundColor: Colors.red));
-                }
-              }
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('PRINT CRATE'),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800), foregroundColor: Colors.white),
           ),
-        ],
-      ),
+        ),
+        );
+      },
     );
+  }
+
+  /// Print Crate directly without showing the preview dialog
+  static Future<void> printCrateDirectly({
+    required BuildContext context,
+    required String soNumber,
+    required String customerName,
+    String? customerCode,
+    required String deliveryDate,
+    required List<Map<String, String>> items,
+    required String unit,
+    required String qrData,
+    Function()? onPrinted,
+  }) async {
+    try {
+      // 1. Log the audit
+      await _logCrateAudit(
+        context,
+        soNumber: soNumber,
+        customerName: customerName,
+        totalWeight: items.fold(
+          0.0,
+          (sum, i) => sum + (double.tryParse(i['weight'] ?? '0') ?? 0.0),
+        ),
+        items: items,
+      );
+
+      // 2. Print via IP printer
+      await PrinterService.instance.printCrateLabel(
+        soNumber: soNumber,
+        customerName: customerName,
+        customerCode: customerCode,
+        deliveryDate: deliveryDate,
+        items: items,
+        unit: unit,
+        qrData: qrData,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Crate label sent to printer!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      if (onPrinted != null) {
+        onPrinted();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Print Fail: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Granular Palette Preview: Shows every item in every SO.
@@ -384,7 +571,7 @@ class LabelPrintingHandler {
     manifest.forEach((so, data) {
       final items = List<Map<String, String>>.from(data['items'] ?? []);
       final cust = (data['customer'] ?? 'N/A').toUpperCase();
-      
+
       manifestWidgets.add(
         Container(
           width: double.infinity,
@@ -394,86 +581,146 @@ class LabelPrintingHandler {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('SO: $so', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 9)),
-              Text('CUST: ${cust.length > 30 ? cust.substring(0, 30) + "..." : cust}', style: const TextStyle(color: Colors.black54, fontSize: 8)),
-              const Divider(color: Colors.black12, height: 6),
-              ...items.map((i) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(i['itemCode'] ?? 'N/A', style: const TextStyle(color: Colors.black87, fontSize: 8, fontFamily: 'monospace')),
-                    Text('${i['weight'] ?? '0.00'} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 8, fontFamily: 'monospace')),
-                  ],
+              Text(
+                'SO: $so',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 9,
                 ),
-              )).toList(),
+              ),
+              Text(
+                'CUST: ${cust.length > 30 ? cust.substring(0, 30) + "..." : cust}',
+                style: const TextStyle(color: Colors.black54, fontSize: 8),
+              ),
+              const Divider(color: Colors.black12, height: 6),
+              ...items
+                  .map(
+                    (i) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            i['itemCode'] ?? 'N/A',
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 8,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          Text(
+                            '${i['weight'] ?? '0.00'} $unit',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 8,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
             ],
           ),
-        )
+        ),
       );
     });
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1D1D),
-        contentPadding: const EdgeInsets.all(8),
-        content: _buildPreviewCard(
-          context: context,
-          title: 'PALETTE MASTER',
-          qrData: qrData,
-          cornerCode: 'PL',
-          details: [
-            Text('MASTER CUST: ${customerName.toUpperCase()}', 
-              style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+      builder: (context) {
+        final sw = MediaQuery.of(context).size.width;
+        return Dialog(
+          backgroundColor: const Color(0xFF1D1D1D),
+          insetPadding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: sw - 32),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildPreviewCard(
+                    context: context,
+                    title: 'PALETTE MASTER',
+                    qrData: qrData,
+                    cornerCode: 'PL',
+                    details: [
+                      Text(
+                        'MASTER CUST: ${customerName.toUpperCase()}',
+                        style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 9)),
+                      const SizedBox(height: 6),
+                      Text(
+                        'TOTAL: ${totalWeight.toStringAsFixed(2)} $unit',
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ],
+                    labelId: 'MULTI-AUDIT',
+                    manifest: manifestWidgets,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          try {
+                            await _logPaletteAudit(
+                              context,
+                              totalWeight: totalWeight,
+                              manifest: manifest,
+                              customerName: customerName,
+                            );
+                            await PrinterService.instance.printPaletteLabel(
+                              soCount: manifest.length,
+                              totalWeight: totalWeight,
+                              unit: unit,
+                              qrData: qrData,
+                              manifest: manifest,
+                              customerName: customerName,
+                              deliveryDate: deliveryDate,
+                            );
+                            if (onPrinted != null) {
+                              onPrinted();
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Palette Print Fail: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.print),
+                        label: const Text('PRINT PALETTE'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9800),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            Text('SO COUNT: ${manifest.length}', style: const TextStyle(color: Colors.black, fontSize: 9)),
-            const SizedBox(height: 6),
-            Text('TOTAL: ${totalWeight.toStringAsFixed(2)} $unit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-          labelId: 'MULTI-AUDIT',
-          manifest: manifestWidgets,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await _logPaletteAudit(
-                  context,
-                  totalWeight: totalWeight,
-                  manifest: manifest,
-                  customerName: customerName,
-                );
-
-                await PrinterService.instance.printPaletteLabel(
-                  soCount: manifest.length,
-                  totalWeight: totalWeight,
-                  unit: unit,
-                  qrData: qrData,
-                  manifest: manifest,
-                  customerName: customerName,
-                  deliveryDate: deliveryDate,
-                );
-                
-                if (onPrinted != null) {
-                  onPrinted();
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Palette Print Fail: $e'), backgroundColor: Colors.red));
-                }
-              }
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('PRINT PALETTE'),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9800), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16)),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -487,7 +734,9 @@ class LabelPrintingHandler {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Print aborted: Product has 0 manufactured quantity.'),
+            content: Text(
+              'Print aborted: Product has 0 manufactured quantity.',
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -502,6 +751,7 @@ class LabelPrintingHandler {
       await PrinterService.instance.printLabel(
         soNumber: item.soNumber,
         customerName: item.customerName ?? 'N/A',
+        customerCode: item.customerCode,
         productCode: item.itemCode,
         description: item.description,
         weight: item.manufacturedQuantity,
@@ -509,19 +759,28 @@ class LabelPrintingHandler {
         qrData: LabelQrGenerator.generate(item),
         lotNumber: item.lot,
         auditId: effectiveAuditId,
-        salesman: ((item.salesMan2?.trim() ?? "").isNotEmpty) 
-            ? item.salesMan2!.trim() 
+        salesman: ((item.salesMan2?.trim() ?? "").isNotEmpty)
+            ? item.salesMan2!.trim()
             : item.salesMan1?.trim(),
+        eaQuantity: item.eaScannedQuantity,
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print Fail: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Print Fail: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   /// Private helper to log audit and handle both online/offline flows.
-  static Future<String?> _logAudit(BuildContext context, SalesOrderDetail item) async {
+  static Future<String?> _logAudit(
+    BuildContext context,
+    SalesOrderDetail item,
+  ) async {
     try {
       final repo = RepositoryProvider.of<DeliveryRepository>(context);
       return await repo.logLabelAudit({
@@ -530,11 +789,13 @@ class LabelPrintingHandler {
         'productCode': item.itemCode,
         'customerName': item.customerName,
         'totalWeight': item.manufacturedQuantity,
-        'manifestJson': jsonEncode([{
-          'so': item.soNumber,
-          'item': item.itemCode,
-          'weight': item.manufacturedQuantity,
-        }]),
+        'manifestJson': jsonEncode([
+          {
+            'so': item.soNumber,
+            'item': item.itemCode,
+            'weight': item.manufacturedQuantity,
+          },
+        ]),
       });
     } catch (e) {
       debugPrint("LabelPrintingHandler: Failed to log audit: $e");
@@ -542,14 +803,18 @@ class LabelPrintingHandler {
     }
   }
 
-  static Future<String?> _logCrateAudit(BuildContext context, {
+  static Future<String?> _logCrateAudit(
+    BuildContext context, {
     required String soNumber,
     required String customerName,
     required double totalWeight,
     required List<Map<String, String>> items,
   }) async {
     try {
-      final repo = RepositoryProvider.of<DeliveryRepository>(context, listen: false);
+      final repo = RepositoryProvider.of<DeliveryRepository>(
+        context,
+        listen: false,
+      );
       return await repo.logLabelAudit({
         'referenceNumber': soNumber,
         'labelType': 'Crate',
@@ -564,13 +829,17 @@ class LabelPrintingHandler {
     }
   }
 
-  static Future<String?> _logPaletteAudit(BuildContext context, {
+  static Future<String?> _logPaletteAudit(
+    BuildContext context, {
     required double totalWeight,
     required Map<String, Map<String, dynamic>> manifest,
     required String customerName,
   }) async {
     try {
-      final repo = RepositoryProvider.of<DeliveryRepository>(context, listen: false);
+      final repo = RepositoryProvider.of<DeliveryRepository>(
+        context,
+        listen: false,
+      );
       return await repo.logLabelAudit({
         'referenceNumber': 'PALETTE-${DateTime.now().millisecondsSinceEpoch}',
         'labelType': 'Palette',

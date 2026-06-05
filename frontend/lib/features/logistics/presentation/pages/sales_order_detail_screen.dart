@@ -69,6 +69,16 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
       );
 
       if (mounted) {
+        if (widget.isDeliveryMode) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Long-press the item "${matchedItem.itemCode}" to validate shipment.'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -944,6 +954,16 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           ? null
           : () => _toggleItemPreparation(item),
       onTap: () async {
+        if (widget.isDeliveryMode) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Long-press the item to validate shipment.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+
         if (!widget.isDeliveryMode && widget.order.isClosed) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

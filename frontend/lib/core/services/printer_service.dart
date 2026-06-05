@@ -141,6 +141,7 @@ class PrinterService {
   Future<void> printLabel({
     required String soNumber,
     required String customerName,
+    String? customerCode,
     required String productCode,
     required String description,
     required double weight,
@@ -151,6 +152,7 @@ class PrinterService {
     String? expiryDate,
     String? auditId,
     String? salesman,
+    double? eaQuantity,
   }) async {
     if (_mode == PrintMode.directIp) {
       final printer = defaultDirectIpPrinter;
@@ -160,6 +162,7 @@ class PrinterService {
       final zpl = ZplGenerator.generateItemLabel(
         soNumber: soNumber,
         customerName: customerName,
+        customerCode: customerCode,
         productCode: productCode,
         description: description,
         weight: weight,
@@ -170,6 +173,7 @@ class PrinterService {
         expiryDate: expiryDate,
         auditId: auditId,
         salesman: salesman,
+        eaQuantity: eaQuantity,
       );
       await TcpPrintService.sendRawData(printer.ipAddress!, printer.port!, zpl);
       return;
@@ -247,6 +251,7 @@ class PrinterService {
   Future<void> printCrateLabel({
     required String soNumber,
     required String customerName,
+    String? customerCode,
     required String deliveryDate,
     required List<Map<String, String>> items,
     required String unit,
@@ -261,6 +266,7 @@ class PrinterService {
       final zpl = ZplGenerator.generateCrateLabel(
         soNumber: soNumber,
         customerName: customerName,
+        customerCode: customerCode,
         deliveryDate: deliveryDate,
         items: items,
         unit: unit,

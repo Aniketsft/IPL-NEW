@@ -11,7 +11,9 @@ class LabelQrGenerator {
         : 'N/A';
         
     final customer = item.customerName ?? 'N/A';
+    final customerCode = item.customerCode ?? 'N/A';
     final weight = item.manufacturedQuantity.toStringAsFixed(3);
+    final eaQty = item.eaScannedQuantity.toStringAsFixed(3);
     
     return [
       item.soNumber,
@@ -22,6 +24,8 @@ class LabelQrGenerator {
       item.unit,
       printTime,
       deliveryDate,
+      customerCode,
+      eaQty,
     ].join('|');
   }
 
@@ -38,6 +42,7 @@ class LabelQrGenerator {
         'manifest': parts.length > 5 ? parts[5] : '', 
         'unit': parts.length > 6 ? parts[6] : 'KG',
         'timestamp': parts.length > 7 ? parts[7] : '',
+        'customerCode': parts.length > 8 ? parts[8] : 'N/A',
       };
     }
     
@@ -63,6 +68,8 @@ class LabelQrGenerator {
       'unit': parts[5],
       'printTime': parts.length > 6 ? parts[6] : '',
       'deliveryDate': parts.length > 7 ? parts[7] : 'N/A',
+      'customerCode': parts.length > 8 ? parts[8] : 'N/A',
+      'eaQuantity': parts.length > 9 ? parts[9] : '0.000',
     };
   }
 
@@ -71,12 +78,13 @@ class LabelQrGenerator {
   static String generateCrate({
     required String soNumber,
     required String customer,
+    String? customerCode,
     required String delivery,
     required List<Map<String, String>> items, 
     required String unit,
   }) {
     final timestamp = DateFormat('yyyyMMddHHmm').format(DateTime.now());
-    final manifestStr = items.map((i) => '${(i['itemCode'] ?? 'N/A').replaceAll(':','')}:${i['weight'] ?? '0'}').join(',');
+    final manifestStr = items.map((i) => '${(i['itemCode'] ?? 'N/A').replaceAll(':','')}:${i['weight'] ?? '0'}:${i['eaQuantity'] ?? '0.000'}').join(',');
 
     return [
       'CRATE', 
@@ -86,7 +94,8 @@ class LabelQrGenerator {
       items.length.toString(), 
       manifestStr, 
       unit, 
-      timestamp
+      timestamp,
+      customerCode ?? 'N/A',
     ].join('|');
   }
 

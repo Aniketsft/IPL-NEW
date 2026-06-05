@@ -87,10 +87,11 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
       final items = manifest.split(',');
       for (var itemStr in items) {
         final pair = itemStr.split(':');
-        if (pair.length == 2) {
+        if (pair.length >= 2) {
           _paletteGroups.putIfAbsent(so, () => []).add({
             'itemCode': pair[0],
             'weight': pair[1],
+            'eaQuantity': pair.length > 2 ? pair[2] : '0.000',
             'soNumber': so,
             'customer': customer,
             'deliveryDate': delivery,
@@ -300,6 +301,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
 
   Widget _buildItemTile(BuildContext context, Map<String, String> item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final orange = Theme.of(context).primaryColor;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -321,7 +323,14 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
               ],
             ),
           ),
-          Text('${item['weight']} ${item['unit']}', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${item['weight']} ${(item['unit'] == 'EA' || item['unit'] == 'PCS') ? 'KG' : (item['unit'] ?? 'KG')}', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+              if (item['unit'] == 'EA' || item['unit'] == 'PCS' || (item['eaQuantity'] != null && double.tryParse(item['eaQuantity']!) != null && double.parse(item['eaQuantity']!) > 0))
+                Text('${double.tryParse(item['eaQuantity'] ?? '0')?.toStringAsFixed(3) ?? '0.000'} EA', style: TextStyle(color: orange, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
         ],
       ),
     );
@@ -347,6 +356,7 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
     final cardBg = theme.cardColor;
     bool canFinalize = (_mode == AggregationMode.crate && _crateItems.isNotEmpty) || 
                       (_mode == AggregationMode.palette && _paletteGroups.isNotEmpty);
+    bool hasPermission = widget.permissions.any((p) => p.startsWith('inventory.by_identifier.') && p != 'inventory.by_identifier.read');
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -359,19 +369,22 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
           IconButton(
             onPressed: _resetSession,
             icon: Icon(Icons.refresh, color: isDark ? Colors.white38 : Colors.black38),
+            tooltip: 'Reset',
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: ElevatedButton(
-              onPressed: (canFinalize && widget.permissions.any((p) => p.startsWith('inventory.by_identifier.') && p != 'inventory.by_identifier.read')) ? _onFinalize : null,
+            child: ElevatedButton.icon(
+              onPressed: (canFinalize && hasPermission) ? _onFinalize : null,
+              icon: const Icon(Icons.preview_outlined, size: 18),
+              label: Text(
+                'FINALIZE ${_mode.name.toUpperCase()}',
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: orange,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'FINALIZE ${_mode.name.toUpperCase()} QR',
-                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -383,12 +396,14 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
   void _onFinalize() {
     if (_mode == AggregationMode.crate) {
       final firstItem = _crateItems.first;
+      final customerCode = firstItem['customerCode'];
       
       final qrData = LabelQrGenerator.generateCrate(
         soNumber: _crateSoNumber!,
         customer: firstItem['customer'] ?? 'N/A',
+        customerCode: customerCode,
         delivery: firstItem['deliveryDate'] ?? 'N/A',
-        items: _crateItems, // Detailed items manifest
+        items: _crateItems,
         unit: firstItem['unit'] ?? 'KG',
       );
       
@@ -396,8 +411,9 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
         context: context,
         soNumber: _crateSoNumber!,
         customerName: firstItem['customer'] ?? 'N/A',
+        customerCode: customerCode,
         deliveryDate: firstItem['deliveryDate'] ?? 'N/A',
-        items: _crateItems, // Detailed items manifest
+        items: _crateItems,
         unit: firstItem['unit'] ?? 'KG',
         qrData: qrData,
         onPrinted: _resetSession,
@@ -406,12 +422,11 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
       final firstSoGroup = _paletteGroups.values.first;
       final firstItem = firstSoGroup.first;
       
-      // Compute detailed manifest: SO -> {Metadata + Full Item List}
       final Map<String, Map<String, dynamic>> manifest = _paletteGroups.map(
         (so, items) => MapEntry(so, {
           'customer': items.first['customer'] ?? 'N/A',
           'delivery': items.first['deliveryDate'] ?? 'N/A',
-          'items': items, // Preserve full Product + Weight list
+          'items': items,
         })
       );
 

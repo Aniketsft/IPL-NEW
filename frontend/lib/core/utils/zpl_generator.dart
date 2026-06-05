@@ -6,6 +6,7 @@ class ZplGenerator {
   static String generateItemLabel({
     required String soNumber,
     required String customerName,
+    String? customerCode,
     required String productCode,
     required String description,
     required double weight,
@@ -16,11 +17,37 @@ class ZplGenerator {
     String? expiryDate,
     String? auditId,
     String? salesman,
+    double? eaQuantity,
   }) {
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    final prodDate =
-        productionDate ?? DateFormat('dd/MM/yyyy').format(DateTime.now());
-    final expDate = expiryDate ?? "N/A";
+
+    DateTime parsedProdDate;
+    if (productionDate != null) {
+      try {
+        parsedProdDate = DateFormat('dd/MM/yyyy').parse(productionDate);
+      } catch (_) {
+        parsedProdDate = DateTime.now();
+      }
+    } else {
+      parsedProdDate = DateTime.now();
+    }
+
+    final prodDate = DateFormat('dd/MM/yyyy').format(parsedProdDate);
+    final expDate =
+        expiryDate ??
+        DateFormat(
+          'dd/MM/yyyy',
+        ).format(parsedProdDate.add(const Duration(days: 5)));
+
+    String quantityZpl;
+    if (unit.toUpperCase() == 'EA' || unit.toUpperCase() == 'PCS') {
+      quantityZpl =
+          "^FO40,490^A0N,70,70^FD${weight.toStringAsFixed(3)} KG^FS\n"
+          "^FO40,570^A0N,70,70^FD${(eaQuantity ?? 0).toStringAsFixed(3)} $unit^FS";
+    } else {
+      quantityZpl =
+          "^FO40,490^A0N,70,70^FD${weight.toStringAsFixed(3)} $unit^FS";
+    }
 
     return """
 ^XA
@@ -36,8 +63,9 @@ class ZplGenerator {
 
 
 -- Customer & SO --
-^FO40,140^A0N,35,35^FB700,1,L^FD$customerName^FS
-^FO40,185^A0N,35,35^FDIPLSO Number: $soNumber^FS
+^FO40,140^A0N,35,35^FD${customerCode ?? "N/A"}^FS
+^FO40,175^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,210^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
 -- Middle Divider --
 ^FO40,240^GB700,3,3^FS
@@ -53,11 +81,9 @@ class ZplGenerator {
 
 -- Large Quantity --
 ^FO40,440^A0N,40,40^FDQuantity:^FS
-^FO40,490^A0N,80,80^FD${weight.toStringAsFixed(3)} $unit^FS
+$quantityZpl
 
 -- Footer / Audit --
-^FO40,700^GB700,3,3^FS
-^FO40,720^A0N,25,25^FDLabel ID: ${auditId ?? "INTERNAL"}^FS
 ^FO40,750^A0N,18,18^FDPrinted at: $now^FS
 
 ^XZ
@@ -67,6 +93,7 @@ class ZplGenerator {
   static String generateCrateLabel({
     required String soNumber,
     required String customerName,
+    String? customerCode,
     required String deliveryDate,
     required List<Map<String, String>> items,
     required String unit,
@@ -79,15 +106,91 @@ class ZplGenerator {
     );
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
 
-    String itemLines = "";
-    int y = 360;
-    for (var i = 0; i < items.length && i < 8; i++) {
-      itemLines += "^FO40,$y^A0N,25,25^FD${items[i]['itemCode']}^FS";
-      itemLines += "^FO300,$y^A0N,25,25^FD${items[i]['weight']} $unit^FS";
-      y += 35;
-    }
+    int totalItems = items.length;
+    bool separateQrPage = totalItems > 10;
+    int itemsPerPage = separateQrPage ? 20 : 10;
 
-    return """
+    int productPages = (totalItems / itemsPerPage).ceil();
+    if (productPages == 0) productPages = 1;
+
+    // Dynamic Spacing based on Delivery Date
+    bool hasDelivery = deliveryDate != "N/A" && deliveryDate.isNotEmpty;
+    int afterDividerY = hasDelivery ? 280 : 230;
+    int itemsStartY = hasDelivery ? 320 : 270;
+
+    // Dynamic QR sizing
+    int qrMag = 6;
+    int qrX = 380; // Moved 1cm (80 dots) left for Crate Label
+    if (qrData.length > 500)
+      qrMag = 3;
+    else if (qrData.length > 300)
+      qrMag = 4;
+    else if (qrData.length > 150)
+      qrMag = 5;
+
+    int centerQrX = 280;
+    if (qrMag == 5) centerQrX = 300;
+    if (qrMag == 4) centerQrX = 320;
+    if (qrMag == 3) centerQrX = 335;
+
+    int centerQrY = hasDelivery ? 320 : 270;
+
+    String finalZpl = "";
+
+    for (int page = 0; page < productPages; page++) {
+      int startIdx = page * itemsPerPage;
+      int endIdx = startIdx + itemsPerPage;
+      if (endIdx > totalItems) endIdx = totalItems;
+
+      String itemLines = "";
+      int yLeft = itemsStartY;
+      int yRight = itemsStartY;
+
+      for (var i = startIdx; i < endIdx; i++) {
+        bool isLeft = (i - startIdx) < 10; // First 10 items on left
+
+        int y = isLeft ? yLeft : yRight;
+        int xCode = isLeft ? 40 : 420;
+        int xWeight = isLeft ? 240 : 620;
+
+        itemLines += "^FO$xCode,$y^A0N,25,25^FD${items[i]['itemCode']}^FS\n";
+        String displayUnit = (unit == 'EA' || unit == 'PCS') ? 'KG' : unit;
+        String weightStr = "${items[i]['weight']} $displayUnit";
+        if (items[i]['eaQuantity'] != null &&
+            double.tryParse(items[i]['eaQuantity']!) != null &&
+            double.parse(items[i]['eaQuantity']!) > 0) {
+          weightStr =
+              "${double.parse(items[i]['eaQuantity']!).toStringAsFixed(3)}EA  $weightStr";
+        }
+        itemLines += "^FO$xWeight,$y^A0N,25,25^FD$weightStr^FS\n";
+
+        if (isLeft)
+          yLeft += 30;
+        else
+          yRight += 30;
+      }
+
+      String pageTitle = separateQrPage
+          ? "CRATE(${page + 1}/$productPages)"
+          : "CRATE";
+
+      String headers =
+          "^FO40,$afterDividerY^A0N,25,25^FDPRODUCT^FS\n^FO240,$afterDividerY^A0N,25,25^FDWEIGHT^FS";
+      if (separateQrPage && (endIdx - startIdx) > 10) {
+        headers +=
+            "\n^FO420,$afterDividerY^A0N,25,25^FDPRODUCT^FS\n^FO620,$afterDividerY^A0N,25,25^FDWEIGHT^FS";
+      }
+
+      String qrBlock = separateQrPage
+          ? ""
+          : "^FO$qrX,$itemsStartY^BQN,2,$qrMag^FDQA,$qrData^FS";
+      String deliveryBlock = hasDelivery
+          ? "^FO40,230^A0N,30,30^FDDELIVERY: $deliveryDate^FS"
+          : "";
+      String customerCodeBlock = customerCode ?? "N/A";
+
+      finalZpl +=
+          """
 ^XA
 ^CI28
 ^PW780
@@ -96,39 +199,78 @@ class ZplGenerator {
 -- Top Section: Code & Description --
 
 ^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
-^FO40,40^A0N,40,40^FDCRATE SUMMARY LABEL^FS
+^FO40,40^A0N,40,40^FD$pageTitle^FS
 
 -- Customer & SO --
-^FO40,140^A0N,35,35^FB700,1,L^FD$customerName^FS
-^FO40,185^A0N,35,35^FDIPLSO Number: $soNumber^FS
+^FO40,90^A0N,35,35^FD$customerCodeBlock^FS
+^FO40,125^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,160^A0N,35,35^FDIPLSO Number: $soNumber^FS
 
 -- Middle Divider --
-^FO40,240^GB700,3,3^FS
+^FO40,200^GB700,3,3^FS
 
 -- Delivery Date Info --
-^FO40,270^A0N,30,30^FDDELIVERY: $deliveryDate^FS
+$deliveryBlock
 
 -- Header --
-^FO40,320^A0N,25,25^FDPRODUCT^FS
-^FO300,320^A0N,25,25^FDWEIGHT^FS
+$headers
 
 -- QR Code --
-^FO460,360^BQN,2,6^FDQA,$qrData^FS
+$qrBlock
 
 -- Items List --
 $itemLines
-
 -- Large Quantity --
 ^FO40,620^A0N,30,30^FDTOTAL WEIGHT:^FS
 ^FO40,650^A0N,50,50^FD${total.toStringAsFixed(3)} $unit^FS
 
 -- Footer / Audit --
-^FO40,700^GB700,3,3^FS
-^FO40,720^A0N,25,25^FDLabel ID: ${auditId ?? "INTERNAL"}^FS
 ^FO40,750^A0N,18,18^FDPrinted at: $now^FS
 
 ^XZ
 """;
+    }
+
+    if (separateQrPage) {
+      String deliveryBlock = hasDelivery
+          ? "^FO40,230^A0N,30,30^FDDELIVERY: $deliveryDate^FS"
+          : "";
+      String customerCodeBlock = customerCode ?? "N/A";
+
+      finalZpl +=
+          """
+^XA
+^CI28
+^PW780
+^LL780
+
+-- Top Section: Code & Description --
+
+^FO400,40^A0N,30,30^FB360,2,R^FDINNODIS POULTRY LTD^FS
+^FO40,40^A0N,40,40^FDCRATE QR LABEL^FS
+
+-- Customer & SO --
+^FO40,90^A0N,35,35^FD$customerCodeBlock^FS
+^FO40,125^A0N,35,35^FB700,1,L^FD$customerName^FS
+^FO40,160^A0N,35,35^FDIPLSO Number: $soNumber^FS
+
+-- Middle Divider --
+^FO40,200^GB700,3,3^FS
+
+-- Delivery Date Info --
+$deliveryBlock
+
+-- QR Code Prominent --
+^FO$centerQrX,$centerQrY^BQN,2,$qrMag^FDQA,$qrData^FS
+
+-- Footer / Audit --
+^FO40,750^A0N,18,18^FDPrinted at: $now^FS
+
+^XZ
+""";
+    }
+
+    return finalZpl;
   }
 
   static String generateEodLabel({
@@ -207,14 +349,14 @@ $itemLines
 
     String itemLines = "";
     int y = 360;
-    
+
     int lineCount = 0;
     for (var entry in manifest.entries) {
       if (lineCount >= 8) break;
       final so = entry.key;
       final data = entry.value;
       final items = List<Map<String, String>>.from(data['items'] ?? []);
-      
+
       itemLines += "^FO40,$y^A0N,20,20^FDSO: $so^FS";
       y += 25;
       lineCount++;
