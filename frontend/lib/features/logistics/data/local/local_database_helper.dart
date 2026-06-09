@@ -2047,6 +2047,7 @@ class LocalDatabaseHelper {
     );
   }
 
+
   Future<bool> isEodProcessAudited(String dateStr) async {
     final db = await instance.database;
     final res = await db.query(

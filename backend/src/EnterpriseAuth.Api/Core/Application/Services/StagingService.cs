@@ -72,7 +72,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             var scans = await _context.ProductionScanTransactions
                 .Where(t => lineIds.Contains(t.SalesOrderLineId) && !t.IsDeleted)
-                .Select(t => new { t.SalesOrderLineId, t.Location, t.CreatedAt })
+                .Select(t => new { t.SalesOrderLineId, t.Location, t.CreatedAt, t.LotNumber, t.ScanAmountKg })
                 .ToListAsync();
 
             var scanLocations = scans
@@ -81,6 +81,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     g => g.Key, 
                     g => g.OrderByDescending(x => x.CreatedAt).Select(x => x.Location).FirstOrDefault()
                 );
+
+            var lotGroups = scans.GroupBy(t => new { t.SalesOrderLineId, LotNumber = t.LotNumber ?? "" });
 
             // 4. Batch-fetch VAT levels for all item codes in the order (from X3 ITMMASTER)
             var itemCodes = order.Lines.Select(l => l.ItemCode).Where(c => c != null).Distinct().ToList();
@@ -129,6 +131,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZSAU_0 = null,
                 ZQTY_0 = 0,
                 ZVACITM_0 = null,  // Not applicable for header
+                LotNumber = null,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -136,38 +139,91 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             foreach (var line in order.Lines)
             {
                 var state = lineStates.FirstOrDefault(s => s.SalesOrderLineId == line.Id);
-                if (state == null || state.TotalManufacturedQty < 0) continue;
+                if (state == null || state.TotalManufacturedQty <= 0) continue;
+
+                var lineLotGroups = lotGroups.Where(g => g.Key.SalesOrderLineId == line.Id).ToList();
 
                 // Resolve VAT level: use lookup result, fallback to "STD" if not found
                 var vatLevel = (line.ItemCode != null && vatLevels.ContainsKey(line.ItemCode))
                     ? vatLevels[line.ItemCode]
                     : "STD";
 
-                Console.WriteLine($"[Staging] Line {line.LineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={state.TotalManufacturedQty:F3}");
-
-                stagingRecords.Add(new Staging
+                if (lineLotGroups.Any())
                 {
-                    ZREC_0 = "L",
-                    ZSDHTYP_0 = "SDH",
-                    ZSALFCY_0 = "IPL",
-                    ZSTOFCY_0 = "IPL",
-                    ZSDHNUM_0 = $"STG-{soNumber}",
-                    ZBPCORD_0 = metadata.ZBPCORD_0,
-                    ZSUR_0 = "MUR",
-                    ZSHIDAT_0 = order.DeliveryDate,
-                    ZDLVDAT_0 = order.DeliveryDate,
-                    ZCFMFLG_0 = 2,
-                    ZLOCFCY_0 = lorryCode,
-                    ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
-                    ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP L;{ZSOHNUM_0};...
-                    ZSOPLIN_0 = line.LineNumber,
-                    ZITMREF_0 = line.ItemCode,
-                    ZITMDES_0 = line.Description,
-                    ZSAU_0 = line.Unit,
-                    ZQTY_0 = state.TotalManufacturedQty,
-                    ZVACITM_0 = vatLevel,  // VAT level from X3 ITMMASTER.VACITM_0
-                    CreatedAt = DateTime.UtcNow
-                });
+                    // Calculate total scan sum to find if we need to adjust
+                    var totalScanQty = lineLotGroups.Sum(g => g.Sum(s => s.ScanAmountKg));
+                    
+                    foreach (var group in lineLotGroups)
+                    {
+                        var lotQty = group.Sum(s => s.ScanAmountKg);
+                        
+                        // If there is a discrepancy between state.TotalManufacturedQty and total scans (due to manual adjustments)
+                        // we scale the lot quantity proportionally.
+                        if (totalScanQty > 0 && totalScanQty != state.TotalManufacturedQty)
+                        {
+                            lotQty = (lotQty / totalScanQty) * state.TotalManufacturedQty;
+                        }
+
+                        if (lotQty <= 0) continue;
+
+                        Console.WriteLine($"[Staging] Line {line.LineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={lotQty:F3}, Lot={group.Key.LotNumber}");
+
+                        stagingRecords.Add(new Staging
+                        {
+                            ZREC_0 = "L",
+                            ZSDHTYP_0 = "SDH",
+                            ZSALFCY_0 = "IPL",
+                            ZSTOFCY_0 = "IPL",
+                            ZSDHNUM_0 = $"STG-{soNumber}",
+                            ZBPCORD_0 = metadata.ZBPCORD_0,
+                            ZSUR_0 = "MUR",
+                            ZSHIDAT_0 = order.DeliveryDate,
+                            ZDLVDAT_0 = order.DeliveryDate,
+                            ZCFMFLG_0 = 2,
+                            ZLOCFCY_0 = lorryCode,
+                            ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
+                            ZSOHNUM_0 = x3SoNumber,
+                            ZSOPLIN_0 = line.LineNumber,
+                            ZITMREF_0 = line.ItemCode,
+                            ZITMDES_0 = line.Description,
+                            ZSAU_0 = line.Unit,
+                            ZQTY_0 = lotQty,
+                            ZVACITM_0 = vatLevel,
+                            LotNumber = string.IsNullOrEmpty(group.Key.LotNumber) ? null : group.Key.LotNumber,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+                else
+                {
+                    // Fallback if no specific lot scans but there is manufactured quantity
+                    Console.WriteLine($"[Staging] Line {line.LineNumber}: Item={line.ItemCode}, VAT={vatLevel}, Qty={state.TotalManufacturedQty:F3} (No Lot Info)");
+
+                    stagingRecords.Add(new Staging
+                    {
+                        ZREC_0 = "L",
+                        ZSDHTYP_0 = "SDH",
+                        ZSALFCY_0 = "IPL",
+                        ZSTOFCY_0 = "IPL",
+                        ZSDHNUM_0 = $"STG-{soNumber}",
+                        ZBPCORD_0 = metadata.ZBPCORD_0,
+                        ZSUR_0 = "MUR",
+                        ZSHIDAT_0 = order.DeliveryDate,
+                        ZDLVDAT_0 = order.DeliveryDate,
+                        ZCFMFLG_0 = 2,
+                        ZLOCFCY_0 = lorryCode,
+                        ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
+                        ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP L;{ZSOHNUM_0};...
+                        ZSOPLIN_0 = line.LineNumber,
+                        ZITMREF_0 = line.ItemCode,
+                        ZITMDES_0 = line.Description,
+                        ZSAU_0 = line.Unit,
+                        ZQTY_0 = state.TotalManufacturedQty,
+                        ZVACITM_0 = vatLevel,  // VAT level from X3 ITMMASTER.VACITM_0
+                        LotNumber = null,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             if (stagingRecords.Any())

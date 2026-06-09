@@ -481,26 +481,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   Future<bool> _confirmDelete() async {
-    if (widget.order.deliveryDate != null) {
-      final db = LocalDatabaseHelper.instance;
-      final dateStr = DateFormat('yyyy-MM-dd').format(widget.order.date);
-      final isEodDone = await db.isEodCompleted(dateStr);
-      
-      
-      if (isEodDone) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot delete scan. End of Day has already been performed for this date.'),
-              backgroundColor: Colors.redAccent,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-        return false;
-      }
-    }
-
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(

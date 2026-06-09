@@ -39,8 +39,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _schemaProvider = schemaProvider;
         }
 
-        public async Task<SyncPackageDto> GetRefreshPackageAsync(string site)
+        public async Task<SyncPackageDto> GetRefreshPackageAsync(string site, string? deviceId = null, string? performedBy = null)
         {
+            if (!string.IsNullOrEmpty(deviceId))
+            {
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName = "DeviceSync",
+                    EntityIdString = deviceId,
+                    ActionType = "SYNC_PULL",
+                    Payload = $"{{\"Site\": \"{site}\"}}",
+                    PerformedBy = performedBy ?? "system",
+                    PerformedAt = DateTime.UtcNow,
+                    DeviceId = deviceId
+                });
+                await _scanContext.SaveChangesAsync();
+            }
+
+
             var package = new SyncPackageDto();
 
             // Define fetching tasks with separate connections for parallel execution
@@ -1242,7 +1258,39 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
+            if (!string.IsNullOrEmpty(request.DeviceId))
+            {
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName = "DeviceSync",
+                    EntityIdString = request.DeviceId,
+                    ActionType = "SYNC_PUSH",
+                    Payload = $"{{\"TotalItems\": {totalCount}}}",
+                    PerformedBy = performedBy,
+                    PerformedAt = DateTime.UtcNow,
+                    DeviceId = request.DeviceId
+                });
+                await _scanContext.SaveChangesAsync();
+            }
+
             return totalCount;
+        }
+
+        public async Task<IEnumerable<DeviceSyncLogDto>> GetLatestDeviceSyncsAsync()
+        {
+            var logs = await _scanContext.AuditLogs
+                .Where(a => a.EntityName == "DeviceSync")
+                .GroupBy(a => a.EntityIdString)
+                .Select(g => g.OrderByDescending(a => a.PerformedAt).FirstOrDefault())
+                .ToListAsync();
+
+            return logs.Where(l => l != null).Select(l => new DeviceSyncLogDto
+            {
+                DeviceId = l.EntityIdString,
+                LastSyncedBy = l.PerformedBy,
+                LastSyncTime = l.PerformedAt,
+                ActionType = l.ActionType
+            }).OrderByDescending(d => d.LastSyncTime);
         }
 
         private async Task SyncEnterpriseOrdersAndLinesAsync(IEnumerable<SalesOrderHeaderDto> orderDtos, IEnumerable<SalesOrderDetailDto> detailDtos)

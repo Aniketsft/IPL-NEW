@@ -114,11 +114,18 @@ class MyApp extends StatelessWidget {
           BlocProvider(
             create: (context) {
               final authRepo = context.read<AuthRepository>();
-              return AuthBloc(
+              final authBloc = AuthBloc(
                 loginUseCase: LoginUseCase(authRepo),
                 registerUseCase: RegisterUseCase(authRepo),
                 forgotPasswordUseCase: ForgotPasswordUseCase(authRepo),
+                storageService: context.read<SecureStorageService>(),
               )..add(AppStarted());
+
+              context.read<NetworkService>().onUnauthorized = () {
+                authBloc.add(LogoutRequested());
+              };
+
+              return authBloc;
             },
           ),
           BlocProvider(

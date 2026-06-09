@@ -54,15 +54,16 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  final List<PermissionNode> _permissionTree = [
-    PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
-    PermissionNode(label: 'Settings', moduleId: 'settings.general'),
-    PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
-    PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
-    PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
-    PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
-    PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
-  ];
+    final List<PermissionNode> _permissionTree = [
+      PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
+      PermissionNode(label: 'Settings', moduleId: 'settings.general'),
+      PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
+      PermissionNode(label: 'Sync Logs', moduleId: 'administration.sync_logs'),
+      PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
+      PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
+      PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
+      PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
+    ];
 
   @override
   void initState() {
@@ -502,6 +503,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return Icons.home_outlined;
       case 'Settings':         return Icons.settings_outlined;
       case 'Administration':   return Icons.admin_panel_settings_outlined;
+      case 'Sync Logs':        return Icons.sync_alt;
       case 'Delivery':         return Icons.local_shipping_outlined;
       case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
       case 'QR Label':         return Icons.qr_code_scanner_rounded;
@@ -515,6 +517,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return const Color(0xFFFF9800);
       case 'Settings':         return const Color(0xFF9C27B0);
       case 'Administration':   return const Color(0xFFF44336);
+      case 'Sync Logs':        return const Color(0xFF009688);
       case 'Delivery':         return const Color(0xFF2196F3);
       case 'Manufacturing':    return Theme.of(context).primaryColor;
       case 'QR Label':         return const Color(0xFF4CAF50);
@@ -528,6 +531,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return 'Dashboard & data sync';
       case 'Settings':         return 'App configuration';
       case 'Administration':   return 'User & role management';
+      case 'Sync Logs':        return 'Real-time device sync tracking';
       case 'Delivery':         return 'EOD, scanning & manifests';
       case 'Manufacturing':    return 'Sales orders & tracking';
       case 'QR Label':         return 'QR aggregation & printing';
@@ -992,6 +996,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             ),
           ),
           const SizedBox(height: 16),
+/*
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
@@ -1029,6 +1034,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               onUpdate: _updateCreationUserPermissions,
             ),
           ],
+          */
           const SizedBox(height: 32),
           _buildActionFooter('CREATE USER', _isCreatingUser, _handleCreateUser),
         ],
@@ -1151,12 +1157,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                   ),
                   const SizedBox(height: 10),
                   _buildUserRoleSelector(isDark),
+                  /*
                   const SizedBox(height: 24),
                   _buildPermissionMatrixLayout(
                     permissions: _selectedManagementUser!.permissions,
                     isDark: isDark,
                     onUpdate: _updateExistingUserPermissions,
                   ),
+                  */
                 ],
               ),
             ),
@@ -1177,13 +1185,15 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             // Update User details (like roleId)
             await _repository.updateUser(_selectedManagementUser!);
             // Update User permissions
+            /*
             await _repository.updateUserPermissions(
               _selectedManagementUser!.id,
               _selectedManagementUser!.permissions,
             );
+            */
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User details and permissions updated!')),
+                const SnackBar(content: Text('User details updated!')),
               );
               await _loadData();
             }

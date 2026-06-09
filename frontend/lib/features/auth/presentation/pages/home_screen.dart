@@ -15,6 +15,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/del
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
+import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
@@ -447,6 +448,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const UserManagementScreen()),
+                      );
+                    },
+                  ),
+                if (_hasAccess('administration.sync_logs.read'))
+                  ListTile(
+                    leading: Icon(
+                      Icons.sync_alt,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    title: Text(
+                      'Sync Logs',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SyncLogsScreen()),
                       );
                     },
                   ),

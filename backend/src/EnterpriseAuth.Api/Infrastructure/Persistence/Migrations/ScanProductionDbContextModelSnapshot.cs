@@ -706,6 +706,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("ZVACITM_0");
 
+                    b.Property<string>("LotNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("LotNumber");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ZSOHNUM_0");

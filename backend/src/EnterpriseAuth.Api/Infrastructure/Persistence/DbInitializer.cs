@@ -53,7 +53,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ( "logistics", new[] { "receipt", "delivery", "transfer" } ),
                 ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
-                ( "administration", new[] { "user_management" } ),
+                ( "administration", new[] { "user_management", "sync_logs" } ),
                 ( "settings", new[] { "general", "printer" } )
             };
             
@@ -878,6 +878,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             [ZITMDES_0] [nvarchar](255) NULL,
                             [ZSAU_0] [nvarchar](10) NULL,
                             [ZQTY_0] [decimal](18, 5) NOT NULL,
+                            [LotNumber] [nvarchar](100) NULL,
                             [CreatedAt] [datetime2] NOT NULL DEFAULT GETUTCDATE(),
                             CONSTRAINT [PK_Staging] PRIMARY KEY CLUSTERED ([Id] ASC)
                         );
@@ -908,6 +909,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         BEGIN
                             ALTER TABLE [dbo].[Staging] ADD [ZREQNUM_0] [nvarchar](50) NULL;
                             PRINT 'Added ZREQNUM_0 column to existing Staging table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Staging' AND COLUMN_NAME = 'LotNumber')
+                        BEGIN
+                            ALTER TABLE [dbo].[Staging] ADD [LotNumber] [nvarchar](100) NULL;
+                            PRINT 'Added LotNumber column to existing Staging table';
                         END
                     END
                 ";

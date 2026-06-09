@@ -21,9 +21,13 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("refresh")]
-        public async Task<ActionResult<SyncPackageDto>> GetRefreshPackage([FromQuery] string site = "IPL")
+        public async Task<ActionResult<SyncPackageDto>> GetRefreshPackage(
+            [FromQuery] string site = "IPL",
+            [FromHeader(Name = "X-Device-Id")] string? deviceId = null)
         {
-            var package = await _syncRepository.GetRefreshPackageAsync(site);
+            var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value;
+            string performedBy = usernameClaim ?? User.Identity?.Name ?? "system-sync";
+            var package = await _syncRepository.GetRefreshPackageAsync(site, deviceId, performedBy);
             return Ok(package);
         }
 
@@ -39,6 +43,12 @@ namespace EnterpriseAuth.Api.Controllers
             string performedBy = usernameClaim ?? User.Identity?.Name ?? "system-sync";
             int count = await _syncRepository.PushUpdatesAsync(request, performedBy);
             return Ok(count);
+        }
+        [HttpGet("devices/latest")]
+        public async Task<ActionResult<IEnumerable<DeviceSyncLogDto>>> GetLatestDeviceSyncs()
+        {
+            var logs = await _syncRepository.GetLatestDeviceSyncsAsync();
+            return Ok(logs);
         }
     }
 }

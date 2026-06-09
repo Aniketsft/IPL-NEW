@@ -92,5 +92,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(50)]
         [Column("ZVACITM_0")]
         public string? ZVACITM_0 { get; set; }
+
+        [MaxLength(100)]
+        [Column("LotNumber")]
+        public string? LotNumber { get; set; }
     }
 }
