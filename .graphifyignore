@@ -1,0 +1,10 @@
+/docs/
+/assets/images/
+*.md
+*.png
+*.jpg
+*.yml
+*.lock
+*.csv
+*.db
+*.tmp

@@ -1,0 +1,1 @@
+USE [Hipo]; DELETE FROM [UserRoles] WHERE UserId NOT IN (SELECT Id FROM [Users] WHERE Username = 'admin'); DELETE FROM [RolePermissions] WHERE RoleId NOT IN (SELECT Id FROM [Roles] WHERE Name = 'Admin'); DELETE FROM [Users] WHERE Username != 'admin'; DELETE FROM [Roles] WHERE Name != 'Admin'; DELETE FROM [UserGroups] WHERE Name != 'IT Administration';

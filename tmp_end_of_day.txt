@@ -1,0 +1,507 @@
+﻿import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import '../../../../core/widgets/industrial_module_layout.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model
+// ─────────────────────────────────────────────────────────────────────────────
+class WorkOrderItem {
+  final String workOrder;
+  final String product;
+  final double releasedQty;
+  final String unit;
+  final String trackingNum;
+  final DateTime? date;
+
+  const WorkOrderItem({
+    required this.workOrder,
+    required this.product,
+    required this.releasedQty,
+    required this.unit,
+    required this.trackingNum,
+    this.date,
+  });
+
+  factory WorkOrderItem.fromJson(Map<String, dynamic> json) => WorkOrderItem(
+        workOrder: json['workOrder'] as String? ?? '',
+        product: json['product'] as String? ?? '',
+        releasedQty: (json['releasedQty'] as num?)?.toDouble() ?? 0.0,
+        unit: json['unit'] as String? ?? '',
+        trackingNum: json['trackingNum'] as String? ?? '',
+        date: json['date'] != null ? DateTime.tryParse(json['date'].toString()) : null,
+      );
+
+  factory WorkOrderItem.fromDb(Map<String, dynamic> row) => WorkOrderItem(
+        workOrder: row[LocalDatabaseHelper.colWoWorkOrder] as String? ?? '',
+        product: row[LocalDatabaseHelper.colWoProduct] as String? ?? '',
+        releasedQty: (row[LocalDatabaseHelper.colWoReleasedQty] as num?)?.toDouble() ?? 0.0,
+        unit: row[LocalDatabaseHelper.colWoUnit] as String? ?? '',
+        trackingNum: row[LocalDatabaseHelper.colWoTrackingNum] as String? ?? '',
+        date: row[LocalDatabaseHelper.colWoDate] != null
+            ? DateTime.tryParse(row[LocalDatabaseHelper.colWoDate].toString())
+            : null,
+      );
+
+  Map<String, dynamic> toDb(String cachedAt) => {
+        LocalDatabaseHelper.colWoWorkOrder: workOrder,
+        LocalDatabaseHelper.colWoProduct: product,
+        LocalDatabaseHelper.colWoReleasedQty: releasedQty,
+        LocalDatabaseHelper.colWoUnit: unit,
+        LocalDatabaseHelper.colWoTrackingNum: trackingNum,
+        LocalDatabaseHelper.colWoDate: date?.toIso8601String(),
+        LocalDatabaseHelper.colWoCachedAt: cachedAt,
+      };
+
+  String get displayLabel =>
+      '$workOrder — $product (${releasedQty.toStringAsFixed(2)} $unit)';
+}
+
+// ───────�class _EndOfDayScreenState extends State<EndOfDayScreen> {
+  List<WorkOrderItem> _workOrders = [];
+  WorkOrderItem? _selectedWorkOrder;
+  bool _isLoading = false;
+  bool _isOfflineData = false;
+  String? _errorMessage;
+  final _searchCtrl = TextEditingController();
+
+  static const _amber = Color(0xFFFF9800);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  List<WorkOrderItem> _filtered {
+    final q = _searchCtrl.text.toLowerCase();
+    if (q.isEmpty) return _workOrders;
+    return _workOrders
+        .where((w) =>
+            w.workOrder.toLowerCase().contains(q) ||
+            w.product.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ─── Offline helpers ───────────────────────────────────────────────────────
+
+  Future<void> _cacheWorkOrders(List<WorkOrderItem> items) async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final now = DateTime.now().toIso8601String();
+
+    // Clear ALL cached work orders before writing fresh full load
+    await db.delete(LocalDatabaseHelper.tableWorkOrders);
+
+    final batch = db.batch();
+    for (final item in items) {
+      batch.insert(
+        LocalDatabaseHelper.tableWorkOrders,
+        item.toDb(now),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<WorkOrderItem>> _loadCached() async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final rows = await db.query(
+      LocalDatabaseHelper.tableWorkOrders,
+      orderBy: LocalDatabaseHelper.colWoWorkOrder,
+    );
+    return rows.map(WorkOrderItem.fromDb).toList();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _isOfflineData = false;
+      _selectedWorkOrder = null;
+      _searchCtrl.clear();
+    });
+
+    try {
+      final networkService = context.read<NetworkService>();
+      final response = await networkService.dio.get('Logistics/work-orders');
+
+      final all = (response.data as List<dynamic>)
+          .map((e) => WorkOrderItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      await _cacheWorkOrders(all);
+
+      if (!mounted) return;
+      setState(() {
+        _workOrders = all;
+        if (_workOrders.isEmpty) {
+          _errorMessage = 'No work orders found in system.';
+        }
+      });
+    } on DioException {
+      final cached = await _loadCached();
+      if (!mounted) return;
+      if (cached.isNotEmpty) {
+        setState(() {
+          _workOrders = cached;
+          _isOfflineData = true;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'No connection and no cached data.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ─── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return IndustrialModuleLayout(
+      title: 'END OF DAY',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          if (_isOfflineData) _offlineBanner(),
+
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(100),
+                child: CircularProgressIndicator(color: _amber),
+              ),
+            )
+          else if (_errorMessage != null)
+            _errorCard()
+          else if (_workOrders.isNotEmpty) ...[
+            _label('${_workOrders.length} WORK ORDERS AVAILABLE', theme),
+            const SizedBox(height: 16),
+            _searchField(isDark),
+            const SizedBox(height: 12),
+            _dropdownCard(isDark),
+            if (_selectedWorkOrder != null) ...[
+              const SizedBox(height: 24),
+              _summaryCard(isDark),
+            ],
+          ] else
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: Text('Initializing work orders...'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+        const SizedBox(height: 20),
+
+          if (_isOfflineData)
+            _offlineBanner(),
+
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(color: _amber),
+              ),
+            )
+          else if (_errorMessage != null)
+            _errorCard()
+          else if (_workOrders.isNotEmpty) ...[
+            _label('${_workOrders.length} ORDER${_workOrders.length == 1 ? '' : 'S'} FOUND', theme),
+            const SizedBox(height: 10),
+            _searchField(isDark),
+            const SizedBox(height: 12),
+            _dropdownCard(isDark),
+            if (_selectedWorkOrder != null) ...[
+              const SizedBox(height: 16),
+              _summaryCard(isDark),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ─── Widgets ───────────────────────────────────────────────────────────────
+
+  Widget _label(String text, ThemeData theme) => Text(
+        text,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: _amber,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.4,
+        ),
+      );
+
+  Widget _dateTile(bool isDark) => Material(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: _pickDate,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? Colors.white12 : Colors.black12,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today, color: _amber, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down,
+                    color: isDark ? Colors.white38 : Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _loadBtn() => ElevatedButton.icon(
+        onPressed: _isLoading ? null : _load,
+        icon: const Icon(Icons.search, size: 20),
+        label: const Text('LOAD WORK ORDERS'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _amber,
+          foregroundColor: Colors.black,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
+        ),
+      );
+
+  Widget _offlineBanner() => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: const [
+            Icon(Icons.cloud_off_rounded, color: Colors.orange, size: 16),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Offline — showing cached data',
+                style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _searchField(bool isDark) => TextField(
+        controller: _searchCtrl,
+        onChanged: (_) => setState(() {}),
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        decoration: InputDecoration(
+          hintText: 'Search work order',
+          prefixIcon: const Icon(Icons.search, color: _amber, size: 20),
+          suffixIcon: _searchCtrl.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: () => setState(() => _searchCtrl.clear()),
+                )
+              : null,
+        ),
+      );
+
+  Widget _dropdownCard(bool isDark) {
+    final filtered = _filtered;
+    return Material(
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white12 : Colors.black12,
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<WorkOrderItem>(
+            value: _selectedWorkOrder,
+            isExpanded: true,
+            dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            hint: Text(
+              'Select (${filtered.length} found)',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black38,
+                fontSize: 13,
+              ),
+            ),
+            icon: const Icon(Icons.arrow_drop_down, color: _amber),
+            items: filtered
+                .map((w) => DropdownMenuItem<WorkOrderItem>(
+                      value: w,
+                      child: Text(
+                        w.displayLabel,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ))
+                .toList(),
+            onChanged: (v) => setState(() => _selectedWorkOrder = v),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryCard(bool isDark) {
+    final w = _selectedWorkOrder!;
+    return Card(
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: _amber, width: 1),
+      ),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.assignment_turned_in_rounded, color: _amber, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'SELECTED WORK ORDER',
+                  style: TextStyle(
+                    color: _amber,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(color: _amber, thickness: 0.4, height: 20),
+            _row('Work Order', w.workOrder, isDark),
+            _row('Product', w.product, isDark),
+            _row('Released Qty', '${w.releasedQty.toStringAsFixed(2)} ${w.unit}', isDark),
+            _row('Tracking #', w.trackingNum.isNotEmpty ? w.trackingNum : '—', isDark),
+            if (w.date != null)
+              _row('Date', DateFormat('dd MMM yyyy').format(w.date!), isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value, bool isDark) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _errorCard() => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _pickDate() async {
+    final theme = Theme.of(context);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (ctx, child) => Theme(
+        data: theme.copyWith(
+          colorScheme: theme.colorScheme.copyWith(primary: _amber),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+        _workOrders = [];
+        _selectedWorkOrder = null;
+        _errorMessage = null;
+        _isOfflineData = false;
+        _searchCtrl.clear();
+      });
+    }
+  }
+}
