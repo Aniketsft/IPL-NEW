@@ -27,7 +27,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Security
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim("username", user.Username)
+                new Claim("username", user.Username),
+                new Claim("TokenVersion", user.TokenVersion.ToString())
             };
 
             // Add Permissions as claims

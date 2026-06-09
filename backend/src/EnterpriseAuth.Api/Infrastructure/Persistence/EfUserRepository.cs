@@ -61,6 +61,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task UpdateAsync(User user)
         {
+            user.TokenVersion = Guid.NewGuid(); // Invalidate token on update
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
         }

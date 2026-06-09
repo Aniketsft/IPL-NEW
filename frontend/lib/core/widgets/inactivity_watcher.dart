@@ -44,12 +44,20 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
     context.read<AuthBloc>().add(LogoutRequested());
   }
 
-  void _refreshToken() {
+  Future<void> _refreshToken() async {
     // Only refresh if the user is authenticated. 
     // If they are on the login screen, don't ping the refresh endpoint.
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
-      context.read<AuthRepository>().refreshToken();
+      await context.read<AuthRepository>().refreshToken();
+      
+      // Enforce Offline TTL
+      final isValid = await context.read<AuthRepository>().isOfflineSessionValid();
+      if (!isValid) {
+        if (mounted) {
+          context.read<AuthBloc>().add(LogoutRequested());
+        }
+      }
     }
   }
 

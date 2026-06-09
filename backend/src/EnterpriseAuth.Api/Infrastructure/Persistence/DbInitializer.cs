@@ -16,6 +16,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             await context.Database.EnsureCreatedAsync();
             Console.WriteLine("[DbInitializer] Database ensured.");
 
+            // FORCE SCHEMA CREATION: Ensure TokenVersion column exists because EnsureCreated might skip it if DB already exists
+            try {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Users' AND COLUMN_NAME = 'TokenVersion')
+                    BEGIN
+                        ALTER TABLE [Users] ADD [TokenVersion] uniqueidentifier NOT NULL DEFAULT NEWID();
+                    END
+                ");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] TokenVersion column warning: " + ex.Message);
+            }
+
             // FORCE SCHEMA CREATION: Create UserPermissions table if missing
             try {
                 await context.Database.ExecuteSqlRawAsync(@"
@@ -32,16 +44,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ");
             } catch (Exception ex) {
                 Console.WriteLine("[DbInitializer] Table creation warning: " + ex.Message);
-            }
-
-            // FORCE CLEANSE: Clear existing permissions and associations to prevent orphan crashes
-            try {
-                await context.Database.ExecuteSqlRawAsync("DELETE FROM [RolePermissions]");
-                await context.Database.ExecuteSqlRawAsync("DELETE FROM [UserRoles]");
-                await context.Database.ExecuteSqlRawAsync("DELETE FROM [Permissions]");
-                Console.WriteLine("[DbInitializer] Database cleansed of old permissions.");
-            } catch (Exception ex) {
-                Console.WriteLine("[DbInitializer] Cleanse warning: " + ex.Message);
             }
 
             // Seed Permissions (Hierarchical Tree Structure)

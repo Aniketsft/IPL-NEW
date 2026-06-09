@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 50;
+  static const _databaseVersion = 51;
 
 
   static const tableScans = 'tbl_scans';
@@ -134,6 +134,7 @@ class LocalDatabaseHelper {
   static const colUserPermissions = 'permissionsJson';
   static const colUserEmail = 'email';
   static const colUserId = 'userId';
+  static const colLastSyncTime = 'last_sync_time';
 
   // tbl_sync_history columns
   static const colSyncTimestamp = 'timestamp';
@@ -761,6 +762,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v50: $e");
       }
     }
+    if (oldVersion < 51) {
+      debugPrint('DB Upgrade: Adding last_sync_time to tableCachedUsers (v51)');
+      try {
+        await db.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colLastSyncTime TEXT');
+      } catch (e) {
+        debugPrint("Migration error v51: $e");
+      }
+    }
   }
 
 
@@ -882,7 +891,8 @@ class LocalDatabaseHelper {
         $colUserPassHash TEXT,
         $colUserPermissions TEXT,
         $colUserEmail TEXT,
-        $colUserId TEXT
+        $colUserId TEXT,
+        $colLastSyncTime TEXT
       )
     ''');
 

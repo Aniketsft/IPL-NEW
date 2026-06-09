@@ -45,6 +45,7 @@ class AuthRepository implements IAuthRepository {
           LocalDatabaseHelper.colUserPermissions: jsonEncode(dto.permissions),
           LocalDatabaseHelper.colUserEmail: dto.email,
           LocalDatabaseHelper.colUserId: dto.id,
+          LocalDatabaseHelper.colLastSyncTime: DateTime.now().toIso8601String(),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -83,6 +84,16 @@ class AuthRepository implements IAuthRepository {
       final permissions =
           jsonDecode(row[LocalDatabaseHelper.colUserPermissions] as String)
               as List;
+
+      final lastSyncTimeStr = row[LocalDatabaseHelper.colLastSyncTime] as String?;
+      if (lastSyncTimeStr != null) {
+        final lastSyncTime = DateTime.parse(lastSyncTimeStr);
+        if (DateTime.now().difference(lastSyncTime) > const Duration(minutes: 30)) {
+           throw 'Offline session expired. Please connect to the network to re-authenticate.';
+        }
+      } else {
+         throw 'Offline session expired. Please connect to the network to re-authenticate.';
+      }
 
       return User(
         id: row[LocalDatabaseHelper.colUserId] as String,
@@ -134,11 +145,47 @@ class AuthRepository implements IAuthRepository {
       final data = response.data;
       if (data != null && data['token'] != null) {
         await _storageService.saveToken(data['token']);
+        
+        final username = await _storageService.getUsername();
+        if (username != null) {
+          final db = await LocalDatabaseHelper.instance.database;
+          await db.update(
+            LocalDatabaseHelper.tableCachedUsers,
+            {LocalDatabaseHelper.colLastSyncTime: DateTime.now().toIso8601String()},
+            where: '${LocalDatabaseHelper.colUserUsername} = ?',
+            whereArgs: [username],
+          );
+        }
       }
     } catch (e) {
       // If refresh fails, it might be due to offline mode or already expired session.
       // Next API call or 401 interceptor will handle it.
     }
+  }
+
+  @override
+  Future<bool> isOfflineSessionValid() async {
+    final username = await _storageService.getUsername();
+    if (username == null) return false;
+
+    final db = await LocalDatabaseHelper.instance.database;
+    final maps = await db.query(
+      LocalDatabaseHelper.tableCachedUsers,
+      columns: [LocalDatabaseHelper.colLastSyncTime],
+      where: '${LocalDatabaseHelper.colUserUsername} = ?',
+      whereArgs: [username],
+    );
+
+    if (maps.isNotEmpty) {
+      final lastSyncTimeStr = maps.first[LocalDatabaseHelper.colLastSyncTime] as String?;
+      if (lastSyncTimeStr != null) {
+        final lastSyncTime = DateTime.parse(lastSyncTimeStr);
+        if (DateTime.now().difference(lastSyncTime) <= const Duration(minutes: 30)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   String _handleDioError(DioException e, String operation) {

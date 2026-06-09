@@ -105,6 +105,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtSettings["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var userIdString = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var tokenVersionString = context.Principal?.FindFirst("TokenVersion")?.Value;
+
+                if (Guid.TryParse(userIdString, out var userId) && Guid.TryParse(tokenVersionString, out var tokenVersion))
+                {
+                    var userTokenVersion = await dbContext.Users
+                        .Where(u => u.Id == userId)
+                        .Select(u => u.TokenVersion)
+                        .FirstOrDefaultAsync();
+
+                    if (userTokenVersion != tokenVersion)
+                    {
+                        context.Fail("Token is invalid because permissions have changed.");
+                    }
+                }
+                else
+                {
+                    context.Fail("Token is missing required claims.");
+                }
+            }
+        };
     });
 
 var app = builder.Build();

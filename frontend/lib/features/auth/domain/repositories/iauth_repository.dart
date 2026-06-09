@@ -6,4 +6,5 @@ abstract class IAuthRepository {
   Future<void> forgotPassword(String email);
   Future<void> logout();
   Future<void> refreshToken();
+  Future<bool> isOfflineSessionValid();
 }

@@ -46,6 +46,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task UpdateAsync(Role role)
         {
             _context.Roles.Update(role);
+
+            // Invalidate tokens for all users associated with this role
+            var usersInRole = await _context.Users
+                .Where(u => u.Roles.Any(r => r.Id == role.Id))
+                .ToListAsync();
+
+            foreach (var user in usersInRole)
+            {
+                user.TokenVersion = Guid.NewGuid();
+            }
+
             await _context.SaveChangesAsync();
         }
 
