@@ -13,6 +13,7 @@ import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_sett
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/receipt_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/select_transaction_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
@@ -61,7 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
           (h) => h[LocalDatabaseHelper.colSyncStatus] == 'Success',
           orElse: () => history.first,
         );
-        final timestampStr = last[LocalDatabaseHelper.colSyncTimestamp] as String;
+        final timestampStr =
+            last[LocalDatabaseHelper.colSyncTimestamp] as String;
         final timestamp = DateTime.tryParse(timestampStr);
         if (timestamp != null) {
           setState(() {
@@ -81,8 +83,10 @@ class _HomeScreenState extends State<HomeScreen> {
       siteCode = authState.siteCode;
     }
 
-    context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
-    
+    context.read<ManufacturingBloc>().add(
+      SyncDataRequested(siteCode: siteCode),
+    );
+
     // Periodically check if sync is done to refresh timestamp
     Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
     Future.delayed(const Duration(seconds: 10), () => _loadLastSync());
@@ -97,7 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, syncState) {
         return BlocBuilder<ManufacturingBloc, ManufacturingState>(
           builder: (context, mfgState) {
-            final isSyncing = syncState is SyncInProgress ||
+            final isSyncing =
+                syncState is SyncInProgress ||
                 mfgState is ManufacturingSyncProgress;
 
             return PopScope(
@@ -119,8 +124,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       elevation: 0,
                       leading: Builder(
                         builder: (context) => IconButton(
-                          icon: Icon(Icons.menu, color: isDark ? Colors.white70 : Colors.black87),
-                          onPressed: isSyncing ? null : () => Scaffold.of(context).openDrawer(),
+                          icon: Icon(
+                            Icons.menu,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          onPressed: isSyncing
+                              ? null
+                              : () => Scaffold.of(context).openDrawer(),
                         ),
                       ),
                       title: Text(
@@ -134,10 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       actions: [
                         IconButton(
                           icon: Icon(
-                            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                            isDark
+                                ? Icons.light_mode_rounded
+                                : Icons.dark_mode_rounded,
                             color: isDark ? Colors.white70 : Colors.black87,
                           ),
-                          onPressed: isSyncing ? null : () => context.read<ThemeCubit>().toggleTheme(),
+                          onPressed: isSyncing
+                              ? null
+                              : () => context.read<ThemeCubit>().toggleTheme(),
                         ),
                         const SizedBox(width: 8),
                       ],
@@ -185,9 +199,14 @@ class _HomeScreenState extends State<HomeScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.primaryColor,
               foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('EXIT APP', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'EXIT APP',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -218,6 +237,13 @@ class _HomeScreenState extends State<HomeScreen> {
           'Delivery',
           Icons.local_shipping_rounded,
           DeliveryScreen(permissions: widget.permissions),
+        ),
+      if (_hasAccess('logistics.sales_invoice.read'))
+        _buildMenuButton(
+          context,
+          'Sales',
+          Icons.receipt_long_rounded,
+          SelectTransactionScreen(permissions: widget.permissions),
         ),
       if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(
@@ -261,7 +287,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRestrictedUI(BuildContext context, String title, String message) {
+  Widget _buildRestrictedUI(
+    BuildContext context,
+    String title,
+    String message,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -314,7 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final syncState = context.watch<SyncBloc>().state;
     final mfgState = context.watch<ManufacturingBloc>().state;
-    final isSyncing = syncState is SyncInProgress || mfgState is ManufacturingSyncProgress;
+    final isSyncing =
+        syncState is SyncInProgress || mfgState is ManufacturingSyncProgress;
 
     return Material(
       color: theme.cardColor,
@@ -324,12 +355,12 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: isSyncing
             ? null
             : (onTapOverride ??
-                (screen != null
-                    ? () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => screen),
-                      )
-                    : null)),
+                  (screen != null
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => screen),
+                        )
+                      : null)),
         borderRadius: BorderRadius.circular(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -350,7 +381,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.5)
+                      : Colors.black45,
                   fontSize: 10,
                 ),
               ),
@@ -375,7 +408,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 DrawerHeader(
                   decoration: BoxDecoration(
-                    color: isDark ? theme.colorScheme.primaryContainer.withValues(alpha: 0.1) : theme.primaryColor.withValues(alpha: 0.1),
+                    color: isDark
+                        ? theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.1,
+                          )
+                        : theme.primaryColor.withValues(alpha: 0.1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,7 +448,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   title: Text(
                     'Dashboard',
-                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
                   ),
                   onTap: () => Navigator.pop(context),
                 ),
@@ -423,13 +462,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     title: Text(
                       'Settings',
-                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
                     ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const SettingsModulesScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsModulesScreen(),
+                        ),
                       );
                     },
                   ),
@@ -441,13 +484,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     title: Text(
                       'User Admin',
-                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
                     ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const UserManagementScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const UserManagementScreen(),
+                        ),
                       );
                     },
                   ),
@@ -459,13 +506,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     title: Text(
                       'Sync Logs',
-                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
                     ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const SyncLogsScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const SyncLogsScreen(),
+                        ),
                       );
                     },
                   ),
@@ -477,7 +528,10 @@ class _HomeScreenState extends State<HomeScreen> {
             leading: const Icon(Icons.logout, color: Colors.redAccent),
             title: const Text(
               'Log out',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             onTap: () => context.read<AuthBloc>().add(LogoutRequested()),
           ),

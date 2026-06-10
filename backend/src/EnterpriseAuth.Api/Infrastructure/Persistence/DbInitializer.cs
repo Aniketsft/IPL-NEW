@@ -52,7 +52,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var hierarchy = new List<(string Module, string[] SubModules)>
             {
                 ( "app", new[] { "home" } ),
-                ( "logistics", new[] { "receipt", "delivery", "transfer" } ),
+                ( "logistics", new[] { "receipt", "delivery", "transfer", "sales_invoice" } ),
                 ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
                 ( "administration", new[] { "user_management", "sync_logs" } ),

@@ -19,11 +19,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SchemaManagement
             var context = _httpContextAccessor.HttpContext;
             if (context != null && context.Request.Headers.TryGetValue(SchemaHeaderName, out var schemaValue))
             {
-                var schema = schemaValue.ToString().ToUpper();
-                if (schema == "INLDRYRUN" || schema == "SCANNING")
-                {
-                    return "INLDRYRUN";
-                }
+                return schemaValue.ToString().ToUpper();
             }
 
             return DefaultSchema;

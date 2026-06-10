@@ -958,6 +958,16 @@ class DeliveryRepository implements ILogisticsRepository {
         debugPrint("Sync: ${shipmentUpdates.length} shipment preparation updates marked as synced after refresh.");
       }
 
+      // Fetch Sales Invoice Customers (Standalone table, not part of compute because it's a separate API endpoint)
+      try {
+        final siResponse = await _dio.get('SalesInvoice/customers');
+        final siCustomers = siResponse.data as List<dynamic>? ?? [];
+        await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
+        counts['salesInvoiceCustomers'] = siCustomers.length;
+      } catch (e) {
+        debugPrint('Failed to sync sales invoice customers: $e');
+      }
+
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
       final syncedScans = await LocalDatabaseHelper.instance.database.then(
         (db) => db.query(
@@ -1229,6 +1239,17 @@ class DeliveryRepository implements ILogisticsRepository {
           'soNumber': o[LocalDatabaseHelper.colOrderNum],
         }).toList());
         debugPrint("Sync (Progress): ${unsyncedShipments.length} shipment preparation updates marked as synced after refresh.");
+      }
+
+      // Fetch Sales Invoice Customers (Standalone table, not part of compute because it's a separate API endpoint)
+      yield SyncProgress(status: 'Fetching Sales Invoice Customers...', progress: 0.9);
+      try {
+        final siResponse = await _dio.get('SalesInvoice/customers');
+        final siCustomers = siResponse.data as List<dynamic>? ?? [];
+        await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
+        counts['salesInvoiceCustomers'] = siCustomers.length;
+      } catch (e) {
+        debugPrint('Failed to sync sales invoice customers: $e');
       }
 
       // Save new timestamp

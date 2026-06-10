@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 51;
+  static const _databaseVersion = 52;
 
 
   static const tableScans = 'tbl_scans';
@@ -35,6 +35,7 @@ class LocalDatabaseHelper {
   static const tableOfflineAuditLogs = 'tbl_offline_audit_logs';
   static const tableX3SoapAudits = 'tbl_x3_soap_audits';
   static const tableEodProcessAudits = 'tbl_eod_process_audits';
+  static const tableSalesInvoiceCustomers = 'tbl_si_customers';
 
   // tbl_work_orders columns
   static const colWoWorkOrder   = 'workOrder';
@@ -770,6 +771,23 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v51: $e");
       }
     }
+    if (oldVersion < 52) {
+      debugPrint('DB Upgrade: Creating Sales Invoice Customers table (v52)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSalesInvoiceCustomers (
+            $colCode TEXT PRIMARY KEY,
+            $colName TEXT NOT NULL,
+            paymentTerm TEXT,
+            creditLimit REAL,
+            statusFlag INTEGER,
+            $columnIsSynced INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v52: $e");
+      }
+    }
   }
 
 
@@ -783,6 +801,17 @@ class LocalDatabaseHelper {
         message TEXT,
         $colDeviceId TEXT,
         username TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSalesInvoiceCustomers (
+        $colCode TEXT PRIMARY KEY,
+        $colName TEXT NOT NULL,
+        paymentTerm TEXT,
+        creditLimit REAL,
+        statusFlag INTEGER,
+        $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -2089,5 +2118,71 @@ class LocalDatabaseHelper {
       );
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> refreshSalesInvoiceCustomers(List<dynamic> customers) async {
+    final db = await instance.database;
+    final batch = db.batch();
+    batch.delete(tableSalesInvoiceCustomers);
+    for (var customer in customers) {
+      batch.insert(
+        tableSalesInvoiceCustomers,
+        {
+          colCode: customer['code']?.toString().trim() ?? '',
+          colName: customer['name']?.toString().trim() ?? '',
+          'paymentTerm': customer['paymentTerm'],
+          'creditLimit': customer['creditLimit'],
+          'statusFlag': customer['statusFlag'],
+          columnIsSynced: 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<String>> getDistinctPaymentTerms() async {
+    final db = await instance.database;
+    final result = await db.rawQuery('SELECT DISTINCT paymentTerm FROM $tableSalesInvoiceCustomers WHERE paymentTerm IS NOT NULL AND paymentTerm != ""');
+    return result.map((r) => r['paymentTerm'].toString()).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getPaginatedSalesInvoiceCustomers({
+    int limit = 25, 
+    int offset = 0, 
+    String query = '',
+    List<String>? statusFilters,
+    List<String>? paymentTermFilters,
+  }) async {
+    final db = await instance.database;
+    
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+    
+    if (query.isNotEmpty) {
+      whereClauses.add('($colName LIKE ? OR $colCode LIKE ?)');
+      whereArgs.addAll(['%$query%', '%$query%']);
+    }
+    
+    if (statusFilters != null && statusFilters.isNotEmpty) {
+      whereClauses.add('statusFlag IN (${List.filled(statusFilters.length, '?').join(',')})');
+      whereArgs.addAll(statusFilters);
+    }
+
+    if (paymentTermFilters != null && paymentTermFilters.isNotEmpty) {
+      whereClauses.add('paymentTerm IN (${List.filled(paymentTermFilters.length, '?').join(',')})');
+      whereArgs.addAll(paymentTermFilters);
+    }
+    
+    String? finalWhere = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
+    
+    return await db.query(
+      tableSalesInvoiceCustomers,
+      where: finalWhere,
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      orderBy: colName,
+      limit: limit,
+      offset: offset,
+    );
   }
 }

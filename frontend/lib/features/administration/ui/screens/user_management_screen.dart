@@ -63,6 +63,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
       PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
       PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
+      PermissionNode(label: 'Sales Invoice', moduleId: 'logistics.sales_invoice'),
     ];
 
   @override
@@ -508,6 +509,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
       case 'QR Label':         return Icons.qr_code_scanner_rounded;
       case 'Printer Settings': return Icons.print_outlined;
+      case 'Sales Invoice':    return Icons.receipt_long_rounded;
       default:                 return Icons.folder_outlined;
     }
   }
@@ -522,6 +524,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return Theme.of(context).primaryColor;
       case 'QR Label':         return const Color(0xFF4CAF50);
       case 'Printer Settings': return const Color(0xFF607D8B);
+      case 'Sales Invoice':    return const Color(0xFF4A90D9);
       default:                 return Colors.grey;
     }
   }
@@ -536,6 +539,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return 'Sales orders & tracking';
       case 'QR Label':         return 'QR aggregation & printing';
       case 'Printer Settings': return 'Printer configuration';
+      case 'Sales Invoice':    return 'Customer invoicing & returns';
       default:                 return '';
     }
   }

@@ -80,6 +80,7 @@ builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStagingService, StagingService>();
 builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
+builder.Services.AddScoped<ISalesInvoiceRepository, EfSalesInvoiceRepository>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IX3SchemaProvider, HeaderX3SchemaProvider>();
