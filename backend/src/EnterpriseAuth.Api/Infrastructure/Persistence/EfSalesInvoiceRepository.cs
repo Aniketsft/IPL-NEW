@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
+using EnterpriseAuth.Api.Core.Application.DTOs;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -88,6 +89,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             Console.WriteLine($"[Bug Hunter] Planned {insertCount} inserts and {updateCount} updates. Saving changes...");
             await _scanContext.SaveChangesAsync();
             Console.WriteLine($"[Bug Hunter] SaveChangesAsync completed successfully.");
+        }
+
+        public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
+                    LTRIM(RTRIM(itm.ZFULLDES_0)) AS Name,
+                    COALESCE(stk.QTYSTU_0, 0) AS StockQty,
+                    LTRIM(RTRIM(stk.WRH_0)) AS Warehouse,
+                    LTRIM(RTRIM(itm.STU_0)) AS StockUnit
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC stk 
+                    ON itm.ITMREF_0 = stk.ITMREF_0
+                WHERE 
+                    itm.ITMSTA_0 = 1;";
+
+            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { sitecode });
         }
     }
 }

@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 52;
+  static const _databaseVersion = 54;
 
 
   static const tableScans = 'tbl_scans';
@@ -36,6 +36,15 @@ class LocalDatabaseHelper {
   static const tableX3SoapAudits = 'tbl_x3_soap_audits';
   static const tableEodProcessAudits = 'tbl_eod_process_audits';
   static const tableSalesInvoiceCustomers = 'tbl_si_customers';
+  static const tableSalesInvoiceProducts = 'tbl_si_products';
+
+  // tbl_si_products columns
+  static const colSiProdSku = 'sku';
+  static const colSiProdName = 'name';
+  static const colSiProdStockQty = 'stockQty';
+  static const colSiProdWarehouse = 'warehouse';
+  static const colSiProdStockUnit = 'stockUnit';
+  static const colSiProdIsSynced = 'isSynced';
 
   // tbl_work_orders columns
   static const colWoWorkOrder   = 'workOrder';
@@ -788,6 +797,30 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v52: $e");
       }
     }
+    if (oldVersion < 53) {
+      debugPrint('DB Upgrade: Creating Sales Invoice Products table (v53)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSalesInvoiceProducts (
+            $colSiProdSku TEXT PRIMARY KEY,
+            $colSiProdName TEXT NOT NULL,
+            $colSiProdStockQty REAL,
+            $colSiProdWarehouse TEXT,
+            $colSiProdIsSynced INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v53: $e");
+      }
+    }
+    if (oldVersion < 54) {
+      debugPrint('DB Upgrade: Adding stock unit column to sales invoice products (v54)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN $colSiProdStockUnit TEXT');
+      } catch (e) {
+        debugPrint("Migration error v54: $e");
+      }
+    }
   }
 
 
@@ -812,6 +845,17 @@ class LocalDatabaseHelper {
         creditLimit REAL,
         statusFlag INTEGER,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSalesInvoiceProducts (
+        $colSiProdSku TEXT PRIMARY KEY,
+        $colSiProdName TEXT NOT NULL,
+        $colSiProdStockQty REAL,
+        $colSiProdWarehouse TEXT,
+        $colSiProdStockUnit TEXT,
+        $colSiProdIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
 

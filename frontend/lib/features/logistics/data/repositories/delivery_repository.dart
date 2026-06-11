@@ -24,6 +24,7 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/company.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart' as settings_site;
@@ -966,6 +967,13 @@ class DeliveryRepository implements ILogisticsRepository {
         counts['salesInvoiceCustomers'] = siCustomers.length;
       } catch (e) {
         debugPrint('Failed to sync sales invoice customers: $e');
+      }
+
+      // Fetch Sales Invoice Products
+      try {
+        await SalesInvoiceProductRepository(_networkService).syncSalesInvoiceProducts(activeSite);
+      } catch (e) {
+        debugPrint('Failed to sync sales invoice products: $e');
       }
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror

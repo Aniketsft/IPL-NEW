@@ -8,5 +8,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
     {
         Task<IEnumerable<SalesInvoiceCustomer>> GetCustomersAsync();
         Task SyncCustomersFromX3Async();
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceProductDto>> GetProductsAsync(string sitecode);
     }
 }

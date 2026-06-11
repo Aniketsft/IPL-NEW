@@ -36,5 +36,24 @@ namespace EnterpriseAuth.Api.Controllers
                 return StatusCode(500, ex.ToString());
             }
         }
+
+        [HttpGet("Products")]
+        public async Task<IActionResult> GetProducts([FromQuery] string sitecode)
+        {
+            if (string.IsNullOrEmpty(sitecode))
+            {
+                return BadRequest("sitecode is required.");
+            }
+
+            try
+            {
+                var products = await _repository.GetProductsAsync(sitecode);
+                return Ok(products);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
     }
 }
