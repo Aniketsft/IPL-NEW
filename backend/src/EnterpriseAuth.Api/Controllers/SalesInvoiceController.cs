@@ -22,10 +22,7 @@ namespace EnterpriseAuth.Api.Controllers
         {
             try
             {
-                // First, trigger the upsert from X3 to local DB
-                await _repository.SyncCustomersFromX3Async();
-                
-                // Then fetch from local DB
+                // Fetch directly from X3
                 var customers = await _repository.GetCustomersAsync();
                 
                 return Ok(customers);
@@ -49,6 +46,20 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 var products = await _repository.GetProductsAsync(sitecode);
                 return Ok(products);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
+
+        [HttpGet("itemstockdetails")]
+        public async Task<IActionResult> GetItemStockDetails()
+        {
+            try
+            {
+                var details = await _repository.GetItemStockDetailsAsync();
+                return Ok(details);
             }
             catch (System.Exception ex)
             {

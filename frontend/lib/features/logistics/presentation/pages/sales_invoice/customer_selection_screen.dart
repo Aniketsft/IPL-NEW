@@ -3,7 +3,9 @@ import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:async';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
-import 'sales_invoice_product_selection_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/sales_invoice_cart_cubit.dart';
+import 'order_summary_screen.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
   const CustomerSelectionScreen({Key? key}) : super(key: key);
@@ -294,10 +296,11 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
                               onTap: () {
+                                context.read<SalesInvoiceCartCubit>().setCustomer(customer);
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const SalesInvoiceProductSelectionScreen(siteCode: 'IPL'),
+                                    builder: (context) => const OrderSummaryScreen(),
                                   ),
                                 );
                               },

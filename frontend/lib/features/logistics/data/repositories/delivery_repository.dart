@@ -972,8 +972,9 @@ class DeliveryRepository implements ILogisticsRepository {
       // Fetch Sales Invoice Products
       try {
         await SalesInvoiceProductRepository(_networkService).syncSalesInvoiceProducts(activeSite);
+        await SalesInvoiceProductRepository(_networkService).syncSalesInvoiceItemStockDetails();
       } catch (e) {
-        debugPrint('Failed to sync sales invoice products: $e');
+        debugPrint('Failed to sync sales invoice products or stock details: $e');
       }
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror

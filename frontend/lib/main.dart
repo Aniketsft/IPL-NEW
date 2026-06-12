@@ -26,6 +26,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchr
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/set_preparation_status_use_case.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
@@ -151,6 +152,7 @@ class MyApp extends StatelessWidget {
                   context.read<SynchronizeLogisticsUseCase>(),
             ),
           ),
+          BlocProvider(create: (_) => SalesInvoiceCartCubit()),
           BlocProvider(create: (_) => ThemeCubit()),
         ],
         child: BlocBuilder<ThemeCubit, ThemeMode>(

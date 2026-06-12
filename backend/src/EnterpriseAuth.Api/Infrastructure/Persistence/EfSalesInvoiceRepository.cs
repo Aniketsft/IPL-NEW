@@ -31,64 +31,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _schemaProvider = schemaProvider;
         }
 
-        public async Task<IEnumerable<SalesInvoiceCustomer>> GetCustomersAsync()
-        {
-            return await _scanContext.SalesInvoiceCustomers
-                .OrderBy(c => c.Name)
-                .AsNoTracking()
-                .ToListAsync();
-        }
-
-        public async Task SyncCustomersFromX3Async()
+        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync()
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
-                SELECT DISTINCT 
+                SELECT 
                     LTRIM(RTRIM(BPCNUM_0)) as Code,
                     LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name,
-                    BCGCOD_0 as PaymentTerm,
+                    LTRIM(RTRIM(PTE_0)) as PaymentTerm,
                     OSTAUZ_0 as CreditLimit,
-                    OSTCTL_0 as StatusFlag
+                    LTRIM(RTRIM(OSTCTL_0)) as StatusFlag
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER
                 WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''";
 
-            Console.WriteLine($"[Bug Hunter] Executing SQL: {sql}");
-
-            var x3Customers = (await db.QueryAsync<SalesInvoiceCustomer>(sql)).ToList();
-
-            Console.WriteLine($"[Bug Hunter] Retrieved {x3Customers.Count} customers from X3 via Dapper.");
-
-            var existingCustomers = await _scanContext.SalesInvoiceCustomers.ToDictionaryAsync(c => c.Code);
-            var now = DateTime.UtcNow;
-
-            int insertCount = 0;
-            int updateCount = 0;
-
-            foreach (var x3Cust in x3Customers)
-            {
-                if (existingCustomers.TryGetValue(x3Cust.Code, out var existing))
-                {
-                    existing.Name = x3Cust.Name;
-                    existing.PaymentTerm = x3Cust.PaymentTerm;
-                    existing.CreditLimit = x3Cust.CreditLimit;
-                    existing.StatusFlag = x3Cust.StatusFlag;
-                    existing.UpdatedAt = now;
-                    existing.IsProcessed = true;
-                    updateCount++;
-                }
-                else
-                {
-                    x3Cust.CreatedAt = now;
-                    x3Cust.UpdatedAt = now;
-                    x3Cust.IsProcessed = true;
-                    _scanContext.SalesInvoiceCustomers.Add(x3Cust);
-                    insertCount++;
-                }
-            }
-
-            Console.WriteLine($"[Bug Hunter] Planned {insertCount} inserts and {updateCount} updates. Saving changes...");
-            await _scanContext.SaveChangesAsync();
-            Console.WriteLine($"[Bug Hunter] SaveChangesAsync completed successfully.");
+            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
         }
 
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
@@ -108,6 +64,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     itm.ITMSTA_0 = 1;";
 
             return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { sitecode });
+        }
+
+        public async Task<IEnumerable<SalesInvoiceItemStockDto>> GetItemStockDetailsAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(F0.ITMREF_0)) AS ItemCode,
+                    LTRIM(RTRIM(F0.LOT_0)) AS LotNumber,
+                    LTRIM(RTRIM(F1.LOC_0)) AS Location,
+                    LTRIM(RTRIM(F1.WRH_0)) AS Warehouse
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT F0
+                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC F1 
+                    ON F0.ITMREF_0 = F1.ITMREF_0";
+
+            return await db.QueryAsync<SalesInvoiceItemStockDto>(sql);
         }
     }
 }

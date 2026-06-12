@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 54;
+  static const _databaseVersion = 55;
 
 
   static const tableScans = 'tbl_scans';
@@ -37,6 +37,7 @@ class LocalDatabaseHelper {
   static const tableEodProcessAudits = 'tbl_eod_process_audits';
   static const tableSalesInvoiceCustomers = 'tbl_si_customers';
   static const tableSalesInvoiceProducts = 'tbl_si_products';
+  static const tableSalesInvoiceItemStockDetails = 'tbl_si_item_stock_details';
 
   // tbl_si_products columns
   static const colSiProdSku = 'sku';
@@ -821,10 +822,46 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v54: $e");
       }
     }
+    if (oldVersion < 55) {
+      debugPrint('DB Upgrade: Creating Sales Invoice Item Stock Details table (v55)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSalesInvoiceItemStockDetails (
+            itemCode TEXT,
+            lotNumber TEXT,
+            warehouse TEXT,
+            location TEXT,
+            locationType TEXT,
+            isSynced INTEGER NOT NULL DEFAULT 1,
+            createdAt TEXT,
+            updatedAt TEXT,
+            deviceId TEXT,
+            PRIMARY KEY (itemCode, lotNumber, location, warehouse)
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v55: $e");
+      }
+    }
   }
 
 
   Future _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSalesInvoiceItemStockDetails (
+        itemCode TEXT,
+        lotNumber TEXT,
+        warehouse TEXT,
+        location TEXT,
+        locationType TEXT,
+        isSynced INTEGER NOT NULL DEFAULT 1,
+        createdAt TEXT,
+        updatedAt TEXT,
+        deviceId TEXT,
+        PRIMARY KEY (itemCode, lotNumber, location, warehouse)
+      )
+    ''');
+
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableX3SoapAudits (
         $columnId INTEGER PRIMARY KEY AUTOINCREMENT,

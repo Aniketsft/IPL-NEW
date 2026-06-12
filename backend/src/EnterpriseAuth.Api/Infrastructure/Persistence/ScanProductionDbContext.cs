@@ -13,7 +13,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<ProductionScanTransaction> ProductionScanTransactions { get; set; }
         public DbSet<ProductionLineState> ProductionLineStates { get; set; }
         public DbSet<StagingEod> StagingEodRecords { get; set; }
-        public DbSet<SalesInvoiceCustomer> SalesInvoiceCustomers { get; set; }
 
         // --- TRANSACTION / STATUS TABLES (Kept Separately) ---
         public DbSet<OrderShipmentStatus> OrderShipmentStatuses { get; set; }
@@ -154,12 +153,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                       .HasDatabaseName("IX_StagingEod_IsProcessed_WorkOrder");
             });
 
-            // SalesInvoiceCustomers
-            modelBuilder.Entity<SalesInvoiceCustomer>(entity =>
-            {
-                entity.HasKey(e => e.Code);
-                entity.HasIndex(e => e.Name);
-            });
+
         }
     }
 }

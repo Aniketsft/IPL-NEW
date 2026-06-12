@@ -7,6 +7,7 @@ import '../../../../../core/widgets/filter_input_widgets.dart';
 import '../../../../../core/widgets/standard_filter.dart';
 import '../../../../../core/widgets/search_picker_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'add_item_detail_screen.dart';
 
 class SalesInvoiceProductSelectionScreen extends StatefulWidget {
   final String siteCode; // passed from previous screens
@@ -23,7 +24,7 @@ class SalesInvoiceProductSelectionScreen extends StatefulWidget {
 class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProductSelectionScreen> {
   late SalesInvoiceProductRepository _repository;
   final TextEditingController _searchController = TextEditingController();
-  String _stockFilter = 'all'; // Default to all as requested
+  String _stockFilter = 'in stock'; // Default to in stock as requested
   String? _selectedWarehouse;
   List<String> _warehouses = [];
   bool _isInit = false;
@@ -202,10 +203,20 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
   Widget _buildProductCard(BuildContext context, SalesInvoiceProductModel product, bool isDark) {
     final isInStock = product.stockQty > 0;
     
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddItemDetailScreen(product: product),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.withValues(alpha:0.2)),
         boxShadow: isDark ? [] : [
           BoxShadow(
@@ -222,14 +233,18 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                product.sku,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+              Expanded(
+                child: Text(
+                  product.sku,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               RichText(
                 text: TextSpan(
                   children: [
@@ -296,6 +311,7 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

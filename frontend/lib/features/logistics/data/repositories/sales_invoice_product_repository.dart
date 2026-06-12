@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../../../core/network_service.dart';
 import '../local/local_database_helper.dart';
 import '../models/sales_invoice_product_model.dart';
+import '../models/sales_invoice_item_stock_model.dart';
 import '../../../../core/config/api_config.dart';
 import 'package:flutter/foundation.dart';
 
@@ -115,5 +116,42 @@ class SalesInvoiceProductRepository {
     );
     
     return result.map((e) => e[LocalDatabaseHelper.colSiProdWarehouse] as String).toList();
+  }
+
+  Future<void> syncSalesInvoiceItemStockDetails() async {
+    try {
+      final response = await _dio.get('SalesInvoice/itemstockdetails');
+      final List<dynamic> rawData = response.data;
+      final db = await LocalDatabaseHelper.instance.database;
+
+      final batch = db.batch();
+      batch.delete(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails);
+
+      for (var item in rawData) {
+        final model = SalesInvoiceItemStockModel.fromJson(item as Map<String, dynamic>);
+        batch.insert(
+          LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+          model.toSqlMap(''), // Or pass device ID if needed, empty is fine here
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      await batch.commit(noResult: true);
+      debugPrint('Successfully synced ${rawData.length} sales invoice item stock details.');
+    } catch (e) {
+      debugPrint('Error syncing sales invoice item stock details: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<SalesInvoiceItemStockModel>> getSalesInvoiceItemStockDetails(String itemCode) async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final result = await db.query(
+      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+      where: 'itemCode = ?',
+      whereArgs: [itemCode],
+    );
+
+    return result.map((e) => SalesInvoiceItemStockModel.fromSqlMap(e)).toList();
   }
 }
