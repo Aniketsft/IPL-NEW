@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 58;
+  static const _databaseVersion = 59;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -209,6 +209,16 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 59) {
+      debugPrint('DB Upgrade: Adding outstandingBalance to tbl_si_customers (v59)');
+      try {
+        await db.execute(
+          'ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN outstandingBalance REAL DEFAULT 0',
+        );
+      } catch (e) {
+        debugPrint("Migration error v59: $e");
+      }
+    }
     if (oldVersion < 30) {
       debugPrint('DB Upgrade: Creating Delivery Scans table (v30)');
       await db.execute('''
@@ -1048,6 +1058,7 @@ class LocalDatabaseHelper {
         creditLimit REAL,
         statusFlag TEXT,
         taxRule TEXT,
+        outstandingBalance REAL DEFAULT 0,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -2462,6 +2473,7 @@ class LocalDatabaseHelper {
         'creditLimit': customer['creditLimit'],
         'statusFlag': customer['statusFlag'],
         'taxRule': customer['taxRule'],
+        'outstandingBalance': customer['outstandingBalance'],
         columnIsSynced: 1,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }

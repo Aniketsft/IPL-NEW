@@ -36,14 +36,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(BPCNUM_0)) as Code,
-                    LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name,
-                    LTRIM(RTRIM(PTE_0)) as PaymentTerm,
-                    OSTAUZ_0 as CreditLimit,
-                    LTRIM(RTRIM(OSTCTL_0)) as StatusFlag,
-                    LTRIM(RTRIM(VACBPR_0)) as TaxRule
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER
-                WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''";
+                    LTRIM(RTRIM(c.BPCNUM_0)) as Code,
+                    LTRIM(RTRIM(c.ZFULLBUSNAM_0)) as Name,
+                    LTRIM(RTRIM(c.PTE_0)) as PaymentTerm,
+                    c.OSTAUZ_0 as CreditLimit,
+                    LTRIM(RTRIM(c.OSTCTL_0)) as StatusFlag,
+                    LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
+                    COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
+                LEFT JOIN (
+                    SELECT 
+                        BPR_0, 
+                        SUM(AMTCUR_0 - PAYCUR_0) as OutstandingBalance 
+                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.GACCDUDATE 
+                    WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
+                    GROUP BY BPR_0
+                ) g ON c.BPCNUM_0 = g.BPR_0
+                WHERE c.ZFULLBUSNAM_0 IS NOT NULL AND c.ZFULLBUSNAM_0 <> ''";
 
             return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
         }

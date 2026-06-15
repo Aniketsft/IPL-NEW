@@ -285,6 +285,15 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                           
                           double creditLimitVal = double.tryParse(creditLimitRaw) ?? 0.0;
                           final creditLimitStr = 'RS ${creditLimitVal.toStringAsFixed(2)}';
+
+                          final outstandingRaw = customer['outstandingBalance']?.toString() ?? '0';
+                          double outstandingVal = double.tryParse(outstandingRaw) ?? 0.0;
+                          final outstandingStr = 'RS ${outstandingVal.toStringAsFixed(2)}';
+                          
+                          Color outstandingColor = isDark ? Colors.white : Colors.black87;
+                          if (creditLimitVal > 0 && outstandingVal > creditLimitVal) {
+                            outstandingColor = Colors.red[800]!;
+                          }
                           
                           return Card(
                             elevation: 0,
@@ -433,11 +442,13 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                'RS 0.00',
+                                                outstandingStr,
                                                 style: TextStyle(
                                                   fontSize: 14,
-                                                  color: Colors.red[800],
-                                                  fontWeight: FontWeight.bold,
+                                                  color: outstandingColor,
+                                                  fontWeight: outstandingColor == Colors.red[800] 
+                                                      ? FontWeight.bold 
+                                                      : FontWeight.normal,
                                                 ),
                                               ),
                                             ],
