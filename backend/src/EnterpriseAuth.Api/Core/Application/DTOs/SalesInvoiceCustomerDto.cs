@@ -7,5 +7,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? PaymentTerm { get; set; }
         public decimal? CreditLimit { get; set; }
         public string? StatusFlag { get; set; }
+        public string TaxRule { get; set; } = string.Empty;
     }
 }

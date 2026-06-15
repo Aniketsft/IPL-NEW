@@ -14,7 +14,7 @@ class OrderSummaryScreen extends StatefulWidget {
 }
 
 class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
-  final _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+  final _currencyFormat = NumberFormat.currency(customPattern: "'Rs ' #,##0.00", decimalDigits: 2);
 
   @override
   Widget build(BuildContext context) {
@@ -368,14 +368,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
           ),
           const SizedBox(height: 4),
           _buildCalcRow(
-            'Total Discount (10%)',
+            'Total Discount',
             '-${_currencyFormat.format(cart.totalDiscount)}',
             isRed: true,
             isDark: isDark,
           ),
           const SizedBox(height: 4),
           _buildCalcRow(
-            'Total VAT (20%)',
+            'Total VAT',
             _currencyFormat.format(cart.totalVat),
             isDark: isDark,
           ),

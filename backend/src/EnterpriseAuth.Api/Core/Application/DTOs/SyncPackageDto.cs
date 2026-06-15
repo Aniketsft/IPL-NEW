@@ -14,6 +14,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<SiteLookupDto> Sites { get; set; } = new();
         public List<LotLookupDto> Lots { get; set; } = new();
         public List<CutBulkEntryDto> CutBulkEntries { get; set; } = new();
+        public List<TaxMatrixDto> TaxDeterminations { get; set; } = new();
+        public List<TaxRateDto> TaxRates { get; set; } = new();
         public Dictionary<string, string> GlobalSettingsMap { get; set; } = new();
         public List<EodProcessAuditDto> EodProcessAudits { get; set; } = new();
         public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;

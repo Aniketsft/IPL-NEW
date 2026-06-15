@@ -924,6 +924,8 @@ class DeliveryRepository implements ILogisticsRepository {
         'locations': locations.length,
         'products': products.length,
         'sites': sites.length,
+        'taxDeterminations': (processedData['taxDeterminations'] as List?)?.length ?? 0,
+        'taxRates': (processedData['taxRates'] as List?)?.length ?? 0,
       };
 
       // 2.1 Handle Synchronized Global Settings
@@ -940,6 +942,8 @@ class DeliveryRepository implements ILogisticsRepository {
         products: products,
         sites: sites,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
+        taxDeterminations: processedData['taxDeterminations'] as List<Map<String, dynamic>>?,
+        taxRates: processedData['taxRates'] as List<Map<String, dynamic>>?,
         eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
@@ -1207,13 +1211,15 @@ class DeliveryRepository implements ILogisticsRepository {
       yield SyncProgress(status: 'Processing data...', progress: 0.6);
       final processedData = await compute(_parseAndSanitizeData, rawData);
 
-      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots'];
+      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots', 'taxDeterminations', 'taxRates'];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
-        final data = processedData[table] as List<Map<String, dynamic>>? ?? [];
-        counts[table] = data.length;
+        final data = processedData[table];
+        if (data != null && data is List) {
+          counts[table] = data.length;
+        }
         yield SyncProgress(
-          status: 'Updating $table (${data.length} items)...',
+          status: 'Updating $table (${counts[table] ?? 0} items)...',
           progress: 0.6 + (0.3 * (i / tables.length)),
         );
       }
@@ -1227,6 +1233,8 @@ class DeliveryRepository implements ILogisticsRepository {
         products: processedData['products'] as List<Map<String, dynamic>>,
         sites: processedData['sites'] as List<Map<String, dynamic>>,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
+        taxDeterminations: processedData['taxDeterminations'] as List<Map<String, dynamic>>?,
+        taxRates: processedData['taxRates'] as List<Map<String, dynamic>>?,
         eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
@@ -2085,5 +2093,7 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
     'sites': sites,
     'lots': lots,
     'eodProcessAudits': eodProcessAudits,
+    'taxDeterminations': (data['taxDeterminations'] as List? ?? []).map((j) => Map<String, dynamic>.from(j)).toList(),
+    'taxRates': (data['taxRates'] as List? ?? []).map((j) => Map<String, dynamic>.from(j)).toList(),
   };
 }

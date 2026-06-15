@@ -9,11 +9,9 @@ import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 57;
-
+  static const _databaseVersion = 58;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -38,6 +36,18 @@ class LocalDatabaseHelper {
   static const tableSalesInvoiceCustomers = 'tbl_si_customers';
   static const tableSalesInvoiceProducts = 'tbl_si_products';
   static const tableSalesInvoiceItemStockDetails = 'tbl_si_item_stock_details';
+  static const tableTaxMatrix = 'tbl_tax_matrix';
+  static const tableTaxRates = 'tbl_tax_rates';
+
+  // tbl_tax_matrix columns
+  static const colTaxMatrixCustomerRule = 'customerTaxRule';
+  static const colTaxMatrixItemLevel = 'itemTaxLevel';
+  static const colTaxMatrixTaxCode = 'taxCode';
+
+  // tbl_tax_rates columns
+  static const colTaxRateTaxCode = 'taxCode';
+  static const colTaxRateDescription = 'description';
+  static const colTaxRatePercent = 'taxRatePercent';
 
   // tbl_si_products columns
   static const colSiProdSku = 'sku';
@@ -48,13 +58,13 @@ class LocalDatabaseHelper {
   static const colSiProdIsSynced = 'isSynced';
 
   // tbl_work_orders columns
-  static const colWoWorkOrder   = 'workOrder';
-  static const colWoProduct     = 'product';
+  static const colWoWorkOrder = 'workOrder';
+  static const colWoProduct = 'product';
   static const colWoReleasedQty = 'releasedQty';
-  static const colWoUnit        = 'unit';
+  static const colWoUnit = 'unit';
   static const colWoTrackingNum = 'trackingNum';
-  static const colWoDate        = 'date';
-  static const colWoCachedAt    = 'cachedAt';
+  static const colWoDate = 'date';
+  static const colWoCachedAt = 'cachedAt';
 
   // tbl_scans columns
   static const columnId = 'id';
@@ -163,7 +173,6 @@ class LocalDatabaseHelper {
   static const colCreatedAt = 'createdAt';
   static const colDeviceId = 'deviceId';
 
-  
   // tbl_global_settings columns
   static const colSettingKey = 'key';
   static const colSettingValue = 'value';
@@ -218,14 +227,18 @@ class LocalDatabaseHelper {
     if (oldVersion < 32) {
       debugPrint('DB Upgrade: Adding is_processed to tbl_sales_orders (v32)');
       try {
-        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colIsProcessed INTEGER DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableOrders ADD COLUMN $colIsProcessed INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v32: $e");
       }
     }
     if (oldVersion < 2) {
       try {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnIsReflected INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v2: $e");
       }
@@ -233,8 +246,12 @@ class LocalDatabaseHelper {
     if (oldVersion < 3) {
       // Adding sync_id to scans and is_prepared to details
       try {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnSyncId TEXT');
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnSyncId TEXT',
+        );
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error: $e");
       }
@@ -267,14 +284,20 @@ class LocalDatabaseHelper {
     }
 
     if (oldVersion < 8) {
-      debugPrint('DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)');
+      debugPrint(
+        'DB Upgrade: Adding persistent metrics to tbl_sales_order_details (v8)',
+      );
       var tableInfo = await db.rawQuery('PRAGMA table_info($tableDetails)');
-      
+
       if (!tableInfo.any((col) => col['name'] == colDetScanned)) {
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetScanned REAL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetScanned REAL DEFAULT 0',
+        );
       }
       if (!tableInfo.any((col) => col['name'] == 'remaining')) {
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN remaining REAL DEFAULT 0',
+        );
       }
     }
 
@@ -282,7 +305,9 @@ class LocalDatabaseHelper {
       debugPrint('DB Upgrade: Adding isReflected to tbl_scans (v9)');
       var tableInfo = await db.rawQuery('PRAGMA table_info($tableScans)');
       if (!tableInfo.any((col) => col['name'] == 'isReflected')) {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN isReflected INTEGER NOT NULL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN isReflected INTEGER NOT NULL DEFAULT 0',
+        );
       }
     }
 
@@ -310,18 +335,22 @@ class LocalDatabaseHelper {
     }
 
     if (oldVersion < 12) {
-      debugPrint('DB Upgrade: Adding UNIQUE constraints for incremental sync (v12)');
+      debugPrint(
+        'DB Upgrade: Adding UNIQUE constraints for incremental sync (v12)',
+      );
       // SQLite doesn't support directly adding constraints to existing tables easily
       // We will create temporary tables or just ensure indexes exist if they are enough,
       // but for proper UPSERT (ConflictAlgorithm.replace), we need UNIQUE constraints.
 
       // For Orders
       await db.execute(
-          'CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unq_num ON $tableOrders($colOrderNum)');
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unq_num ON $tableOrders($colOrderNum)',
+      );
 
       // For Details
       await db.execute(
-          'CREATE UNIQUE INDEX IF NOT EXISTS idx_details_unq_composite ON $tableDetails($colDetSoNum, $colDetItemCode)');
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_details_unq_composite ON $tableDetails($colDetSoNum, $colDetItemCode)',
+      );
     }
 
     if (oldVersion < 13) {
@@ -345,16 +374,16 @@ class LocalDatabaseHelper {
 
     if (oldVersion < 14) {
       try {
-        await db.execute(
-          'ALTER TABLE $tableScans ADD COLUMN $columnSite TEXT',
-        );
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnSite TEXT');
       } catch (e) {
         debugPrint("Migration error v14: $e");
       }
     }
 
     if (oldVersion < 15) {
-      debugPrint('DB Upgrade: Adding extended detail tracking to tbl_sales_order_details (v15)');
+      debugPrint(
+        'DB Upgrade: Adding extended detail tracking to tbl_sales_order_details (v15)',
+      );
       final columns = [
         colDetSite,
         colDetLocation,
@@ -362,7 +391,7 @@ class LocalDatabaseHelper {
         colDetWarehouse,
         colDetWarehouseName,
         colDetLocationType,
-        colDetLocationTypeName
+        colDetLocationTypeName,
       ];
       for (var column in columns) {
         try {
@@ -374,7 +403,9 @@ class LocalDatabaseHelper {
     }
 
     if (oldVersion < 16) {
-      debugPrint('DB Upgrade: Ensuring columns exist in tbl_sales_order_details (v16)');
+      debugPrint(
+        'DB Upgrade: Ensuring columns exist in tbl_sales_order_details (v16)',
+      );
       // Re-run the same columns in case v15 was skipped or failed on some devices
       // Wrapped in try-catch to avoid crashing if they already exist from a partially failed v15
       final columnsToAdd = [
@@ -395,7 +426,7 @@ class LocalDatabaseHelper {
         }
       }
     }
-    
+
     if (oldVersion < 17) {
       debugPrint('DB Upgrade: Creating Sites table (v17)');
       await db.execute('''
@@ -410,7 +441,8 @@ class LocalDatabaseHelper {
       debugPrint('DB Upgrade: Adding isPrepared column to details table (v18)');
       try {
         await db.execute(
-            'ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0');
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetIsPrepared INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint('Column $colDetIsPrepared might already exist: $e');
       }
@@ -435,7 +467,9 @@ class LocalDatabaseHelper {
     }
 
     if (oldVersion < 21) {
-      debugPrint('DB Upgrade: Adding isSynced to tbl_sales_order_details (v21)');
+      debugPrint(
+        'DB Upgrade: Adding isSynced to tbl_sales_order_details (v21)',
+      );
       try {
         await db.execute(
           'ALTER TABLE $tableDetails ADD COLUMN $columnIsSynced INTEGER NOT NULL DEFAULT 1',
@@ -449,7 +483,8 @@ class LocalDatabaseHelper {
       debugPrint('DB Upgrade: Adding unit column to details table (v22)');
       try {
         await db.execute(
-            'ALTER TABLE $tableDetails ADD COLUMN $colDetUnit TEXT DEFAULT "KG"');
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetUnit TEXT DEFAULT "KG"',
+        );
       } catch (e) {
         debugPrint("Migration error v22: $e");
       }
@@ -459,33 +494,45 @@ class LocalDatabaseHelper {
       // For scans
       var scansInfo = await db.rawQuery('PRAGMA table_info($tableScans)');
       if (!scansInfo.any((col) => col['name'] == columnManufacturedQuantity)) {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnManufacturedQuantity REAL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnManufacturedQuantity REAL DEFAULT 0',
+        );
       }
 
       // For products
       var productsInfo = await db.rawQuery('PRAGMA table_info($tableProducts)');
       if (!productsInfo.any((col) => col['name'] == colProdStandardWeight)) {
-        await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdStandardWeight REAL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableProducts ADD COLUMN $colProdStandardWeight REAL DEFAULT 0',
+        );
       }
       if (!productsInfo.any((col) => col['name'] == colProdBarcode)) {
-        await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdBarcode TEXT');
+        await db.execute(
+          'ALTER TABLE $tableProducts ADD COLUMN $colProdBarcode TEXT',
+        );
       }
     }
     if (oldVersion < 24) {
-      debugPrint('DB Upgrade: Adding is_prepared_for_shipment to tbl_sales_orders (v24)');
+      debugPrint(
+        'DB Upgrade: Adding is_prepared_for_shipment to tbl_sales_orders (v24)',
+      );
       try {
         await db.execute(
-            'ALTER TABLE $tableOrders ADD COLUMN $colIsPreparedForShipment INTEGER DEFAULT 0');
+          'ALTER TABLE $tableOrders ADD COLUMN $colIsPreparedForShipment INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v24: $e");
       }
     }
 
     if (oldVersion < 25) {
-      debugPrint('DB Upgrade: Adding is_validated to tbl_sales_order_details (v25)');
+      debugPrint(
+        'DB Upgrade: Adding is_validated to tbl_sales_order_details (v25)',
+      );
       try {
         await db.execute(
-            'ALTER TABLE $tableDetails ADD COLUMN $colDetIsValidated INTEGER DEFAULT 0');
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetIsValidated INTEGER DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v25: $e");
       }
@@ -526,15 +573,21 @@ class LocalDatabaseHelper {
     if (oldVersion < 28) {
       debugPrint('DB Upgrade: Adding UpdatedBy to Global Settings (v28)');
       try {
-        await db.execute('ALTER TABLE $tableGlobalSettings ADD COLUMN $colSettingUpdatedBy TEXT');
+        await db.execute(
+          'ALTER TABLE $tableGlobalSettings ADD COLUMN $colSettingUpdatedBy TEXT',
+        );
       } catch (e) {
         debugPrint(e.toString());
       }
     }
 
     if (oldVersion < 29) {
-      debugPrint('DB Upgrade: Converting Global Settings to append-only ledger (v29)');
-      await db.execute('ALTER TABLE $tableGlobalSettings RENAME TO ${tableGlobalSettings}_old');
+      debugPrint(
+        'DB Upgrade: Converting Global Settings to append-only ledger (v29)',
+      );
+      await db.execute(
+        'ALTER TABLE $tableGlobalSettings RENAME TO ${tableGlobalSettings}_old',
+      );
       await db.execute('''
         CREATE TABLE $tableGlobalSettings (
           $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -590,7 +643,9 @@ class LocalDatabaseHelper {
     }
 
     if (oldVersion < 35) {
-      debugPrint('DB Upgrade: Creating EOD Status and Offline Audit tables (v35)');
+      debugPrint(
+        'DB Upgrade: Creating EOD Status and Offline Audit tables (v35)',
+      );
       await db.execute('''
         CREATE TABLE IF NOT EXISTS $tableEodStatus (
           productionDate TEXT PRIMARY KEY,
@@ -614,22 +669,31 @@ class LocalDatabaseHelper {
     if (oldVersion < 36) {
       debugPrint('DB Upgrade: Adding customer info to details table (v36)');
       try {
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerCode TEXT');
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerName TEXT');
-      } catch (e) {
-      }
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerCode TEXT',
+        );
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetCustomerName TEXT',
+        );
+      } catch (e) {}
     }
     if (oldVersion < 37) {
-      debugPrint('DB Upgrade: Adding salesman column to tbl_sales_orders (v37)');
+      debugPrint(
+        'DB Upgrade: Adding salesman column to tbl_sales_orders (v37)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colSalesman TEXT');
+        await db.execute(
+          'ALTER TABLE $tableOrders ADD COLUMN $colSalesman TEXT',
+        );
       } catch (e) {
         debugPrint("Migration error v37: $e");
       }
     }
 
     if (oldVersion < 38) {
-      debugPrint('DB Upgrade: Adding rep0/rep1 columns to tbl_sales_orders (v38)');
+      debugPrint(
+        'DB Upgrade: Adding rep0/rep1 columns to tbl_sales_orders (v38)',
+      );
       try {
         await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colRep0 TEXT');
         await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colRep1 TEXT');
@@ -641,18 +705,26 @@ class LocalDatabaseHelper {
     if (oldVersion < 39) {
       debugPrint('DB Upgrade: Adding EA quantity tracking (v39)');
       try {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnEaQuantity REAL DEFAULT 0');
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetEaScanned REAL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnEaQuantity REAL DEFAULT 0',
+        );
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetEaScanned REAL DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v39: $e");
       }
     }
     if (oldVersion < 41) {
-      debugPrint('DB Upgrade: Ensuring ea_quantity exists in tbl_staging_eod (v41)');
+      debugPrint(
+        'DB Upgrade: Ensuring ea_quantity exists in tbl_staging_eod (v41)',
+      );
       try {
         var columns = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
         if (!columns.any((c) => c['name'] == columnEaQuantity)) {
-          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnEaQuantity REAL DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE $tableStagingEod ADD COLUMN $columnEaQuantity REAL DEFAULT 0',
+          );
         }
       } catch (e) {
         debugPrint("Migration error v41: $e");
@@ -661,33 +733,49 @@ class LocalDatabaseHelper {
     if (oldVersion < 42) {
       debugPrint('DB Upgrade: Adding barcode column to tbl_scans (v42)');
       try {
-        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnBarcode TEXT');
+        await db.execute(
+          'ALTER TABLE $tableScans ADD COLUMN $columnBarcode TEXT',
+        );
       } catch (e) {
         debugPrint("Migration error v42: $e");
       }
     }
     if (oldVersion < 43) {
-      debugPrint('DB Upgrade: Adding createdAt to tbl_sales_order_details (v43)');
+      debugPrint(
+        'DB Upgrade: Adding createdAt to tbl_sales_order_details (v43)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetCreatedAt TEXT');
+        await db.execute(
+          'ALTER TABLE $tableDetails ADD COLUMN $colDetCreatedAt TEXT',
+        );
       } catch (e) {
         debugPrint("Migration error v43: $e");
       }
     }
     if (oldVersion < 44) {
-      debugPrint('DB Upgrade: Adding deviceId column to Label Audits and Offline Audit Logs (v44)');
+      debugPrint(
+        'DB Upgrade: Adding deviceId column to Label Audits and Offline Audit Logs (v44)',
+      );
       try {
-        var labelColumns = await db.rawQuery('PRAGMA table_info($tableLabelAudits)');
+        var labelColumns = await db.rawQuery(
+          'PRAGMA table_info($tableLabelAudits)',
+        );
         if (!labelColumns.any((c) => c['name'] == 'deviceId')) {
-          await db.execute('ALTER TABLE $tableLabelAudits ADD COLUMN deviceId TEXT');
+          await db.execute(
+            'ALTER TABLE $tableLabelAudits ADD COLUMN deviceId TEXT',
+          );
         }
       } catch (e) {
         debugPrint("Migration error v44 label audits: $e");
       }
       try {
-        var auditColumns = await db.rawQuery('PRAGMA table_info($tableOfflineAuditLogs)');
+        var auditColumns = await db.rawQuery(
+          'PRAGMA table_info($tableOfflineAuditLogs)',
+        );
         if (!auditColumns.any((c) => c['name'] == 'deviceId')) {
-          await db.execute('ALTER TABLE $tableOfflineAuditLogs ADD COLUMN deviceId TEXT');
+          await db.execute(
+            'ALTER TABLE $tableOfflineAuditLogs ADD COLUMN deviceId TEXT',
+          );
         }
       } catch (e) {
         debugPrint("Migration error v44 offline audits: $e");
@@ -698,18 +786,26 @@ class LocalDatabaseHelper {
       try {
         var columns = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
         if (!columns.any((c) => c['name'] == columnLot)) {
-          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnLot TEXT');
+          await db.execute(
+            'ALTER TABLE $tableStagingEod ADD COLUMN $columnLot TEXT',
+          );
         }
       } catch (e) {
         debugPrint("Migration error v45: $e");
       }
     }
     if (oldVersion < 46) {
-      debugPrint('DB Upgrade: Adding colDeviceId column to tbl_label_audits (v46)');
+      debugPrint(
+        'DB Upgrade: Adding colDeviceId column to tbl_label_audits (v46)',
+      );
       try {
-        var labelColumns = await db.rawQuery('PRAGMA table_info($tableLabelAudits)');
+        var labelColumns = await db.rawQuery(
+          'PRAGMA table_info($tableLabelAudits)',
+        );
         if (!labelColumns.any((c) => c['name'] == colDeviceId)) {
-          await db.execute('ALTER TABLE $tableLabelAudits ADD COLUMN $colDeviceId TEXT');
+          await db.execute(
+            'ALTER TABLE $tableLabelAudits ADD COLUMN $colDeviceId TEXT',
+          );
         }
       } catch (e) {
         debugPrint("Migration error v46 label audits: $e");
@@ -766,9 +862,13 @@ class LocalDatabaseHelper {
       }
     }
     if (oldVersion < 50) {
-      debugPrint('DB Upgrade: Adding isDeactivated to tableEodProcessAudits (v50)');
+      debugPrint(
+        'DB Upgrade: Adding isDeactivated to tableEodProcessAudits (v50)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableEodProcessAudits ADD COLUMN isDeactivated INTEGER NOT NULL DEFAULT 0');
+        await db.execute(
+          'ALTER TABLE $tableEodProcessAudits ADD COLUMN isDeactivated INTEGER NOT NULL DEFAULT 0',
+        );
       } catch (e) {
         debugPrint("Migration error v50: $e");
       }
@@ -776,7 +876,9 @@ class LocalDatabaseHelper {
     if (oldVersion < 51) {
       debugPrint('DB Upgrade: Adding last_sync_time to tableCachedUsers (v51)');
       try {
-        await db.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colLastSyncTime TEXT');
+        await db.execute(
+          'ALTER TABLE $tableCachedUsers ADD COLUMN $colLastSyncTime TEXT',
+        );
       } catch (e) {
         debugPrint("Migration error v51: $e");
       }
@@ -815,15 +917,21 @@ class LocalDatabaseHelper {
       }
     }
     if (oldVersion < 54) {
-      debugPrint('DB Upgrade: Adding stock unit column to sales invoice products (v54)');
+      debugPrint(
+        'DB Upgrade: Adding stock unit column to sales invoice products (v54)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN $colSiProdStockUnit TEXT');
+        await db.execute(
+          'ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN $colSiProdStockUnit TEXT',
+        );
       } catch (e) {
         debugPrint("Migration error v54: $e");
       }
     }
     if (oldVersion < 55) {
-      debugPrint('DB Upgrade: Creating Sales Invoice Item Stock Details table (v55)');
+      debugPrint(
+        'DB Upgrade: Creating Sales Invoice Item Stock Details table (v55)',
+      );
       try {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS $tableSalesInvoiceItemStockDetails (
@@ -844,24 +952,61 @@ class LocalDatabaseHelper {
       }
     }
     if (oldVersion < 56) {
-      debugPrint('DB Upgrade: Adding warehouseName column to sales invoice item stock details (v56)');
+      debugPrint(
+        'DB Upgrade: Adding warehouseName column to sales invoice item stock details (v56)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN warehouseName TEXT DEFAULT ""');
+        await db.execute(
+          'ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN warehouseName TEXT DEFAULT ""',
+        );
       } catch (e) {
         debugPrint("Migration error v56: $e");
       }
     }
     if (oldVersion < 57) {
-      debugPrint('DB Upgrade: Adding itemName and totalQty to sales invoice item stock details (v57)');
+      debugPrint(
+        'DB Upgrade: Adding itemName and totalQty to sales invoice item stock details (v57)',
+      );
       try {
-        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN itemName TEXT DEFAULT ""');
-        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN totalQty REAL DEFAULT 0.0');
+        await db.execute(
+          'ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN itemName TEXT DEFAULT ""',
+        );
+        await db.execute(
+          'ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN totalQty REAL DEFAULT 0.0',
+        );
       } catch (e) {
         debugPrint("Migration error v57: $e");
       }
+      if (oldVersion < 58) {
+        debugPrint('DB Upgrade: Adding VAT matrix tables and fields (v58)');
+        try {
+          await db.execute(
+            'ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN taxRule TEXT DEFAULT ""',
+          );
+          await db.execute(
+            'ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN taxLevel TEXT DEFAULT ""',
+          );
+          await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableTaxMatrix (
+            $colTaxMatrixCustomerRule TEXT,
+            $colTaxMatrixItemLevel TEXT,
+            $colTaxMatrixTaxCode TEXT,
+            PRIMARY KEY ($colTaxMatrixCustomerRule, $colTaxMatrixItemLevel)
+          )
+        ''');
+          await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableTaxRates (
+            $colTaxRateTaxCode TEXT PRIMARY KEY,
+            $colTaxRateDescription TEXT,
+            $colTaxRatePercent REAL
+          )
+        ''');
+        } catch (e) {
+          debugPrint("Migration error v58: $e");
+        }
+      }
     }
   }
-
 
   Future _onCreate(Database db, int version) async {
     await db.execute('''
@@ -874,6 +1019,7 @@ class LocalDatabaseHelper {
         location TEXT,
         locationType TEXT,
         totalQty REAL,
+        taxLevel TEXT,
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,
@@ -900,8 +1046,26 @@ class LocalDatabaseHelper {
         $colName TEXT NOT NULL,
         paymentTerm TEXT,
         creditLimit REAL,
-        statusFlag INTEGER,
+        statusFlag TEXT,
+        taxRule TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableTaxMatrix (
+        $colTaxMatrixCustomerRule TEXT,
+        $colTaxMatrixItemLevel TEXT,
+        $colTaxMatrixTaxCode TEXT,
+        PRIMARY KEY ($colTaxMatrixCustomerRule, $colTaxMatrixItemLevel)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableTaxRates (
+        $colTaxRateTaxCode TEXT PRIMARY KEY,
+        $colTaxRateDescription TEXT,
+        $colTaxRatePercent REAL
       )
     ''');
 
@@ -1196,14 +1360,15 @@ class LocalDatabaseHelper {
   Future<int> insertScan(Map<String, dynamic> row) async {
     Database db = await instance.database;
     final id = await db.insert(tableScans, row);
-    
+
     try {
       await insertOfflineAuditLog(
         entity: 'ProductionScan',
         action: 'INSERT',
         payload: jsonEncode({
           'barcode': row[columnBarcode],
-          'manufacturedQty': row[columnManufacturedQuantity] ?? row[columnQuantity],
+          'manufacturedQty':
+              row[columnManufacturedQuantity] ?? row[columnQuantity],
           'eaQuantity': row[columnEaQuantity] ?? 0.0,
           'syncId': row[columnSyncId],
           'soNumber': row[columnSoNumber],
@@ -1214,7 +1379,7 @@ class LocalDatabaseHelper {
     } catch (e) {
       debugPrint("Failed to automatically audit scan insertion: $e");
     }
-    
+
     return id;
   }
 
@@ -1241,7 +1406,11 @@ class LocalDatabaseHelper {
   // Staging EOD methods
   Future<int> insertStagingEod(Map<String, dynamic> row) async {
     Database db = await instance.database;
-    return await db.insert(tableStagingEod, row, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      tableStagingEod,
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedStagingEod() async {
@@ -1279,7 +1448,11 @@ class LocalDatabaseHelper {
   // Work Order methods
   Future<int> insertWorkOrder(Map<String, dynamic> row) async {
     Database db = await instance.database;
-    return await db.insert(tableWorkOrders, row, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      tableWorkOrders,
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getAllWorkOrders() async {
@@ -1403,10 +1576,7 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     return await db.update(
       tableOrders,
-      {
-        colStatus: status,
-        columnIsSynced: 0,
-      },
+      {colStatus: status, columnIsSynced: 0},
       where: '$colOrderNum = ?',
       whereArgs: [soNumber],
     );
@@ -1460,6 +1630,8 @@ class LocalDatabaseHelper {
     required List<Map<String, dynamic>> products,
     required List<Map<String, dynamic>> sites,
     required List<Map<String, dynamic>> lots,
+    List<Map<String, dynamic>>? taxDeterminations,
+    List<Map<String, dynamic>>? taxRates,
     List<Map<String, dynamic>>? eodProcessAudits,
     bool incremental = true,
   }) async {
@@ -1467,15 +1639,14 @@ class LocalDatabaseHelper {
 
     await db.transaction((txn) async {
       // 0. FETCH DIRTY RECORDS to preserve local state
-      // We must not overwrite isPrepared=1 if it hasn't been synced yet, 
+      // We must not overwrite isPrepared=1 if it hasn't been synced yet,
       // even if the server refresh (which is eventually consistent) says isPrepared=0.
       final dirtyDetails = await txn.query(
         tableDetails,
         where: '$columnIsSynced = 0',
       );
       final Map<String, Map<String, dynamic>> dirtyDetailsMap = {
-        for (var d in dirtyDetails)
-          '${d[colDetSoNum]}_${d[colDetItemCode]}': d,
+        for (var d in dirtyDetails) '${d[colDetSoNum]}_${d[colDetItemCode]}': d,
       };
 
       final dirtyOrders = await txn.query(
@@ -1483,8 +1654,7 @@ class LocalDatabaseHelper {
         where: '$columnIsSynced = 0 AND $colIsPreparedForShipment = 1',
       );
       final Map<String, Map<String, dynamic>> dirtyOrdersMap = {
-        for (var o in dirtyOrders)
-          o[colOrderNum] as String: o,
+        for (var o in dirtyOrders) o[colOrderNum] as String: o,
       };
 
       // 1. SELECTIVE CLEANUP (or full wipe if not incremental)
@@ -1498,6 +1668,8 @@ class LocalDatabaseHelper {
         await txn.delete(tableProducts);
         await txn.delete(tableSites);
         await txn.delete(tableLots);
+        await txn.delete(tableTaxMatrix);
+        await txn.delete(tableTaxRates);
         await txn.delete(tableEodProcessAudits);
       }
 
@@ -1526,14 +1698,14 @@ class LocalDatabaseHelper {
         for (var detail in details) {
           // CLONE to avoid mutating the original processedData list if used elsewhere
           final record = Map<String, dynamic>.from(detail);
-          
+
           final key = '${record[colDetSoNum]}_${record[colDetItemCode]}';
           if (dirtyDetailsMap.containsKey(key)) {
             // MERGE: Preserve local dirty isPrepared, isValidated and isSynced status
             final local = dirtyDetailsMap[key]!;
             record[colDetIsPrepared] = local[colDetIsPrepared];
             record[colDetIsValidated] = local[colDetIsValidated];
-            record[columnIsSynced] = 0; 
+            record[columnIsSynced] = 0;
           } else {
             // New or clean record: ensure it's marked as synced
             record[columnIsSynced] = 1;
@@ -1587,22 +1759,39 @@ class LocalDatabaseHelper {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
-        if (eodProcessAudits != null) {
-          for (var audit in eodProcessAudits) {
+        if (taxDeterminations != null) {
+          for (var matrix in taxDeterminations) {
             batch.insert(
-              tableEodProcessAudits,
-              {
-                'id': audit['id'],
-                'eodDate': audit['eodDate'],
-                'workOrderNumber': audit['workOrderNumber'],
-                'triggeredBy': audit['triggeredBy'],
-                'deviceId': audit['deviceId'],
-                'timestamp': audit['createdAt'] ?? audit['timestamp'] ?? DateTime.now().toIso8601String(),
-                'isSynced': 1,
-                'isDeactivated': audit['isDeactivated'] ?? 0,
-              },
+              tableTaxMatrix,
+              matrix,
               conflictAlgorithm: ConflictAlgorithm.replace,
             );
+          }
+        }
+        if (taxRates != null) {
+          for (var rate in taxRates) {
+            batch.insert(
+              tableTaxRates,
+              rate,
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+        if (eodProcessAudits != null) {
+          for (var audit in eodProcessAudits) {
+            batch.insert(tableEodProcessAudits, {
+              'id': audit['id'],
+              'eodDate': audit['eodDate'],
+              'workOrderNumber': audit['workOrderNumber'],
+              'triggeredBy': audit['triggeredBy'],
+              'deviceId': audit['deviceId'],
+              'timestamp':
+                  audit['createdAt'] ??
+                  audit['timestamp'] ??
+                  DateTime.now().toIso8601String(),
+              'isSynced': 1,
+              'isDeactivated': audit['isDeactivated'] ?? 0,
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
           }
         }
 
@@ -1626,6 +1815,7 @@ class LocalDatabaseHelper {
     );
     return results.isNotEmpty || code == 'BLK' || code == 'CUT';
   }
+
   Future<Map<String, dynamic>?> getProductByCode(String code) async {
     final db = await instance.database;
     final results = await db.query(
@@ -1642,7 +1832,10 @@ class LocalDatabaseHelper {
     return await db.query(tableSites);
   }
 
-  Future<List<String>> getLotsForItemAndSite(String itemCode, String siteCode) async {
+  Future<List<String>> getLotsForItemAndSite(
+    String itemCode,
+    String siteCode,
+  ) async {
     Database db = await instance.database;
     final results = await db.query(
       tableLots,
@@ -1658,7 +1851,12 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     return await db.query(
       tableDetails,
-      columns: [colDetSoNum, colDetItemCode, colDetIsPrepared, colDetIsValidated],
+      columns: [
+        colDetSoNum,
+        colDetItemCode,
+        colDetIsPrepared,
+        colDetIsValidated,
+      ],
       where: '$columnIsSynced = 0',
     );
   }
@@ -1686,7 +1884,9 @@ class LocalDatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  Future<void> markOrderPreparationAsSynced(List<Map<String, dynamic>> updates) async {
+  Future<void> markOrderPreparationAsSynced(
+    List<Map<String, dynamic>> updates,
+  ) async {
     final db = await instance.database;
     Batch batch = db.batch();
     for (var update in updates) {
@@ -1715,10 +1915,7 @@ class LocalDatabaseHelper {
       for (var itemCode in itemCodes) {
         batch.update(
           tableDetails,
-          {
-            column: value,
-            columnIsSynced: 0,
-          },
+          {column: value, columnIsSynced: 0},
           where: '$colDetSoNum = ? AND $colDetItemCode = ?',
           whereArgs: [soNumber, itemCode],
         );
@@ -1732,16 +1929,22 @@ class LocalDatabaseHelper {
   Future<List<Map<String, dynamic>>> getFilteredSites(String dateStr) async {
     final db = await instance.database;
     // We join with tableSites to get the site name
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT DISTINCT s.$colCode, s.$colName
       FROM $tableOrders o
       INNER JOIN $tableSites s ON o.$colSite = s.$colCode
       WHERE o.$colDeliveryDate LIKE ?
       ORDER BY s.$colName
-    ''', ['$dateStr%']);
+    ''',
+      ['$dateStr%'],
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getFilteredSalesReps(String dateStr, String? siteCode) async {
+  Future<List<Map<String, dynamic>>> getFilteredSalesReps(
+    String dateStr,
+    String? siteCode,
+  ) async {
     final db = await instance.database;
     String whereClause = 'o.$colDeliveryDate LIKE ?';
     List<dynamic> args = ['$dateStr%'];
@@ -1788,7 +1991,8 @@ class LocalDatabaseHelper {
     }
 
     if (salesmanCode != null && salesmanCode.isNotEmpty) {
-      whereClause += ' AND (o.$colRep1 = ? OR o.$colRep0 = ? OR o.$colSalesman = ?)';
+      whereClause +=
+          ' AND (o.$colRep1 = ? OR o.$colRep0 = ? OR o.$colSalesman = ?)';
       args.add(salesmanCode);
       args.add(salesmanCode);
       args.add(salesmanCode);
@@ -1812,7 +2016,8 @@ class LocalDatabaseHelper {
     // We look for orders starting with BLK, or CUTS matching the same delivery date.
     // poolQty: Total quantity scanned into the bulk order.
     // allocatedQty: Total quantity already "drawn" from this bulk order into real orders.
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT 
         o.$colOrderNum AS soNumber,
         (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
@@ -1831,12 +2036,16 @@ class LocalDatabaseHelper {
       WHERE (o.$colOrderNum LIKE 'BLK-%' 
           OR o.$colOrderNum LIKE 'CUTS-%')
         AND o.$colDeliveryDate LIKE ?
-    ''', [itemCode, itemCode, '$dateStr%']);
+    ''',
+      [itemCode, itemCode, '$dateStr%'],
+    );
   }
+
   /// Calculates aggregated availability (Produced - Allocated) for all bulk products on a date.
   Future<Map<String, double>> getExcessPoolSummaries(String dateStr) async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> results = await db.rawQuery('''
+    final List<Map<String, dynamic>> results = await db.rawQuery(
+      '''
       SELECT 
         s.$columnProductCode,
         SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') THEN s.$columnQuantity ELSE 0 END) AS poolQty,
@@ -1845,7 +2054,9 @@ class LocalDatabaseHelper {
       INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
       WHERE o.$colDeliveryDate LIKE ?
       GROUP BY s.$columnProductCode
-    ''', ['$dateStr%']);
+    ''',
+      ['$dateStr%'],
+    );
 
     final Map<String, double> summaries = {};
     for (var row in results) {
@@ -1864,22 +2075,21 @@ class LocalDatabaseHelper {
   Future<int> insertLabelAudit(Map<String, dynamic> audit) async {
     final db = await instance.database;
     final row = Map<String, dynamic>.from(audit);
-    
+
     // Retrieve username and device ID
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString('username') ?? 'unknown';
     final deviceId = DeviceInfoService.instance.deviceInfo;
-    
+
     row[colDeviceId] = deviceId;
     row[colPrintedBy] = '$username on $deviceId';
-    
+
     return await db.insert(
       tableLabelAudits,
       row,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
-
 
   Future<List<Map<String, dynamic>>> getUnsyncedLabelAudits() async {
     final db = await instance.database;
@@ -1893,7 +2103,10 @@ class LocalDatabaseHelper {
   Future<int> markLabelAuditsSynced(List<String> labelIds) async {
     if (labelIds.isEmpty) return 0;
     final db = await instance.database;
-    final placeholders = List.generate(labelIds.length, (index) => '?').join(', ');
+    final placeholders = List.generate(
+      labelIds.length,
+      (index) => '?',
+    ).join(', ');
     return await db.update(
       tableLabelAudits,
       {columnIsSynced: 1},
@@ -1914,7 +2127,12 @@ class LocalDatabaseHelper {
     ''');
   }
 
-  Future<void> updateGlobalSetting(String key, String value, {bool isSynced = false, String? updatedBy}) async {
+  Future<void> updateGlobalSetting(
+    String key,
+    String value, {
+    bool isSynced = false,
+    String? updatedBy,
+  }) async {
     final db = await instance.database;
     await db.insert(
       tableGlobalSettings,
@@ -1934,7 +2152,9 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     try {
       final count = Sqflite.firstIntValue(
-        await db.rawQuery('SELECT COUNT(*) FROM $tableGlobalSettings WHERE $colSettingIsSynced = 0')
+        await db.rawQuery(
+          'SELECT COUNT(*) FROM $tableGlobalSettings WHERE $colSettingIsSynced = 0',
+        ),
       );
       return count ?? 0;
     } catch (e) {
@@ -1947,22 +2167,21 @@ class LocalDatabaseHelper {
   // DELIVERY SCAN METHODS
   // ==========================================
 
-  Future<bool> insertDeliveryScan(String qrPayload, List<String> soNumbers) async {
+  Future<bool> insertDeliveryScan(
+    String qrPayload,
+    List<String> soNumbers,
+  ) async {
     final db = await instance.database;
     bool anyInserted = false;
     final timestamp = DateTime.now().toIso8601String();
-    
+
     await db.transaction((txn) async {
       for (var so in soNumbers) {
-        final id = await txn.insert(
-          tableDeliveryScans,
-          {
-            colDelScanPayload: qrPayload,
-            colDelScanSoNumber: so,
-            colDelScanTimestamp: timestamp,
-          },
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
+        final id = await txn.insert(tableDeliveryScans, {
+          colDelScanPayload: qrPayload,
+          colDelScanSoNumber: so,
+          colDelScanTimestamp: timestamp,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
         if (id != 0) anyInserted = true;
       }
     });
@@ -1971,8 +2190,14 @@ class LocalDatabaseHelper {
 
   Future<List<String>> getScannedDeliveryOrders() async {
     final db = await instance.database;
-    final result = await db.query(tableDeliveryScans, columns: [colDelScanSoNumber]);
-    return result.map((r) => r[colDelScanSoNumber] as String).toSet().toList(); // Unique SO numbers
+    final result = await db.query(
+      tableDeliveryScans,
+      columns: [colDelScanSoNumber],
+    );
+    return result
+        .map((r) => r[colDelScanSoNumber] as String)
+        .toSet()
+        .toList(); // Unique SO numbers
   }
 
   Future<void> clearDeliveryScans() async {
@@ -2000,9 +2225,12 @@ class LocalDatabaseHelper {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getProductionSummaryByDate(String dateStr, {String? site}) async {
+  Future<List<Map<String, dynamic>>> getProductionSummaryByDate(
+    String dateStr, {
+    String? site,
+  }) async {
     final db = await instance.database;
-    
+
     String whereClause = 'ord.$colDeliveryDate LIKE ?';
     List<dynamic> whereArgs = ['$dateStr%'];
 
@@ -2011,7 +2239,8 @@ class LocalDatabaseHelper {
       whereArgs.add(site);
     }
 
-    final query = '''
+    final query =
+        '''
       SELECT 
         det.*,
         ord.$colCustomerName as customerName,
@@ -2046,18 +2275,18 @@ class LocalDatabaseHelper {
     return await isEodProcessAudited(dateStr);
   }
 
-  Future<void> markEodCompleted(String dateStr, String workOrder, {String? completedBy}) async {
+  Future<void> markEodCompleted(
+    String dateStr,
+    String workOrder, {
+    String? completedBy,
+  }) async {
     final db = await instance.database;
-    await db.insert(
-      tableEodStatus,
-      {
-        'productionDate': dateStr,
-        'workOrder': workOrder,
-        'completedAt': DateTime.now().toIso8601String(),
-        'completedBy': completedBy ?? 'User',
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(tableEodStatus, {
+      'productionDate': dateStr,
+      'workOrder': workOrder,
+      'completedAt': DateTime.now().toIso8601String(),
+      'completedBy': completedBy ?? 'User',
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> insertOfflineAuditLog({
@@ -2088,24 +2317,27 @@ class LocalDatabaseHelper {
     required double eaQuantity,
   }) async {
     final db = await instance.database;
-    final rows = await db.rawUpdate('''
+    final rows = await db.rawUpdate(
+      '''
       UPDATE $tableDetails 
       SET $colDetScanned = COALESCE($colDetScanned, 0) - ?,
           $colDetEaScanned = COALESCE($colDetEaScanned, 0) - ?,
           $columnIsSynced = 0
       WHERE UPPER($colDetSoNum) = UPPER(?) AND UPPER($colDetItemCode) = UPPER(?)
-    ''', [weight, eaQuantity, soNumber, itemCode]);
-    debugPrint("deductFromDetailSummary: $rows rows updated for $itemCode in $soNumber (marked as unsynced)");
+    ''',
+      [weight, eaQuantity, soNumber, itemCode],
+    );
+    debugPrint(
+      "deductFromDetailSummary: $rows rows updated for $itemCode in $soNumber (marked as unsynced)",
+    );
   }
 
   Future<void> markOfflineAuditsAsSynced(List<int> ids) async {
     if (ids.isEmpty) return;
     final db = await instance.database;
-    await db.update(
-      tableOfflineAuditLogs,
-      {'isSynced': 1},
-      where: 'id IN (${ids.join(", ")})',
-    );
+    await db.update(tableOfflineAuditLogs, {
+      'isSynced': 1,
+    }, where: 'id IN (${ids.join(", ")})');
   }
 
   Future<void> deleteScan(String barcode) async {
@@ -2142,7 +2374,8 @@ class LocalDatabaseHelper {
     required String message,
   }) async {
     final db = await instance.database;
-    final username = await SecureStorageService().getUsername() ?? 'UnknownUser';
+    final username =
+        await SecureStorageService().getUsername() ?? 'UnknownUser';
 
     await db.insert(tableX3SoapAudits, {
       columnTimestamp: DateTime.now().toIso8601String(),
@@ -2154,7 +2387,10 @@ class LocalDatabaseHelper {
     });
   }
 
-  Future<List<Map<String, dynamic>>> getLocalProductionScans(String soNumber, String productCode) async {
+  Future<List<Map<String, dynamic>>> getLocalProductionScans(
+    String soNumber,
+    String productCode,
+  ) async {
     final db = await instance.database;
     return await db.query(
       tableScans,
@@ -2169,24 +2405,20 @@ class LocalDatabaseHelper {
     required String workOrderNumber,
   }) async {
     final db = await instance.database;
-    final username = await SecureStorageService().getUsername() ?? 'UnknownUser';
+    final username =
+        await SecureStorageService().getUsername() ?? 'UnknownUser';
 
-    await db.insert(
-      tableEodProcessAudits,
-      {
-        'id': const Uuid().v4(),
-        'eodDate': eodDate,
-        'workOrderNumber': workOrderNumber,
-        'triggeredBy': username,
-        'deviceId': DeviceInfoService.instance.deviceInfo,
-        'timestamp': DateTime.now().toIso8601String(),
-        'isSynced': 0,
-        'isDeactivated': 1,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(tableEodProcessAudits, {
+      'id': const Uuid().v4(),
+      'eodDate': eodDate,
+      'workOrderNumber': workOrderNumber,
+      'triggeredBy': username,
+      'deviceId': DeviceInfoService.instance.deviceInfo,
+      'timestamp': DateTime.now().toIso8601String(),
+      'isSynced': 0,
+      'isDeactivated': 1,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
-
 
   Future<bool> isEodProcessAudited(String dateStr) async {
     final db = await instance.database;
@@ -2200,10 +2432,7 @@ class LocalDatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getUnsyncedEodProcessAudits() async {
     final db = await instance.database;
-    return await db.query(
-      tableEodProcessAudits,
-      where: 'isSynced = 0',
-    );
+    return await db.query(tableEodProcessAudits, where: 'isSynced = 0');
   }
 
   Future<void> markEodProcessAuditsSynced(List<String> ids) async {
@@ -2226,57 +2455,62 @@ class LocalDatabaseHelper {
     final batch = db.batch();
     batch.delete(tableSalesInvoiceCustomers);
     for (var customer in customers) {
-      batch.insert(
-        tableSalesInvoiceCustomers,
-        {
-          colCode: customer['code']?.toString().trim() ?? '',
-          colName: customer['name']?.toString().trim() ?? '',
-          'paymentTerm': customer['paymentTerm'],
-          'creditLimit': customer['creditLimit'],
-          'statusFlag': customer['statusFlag'],
-          columnIsSynced: 1,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      batch.insert(tableSalesInvoiceCustomers, {
+        colCode: customer['code']?.toString().trim() ?? '',
+        colName: customer['name']?.toString().trim() ?? '',
+        'paymentTerm': customer['paymentTerm'],
+        'creditLimit': customer['creditLimit'],
+        'statusFlag': customer['statusFlag'],
+        'taxRule': customer['taxRule'],
+        columnIsSynced: 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
   }
 
   Future<List<String>> getDistinctPaymentTerms() async {
     final db = await instance.database;
-    final result = await db.rawQuery('SELECT DISTINCT paymentTerm FROM $tableSalesInvoiceCustomers WHERE paymentTerm IS NOT NULL AND paymentTerm != ""');
+    final result = await db.rawQuery(
+      'SELECT DISTINCT paymentTerm FROM $tableSalesInvoiceCustomers WHERE paymentTerm IS NOT NULL AND paymentTerm != ""',
+    );
     return result.map((r) => r['paymentTerm'].toString()).toList();
   }
 
   Future<List<Map<String, dynamic>>> getPaginatedSalesInvoiceCustomers({
-    int limit = 25, 
-    int offset = 0, 
+    int limit = 25,
+    int offset = 0,
     String query = '',
     List<String>? statusFilters,
     List<String>? paymentTermFilters,
   }) async {
     final db = await instance.database;
-    
+
     List<String> whereClauses = [];
     List<dynamic> whereArgs = [];
-    
+
     if (query.isNotEmpty) {
       whereClauses.add('($colName LIKE ? OR $colCode LIKE ?)');
       whereArgs.addAll(['%$query%', '%$query%']);
     }
-    
+
     if (statusFilters != null && statusFilters.isNotEmpty) {
-      whereClauses.add('statusFlag IN (${List.filled(statusFilters.length, '?').join(',')})');
+      whereClauses.add(
+        'statusFlag IN (${List.filled(statusFilters.length, '?').join(',')})',
+      );
       whereArgs.addAll(statusFilters);
     }
 
     if (paymentTermFilters != null && paymentTermFilters.isNotEmpty) {
-      whereClauses.add('paymentTerm IN (${List.filled(paymentTermFilters.length, '?').join(',')})');
+      whereClauses.add(
+        'paymentTerm IN (${List.filled(paymentTermFilters.length, '?').join(',')})',
+      );
       whereArgs.addAll(paymentTermFilters);
     }
-    
-    String? finalWhere = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
-    
+
+    String? finalWhere = whereClauses.isEmpty
+        ? null
+        : whereClauses.join(' AND ');
+
     return await db.query(
       tableSalesInvoiceCustomers,
       where: finalWhere,

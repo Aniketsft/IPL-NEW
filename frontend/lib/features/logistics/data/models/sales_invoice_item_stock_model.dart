@@ -7,6 +7,7 @@ class SalesInvoiceItemStockModel {
   final String location;
   final String locationType;
   final double totalQty;
+  final String taxLevel;
   final int isSynced;
 
   SalesInvoiceItemStockModel({
@@ -18,6 +19,7 @@ class SalesInvoiceItemStockModel {
     required this.location,
     this.locationType = '',
     this.totalQty = 0.0,
+    this.taxLevel = '',
     this.isSynced = 1,
   });
 
@@ -31,6 +33,7 @@ class SalesInvoiceItemStockModel {
       location: (json['location'] ?? '').toString(),
       locationType: (json['locationType'] ?? '').toString(),
       totalQty: (json['totalQty'] as num?)?.toDouble() ?? 0.0,
+      taxLevel: (json['taxLevel'] ?? '').toString(),
     );
   }
 
@@ -44,6 +47,7 @@ class SalesInvoiceItemStockModel {
       location: map['location'] as String,
       locationType: map['locationType'] as String? ?? '',
       totalQty: (map['totalQty'] as num?)?.toDouble() ?? 0.0,
+      taxLevel: map['taxLevel'] as String? ?? '',
       isSynced: map['isSynced'] as int? ?? 1,
     );
   }
@@ -58,6 +62,7 @@ class SalesInvoiceItemStockModel {
       'location': location,
       'locationType': locationType,
       'totalQty': totalQty,
+      'taxLevel': taxLevel,
       'isSynced': isSynced,
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

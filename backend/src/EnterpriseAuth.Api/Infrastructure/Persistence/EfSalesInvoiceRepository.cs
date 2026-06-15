@@ -40,7 +40,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name,
                     LTRIM(RTRIM(PTE_0)) as PaymentTerm,
                     OSTAUZ_0 as CreditLimit,
-                    LTRIM(RTRIM(OSTCTL_0)) as StatusFlag
+                    LTRIM(RTRIM(OSTCTL_0)) as StatusFlag,
+                    LTRIM(RTRIM(VACBPR_0)) as TaxRule
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER
                 WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''";
 
@@ -81,7 +82,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(itm.ITMREF_0)) AS ItemCode,
                     LTRIM(RTRIM(itm.ITMDES1_0)) AS ItemName,  
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS TotalQty,
-                    LTRIM(RTRIM(stk.LOT_0)) AS LotNumber
+                    LTRIM(RTRIM(stk.LOT_0)) AS LotNumber,
+                    LTRIM(RTRIM(itm.VACITM_0)) AS TaxLevel
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC zsbl 
                     ON itm.ITMREF_0 = zsbl.ITMREF_0
@@ -94,7 +96,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE itm.ITMSTA_0 = 1
                 GROUP BY 
                     zlw.WAREHOUSE_0, zlw.WRHNAM_0, zlw.LOCATION_0, zlw.LOCTYPNAM_0,
-                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0
+                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0
                 ORDER BY 
                     zlw.WAREHOUSE_0, itm.ITMREF_0, stk.LOT_0";
 
