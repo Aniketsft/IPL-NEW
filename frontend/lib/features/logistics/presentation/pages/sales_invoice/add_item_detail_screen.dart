@@ -39,7 +39,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   String _lotNumber = 'LOT-2023-11-892'; // default fallback
   String _warehouse = 'Main (WH-01)';
+  String _warehouseName = '';
   String _location = 'A4-S2-B12';
+  String _locationType = 'Standard Storage (Pickable)';
+  double _lotTotalQty = 0.0;
 
   @override
   void initState() {
@@ -52,9 +55,29 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _discountController.text = _discountPercent.toString();
       _lotNumber = widget.existingItem!.lotNumber;
       _warehouse = widget.existingItem!.warehouse.isNotEmpty ? widget.existingItem!.warehouse : _warehouse;
+      _warehouseName = widget.existingItem!.warehouseName;
       _location = widget.existingItem!.location.isNotEmpty ? widget.existingItem!.location : _location;
+      _locationType = widget.existingItem!.locationType.isNotEmpty ? widget.existingItem!.locationType : _locationType;
+      _loadSpecificLotStock();
     } else {
       _loadItemStocks();
+    }
+  }
+
+  Future<void> _loadSpecificLotStock() async {
+    final db = await LocalDatabaseHelper.instance.database;
+    final result = await db.query(
+      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+      where: 'itemCode = ? AND lotNumber = ? AND location = ? AND warehouse = ?',
+      whereArgs: [widget.product.sku, _lotNumber, _location, _warehouse],
+    );
+    if (result.isNotEmpty) {
+      final stock = SalesInvoiceItemStockModel.fromSqlMap(result.first);
+      if (mounted) {
+        setState(() {
+          _lotTotalQty = stock.totalQty;
+        });
+      }
     }
   }
 
@@ -70,7 +93,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       setState(() {
         _lotNumber = stocks.first.lotNumber.isNotEmpty ? stocks.first.lotNumber : _lotNumber;
         _warehouse = stocks.first.warehouse.isNotEmpty ? stocks.first.warehouse : _warehouse;
+        _warehouseName = stocks.first.warehouseName;
         _location = stocks.first.location.isNotEmpty ? stocks.first.location : _location;
+        _locationType = stocks.first.locationType.isNotEmpty ? stocks.first.locationType : _locationType;
+        _lotTotalQty = stocks.first.totalQty;
       });
     }
   }
@@ -86,6 +112,15 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     setState(() {
       int newQty = _quantity + delta;
       if (newQty < 1) newQty = 1;
+      
+      // Strict validation against lot quantity
+      if (_lotTotalQty > 0 && newQty > _lotTotalQty) {
+        newQty = _lotTotalQty.toInt();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot exceed available stock in this lot ($newQty).')),
+        );
+      }
+      
       _quantity = newQty;
       _qtyController.text = _quantity.toString();
     });
@@ -159,7 +194,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'In Stock: ${widget.product.stockQty.toInt()}',
+                                'Total: ${widget.product.stockQty.toInt()} | Lot: ${_lotTotalQty.toInt()}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -198,10 +233,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       Container(
                         width: 80,
                         height: 48,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
-                          border: Border.symmetric(
-                            horizontal: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                          ),
+                          color: isDark ? Colors.grey[800] : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.withOpacity(0.3)),
                         ),
                         child: TextField(
                           controller: _qtyController,
@@ -219,7 +255,15 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           onChanged: (val) {
                             final parsed = int.tryParse(val);
                             if (parsed != null && parsed > 0) {
-                              setState(() => _quantity = parsed);
+                              int updatedQty = parsed;
+                              if (_lotTotalQty > 0 && updatedQty > _lotTotalQty) {
+                                updatedQty = _lotTotalQty.toInt();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Cannot exceed available stock in this lot (${_lotTotalQty.toInt()}).')),
+                                );
+                                _qtyController.text = updatedQty.toString();
+                              }
+                              setState(() => _quantity = updatedQty);
                             }
                           },
                         ),
@@ -239,28 +283,37 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       final selectedLot = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => LotSelectionScreen(itemCode: widget.product.sku),
+                          builder: (context) => LotSelectionScreen(
+                            itemCode: widget.product.sku,
+                            stockUnit: widget.product.stockUnit,
+                          ),
                         ),
                       );
                       if (selectedLot != null && selectedLot is SalesInvoiceItemStockModel) {
                         setState(() {
                           _lotNumber = selectedLot.lotNumber;
                           _warehouse = selectedLot.warehouse;
+                          _warehouseName = selectedLot.warehouseName;
                           _location = selectedLot.location;
+                          _locationType = selectedLot.locationType;
+                          _lotTotalQty = selectedLot.totalQty;
                         });
                       }
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: _buildReadOnlyField('Warehouse', _warehouse, isDark)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildReadOnlyField('Location', _location, isDark)),
-                    ],
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildReadOnlyField('Warehouse', _warehouse, isDark, suffixText: _warehouseName)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildReadOnlyField('Location', _location, isDark)),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  _buildReadOnlyField('Location Type', 'Standard Storage (Pickable)', isDark),
+                  _buildReadOnlyField('Location Type', _locationType.isNotEmpty ? _locationType : 'Standard Storage (Pickable)', isDark),
                   const SizedBox(height: 12),
                   _buildReadOnlyField('Base Price', _currencyFormat.format(_basePrice), isDark),
                   
@@ -314,29 +367,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                 )
               ],
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 1,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
+                SizedBox(
+                  height: 48,
                   child: ElevatedButton(
                     onPressed: () {
                       final item = CartItem(
@@ -344,7 +379,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         quantity: _quantity,
                         lotNumber: _lotNumber,
                         warehouse: _warehouse,
+                        warehouseName: _warehouseName,
                         location: _location,
+                        locationType: _locationType,
                         basePrice: _basePrice,
                         discountPercent: _discountPercent,
                         vatRatePercent: _vatRatePercent,
@@ -361,13 +398,32 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
                     ),
                     child: Text(
                       widget.editingIndex != null ? 'Update Order' : 'Add to Order',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -385,19 +441,20 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   Widget _buildStepperButton(IconData icon, VoidCallback onPressed, bool isDark) {
     return InkWell(
       onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.withOpacity(0.3)),
-          borderRadius: BorderRadius.zero,
+          color: isDark ? Colors.grey[800] : Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: isDark ? Colors.white : Colors.black87),
       ),
     );
   }
 
-  Widget _buildReadOnlyField(String label, String value, bool isDark, {bool isRed = false, IconData? trailingIcon, VoidCallback? onTap}) {
+  Widget _buildReadOnlyField(String label, String value, bool isDark, {bool isRed = false, IconData? trailingIcon, VoidCallback? onTap, String? suffixText}) {
     Widget content = Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -415,14 +472,30 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isRed ? Colors.red[700] : (isDark ? Colors.white : Colors.black87),
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isRed ? Colors.red[700] : (isDark ? Colors.white : Colors.black87),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (suffixText != null && suffixText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        suffixText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.blueGrey[400],
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
                 ),
               ),
               if (trailingIcon != null)
@@ -438,12 +511,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           child: Ink(
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              color: isDark ? Colors.grey[850] : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.withOpacity(0.2)),
             ),
             child: content,
           ),
@@ -452,9 +525,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     }
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: content,
     );
@@ -463,11 +536,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   Widget _buildInputField(String label, TextEditingController controller, bool isDark, {String? suffixText, Function(String)? onChanged}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4, right: 12),
+      padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4, right: 12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.white,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,9 +587,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

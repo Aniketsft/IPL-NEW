@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 55;
+  static const _databaseVersion = 57;
 
 
   static const tableScans = 'tbl_scans';
@@ -843,6 +843,23 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v55: $e");
       }
     }
+    if (oldVersion < 56) {
+      debugPrint('DB Upgrade: Adding warehouseName column to sales invoice item stock details (v56)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN warehouseName TEXT DEFAULT ""');
+      } catch (e) {
+        debugPrint("Migration error v56: $e");
+      }
+    }
+    if (oldVersion < 57) {
+      debugPrint('DB Upgrade: Adding itemName and totalQty to sales invoice item stock details (v57)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN itemName TEXT DEFAULT ""');
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN totalQty REAL DEFAULT 0.0');
+      } catch (e) {
+        debugPrint("Migration error v57: $e");
+      }
+    }
   }
 
 
@@ -850,10 +867,13 @@ class LocalDatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableSalesInvoiceItemStockDetails (
         itemCode TEXT,
+        itemName TEXT,
         lotNumber TEXT,
         warehouse TEXT,
+        warehouseName TEXT,
         location TEXT,
         locationType TEXT,
+        totalQty REAL,
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,

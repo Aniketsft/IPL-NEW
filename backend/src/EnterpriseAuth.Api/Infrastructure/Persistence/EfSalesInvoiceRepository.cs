@@ -54,14 +54,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SELECT 
                     LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
                     LTRIM(RTRIM(itm.ZFULLDES_0)) AS Name,
-                    COALESCE(stk.QTYSTU_0, 0) AS StockQty,
-                    LTRIM(RTRIM(stk.WRH_0)) AS Warehouse,
-                    LTRIM(RTRIM(itm.STU_0)) AS StockUnit
+                    LTRIM(RTRIM(itm.STU_0)) AS StockUnit,
+                    SUM(COALESCE(stk.QTYSTU_0, 0)) AS StockQty
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC stk 
                     ON itm.ITMREF_0 = stk.ITMREF_0
                 WHERE 
-                    itm.ITMSTA_0 = 1;";
+                    itm.ITMSTA_0 = 1
+                GROUP BY 
+                    LTRIM(RTRIM(itm.ITMREF_0)),
+                    LTRIM(RTRIM(itm.ZFULLDES_0)),
+                    LTRIM(RTRIM(itm.STU_0));";
 
             return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { sitecode });
         }
@@ -71,13 +74,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(F0.ITMREF_0)) AS ItemCode,
-                    LTRIM(RTRIM(F0.LOT_0)) AS LotNumber,
-                    LTRIM(RTRIM(F1.LOC_0)) AS Location,
-                    LTRIM(RTRIM(F1.WRH_0)) AS Warehouse
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT F0
-                JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC F1 
-                    ON F0.ITMREF_0 = F1.ITMREF_0";
+                    LTRIM(RTRIM(zlw.WAREHOUSE_0)) AS Warehouse, 
+                    LTRIM(RTRIM(zlw.WRHNAM_0)) AS WarehouseName, 
+                    LTRIM(RTRIM(zlw.LOCATION_0)) AS Location, 
+                    LTRIM(RTRIM(zlw.LOCTYPNAM_0)) AS LocationType,
+                    LTRIM(RTRIM(itm.ITMREF_0)) AS ItemCode,
+                    LTRIM(RTRIM(itm.ITMDES1_0)) AS ItemName,  
+                    SUM(COALESCE(stk.QTYSTU_0, 0)) AS TotalQty,
+                    LTRIM(RTRIM(stk.LOT_0)) AS LotNumber
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC zsbl 
+                    ON itm.ITMREF_0 = zsbl.ITMREF_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw 
+                    ON zsbl.WRH_0 = zlw.WAREHOUSE_0 AND zsbl.LOC_0 = zlw.LOCATION_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
+                    ON zsbl.WRH_0 = stk.STOFCY_0 AND zsbl.LOC_0 = stk.LOC_0 AND zsbl.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
+                    ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
+                WHERE itm.ITMSTA_0 = 1
+                GROUP BY 
+                    zlw.WAREHOUSE_0, zlw.WRHNAM_0, zlw.LOCATION_0, zlw.LOCTYPNAM_0,
+                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0
+                ORDER BY 
+                    zlw.WAREHOUSE_0, itm.ITMREF_0, stk.LOT_0";
 
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql);
         }

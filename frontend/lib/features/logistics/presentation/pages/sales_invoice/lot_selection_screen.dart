@@ -4,8 +4,9 @@ import '../../../data/local/local_database_helper.dart';
 
 class LotSelectionScreen extends StatefulWidget {
   final String itemCode;
+  final String stockUnit;
 
-  const LotSelectionScreen({super.key, required this.itemCode});
+  const LotSelectionScreen({super.key, required this.itemCode, required this.stockUnit});
 
   @override
   State<LotSelectionScreen> createState() => _LotSelectionScreenState();
@@ -160,60 +161,62 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'LOT NUMBER',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey[400],
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        lot.lotNumber.isNotEmpty ? lot.lotNumber : 'N/A',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'LOT NUMBER',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueGrey[400],
+                    letterSpacing: 0.5,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.warehouse_outlined, size: 14, color: Colors.blueGrey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        lot.warehouse.isNotEmpty ? lot.warehouse : 'N/A',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey[600],
+                Flexible(
+                  child: Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warehouse_outlined, size: 14, color: Colors.blueGrey[600]),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            lot.warehouseName.isNotEmpty 
+                                ? '${lot.warehouse} - ${lot.warehouseName}' 
+                                : (lot.warehouse.isNotEmpty ? lot.warehouse : 'N/A'),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              lot.lotNumber.isNotEmpty ? lot.lotNumber : 'N/A',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
@@ -233,16 +236,11 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
                         lot.location.isNotEmpty ? lot.location : 'N/A',
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDark ? Colors.grey[400] : Colors.blueGrey[700],
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey[300] : Colors.blueGrey[800],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                      const SizedBox(height: 12),
                       Text(
                         'TYPE',
                         style: TextStyle(
@@ -258,6 +256,37 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           color: isDark ? Colors.grey[400] : Colors.blueGrey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.primaryColor.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'QUANTITY',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: theme.primaryColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${lot.totalQty.toInt()} ${widget.stockUnit}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: theme.primaryColor,
                         ),
                       ),
                     ],

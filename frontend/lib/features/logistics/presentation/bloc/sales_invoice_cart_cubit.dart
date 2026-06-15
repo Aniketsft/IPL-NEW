@@ -9,7 +9,9 @@ class CartItem extends Equatable {
   final int quantity;
   final String lotNumber;
   final String warehouse;
+  final String warehouseName;
   final String location;
+  final String locationType;
   final double basePrice;
   final double discountPercent;
   final double vatRatePercent;
@@ -19,7 +21,9 @@ class CartItem extends Equatable {
     required this.quantity,
     this.lotNumber = '',
     this.warehouse = '',
+    this.warehouseName = '',
     this.location = '',
+    this.locationType = '',
     required this.basePrice,
     this.discountPercent = 0.0,
     this.vatRatePercent = 0.0,
@@ -35,7 +39,9 @@ class CartItem extends Equatable {
     int? quantity,
     String? lotNumber,
     String? warehouse,
+    String? warehouseName,
     String? location,
+    String? locationType,
     double? basePrice,
     double? discountPercent,
     double? vatRatePercent,
@@ -45,7 +51,9 @@ class CartItem extends Equatable {
       quantity: quantity ?? this.quantity,
       lotNumber: lotNumber ?? this.lotNumber,
       warehouse: warehouse ?? this.warehouse,
+      warehouseName: warehouseName ?? this.warehouseName,
       location: location ?? this.location,
+      locationType: locationType ?? this.locationType,
       basePrice: basePrice ?? this.basePrice,
       discountPercent: discountPercent ?? this.discountPercent,
       vatRatePercent: vatRatePercent ?? this.vatRatePercent,
@@ -58,7 +66,9 @@ class CartItem extends Equatable {
         quantity,
         lotNumber,
         warehouse,
+        warehouseName,
         location,
+        locationType,
         basePrice,
         discountPercent,
         vatRatePercent,
