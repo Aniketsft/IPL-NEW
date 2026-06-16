@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
+import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
-
 class InvoicePreviewScreen extends StatelessWidget {
   final String invoiceId;
   final Map<String, dynamic> customer;
@@ -36,21 +36,20 @@ class InvoicePreviewScreen extends StatelessWidget {
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Invoice Preview'),
-        centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Printing via Bluetooth...')),
-              );
-            },
-            child: const Text('Print', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+    return IndustrialModuleLayout(
+      title: 'Invoice Preview',
+      showHome: false,
+      extraActions: [
+        IconButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Printing via Bluetooth...')),
+            );
+          },
+          icon: Icon(Icons.print_rounded, color: Theme.of(context).primaryColor),
+          tooltip: 'Print',
+        ),
+      ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -74,8 +73,9 @@ class InvoicePreviewScreen extends StatelessWidget {
                         Text(
                           'INVOICE NUMBER',
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: isDark ? Colors.white54 : Colors.grey[600],
                             fontSize: 10,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -90,8 +90,9 @@ class InvoicePreviewScreen extends StatelessWidget {
                         Text(
                           'DATE',
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: isDark ? Colors.white54 : Colors.grey[600],
                             fontSize: 10,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -105,7 +106,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: paymentStatus == 'PAID'
-                            ? Colors.teal
+                            ? Colors.green
                             : Colors.orange,
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -153,7 +154,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                 ),
                 title: Text(
                   'BILLED TO',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                  style: TextStyle(color: isDark ? Colors.white54 : Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
                   customer['name']?.toString() ?? 'Unknown Customer',
@@ -244,7 +245,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                   children: [
                     Text(
                       'PAYMENT METHOD',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                      style: TextStyle(color: isDark ? Colors.white54 : Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -274,7 +275,7 @@ class InvoicePreviewScreen extends StatelessWidget {
             // Summary
             Card(
               elevation: 0,
-              color: Colors.grey.withOpacity(0.1),
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -298,7 +299,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                       children: [
                         Text(
                           'Discount',
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600]),
                         ),
                         Text(
                           '-${currencyFormat.format(discountAmount)}',
@@ -310,7 +311,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('VAT', style: TextStyle(color: Colors.grey[600])),
+                        Text('VAT', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
                         Text(currencyFormat.format(vatAmount)),
                       ],
                     ),
@@ -352,8 +353,10 @@ class InvoicePreviewScreen extends StatelessWidget {
             children: [
               OutlinedButton.icon(
                 onPressed: () {
-                  // Navigate back to customer list
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  // Navigate back to the Select Transaction screen
+                  Navigator.of(context).popUntil(
+                    (route) => route.settings.name == '/sales' || route.isFirst,
+                  );
                 },
                 icon: const Icon(Icons.dashboard),
                 label: const Text('CLOSE & RETURN'),

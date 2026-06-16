@@ -16,7 +16,10 @@ class OrderSummaryScreen extends StatefulWidget {
 }
 
 class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
-  final _currencyFormat = NumberFormat.currency(customPattern: "'Rs ' #,##0.00", decimalDigits: 2);
+  final _currencyFormat = NumberFormat.currency(
+    customPattern: "'Rs ' #,##0.00",
+    decimalDigits: 2,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +68,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final item = cartState.items[index];
-                            return _buildLineItemCard(context, item, index, isDark);
+                            return _buildLineItemCard(
+                              context,
+                              item,
+                              index,
+                              isDark,
+                            );
                           },
                         ),
 
@@ -144,7 +152,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const PaymentProcessingScreen(),
+                                      builder: (context) =>
+                                          const PaymentProcessingScreen(),
                                     ),
                                   );
                                 },
@@ -171,47 +180,6 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: cartState.items.isEmpty
-                              ? null
-                              : () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => InvoicePreviewScreen(
-                                        invoiceId: 'DRAFT',
-                                        customer: cartState.customer ?? {'name': 'Unknown Customer'},
-                                        subtotal: cartState.subtotal,
-                                        discountAmount: cartState.totalDiscount,
-                                        vatAmount: cartState.totalVat,
-                                        grandTotal: cartState.grandTotal,
-                                        paymentMethod: 'N/A',
-                                        paymentStatus: 'PENDING',
-                                        items: cartState.items,
-                                      ),
-                                    ),
-                                  );
-                                },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey[400]!),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          child: Text(
-                            'Preview Invoice',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: cartState.items.isEmpty ? Colors.grey : theme.primaryColor,
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -223,7 +191,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     );
   }
 
-  Widget _buildLineItemCard(BuildContext context, CartItem item, int index, bool isDark) {
+  Widget _buildLineItemCard(
+    BuildContext context,
+    CartItem item,
+    int index,
+    bool isDark,
+  ) {
     final theme = Theme.of(context);
     return Material(
       color: isDark ? Colors.grey[900] : Colors.white,
@@ -251,7 +224,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('Remove Product'),
-              content: Text('Are you sure you want to remove ${item.product.name} from the order?'),
+              content: Text(
+                'Are you sure you want to remove ${item.product.name} from the order?',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -262,7 +237,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     context.read<SalesInvoiceCartCubit>().removeItem(index);
                     Navigator.pop(ctx);
                   },
-                  child: const Text('REMOVE', style: TextStyle(color: Colors.red)),
+                  child: const Text(
+                    'REMOVE',
+                    style: TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
             ),
@@ -273,94 +251,105 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  item.product.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.product.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  const SizedBox(width: 8),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: _currencyFormat.format(item.basePrice),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        TextSpan(
+                          text:
+                              ' /${item.product.stockUnit.isNotEmpty ? item.product.stockUnit : 'ea'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: _currencyFormat.format(item.basePrice),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+              const SizedBox(height: 4),
+              Text(
+                'SKU: ${item.product.sku}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Qty: ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        TextSpan(
+                          text: '${item.quantity}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
-                    TextSpan(
-                      text:
-                          ' /${item.product.stockUnit.isNotEmpty ? item.product.stockUnit : 'ea'}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Total: ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        TextSpan(
+                          text: _currencyFormat.format(item.total),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            'SKU: ${item.product.sku}',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Qty: ',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                    TextSpan(
-                      text: '${item.quantity}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Total: ',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
-                    TextSpan(
-                      text: _currencyFormat.format(item.total),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: theme.primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
-    )));
+    );
   }
 
   Widget _buildCalculationCard(

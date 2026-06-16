@@ -14,6 +14,7 @@ class IndustrialModuleLayout extends StatelessWidget {
   final bool showLogout;
   final bool showPlantName;
   final bool showHome;
+  final Widget? bottomNavigationBar;
 
   const IndustrialModuleLayout({
     super.key,
@@ -24,6 +25,7 @@ class IndustrialModuleLayout extends StatelessWidget {
     this.showLogout = false,
     this.showPlantName = false,
     this.showHome = true,
+    this.bottomNavigationBar,
   });
 
   @override
@@ -112,6 +114,7 @@ class IndustrialModuleLayout extends StatelessWidget {
               ),
               body: body,
               floatingActionButton: isSyncing ? null : floatingActionButton,
+              bottomNavigationBar: bottomNavigationBar,
             );
 
             return PopScope(

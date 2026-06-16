@@ -358,7 +358,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   (screen != null
                       ? () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => screen),
+                          MaterialPageRoute(
+                            builder: (_) => screen,
+                            settings: RouteSettings(
+                              name: '/${title.toLowerCase().replaceAll(' ', '_')}',
+                            ),
+                          ),
                         )
                       : null)),
         borderRadius: BorderRadius.circular(12),
