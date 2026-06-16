@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'invoice_preview_screen.dart';
 
 class PaymentEntry {
@@ -225,6 +227,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final invoiceId =
           'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
+      // Fetch audit details
+      final secureStorage = SecureStorageService();
+      final username = await secureStorage.getUsername() ?? 'Unknown User';
+      final deviceId = DeviceInfoService.instance.deviceInfo;
+      final appVersion = '1.0.0';
+
       // Determine main invoice status
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
@@ -240,6 +248,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'createdAt': DateTime.now().toIso8601String(),
         'status': mainStatus,
         'isSynced': 0,
+        'transactionType': 'INVOICE',
+        'createdByUserId': username,
+        'createdByUserName': username,
+        'deviceId': deviceId,
+        'appVersion': appVersion,
       });
 
       // 2. Insert Lines

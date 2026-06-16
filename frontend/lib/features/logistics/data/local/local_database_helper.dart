@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 60;
+  static const _databaseVersion = 61;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -1061,6 +1061,19 @@ class LocalDatabaseHelper {
         }
       }
     }
+    
+    if (oldVersion < 61) {
+      debugPrint('DB Upgrade: Adding audit fields to tbl_si_invoices (v61)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN transactionType TEXT DEFAULT "INVOICE"');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN createdByUserId TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN createdByUserName TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN deviceId TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN appVersion TEXT');
+      } catch (e) {
+        debugPrint("Migration error v61: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1135,7 +1148,12 @@ class LocalDatabaseHelper {
         grandTotal REAL,
         createdAt TEXT,
         status TEXT,
-        isSynced INTEGER DEFAULT 0
+        isSynced INTEGER DEFAULT 0,
+        transactionType TEXT DEFAULT 'INVOICE',
+        createdByUserId TEXT,
+        createdByUserName TEXT,
+        deviceId TEXT,
+        appVersion TEXT
       )
     ''');
 

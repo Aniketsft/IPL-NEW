@@ -69,7 +69,7 @@ class SelectTransactionScreen extends StatelessWidget {
               description: 'Standard customer billing and sales processing.',
               icon: Icons.receipt_long_rounded,
               color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Invoice'),
+              onTap: () => _showActionPrompt(context, 'Invoice', 'INVOICE'),
             ),
             const SizedBox(height: 16),
             _buildTransactionCard(
@@ -78,7 +78,7 @@ class SelectTransactionScreen extends StatelessWidget {
               description: 'Issue credit for overpayments or adjustments.',
               icon: Icons.description_rounded,
               color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Credit Note'),
+              onTap: () => _showActionPrompt(context, 'Credit Note', 'CREDIT_NOTE'),
             ),
             const SizedBox(height: 16),
             _buildTransactionCard(
@@ -87,7 +87,7 @@ class SelectTransactionScreen extends StatelessWidget {
               description: 'Process inventory returns and customer refunds.',
               icon: Icons.assignment_return_rounded,
               color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Customer Return'),
+              onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
             ),
           ],
         ),
@@ -174,7 +174,7 @@ class SelectTransactionScreen extends StatelessWidget {
     );
   }
 
-  void _showActionPrompt(BuildContext context, String transactionType) {
+  void _showActionPrompt(BuildContext context, String title, String txType) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -195,7 +195,7 @@ class SelectTransactionScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                   child: Text(
-                    transactionType,
+                    title,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -224,7 +224,7 @@ class SelectTransactionScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => TransactionHistoryScreen(
-                          transactionType: transactionType,
+                          transactionType: txType,
                         ),
                       ),
                     );
