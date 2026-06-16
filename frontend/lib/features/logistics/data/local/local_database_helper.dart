@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 59;
+  static const _databaseVersion = 60;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -38,6 +38,9 @@ class LocalDatabaseHelper {
   static const tableSalesInvoiceItemStockDetails = 'tbl_si_item_stock_details';
   static const tableTaxMatrix = 'tbl_tax_matrix';
   static const tableTaxRates = 'tbl_tax_rates';
+  static const tableSiInvoices = 'tbl_si_invoices';
+  static const tableSiInvoiceLines = 'tbl_si_invoice_lines';
+  static const tableSiPayments = 'tbl_si_payments';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -209,6 +212,48 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 60) {
+      debugPrint('DB Upgrade: Creating Invoice and Payment tables (v60)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiInvoices (
+          invoiceId TEXT PRIMARY KEY,
+          customerCode TEXT,
+          customerName TEXT,
+          totalVat REAL,
+          totalDiscount REAL,
+          grandTotal REAL,
+          createdAt TEXT,
+          status TEXT,
+          isSynced INTEGER DEFAULT 0
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiInvoiceLines (
+          lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoiceId TEXT,
+          sku TEXT,
+          name TEXT,
+          quantity REAL,
+          basePrice REAL,
+          discountAmount REAL,
+          vatAmount REAL,
+          total REAL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiPayments (
+          paymentId INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoiceId TEXT,
+          method TEXT,
+          amount REAL,
+          bankCode TEXT,
+          bankName TEXT,
+          chequeNumber TEXT,
+          chequeDate TEXT,
+          qrTransactionRef TEXT
+        )
+      ''');
+    }
     if (oldVersion < 59) {
       debugPrint('DB Upgrade: Adding outstandingBalance to tbl_si_customers (v59)');
       try {
@@ -1077,6 +1122,48 @@ class LocalDatabaseHelper {
         $colTaxRateTaxCode TEXT PRIMARY KEY,
         $colTaxRateDescription TEXT,
         $colTaxRatePercent REAL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiInvoices (
+        invoiceId TEXT PRIMARY KEY,
+        customerCode TEXT,
+        customerName TEXT,
+        totalVat REAL,
+        totalDiscount REAL,
+        grandTotal REAL,
+        createdAt TEXT,
+        status TEXT,
+        isSynced INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiInvoiceLines (
+        lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoiceId TEXT,
+        sku TEXT,
+        name TEXT,
+        quantity REAL,
+        basePrice REAL,
+        discountAmount REAL,
+        vatAmount REAL,
+        total REAL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiPayments (
+        paymentId INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoiceId TEXT,
+        method TEXT,
+        amount REAL,
+        bankCode TEXT,
+        bankName TEXT,
+        chequeNumber TEXT,
+        chequeDate TEXT,
+        qrTransactionRef TEXT
       )
     ''');
 

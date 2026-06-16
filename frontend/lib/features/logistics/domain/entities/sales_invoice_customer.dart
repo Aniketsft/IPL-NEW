@@ -21,7 +21,7 @@ class SalesInvoiceCustomer {
       name: json['name'] ?? '',
       paymentTerm: json['paymentTerm'],
       creditLimit: json['creditLimit'] != null ? (json['creditLimit'] as num).toDouble() : null,
-      statusFlag: json['statusFlag'],
+      statusFlag: json['statusFlag'] != null ? int.tryParse(json['statusFlag'].toString()) : null,
       isSynced: json['isSynced'] ?? 1,
     );
   }

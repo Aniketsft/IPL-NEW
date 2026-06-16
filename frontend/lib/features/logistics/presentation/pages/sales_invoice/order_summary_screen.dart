@@ -5,6 +5,8 @@ import '../../../../../core/widgets/industrial_module_layout.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
+import 'payment_processing_screen.dart';
+import 'invoice_preview_screen.dart';
 
 class OrderSummaryScreen extends StatefulWidget {
   const OrderSummaryScreen({super.key});
@@ -136,9 +138,16 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            // Confirm logic here
-                          },
+                          onPressed: cartState.items.isEmpty
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const PaymentProcessingScreen(),
+                                    ),
+                                  );
+                                },
                           icon: const Icon(
                             Icons.check_circle,
                             color: Colors.white,
@@ -167,9 +176,26 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                         width: double.infinity,
                         height: 48,
                         child: OutlinedButton(
-                          onPressed: () {
-                            // Save as Draft logic here
-                          },
+                          onPressed: cartState.items.isEmpty
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => InvoicePreviewScreen(
+                                        invoiceId: 'DRAFT',
+                                        customer: cartState.customer ?? {'name': 'Unknown Customer'},
+                                        subtotal: cartState.subtotal,
+                                        discountAmount: cartState.totalDiscount,
+                                        vatAmount: cartState.totalVat,
+                                        grandTotal: cartState.grandTotal,
+                                        paymentMethod: 'N/A',
+                                        paymentStatus: 'PENDING',
+                                        items: cartState.items,
+                                      ),
+                                    ),
+                                  );
+                                },
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: Colors.grey[400]!),
                             shape: RoundedRectangleBorder(
@@ -177,11 +203,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                             ),
                           ),
                           child: Text(
-                            'Save as Draft',
+                            'Preview Invoice',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: theme.primaryColor,
+                              color: cartState.items.isEmpty ? Colors.grey : theme.primaryColor,
                             ),
                           ),
                         ),
