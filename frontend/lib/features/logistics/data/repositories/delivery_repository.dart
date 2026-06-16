@@ -963,23 +963,8 @@ class DeliveryRepository implements ILogisticsRepository {
         debugPrint("Sync: ${shipmentUpdates.length} shipment preparation updates marked as synced after refresh.");
       }
 
-      // Fetch Sales Invoice Customers (Standalone table, not part of compute because it's a separate API endpoint)
-      try {
-        final siResponse = await _dio.get('SalesInvoice/customers');
-        final siCustomers = siResponse.data as List<dynamic>? ?? [];
-        await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
-        counts['salesInvoiceCustomers'] = siCustomers.length;
-      } catch (e) {
-        debugPrint('Failed to sync sales invoice customers: $e');
-      }
-
-      // Fetch Sales Invoice Products
-      try {
-        await SalesInvoiceProductRepository(_networkService).syncSalesInvoiceProducts(activeSite);
-        await SalesInvoiceProductRepository(_networkService).syncSalesInvoiceItemStockDetails();
-      } catch (e) {
-        debugPrint('Failed to sync sales invoice products or stock details: $e');
-      }
+      // Sales Invoice sync logic (Customers, Products, ItemStockDetails) has been decoupled
+      // and moved to a dedicated Sales Invoice sync flow.
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
       final syncedScans = await LocalDatabaseHelper.instance.database.then(

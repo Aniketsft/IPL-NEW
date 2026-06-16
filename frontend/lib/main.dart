@@ -26,6 +26,10 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchr
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/set_preparation_status_use_case.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchronize_sales_invoice_use_case.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
@@ -71,6 +75,17 @@ class MyApp extends StatelessWidget {
             storageService: context.read<SecureStorageService>(),
           ),
         ),
+        RepositoryProvider(
+          create: (context) => SalesInvoiceProductRepository(
+            context.read<NetworkService>(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => SalesInvoiceSyncRepository(
+            networkService: context.read<NetworkService>(),
+            productRepository: context.read<SalesInvoiceProductRepository>(),
+          ),
+        ),
         RepositoryProvider(create: (_) => LocalRepository()),
         RepositoryProvider(
           create: (context) => SyncManager(
@@ -107,6 +122,11 @@ class MyApp extends StatelessWidget {
         RepositoryProvider(
           create: (context) => SetPreparationStatusUseCase(
             context.read<enterprise_auth_mobile_repo.DeliveryRepository>(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => SynchronizeSalesInvoiceUseCase(
+            context.read<SalesInvoiceSyncRepository>(),
           ),
         ),
       ],
@@ -150,6 +170,11 @@ class MyApp extends StatelessWidget {
             create: (context) => SyncBloc(
               synchronizeLogisticsUseCase:
                   context.read<SynchronizeLogisticsUseCase>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => SalesInvoiceSyncBloc(
+              synchronizeSalesInvoiceUseCase: context.read<SynchronizeSalesInvoiceUseCase>(),
             ),
           ),
           BlocProvider(create: (_) => SalesInvoiceCartCubit()),

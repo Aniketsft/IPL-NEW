@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../bloc/sales_invoice_sync_bloc.dart';
+import '../../bloc/sales_invoice_sync_event.dart';
+import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
 class SelectTransactionScreen extends StatelessWidget {
@@ -15,9 +21,27 @@ class SelectTransactionScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return IndustrialModuleLayout(
-      title: 'Select Transaction',
-      body: Padding(
+    return Stack(
+      children: [
+        IndustrialModuleLayout(
+          title: 'Select Transaction',
+          extraActions: [
+            IconButton(
+              icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
+              tooltip: 'Sync Sales Data',
+              onPressed: () {
+                final authState = context.read<AuthBloc>().state;
+                if (authState is Authenticated) {
+                  // TEMPORARY BYPASS: Use 'ALL' if site code is missing, so sync can proceed for testing.
+                  final siteCode = authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
+                  context.read<SalesInvoiceSyncBloc>().add(
+                        StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                      );
+                }
+              },
+            ),
+          ],
+          body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,7 +92,10 @@ class SelectTransactionScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+    const SalesInvoiceSyncOverlay(),
+  ],
+);
   }
 
   Widget _buildTransactionCard({
