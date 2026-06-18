@@ -7,21 +7,21 @@ import '../../../../../core/widgets/filter_input_widgets.dart';
 import '../../../../../core/widgets/standard_filter.dart';
 import '../../../../../core/widgets/search_picker_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/sales_invoice_cart_cubit.dart';
 import 'add_item_detail_screen.dart';
 
 class SalesInvoiceProductSelectionScreen extends StatefulWidget {
   final String siteCode; // passed from previous screens
 
-  const SalesInvoiceProductSelectionScreen({
-    super.key,
-    required this.siteCode,
-  });
+  const SalesInvoiceProductSelectionScreen({super.key, required this.siteCode});
 
   @override
-  State<SalesInvoiceProductSelectionScreen> createState() => _SalesInvoiceProductSelectionScreenState();
+  State<SalesInvoiceProductSelectionScreen> createState() =>
+      _SalesInvoiceProductSelectionScreenState();
 }
 
-class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProductSelectionScreen> {
+class _SalesInvoiceProductSelectionScreenState
+    extends State<SalesInvoiceProductSelectionScreen> {
   late SalesInvoiceProductRepository _repository;
   final TextEditingController _searchController = TextEditingController();
   String _stockFilter = 'in stock'; // Default to in stock as requested
@@ -43,7 +43,8 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       _loadMoreProducts();
     }
   }
@@ -87,7 +88,7 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final newProducts = await _repository.getSalesInvoiceProducts(
         warehouse: _selectedWarehouse,
@@ -96,7 +97,7 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
         limit: _limit,
         offset: _offset,
       );
-      
+
       setState(() {
         _offset += newProducts.length;
         _products.addAll(newProducts);
@@ -126,7 +127,8 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
             onApply: _resetAndFetch,
             searchController: _searchController,
             onSearchChanged: (val) => _resetAndFetch(),
-            hasActiveFilters: _selectedWarehouse != null || _stockFilter != 'all',
+            hasActiveFilters:
+                _selectedWarehouse != null || _stockFilter != 'all',
             onReset: () {
               setState(() {
                 _searchController.clear();
@@ -147,7 +149,9 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
                         onTap: () => SearchPickerSheet.show(
                           context: context,
                           title: 'Warehouse',
-                          items: _warehouses.map((w) => {'code': w, 'name': 'Warehouse $w'}).toList(),
+                          items: _warehouses
+                              .map((w) => {'code': w, 'name': 'Warehouse $w'})
+                              .toList(),
                           onSelected: (code) {
                             setState(() => _selectedWarehouse = code);
                             setModalState(() {});
@@ -175,34 +179,48 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
             child: _products.isEmpty && _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _products.isEmpty
-                    ? const Center(child: Text('No products found.'))
-                    : ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _products.length + (_hasMore ? 1 : 0),
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          if (index == _products.length) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-                          final product = _products[index];
-                          return _buildProductCard(context, product, isDark);
-                        },
-                      ),
+                ? const Center(child: Text('No products found.'))
+                : ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _products.length + (_hasMore ? 1 : 0),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == _products.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      final product = _products[index];
+                      return _buildProductCard(context, product, isDark);
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, SalesInvoiceProductModel product, bool isDark) {
-    final isInStock = product.stockQty > 0;
-    
+  Widget _buildProductCard(
+    BuildContext context,
+    SalesInvoiceProductModel product,
+    bool isDark,
+  ) {
+    final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
+    double cartQty = 0;
+    for (var item in cartItems) {
+      if (item.product.sku == product.sku) {
+        cartQty += item.quantity;
+      }
+    }
+
+    final actualStock = product.stockQty - cartQty;
+    final isInStock = actualStock > 0;
+
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -217,101 +235,116 @@ class _SalesInvoiceProductSelectionScreenState extends State<SalesInvoiceProduct
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withValues(alpha:0.2)),
-        boxShadow: isDark ? [] : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          )
-        ],
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  product.sku,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '${product.stockQty.toStringAsFixed(0)} ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+                ],
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    product.sku,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
-                    TextSpan(
-                      text: product.stockUnit.isNotEmpty ? product.stockUnit : 'units',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      ),
-                    ),
-                  ],
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            product.name,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+                const SizedBox(width: 8),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${actualStock.toStringAsFixed(0)} ',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      TextSpan(
+                        text: product.salesUnit.isNotEmpty
+                            ? product.salesUnit
+                            : 'units',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isInStock ? Theme.of(context).primaryColor.withValues(alpha:0.1) : Colors.red.withValues(alpha:0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isInStock ? Icons.check_circle_outline : Icons.error_outline,
-                      size: 14,
-                      color: isInStock ? Theme.of(context).primaryColor : Colors.red[700],
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isInStock ? 'In Stock' : 'Out of Stock',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isInStock ? Theme.of(context).primaryColor : Colors.red[700],
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 8),
+            Text(
+              product.name,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isInStock
+                        ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isInStock
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        size: 14,
+                        color: isInStock
+                            ? Theme.of(context).primaryColor
+                            : Colors.red[700],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isInStock ? 'In Stock' : 'Out of Stock',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isInStock
+                              ? Theme.of(context).primaryColor
+                              : Colors.red[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

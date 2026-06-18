@@ -5,7 +5,7 @@ class SynchronizeSalesInvoiceUseCase {
 
   SynchronizeSalesInvoiceUseCase(this._repository);
 
-  Future<void> execute({required String siteCode}) async {
+  Future<SyncBatchResult> execute({required String siteCode}) async {
     return await _repository.synchronizeSalesInvoiceData(siteCode);
   }
 }

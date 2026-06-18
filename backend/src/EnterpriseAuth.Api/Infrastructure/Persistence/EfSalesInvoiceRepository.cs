@@ -64,7 +64,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SELECT 
                     LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
                     LTRIM(RTRIM(itm.ZFULLDES_0)) AS Name,
-                    LTRIM(RTRIM(itm.STU_0)) AS StockUnit,
+                    LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit,
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS StockQty
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC stk 
@@ -74,7 +74,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
                     LTRIM(RTRIM(itm.ZFULLDES_0)),
-                    LTRIM(RTRIM(itm.STU_0));";
+                    LTRIM(RTRIM(itm.SAU_0));";
 
             return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { sitecode });
         }

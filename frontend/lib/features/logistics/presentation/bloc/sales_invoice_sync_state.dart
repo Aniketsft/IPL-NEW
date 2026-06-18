@@ -1,3 +1,5 @@
+import '../../data/repositories/sales_invoice_sync_repository.dart';
+
 abstract class SalesInvoiceSyncState {
   const SalesInvoiceSyncState();
 }
@@ -11,7 +13,8 @@ class SalesInvoiceSyncInProgress extends SalesInvoiceSyncState {
 
 class SalesInvoiceSyncSuccess extends SalesInvoiceSyncState {
   final String lastSyncTime;
-  const SalesInvoiceSyncSuccess(this.lastSyncTime);
+  final SyncBatchResult batchResult;
+  const SalesInvoiceSyncSuccess(this.lastSyncTime, this.batchResult);
 }
 
 class SalesInvoiceSyncFailure extends SalesInvoiceSyncState {

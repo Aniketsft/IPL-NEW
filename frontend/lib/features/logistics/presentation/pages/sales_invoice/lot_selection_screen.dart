@@ -4,9 +4,9 @@ import '../../../data/local/local_database_helper.dart';
 
 class LotSelectionScreen extends StatefulWidget {
   final String itemCode;
-  final String stockUnit;
+  final String salesUnit;
 
-  const LotSelectionScreen({super.key, required this.itemCode, required this.stockUnit});
+  const LotSelectionScreen({super.key, required this.itemCode, required this.salesUnit});
 
   @override
   State<LotSelectionScreen> createState() => _LotSelectionScreenState();
@@ -282,7 +282,7 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${lot.totalQty.toInt()} ${widget.stockUnit}',
+                        '${lot.totalQty.toInt()} ${widget.salesUnit}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

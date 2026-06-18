@@ -34,12 +34,12 @@ class SalesInvoiceProductRepository {
     List<dynamic> whereArgs = [];
 
     if (warehouse != null && warehouse.isNotEmpty && warehouse != 'ALL') {
-      conditions.add('warehouse = ?');
+      conditions.add('S.warehouse = ?');
       whereArgs.add(warehouse);
     }
 
     if (query.isNotEmpty) {
-      conditions.add('(itemName LIKE ? OR itemCode LIKE ?)');
+      conditions.add('(S.itemName LIKE ? OR S.itemCode LIKE ?)');
       whereArgs.add('%$query%');
       whereArgs.add('%$query%');
     }
@@ -48,22 +48,26 @@ class SalesInvoiceProductRepository {
 
     String havingClause = '';
     if (stockFilter == 'in stock') {
-      havingClause = 'HAVING SUM(totalQty) > 0';
+      havingClause = 'HAVING stockQty > 0';
     } else if (stockFilter == 'out of stock') {
-      havingClause = 'HAVING SUM(totalQty) <= 0';
+      havingClause = 'HAVING stockQty <= 0';
     }
 
     final sql = '''
       SELECT 
-        itemCode AS sku, 
-        itemName AS name, 
-        SUM(totalQty) AS stockQty, 
-        MAX(warehouse) AS warehouse
-      FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}
+        S.itemCode AS sku, 
+        S.itemName AS name, 
+        (SUM(S.totalQty) - IFNULL(
+          (SELECT SUM(L.quantity) 
+           FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L 
+           JOIN ${LocalDatabaseHelper.tableSiInvoices} I ON L.invoiceId = I.invoiceId 
+           WHERE (I.isSynced = 0 OR I.isSynced IS NULL) AND L.sku = S.itemCode), 0)) AS stockQty, 
+        MAX(S.warehouse) AS warehouse
+      FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       $whereClause
-      GROUP BY itemCode, itemName
+      GROUP BY S.itemCode, S.itemName
       $havingClause
-      ORDER BY itemName
+      ORDER BY S.itemName
       LIMIT ? OFFSET ?
     ''';
 
@@ -77,7 +81,7 @@ class SalesInvoiceProductRepository {
       name: e['name'] as String,
       stockQty: (e['stockQty'] as num?)?.toDouble() ?? 0.0,
       warehouse: (e['warehouse'] as String?) ?? '',
-      stockUnit: 'EA', // Defaulted as it is aggregated
+      salesUnit: 'EA', // Defaulted as it is aggregated
     )).toList();
   }
 

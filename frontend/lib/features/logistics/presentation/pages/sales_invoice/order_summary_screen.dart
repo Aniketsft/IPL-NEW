@@ -281,7 +281,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                         ),
                         TextSpan(
                           text:
-                              ' /${item.product.stockUnit.isNotEmpty ? item.product.stockUnit : 'ea'}',
+                              ' /${item.product.salesUnit.isNotEmpty ? item.product.salesUnit : 'ea'}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[500],

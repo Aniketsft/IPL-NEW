@@ -4,6 +4,13 @@ import '../../../../../core/network_service.dart';
 import '../local/local_database_helper.dart';
 import 'sales_invoice_product_repository.dart';
 
+class SyncBatchResult {
+  final List<String> successes;
+  final List<String> failures;
+  final String? errorMessage;
+  SyncBatchResult({this.successes = const [], this.failures = const [], this.errorMessage});
+}
+
 class SalesInvoiceSyncRepository {
   final NetworkService _networkService;
   final SalesInvoiceProductRepository _productRepository;
@@ -16,23 +23,73 @@ class SalesInvoiceSyncRepository {
 
   Dio get _dio => _networkService.dio;
 
-  Future<void> synchronizeSalesInvoiceData(String siteCode) async {
+  Future<SyncBatchResult> synchronizeSalesInvoiceData(String siteCode) async {
     final stopwatch = Stopwatch()..start();
+    final List<String> successes = [];
+    final List<String> failures = [];
+
     try {
-      // 1. Fetch Sales Invoice Customers
+      // 1. Push Unsynced Sales Invoices
+      final unsyncedInvoices = await LocalDatabaseHelper.instance.getUnsyncedSalesInvoices();
+      debugPrint('Sync: Found ${unsyncedInvoices.length} unsynced Sales Invoices.');
+
+      for (final invoice in unsyncedInvoices) {
+        final invoiceId = invoice['invoiceId'] as String;
+        final lines = await LocalDatabaseHelper.instance.getSalesInvoiceLines(invoiceId);
+
+        try {
+          final payload = {
+            "invoiceId": invoiceId,
+            "salesSite": invoice['salesSite'] ?? siteCode,
+            "customerCode": invoice['customerCode'],
+            "pricingRule": invoice['pricingRule'] ?? 'DEFAULT',
+            "dueDate": invoice['dueDate'] ?? DateTime.now().toIso8601String(),
+            "createdAt": invoice['createdAt'] ?? DateTime.now().toIso8601String(),
+            "lines": lines.map((l) => {
+              "sku": l['sku'],
+              "name": l['name'],
+              "lineNo": l['lineId'],
+              "quantity": l['quantity'] ?? 0.0,
+              "basePrice": l['basePrice'] ?? 0.0,
+              "discountAmount": l['discountAmount'] ?? 0.0,
+              "vatAmount": l['vatAmount'] ?? 0.0
+            }).toList()
+          };
+
+          // POST to backend
+          final response = await _dio.post('SalesInvoice/sync', data: payload);
+          if (response.statusCode == 200 || response.statusCode == 201) {
+             await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
+             successes.add(invoiceId);
+          } else {
+             failures.add('$invoiceId: ${response.data}');
+          }
+        } catch (e) {
+          if (e is DioException && e.response?.statusCode == 400) {
+            // Include backend X3 error message directly
+            failures.add('$invoiceId: ${e.response?.data}');
+          } else {
+            failures.add('$invoiceId: Failed to sync ($e)');
+          }
+        }
+      }
+
+      // 2. Fetch Sales Invoice Customers
       final siResponse = await _dio.get('SalesInvoice/customers');
       final siCustomers = siResponse.data as List<dynamic>? ?? [];
       await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
       debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
 
-      // 2. Fetch Sales Invoice Item Stock Details
+      // 3. Fetch Sales Invoice Item Stock Details
       await _productRepository.syncSalesInvoiceItemStockDetails();
       
       final duration = stopwatch.elapsedMilliseconds;
       debugPrint('Sales Invoice Sync completed in ${duration}ms');
+      
+      return SyncBatchResult(successes: successes, failures: failures);
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
-      rethrow;
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
     }
   }
 }

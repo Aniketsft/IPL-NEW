@@ -23,9 +23,9 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
     emit(const SalesInvoiceSyncInProgress('Synchronizing Sales Invoice Data...'));
 
     try {
-      await _useCase.execute(siteCode: event.siteCode);
+      final batchResult = await _useCase.execute(siteCode: event.siteCode);
       final lastSync = DateTime.now().toString().substring(0, 16);
-      emit(SalesInvoiceSyncSuccess(lastSync));
+      emit(SalesInvoiceSyncSuccess(lastSync, batchResult));
     } catch (e) {
       emit(SalesInvoiceSyncFailure(e.toString()));
     }

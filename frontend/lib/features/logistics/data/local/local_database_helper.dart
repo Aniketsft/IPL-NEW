@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 61;
+  static const _databaseVersion = 62;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -57,7 +57,7 @@ class LocalDatabaseHelper {
   static const colSiProdName = 'name';
   static const colSiProdStockQty = 'stockQty';
   static const colSiProdWarehouse = 'warehouse';
-  static const colSiProdStockUnit = 'stockUnit';
+  static const colSiProdSalesUnit = 'salesUnit';
   static const colSiProdIsSynced = 'isSynced';
 
   // tbl_work_orders columns
@@ -212,6 +212,26 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 62) {
+      debugPrint('DB Upgrade: Adding missing columns to Sales Invoice tables (v62)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN salesSite TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN salesRep TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN pricingRule TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN dueDate TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN userName TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN createdBy TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN deviceId TEXT');
+      } catch (e) {
+        debugPrint("Migration error v62 (Invoices): $e");
+      }
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN lineNo INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v62 (InvoiceLines): $e");
+      }
+    }
+
     if (oldVersion < 60) {
       debugPrint('DB Upgrade: Creating Invoice and Payment tables (v60)');
       await db.execute('''
@@ -219,6 +239,13 @@ class LocalDatabaseHelper {
           invoiceId TEXT PRIMARY KEY,
           customerCode TEXT,
           customerName TEXT,
+          salesSite TEXT,
+          salesRep TEXT,
+          pricingRule TEXT,
+          dueDate TEXT,
+          userName TEXT,
+          createdBy TEXT,
+          deviceId TEXT,
           totalVat REAL,
           totalDiscount REAL,
           grandTotal REAL,
@@ -230,6 +257,7 @@ class LocalDatabaseHelper {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS $tableSiInvoiceLines (
           lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+          lineNo INTEGER DEFAULT 0,
           invoiceId TEXT,
           sku TEXT,
           name TEXT,
@@ -977,7 +1005,7 @@ class LocalDatabaseHelper {
       );
       try {
         await db.execute(
-          'ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN $colSiProdStockUnit TEXT',
+          'ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN $colSiProdSalesUnit TEXT',
         );
       } catch (e) {
         debugPrint("Migration error v54: $e");
@@ -1191,7 +1219,7 @@ class LocalDatabaseHelper {
         $colSiProdName TEXT NOT NULL,
         $colSiProdStockQty REAL,
         $colSiProdWarehouse TEXT,
-        $colSiProdStockUnit TEXT,
+        $colSiProdSalesUnit TEXT,
         $colSiProdIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -2635,6 +2663,37 @@ class LocalDatabaseHelper {
       orderBy: colName,
       limit: limit,
       offset: offset,
+    );
+  }
+
+  // --- Sales Invoice Sync Methods ---
+  
+  Future<List<Map<String, dynamic>>> getUnsyncedSalesInvoices() async {
+    final db = await database;
+    return await db.query(
+      tableSiInvoices,
+      where: 'isSynced = ? OR isSynced IS NULL',
+      whereArgs: [0],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getSalesInvoiceLines(String invoiceId) async {
+    final db = await database;
+    return await db.query(
+      tableSiInvoiceLines,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+      orderBy: 'lineId ASC',
+    );
+  }
+
+  Future<void> markSalesInvoiceSynced(String invoiceId) async {
+    final db = await database;
+    await db.update(
+      tableSiInvoices,
+      {'isSynced': 1},
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
     );
   }
 }

@@ -308,7 +308,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         MaterialPageRoute(
                           builder: (context) => LotSelectionScreen(
                             itemCode: widget.product.sku,
-                            stockUnit: widget.product.stockUnit,
+                            salesUnit: widget.product.salesUnit,
                           ),
                         ),
                       );

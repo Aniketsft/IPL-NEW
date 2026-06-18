@@ -93,9 +93,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     }
 
     // Overpayment check
-    if (amount > remaining && _selectedMethod != 'CASH') {
+    if (amount > remaining) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Overpayment is only allowed for CASH.')),
+        const SnackBar(
+          content: Text('Amount cannot exceed the remaining balance.'),
+        ),
       );
       return;
     }

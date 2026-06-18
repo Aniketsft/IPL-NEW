@@ -29,6 +29,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<X3SoapAudit> X3SoapAudits { get; set; }
         public DbSet<EodProcessAudit> EodProcessAudits { get; set; }
 
+        // --- SALES INVOICE STAGING ---
+        public DbSet<StagingSalesInvoiceHeader> StagingSalesInvoiceHeaders { get; set; }
+        public DbSet<StagingSalesInvoiceLine> StagingSalesInvoiceLines { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -153,7 +157,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                       .HasDatabaseName("IX_StagingEod_IsProcessed_WorkOrder");
             });
 
+            // StagingSalesInvoiceHeader
+            modelBuilder.Entity<StagingSalesInvoiceHeader>(entity =>
+            {
+                entity.HasKey(e => e.InvoiceId);
+                
+                entity.HasMany(e => e.Lines)
+                      .WithOne(e => e.Header)
+                      .HasForeignKey(e => e.InvoiceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
 
+            // StagingSalesInvoiceLine
+            modelBuilder.Entity<StagingSalesInvoiceLine>(entity =>
+            {
+                entity.HasKey(e => e.LineId);
+            });
         }
     }
 }

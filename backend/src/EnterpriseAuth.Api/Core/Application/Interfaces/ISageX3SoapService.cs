@@ -21,5 +21,10 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         /// Processes all pending Production EOD records in the StagingEod table.
         /// </summary>
         Task<EndOfDayResult> ProcessProductionEodAsync();
+
+        /// <summary>
+        /// Imports a single Sales Invoice (Header + Lines) into Sage X3 via AOWSIMPORT using the ZSIHWEBA template.
+        /// </summary>
+        Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice);
     }
 }

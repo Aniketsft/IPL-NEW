@@ -291,6 +291,114 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
+        public async Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice)
+        {
+            var result = new X3ImportResult { Identifier = invoice.InvoiceId };
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
+
+            try
+            {
+                // 1. Build the I_FILE content
+                var fileBuilder = new StringBuilder();
+
+                string invoiceDate = invoice.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd");
+                
+                // Format: yyyy-MM-dd to yyyyMMdd if necessary, but we'll assume it's clean or parse it.
+                // It's safer to just remove hyphens if they exist to match X3 expected "yyyyMMdd"
+                invoiceDate = invoiceDate.Replace("-", "").Replace(" ", "").Replace(":", "").Substring(0, 8);
+                string dueDate = (invoice.DueDate ?? "").Replace("-", "").Replace(" ", "").Replace(":", "").PadRight(8, ' ').Substring(0, 8).Trim();
+
+                // Ensure default values from plan
+                string site = string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite;
+                string pricingRule = string.IsNullOrWhiteSpace(invoice.PricingRule) ? "75.7" : invoice.PricingRule;
+
+                // Header Record: H;SalesSite;CustomerCode;InvoiceDate;PricingRule;DueDate|
+                fileBuilder.Append($"H;{site};{invoice.CustomerCode};{invoiceDate};{pricingRule};{dueDate}|");
+
+                // Line Records: L;LineNo;ProductCode;ProductDescription;SalesUnit;Quantity;BasePrice;DiscountAmount;VatAmount|
+                foreach (var line in invoice.Lines)
+                {
+                    string qty = line.Quantity.ToString("F3");
+                    string basePrice = line.BasePrice.ToString("F2");
+                    string discount = line.DiscountAmount.ToString("F2");
+                    string vat = line.VatAmount.ToString("F2");
+
+                    fileBuilder.Append($"L;{line.LineNo};{line.Sku};{line.Name};EA;{qty};{basePrice};{discount};{vat}|");
+                }
+
+                fileBuilder.Append("END");
+
+                // 2. Construct the JSON for the CDATA block
+                string iFile = fileBuilder.ToString();
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZSIHWEBA\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
+
+                // 3. Construct the SOAP Envelope
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
+         <callContext xsi:type=""wss:CAdxCallContext"">
+            <codeLang xsi:type=""xsd:string"">ENG</codeLang>
+            <poolAlias xsi:type=""xsd:string"">{_poolAlias}</poolAlias>
+            <poolId xsi:type=""xsd:string""></poolId>
+            <requestConfig xsi:type=""xsd:string""></requestConfig>
+         </callContext>
+         <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
+            <inputXml xsi:type=""xsd:string"">
+                  <![CDATA[{inputXmlJson}]]>
+          </inputXml>
+      </wss:run>
+   </soapenv:Body>
+</soapenv:Envelope>";
+
+                // 4. Send Request
+                Console.WriteLine("====== SAGE X3 SALES INVOICE SOAP REQUEST ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("================================================");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
+                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+                
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+
+                request.Headers.TryAddWithoutValidation("SOAPAction", "");
+                request.Headers.TryAddWithoutValidation("soapAction", "");
+
+                var response = await _httpClient.SendAsync(request);
+                responseXml = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    result.Success = false;
+                    result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportSalesInvoice", invoice.InvoiceId, soapEnvelope, responseXml, false, result.TechnicalError);
+                    return result;
+                }
+
+                // 5. Parse Response
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                
+                // For Sales Invoices, we trust O_STATUS >= 1
+                await InsertSoapAuditAsync("ImportSalesInvoice", invoice.InvoiceId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportSalesInvoice", invoice.InvoiceId, soapEnvelope, responseXml, false, ex.Message);
+                return result;
+            }
+        }
+
         public async Task<EndOfDayResult> ProcessProductionEodAsync()
         {
             var result = new EndOfDayResult();
