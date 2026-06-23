@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 67;
+  static const _databaseVersion = 68;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -212,6 +212,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 68) {
+      debugPrint('DB Upgrade: Adding cce0 to tbl_si_item_stock_details (v68)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN cce0 TEXT');
+      } catch (e) {
+        debugPrint("Migration error v68: $e");
+      }
+    }
+
     if (oldVersion < 67) {
       debugPrint('DB Upgrade: Adding transactionalId to SI tables (v67)');
       try {
@@ -1167,6 +1176,7 @@ class LocalDatabaseHelper {
         locationType TEXT,
         totalQty REAL,
         taxLevel TEXT,
+        cce0 TEXT,
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,

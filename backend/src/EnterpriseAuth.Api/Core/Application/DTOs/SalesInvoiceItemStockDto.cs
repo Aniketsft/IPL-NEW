@@ -11,5 +11,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string ItemName { get; set; }
         public double TotalQty { get; set; }
         public string TaxLevel { get; set; } = string.Empty;
+        public string Cce0 { get; set; } = string.Empty;
     }
 }

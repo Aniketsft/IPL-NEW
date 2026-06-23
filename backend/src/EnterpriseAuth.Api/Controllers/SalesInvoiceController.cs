@@ -82,7 +82,10 @@ namespace EnterpriseAuth.Api.Controllers
                 // 2. Sync to X3 using the strict MSSQL data source
                 var importResult = await _soapService.ImportSalesInvoiceAsync(stagingHeader);
 
-                if (importResult.Success)
+                bool isSuccess = importResult.Success || 
+                    (!string.IsNullOrEmpty(importResult.RawPayload) && importResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase));
+
+                if (isSuccess)
                 {
                     stagingHeader.IsProcessedByX3 = true;
                     if (!string.IsNullOrEmpty(importResult.DocumentId))
@@ -93,7 +96,7 @@ namespace EnterpriseAuth.Api.Controllers
                     
                     // 3. Commit exactly on success
                     await transaction.CommitAsync();
-                    return Ok(new { success = true, invoiceId = payload.InvoiceId, x3Request = importResult.RequestNumber, x3DocumentId = importResult.DocumentId });
+                    return Ok(new { success = true, invoiceId = payload.InvoiceId, x3Request = importResult.RequestNumber, x3DocumentId = importResult.DocumentId, rawPayload = importResult.RawPayload });
                 }
                 else
                 {
@@ -103,7 +106,7 @@ namespace EnterpriseAuth.Api.Controllers
                         ? importResult.TechnicalError 
                         : string.Join(" | ", importResult.Messages);
 
-                    return BadRequest(new { success = false, invoiceId = payload.InvoiceId, error = errorMsg });
+                    return BadRequest(new { success = false, invoiceId = payload.InvoiceId, error = errorMsg, rawPayload = importResult.RawPayload });
                 }
             }
             catch (Exception ex)

@@ -9,6 +9,7 @@ import '../../../../../core/widgets/search_picker_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import 'add_item_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SalesInvoiceProductSelectionScreen extends StatefulWidget {
   final String siteCode; // passed from previous screens
@@ -28,6 +29,7 @@ class _SalesInvoiceProductSelectionScreenState
   String? _selectedWarehouse;
   List<String> _warehouses = [];
   bool _isInit = false;
+  SharedPreferences? _prefs;
 
   List<SalesInvoiceProductModel> _products = [];
   bool _isLoading = false;
@@ -62,8 +64,21 @@ class _SalesInvoiceProductSelectionScreenState
     _repository = SalesInvoiceProductRepository(context.read<NetworkService>());
     if (!_isInit) {
       _isInit = true;
-      _loadWarehouses();
+      _initData();
     }
+  }
+
+  Future<void> _initData() async {
+    final prefs = await SharedPreferences.getInstance();
+    _prefs = prefs;
+    if (mounted) {
+      setState(() {
+        _searchController.text = prefs.getString('si_product_search') ?? '';
+        _stockFilter = prefs.getString('si_product_stock_filter') ?? 'in stock';
+        _selectedWarehouse = prefs.getString('si_product_warehouse');
+      });
+    }
+    _loadWarehouses();
   }
 
   Future<void> _loadWarehouses() async {
@@ -74,7 +89,20 @@ class _SalesInvoiceProductSelectionScreenState
     _resetAndFetch();
   }
 
+  void _savePrefs() {
+    if (_prefs != null) {
+      _prefs!.setString('si_product_search', _searchController.text);
+      _prefs!.setString('si_product_stock_filter', _stockFilter);
+      if (_selectedWarehouse != null) {
+        _prefs!.setString('si_product_warehouse', _selectedWarehouse!);
+      } else {
+        _prefs!.remove('si_product_warehouse');
+      }
+    }
+  }
+
   void _resetAndFetch() {
+    _savePrefs();
     setState(() {
       _products.clear();
       _offset = 0;

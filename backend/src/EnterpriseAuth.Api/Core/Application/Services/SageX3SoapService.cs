@@ -324,8 +324,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     string discount = line.DiscountAmount.ToString("F2");
                     string vat = line.VatAmount.ToString("F2");
 
-                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;LotNumber;BasePrice;DiscountAmount1;DiscountAmount2;DiscountAmount3;TaxRule;;VatAmount;;|
-                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{line.SalesUnit ?? "EA"};{qty};{line.LotNumber ?? ""};{basePrice};{discount};0.00;0.00;{line.TaxRule ?? ""};;{vat};;|");
+                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;LotNumber;BasePrice;DiscountAmount1;DiscountAmount2;DiscountAmount3;TaxRule;;;;Warehouse|
+                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{line.SalesUnit ?? "EA"};{qty};{line.LotNumber ?? ""};{basePrice};{discount};0.00;0.00;{line.TaxRule ?? ""};;;;{line.Warehouse ?? ""}|");
                     
                     // Analytical Record: A;DPT;Cce0|
                     fileBuilder.Append($"A;DPT;{line.Cce0 ?? ""}|");
@@ -695,6 +695,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         {
             try
             {
+                result.RawPayload = xml;
                 var doc = XDocument.Parse(xml);
                 
                 bool importSuccess = false;
@@ -729,9 +730,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                             if (fields.TryGetValue("O_MESSA", out var oMessa) && !string.IsNullOrWhiteSpace(oMessa))
                             {
-                                if (importSuccess && oMessa.Contains("Creation of "))
+                                if (oMessa.Contains("Creation of "))
                                 {
-                                    result.DocumentId = oMessa.Replace("Creation of ", "").Trim();
+                                    result.DocumentId = oMessa.Substring(oMessa.IndexOf("Creation of ")).Replace("Creation of ", "").Trim();
+                                    importSuccess = true; // Force import success if document was created
                                 }
                                 else
                                 {
@@ -750,15 +752,32 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var statusNode = doc.Descendants().FirstOrDefault(d => d.Name.LocalName == "status");
                 bool endpointSuccess = statusNode?.Value == "1";
 
-                // Success is true ONLY if the SOAP call completed successfully AND the Sage X3 import completed successfully
-                result.Success = endpointSuccess && importSuccess;
+                // 3. Extract all messages from multiRef blocks
+                var rawMessages = doc.Descendants().Where(d => d.Name.LocalName == "message").Select(m => m.Value).ToList();
+                
+                var creationMsg = rawMessages.FirstOrDefault(m => m != null && m.Contains("Creation of "));
+                if (creationMsg != null)
+                {
+                    result.DocumentId = creationMsg.Substring(creationMsg.IndexOf("Creation of ")).Replace("Creation of ", "").Trim();
+                    importSuccess = true; // Force success if document was created
+                }
 
-                // 3. Extract all messages from multiRef blocks (if any validation errors exist)
-                var messages = doc.Descendants().Where(d => d.Name.LocalName == "message")
-                                    .Select(m => m.Value)
-                                    .Where(m => !m.StartsWith("Creation of "))
+                // Filter out empty strings and creation confirmation messages
+                var errorMessages = rawMessages
+                                    .Where(m => !string.IsNullOrWhiteSpace(m) && !m.Contains("Creation of "))
                                     .ToList();
-                result.Messages.AddRange(messages);
+                
+                result.Messages.AddRange(errorMessages);
+
+                // 4. Final Success Evaluation: If DocumentId is populated, it's a success despite any endpoint warnings.
+                if (!string.IsNullOrEmpty(result.DocumentId))
+                {
+                    result.Success = true;
+                }
+                else
+                {
+                    result.Success = endpointSuccess && importSuccess;
+                }
 
                 return result;
             }

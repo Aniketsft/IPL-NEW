@@ -117,7 +117,7 @@ class TransactionHistoryRepository {
       'appVersion': transaction.auditMetadata.appVersion,
       'reference': transaction.id, // Links to original invoice
       'invoiceType': 'CREDIT_NOTE',
-      'isReversed': 0,
+      'isReversed': 1,
       'transactionalId': transaction.id,
     });
 

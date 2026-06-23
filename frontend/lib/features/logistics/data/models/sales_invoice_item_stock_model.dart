@@ -8,6 +8,7 @@ class SalesInvoiceItemStockModel {
   final String locationType;
   final double totalQty;
   final String taxLevel;
+  final String cce0;
   final int isSynced;
 
   SalesInvoiceItemStockModel({
@@ -20,6 +21,7 @@ class SalesInvoiceItemStockModel {
     this.locationType = '',
     this.totalQty = 0.0,
     this.taxLevel = '',
+    this.cce0 = '',
     this.isSynced = 1,
   });
 
@@ -33,6 +35,7 @@ class SalesInvoiceItemStockModel {
     String? locationType,
     double? totalQty,
     String? taxLevel,
+    String? cce0,
     int? isSynced,
   }) {
     return SalesInvoiceItemStockModel(
@@ -45,6 +48,7 @@ class SalesInvoiceItemStockModel {
       locationType: locationType ?? this.locationType,
       totalQty: totalQty ?? this.totalQty,
       taxLevel: taxLevel ?? this.taxLevel,
+      cce0: cce0 ?? this.cce0,
       isSynced: isSynced ?? this.isSynced,
     );
   }
@@ -60,6 +64,7 @@ class SalesInvoiceItemStockModel {
       locationType: (json['locationType'] ?? '').toString(),
       totalQty: (json['totalQty'] as num?)?.toDouble() ?? 0.0,
       taxLevel: (json['taxLevel'] ?? '').toString(),
+      cce0: (json['cce0'] ?? '').toString(),
     );
   }
 
@@ -74,6 +79,7 @@ class SalesInvoiceItemStockModel {
       locationType: map['locationType'] as String? ?? '',
       totalQty: (map['totalQty'] as num?)?.toDouble() ?? 0.0,
       taxLevel: map['taxLevel'] as String? ?? '',
+      cce0: map['cce0'] as String? ?? '',
       isSynced: map['isSynced'] as int? ?? 1,
     );
   }
@@ -89,6 +95,7 @@ class SalesInvoiceItemStockModel {
       'locationType': locationType,
       'totalQty': totalQty,
       'taxLevel': taxLevel,
+      'cce0': cce0,
       'isSynced': isSynced,
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

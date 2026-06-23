@@ -10,6 +10,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? DocumentId { get; set; } // X3 Document ID (e.g. DPMSI260627195)
         public List<string> Messages { get; set; } = new List<string>();
         public string? TechnicalError { get; set; }
+        public string? RawPayload { get; set; }
     }
 
     public class EndOfDayResult

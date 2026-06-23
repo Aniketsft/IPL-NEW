@@ -76,7 +76,20 @@ class SalesInvoiceSyncRepository {
         } catch (e) {
           if (e is DioException && e.response?.statusCode == 400) {
             // Include backend X3 error message directly
-            failures.add('$invoiceId: ${e.response?.data}');
+            final data = e.response?.data;
+            if (data is Map) {
+              final rawPayload = data['rawPayload']?.toString();
+              if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
+                await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
+                successes.add(invoiceId);
+              } else if (data.containsKey('error')) {
+                failures.add('$invoiceId: ${data['error']}');
+              } else {
+                failures.add('$invoiceId: $data');
+              }
+            } else {
+              failures.add('$invoiceId: $data');
+            }
           } else {
             failures.add('$invoiceId: Failed to sync ($e)');
           }

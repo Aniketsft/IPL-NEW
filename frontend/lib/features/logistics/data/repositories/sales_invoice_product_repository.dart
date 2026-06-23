@@ -72,7 +72,8 @@ class SalesInvoiceProductRepository {
         S.itemCode AS sku, 
         S.itemName AS name, 
         SUM(S.totalQty) AS stockQty, 
-        MAX(S.warehouse) AS warehouse
+        MAX(S.warehouse) AS warehouse,
+        MAX(S.cce0) AS cce0
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       $whereClause
       GROUP BY S.itemCode, S.itemName
@@ -94,8 +95,7 @@ class SalesInvoiceProductRepository {
             stockQty: (e['stockQty'] as num?)?.toDouble() ?? 0.0,
             warehouse: (e['warehouse'] as String?) ?? '',
             salesUnit: 'EA', // Defaulted as it is aggregated
-            cce0:
-                '', // Since this is a GROUP BY query on stock details and cce0 is in tbl_si_products, we might not have it here if not joined.
+            cce0: (e['cce0'] as String?) ?? '',
           ),
         )
         .toList();

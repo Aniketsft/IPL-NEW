@@ -30,9 +30,13 @@ class SalesInvoiceSyncOverlay extends StatelessWidget {
             final failures = syncState.batchResult.failures.length;
             
             message = "Sync Summary\nSuccesses: $successes | Failures: $failures";
+            details = [
+              ...syncState.batchResult.successes.map((s) => "Creation of $s successful"),
+              ...syncState.batchResult.failures.map((f) => "Failed: $f")
+            ];
+            
             if (failures > 0) {
               isError = true; // Show error icon if partial failure
-              details = syncState.batchResult.failures;
             } else {
               isSuccess = true;
             }
@@ -87,11 +91,17 @@ class SalesInvoiceSyncOverlay extends StatelessWidget {
                           shrinkWrap: true,
                           itemCount: details.length,
                           itemBuilder: (context, index) {
+                            final detail = details[index];
+                            final isItemSuccess = detail.endsWith('successful');
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4.0),
                               child: Text(
-                                details[index],
-                                style: const TextStyle(color: Colors.red, fontSize: 12),
+                                detail,
+                                style: TextStyle(
+                                  color: isItemSuccess ? Colors.green : Colors.red, 
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             );
                           },
