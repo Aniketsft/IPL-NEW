@@ -7,6 +7,8 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'invoice_preview_screen.dart';
 
 class PaymentEntry {
@@ -43,6 +45,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   String _selectedMethod =
       'CASH'; // 'CASH', 'CHEQUE', 'CREDIT', 'MYT MONEY', 'BLINK'
   final _amountController = TextEditingController();
+  final _referenceController = TextEditingController();
 
   // Dynamic Fields
   final _bankCodeController = TextEditingController();
@@ -239,6 +242,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
 
+      final authState = context.read<AuthBloc>().state;
+      final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
+      final selectedSite = cartState.site ?? fallbackSite;
+
       // 1. Insert Invoice
       batch.insert(LocalDatabaseHelper.tableSiInvoices, {
         'invoiceId': invoiceId,
@@ -255,9 +262,18 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'createdByUserName': username,
         'deviceId': deviceId,
         'appVersion': appVersion,
+        'reference': _referenceController.text.trim(),
+        'invoiceType': 'STD',
+        'salesSite': selectedSite,
+        'salesRep': username,
+        'pricingRule': '',
+        'dueDate': DateTime.now().toIso8601String(),
+        'userName': username,
+        'createdBy': username,
+        'transactionalId': invoiceId,
       });
 
-      // 2. Insert Lines
+      // 2. Insert Lines & Deduct Stock
       for (var item in cartState.items) {
         batch.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
           'invoiceId': invoiceId,
@@ -268,7 +284,23 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           'discountAmount': item.discountAmount,
           'vatAmount': item.vatAmount,
           'total': item.total,
+          'lotNumber': item.lotNumber,
+          'warehouse': item.warehouse,
+          'location': item.location,
+          'salesUnit': item.product.salesUnit,
+          'cce0': item.product.cce0,
+          'taxRule': item.taxRule,
         });
+
+        // Deduct from local stock to prevent overselling offline
+        batch.rawUpdate(
+          '''
+          UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+          SET totalQty = totalQty - ? 
+          WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+          ''',
+          [item.quantity, item.product.sku, item.lotNumber, item.warehouse, item.location],
+        );
       }
 
       // 3. Insert Payments
@@ -476,6 +508,24 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      const Text(
+                        'INVOICE DETAILS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _referenceController,
+                        decoration: InputDecoration(
+                          labelText: 'Reference Number (Optional)',
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.grey.withOpacity(0.05),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                       if (!isFullyPaid) ...[
                         const Text(
                           'ADD PAYMENT',

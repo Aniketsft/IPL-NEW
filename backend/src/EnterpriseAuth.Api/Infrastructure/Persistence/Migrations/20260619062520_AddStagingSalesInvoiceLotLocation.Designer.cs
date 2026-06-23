@@ -4,16 +4,19 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
+namespace EnterpriseAuth.Api.Migrations.ScanProductionDb
 {
     [DbContext(typeof(ScanProductionDbContext))]
-    partial class ScanProductionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260619062520_AddStagingSalesInvoiceLotLocation")]
+    partial class AddStagingSalesInvoiceLotLocation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -904,17 +907,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("SyncedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("TransactionalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("UserName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("X3DocumentId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("InvoiceId");
 
@@ -965,10 +960,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Sku")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("TaxRule")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<double>("Total")
                         .HasColumnType("float");

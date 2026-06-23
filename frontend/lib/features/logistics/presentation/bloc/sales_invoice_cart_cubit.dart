@@ -15,6 +15,7 @@ class CartItem extends Equatable {
   final double basePrice;
   final double discountPercent;
   final double vatRatePercent;
+  final String taxRule;
 
   const CartItem({
     required this.product,
@@ -27,6 +28,7 @@ class CartItem extends Equatable {
     required this.basePrice,
     this.discountPercent = 0.0,
     this.vatRatePercent = 0.0,
+    this.taxRule = '',
   });
 
   double get discountAmount => basePrice * quantity * (discountPercent / 100);
@@ -45,6 +47,7 @@ class CartItem extends Equatable {
     double? basePrice,
     double? discountPercent,
     double? vatRatePercent,
+    String? taxRule,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -57,6 +60,7 @@ class CartItem extends Equatable {
       basePrice: basePrice ?? this.basePrice,
       discountPercent: discountPercent ?? this.discountPercent,
       vatRatePercent: vatRatePercent ?? this.vatRatePercent,
+      taxRule: taxRule ?? this.taxRule,
     );
   }
 
@@ -72,6 +76,7 @@ class CartItem extends Equatable {
         basePrice,
         discountPercent,
         vatRatePercent,
+        taxRule,
       ];
 }
 
@@ -80,10 +85,12 @@ class CartItem extends Equatable {
 class SalesInvoiceCartState extends Equatable {
   final Map<String, dynamic>? customer;
   final List<CartItem> items;
+  final String? site;
 
   const SalesInvoiceCartState({
     this.customer,
     this.items = const [],
+    this.site,
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
@@ -94,21 +101,27 @@ class SalesInvoiceCartState extends Equatable {
   SalesInvoiceCartState copyWith({
     Map<String, dynamic>? customer,
     List<CartItem>? items,
+    String? site,
   }) {
     return SalesInvoiceCartState(
       customer: customer ?? this.customer,
       items: items ?? this.items,
+      site: site ?? this.site,
     );
   }
 
   @override
-  List<Object?> get props => [customer, items];
+  List<Object?> get props => [customer, items, site];
 }
 
 // --- CUBIT ---
 
 class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   SalesInvoiceCartCubit() : super(const SalesInvoiceCartState());
+
+  void setSite(String site) {
+    emit(state.copyWith(site: site));
+  }
 
   void setCustomer(Map<String, dynamic> customer) {
     emit(state.copyWith(customer: customer, items: [])); // Clear cart when changing customer

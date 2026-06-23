@@ -41,9 +41,21 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(255)]
         public string? DeviceId { get; set; }
 
+        [MaxLength(100)]
+        public string? Reference { get; set; }
+
+        [MaxLength(50)]
+        public string InvoiceType { get; set; } = "STD";
+
         // Backend specific fields
         public bool IsProcessedByX3 { get; set; } = false;
         public DateTime SyncedAt { get; set; } = DateTime.UtcNow;
+
+        [MaxLength(100)]
+        public string? X3DocumentId { get; set; }
+
+        [MaxLength(100)]
+        public string? TransactionalId { get; set; }
 
         // Navigation property
         public ICollection<StagingSalesInvoiceLine> Lines { get; set; } = new List<StagingSalesInvoiceLine>();

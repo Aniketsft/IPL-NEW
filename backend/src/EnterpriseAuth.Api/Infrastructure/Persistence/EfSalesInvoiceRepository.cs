@@ -111,5 +111,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql);
         }
+
+        public async Task<IEnumerable<TaxMatrixDto>> GetTaxDeterminationsAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(VACBPR_0)) AS CustomerTaxRule,
+                    LTRIM(RTRIM(VACITM_0)) AS ItemTaxLevel,
+                    VAT_0 AS TaxCode
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAC WITH (NOLOCK)";
+            return await db.QueryAsync<TaxMatrixDto>(sql);
+        }
+
+        public async Task<IEnumerable<TaxRateDto>> GetTaxRatesAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    VAT_0 AS TaxCode,
+                    LTRIM(RTRIM(VATDES_0)) AS Description,
+                    VATRAT_0 AS TaxRatePercent
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";
+            return await db.QueryAsync<TaxRateDto>(sql);
+        }
     }
 }

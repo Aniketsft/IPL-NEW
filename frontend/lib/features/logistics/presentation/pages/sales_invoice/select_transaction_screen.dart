@@ -5,10 +5,15 @@ import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
 import '../../bloc/sales_invoice_sync_bloc.dart';
 import '../../bloc/sales_invoice_sync_event.dart';
+import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
-class SelectTransactionScreen extends StatelessWidget {
+import '../../bloc/sales_invoice_cart_cubit.dart';
+import '../../../../../core/network_service.dart';
+import '../../../data/repositories/sales_invoice_product_repository.dart';
+
+class SelectTransactionScreen extends StatefulWidget {
   final List<String> permissions;
 
   const SelectTransactionScreen({
@@ -17,27 +22,47 @@ class SelectTransactionScreen extends StatelessWidget {
   });
 
   @override
+  State<SelectTransactionScreen> createState() => _SelectTransactionScreenState();
+}
+
+class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
+  late Future<List<String>> _warehousesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _warehousesFuture = SalesInvoiceProductRepository(context.read<NetworkService>()).getDistinctWarehouses();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Stack(
       children: [
-        IndustrialModuleLayout(
-          title: 'Select Transaction',
+        BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+          listener: (context, state) {
+            if (state is SalesInvoiceSyncSuccess) {
+              setState(() {
+                _warehousesFuture = SalesInvoiceProductRepository(context.read<NetworkService>()).getDistinctWarehouses();
+              });
+            }
+          },
+          child: IndustrialModuleLayout(
+            title: 'Select Transaction',
           extraActions: [
             IconButton(
               icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
               tooltip: 'Sync Sales Data',
               onPressed: () {
+                final selectedSite = context.read<SalesInvoiceCartCubit>().state.site;
                 final authState = context.read<AuthBloc>().state;
-                if (authState is Authenticated) {
-                  // TEMPORARY BYPASS: Use 'ALL' if site code is missing, so sync can proceed for testing.
-                  final siteCode = authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
-                  context.read<SalesInvoiceSyncBloc>().add(
-                        StartSalesInvoiceSyncRequested(siteCode: siteCode),
-                      );
-                }
+                final siteCode = selectedSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
+                
+                context.read<SalesInvoiceSyncBloc>().add(
+                      StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                    );
               },
             ),
           ],
@@ -61,6 +86,54 @@ class SelectTransactionScreen extends StatelessWidget {
                 fontSize: 16,
                 color: isDark ? Colors.white70 : Colors.black54,
               ),
+            ),
+            const SizedBox(height: 16),
+            FutureBuilder<List<String>>(
+              future: _warehousesFuture,
+              builder: (context, snapshot) {
+                final authState = context.read<AuthBloc>().state;
+                final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
+                
+                var sitesList = snapshot.data ?? [];
+                if (sitesList.isEmpty) {
+                  sitesList = [fallbackSite];
+                }
+                
+                final sites = ['ALL', ...sitesList].toSet().toList();
+                
+                return BlocBuilder<SalesInvoiceCartCubit, SalesInvoiceCartState>(
+                  builder: (context, state) {
+                    final currentSite = state.site ?? 'ALL';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: sites.contains(currentSite) ? currentSite : sites.first,
+                          icon: Icon(Icons.location_on, color: theme.primaryColor),
+                          dropdownColor: theme.cardColor,
+                          items: sites.toSet().toList().map<DropdownMenuItem<String>>((site) {
+                            return DropdownMenuItem<String>(
+                              value: site,
+                              child: Text('Sales Site: $site', style: TextStyle(fontWeight: FontWeight.bold)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              context.read<SalesInvoiceCartCubit>().setSite(val);
+                            }
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
             const SizedBox(height: 24),
             _buildTransactionCard(
@@ -90,6 +163,7 @@ class SelectTransactionScreen extends StatelessWidget {
               onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
             ),
           ],
+        ),
         ),
       ),
     ),

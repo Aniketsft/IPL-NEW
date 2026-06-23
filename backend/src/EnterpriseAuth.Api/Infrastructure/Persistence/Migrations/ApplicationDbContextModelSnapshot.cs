@@ -41,7 +41,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Permissions");
+                    b.ToTable("Permissions", (string)null);
                 });
 
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.Role", b =>
@@ -63,7 +63,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Roles");
+                    b.ToTable("Roles", (string)null);
                 });
 
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.User", b =>
@@ -108,7 +108,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("RolePermissions", b =>
@@ -123,7 +123,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RolesId");
 
-                    b.ToTable("RolePermissions");
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("UserPermissions", b =>
@@ -138,7 +138,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UsersId");
 
-                    b.ToTable("UserPermissions");
+                    b.ToTable("UserPermissions", (string)null);
                 });
 
             modelBuilder.Entity("UserRoles", b =>
@@ -153,7 +153,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UsersId");
 
-                    b.ToTable("UserRoles");
+                    b.ToTable("UserRoles", (string)null);
                 });
 
             modelBuilder.Entity("RolePermissions", b =>

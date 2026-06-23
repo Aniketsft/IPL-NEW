@@ -4,6 +4,7 @@ import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import 'transaction_preview_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String transactionType; // To support launching with a default filter, though the class might manage its own.
@@ -216,7 +217,29 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 backgroundColor: iconColor.withOpacity(0.1),
                                 child: Icon(iconData, color: iconColor),
                               ),
-                              title: Text('${tx.type} - ${tx.id}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${tx.type} - ${tx.id}', 
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (tx.isReversed == 1) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.red),
+                                      ),
+                                      child: const Text('Reversed', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ],
+                              ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -240,10 +263,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                     const Icon(Icons.cloud_upload, size: 16, color: Colors.grey),
                                 ],
                               ),
-                              onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Preview coming soon!')),
+                              onTap: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => TransactionPreviewScreen(transaction: tx),
+                                  ),
                                 );
+                                if (result == true) {
+                                  _loadTransactions();
+                                }
                               },
                             ),
                           );

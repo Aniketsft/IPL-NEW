@@ -6,6 +6,8 @@ import '../../../data/models/sales_invoice_product_model.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../../data/models/sales_invoice_item_stock_model.dart';
 import '../../../data/local/local_database_helper.dart';
+import '../../../data/repositories/sales_invoice_product_repository.dart';
+import '../../../../../core/network_service.dart';
 import '../../../domain/services/vat_calculator_service.dart';
 import 'lot_selection_screen.dart';
 
@@ -45,10 +47,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   );
 
   double _vatRatePercent = 0.0; // Automatically resolved via VAT Matrix
+  String _taxRuleCode = ''; // Tax Code resolved from Matrix
   String _itemTaxLevel = ''; // Stored from stock/product
   final VatCalculatorService _vatCalculator = VatCalculatorService();
 
-  String _lotNumber = 'LOT-2023-11-892'; // default fallback
+  String _lotNumber = ''; // dynamically loaded
   String _warehouse = 'Main (WH-01)';
   String _warehouseName = '';
   String _location = 'A4-S2-B12';
@@ -86,52 +89,67 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   }
 
   Future<void> _loadSpecificLotStock() async {
-    final db = await LocalDatabaseHelper.instance.database;
-    final result = await db.query(
-      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-      where:
-          'itemCode = ? AND lotNumber = ? AND location = ? AND warehouse = ?',
-      whereArgs: [widget.product.sku, _lotNumber, _location, _warehouse],
-    );
-    if (result.isNotEmpty) {
-      final stock = SalesInvoiceItemStockModel.fromSqlMap(result.first);
+    if (!mounted) return;
+    final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
+    final stocks = await repository.getSalesInvoiceItemStockDetails(widget.product.sku);
+    
+    try {
+      final stock = stocks.firstWhere((s) => s.lotNumber == _lotNumber && s.location == _location && s.warehouse == _warehouse);
+      
+      // Calculate cart deduction for this lot
+      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      double cartQty = 0;
+      for (var item in cartItems) {
+        if (item.product.sku == widget.product.sku && item.lotNumber == _lotNumber && item.location == _location && item.warehouse == _warehouse) {
+         cartQty += item.quantity;
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _lotTotalQty = stock.totalQty;
+          _lotTotalQty = stock.totalQty - cartQty;
           _itemTaxLevel = stock.taxLevel;
         });
         _calculateVatRate();
       }
+    } catch (e) {
+      debugPrint('Specific lot not found: $e');
     }
   }
 
   Future<void> _loadItemStocks() async {
-    final db = await LocalDatabaseHelper.instance.database;
-    final result = await db.query(
-      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-      where: 'itemCode = ?',
-      whereArgs: [widget.product.sku],
-    );
-    final stocks = result
-        .map((e) => SalesInvoiceItemStockModel.fromSqlMap(e))
-        .toList();
+    if (!mounted) return;
+    final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
+    final stocks = await repository.getSalesInvoiceItemStockDetails(widget.product.sku);
+
     if (mounted && stocks.isNotEmpty) {
+      final firstStock = stocks.first;
+
+      // Calculate cart deduction for this lot
+      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      double cartQty = 0;
+      for (var item in cartItems) {
+        if (item.product.sku == widget.product.sku && item.lotNumber == firstStock.lotNumber && item.location == firstStock.location && item.warehouse == firstStock.warehouse) {
+           cartQty += item.quantity;
+        }
+      }
+
       setState(() {
-        _lotNumber = stocks.first.lotNumber.isNotEmpty
-            ? stocks.first.lotNumber
+        _lotNumber = firstStock.lotNumber.isNotEmpty
+            ? firstStock.lotNumber
             : _lotNumber;
-        _warehouse = stocks.first.warehouse.isNotEmpty
-            ? stocks.first.warehouse
+        _warehouse = firstStock.warehouse.isNotEmpty
+            ? firstStock.warehouse
             : _warehouse;
-        _warehouseName = stocks.first.warehouseName;
-        _location = stocks.first.location.isNotEmpty
-            ? stocks.first.location
+        _warehouseName = firstStock.warehouseName;
+        _location = firstStock.location.isNotEmpty
+            ? firstStock.location
             : _location;
-        _locationType = stocks.first.locationType.isNotEmpty
-            ? stocks.first.locationType
+        _locationType = firstStock.locationType.isNotEmpty
+            ? firstStock.locationType
             : _locationType;
-        _lotTotalQty = stocks.first.totalQty;
-        _itemTaxLevel = stocks.first.taxLevel;
+        _lotTotalQty = firstStock.totalQty - cartQty;
+        _itemTaxLevel = firstStock.taxLevel;
       });
       _calculateVatRate();
     }
@@ -147,15 +165,16 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     final customerRule = customer['taxRule']?.toString() ?? '';
     debugPrint('VAT Calc: Customer=$customerRule, Item=$_itemTaxLevel');
 
-    final vatRate = await _vatCalculator.resolveVatPercentage(
+    final vatDetails = await _vatCalculator.resolveVatDetails(
       customerRule,
       _itemTaxLevel,
     );
-    debugPrint('VAT Calc: Resulting Rate=$vatRate');
+    debugPrint('VAT Calc: Resulting Rate=${vatDetails.rate}, Code=${vatDetails.code}');
 
     if (mounted) {
       setState(() {
-        _vatRatePercent = vatRate;
+        _vatRatePercent = vatDetails.rate;
+        _taxRuleCode = vatDetails.code;
       });
     }
   }
@@ -168,17 +187,29 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     super.dispose();
   }
 
-  void _updateQuantity(int delta) {
+  double get _maxValidQty {
+    double maxQty = _lotTotalQty;
+    if (widget.existingItem != null &&
+        widget.existingItem!.lotNumber == _lotNumber &&
+        widget.existingItem!.warehouse == _warehouse &&
+        widget.existingItem!.location == _location) {
+      maxQty += widget.existingItem!.quantity;
+    }
+    return maxQty;
+  }
+
+  void _updateQuantity(int change) {
     setState(() {
-      int newQty = _quantity + delta;
+      int newQty = _quantity + change;
       if (newQty < 1) newQty = 1;
 
-      // Strict validation against lot quantity
-      if (_lotTotalQty > 0 && newQty > _lotTotalQty) {
-        newQty = _lotTotalQty.toInt();
-        _showStockErrorDialog('Cannot exceed available stock in this lot ($newQty).');
+      // Strict validation against maximum valid quantity
+      if (_maxValidQty > 0 && newQty > _maxValidQty) {
+        _showStockErrorDialog(
+          'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
+        );
+        return;
       }
-
       _quantity = newQty;
       _qtyController.text = _quantity.toString();
     });
@@ -209,6 +240,16 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
+    double totalCartQtyOfProduct = 0;
+    for (var item in cartItems) {
+      if (item.product.sku == widget.product.sku) {
+        totalCartQtyOfProduct += item.quantity;
+      }
+    }
+    
+    final actualTotalStock = widget.product.stockQty - totalCartQtyOfProduct;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -272,7 +313,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'Total: ${widget.product.stockQty.toInt()} | Lot: ${_lotTotalQty.toInt()}',
+                                'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -489,10 +530,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 final parsed = int.tryParse(val);
                                 if (parsed != null && parsed > 0) {
                                   int updatedQty = parsed;
-                                  if (_lotTotalQty > 0 &&
-                                      updatedQty > _lotTotalQty) {
+                                  if (_maxValidQty > 0 &&
+                                      updatedQty > _maxValidQty) {
                                     _showStockErrorDialog(
-                                      'Insufficient stock in this lot (${_lotTotalQty.toInt()} available). Please adjust.',
+                                      'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
                                     );
                                   }
                                   setState(() => _quantity = updatedQty);
@@ -522,9 +563,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () {
-                            if (_lotTotalQty > 0 && _quantity > _lotTotalQty) {
+                            if (_maxValidQty > 0 && _quantity > _maxValidQty) {
                               _showStockErrorDialog(
-                                'Cannot proceed: Insufficient stock in this lot (${_lotTotalQty.toInt()} available).',
+                                'Cannot proceed: Insufficient stock in this lot (${_maxValidQty.toInt()} available).',
                               );
                               return;
                             }
@@ -540,6 +581,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               basePrice: _basePrice,
                               discountPercent: _discountPercent,
                               vatRatePercent: _vatRatePercent,
+                              taxRule: _taxRuleCode,
                             );
 
                             if (widget.editingIndex != null) {

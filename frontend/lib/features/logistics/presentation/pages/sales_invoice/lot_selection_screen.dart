@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/sales_invoice_item_stock_model.dart';
-import '../../../data/local/local_database_helper.dart';
+import '../../../data/repositories/sales_invoice_product_repository.dart';
+import '../../../../../core/network_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/sales_invoice_cart_cubit.dart';
 
 class LotSelectionScreen extends StatefulWidget {
   final String itemCode;
   final String salesUnit;
 
-  const LotSelectionScreen({super.key, required this.itemCode, required this.salesUnit});
+  const LotSelectionScreen({
+    super.key, 
+    required this.itemCode, 
+    required this.salesUnit,
+  });
 
   @override
   State<LotSelectionScreen> createState() => _LotSelectionScreenState();
@@ -33,14 +40,22 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
 
   Future<void> _loadLots() async {
     try {
-      final db = await LocalDatabaseHelper.instance.database;
-      final result = await db.query(
-        LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-        where: 'itemCode = ?',
-        whereArgs: [widget.itemCode],
-      );
+      final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
+      final stocks = await repository.getSalesInvoiceItemStockDetails(widget.itemCode);
       
-      final lots = result.map((e) => SalesInvoiceItemStockModel.fromSqlMap(e)).toList();
+      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final lots = stocks.map((stock) {
+        double cartQty = 0;
+        for (var item in cartItems) {
+          if (item.product.sku == widget.itemCode && 
+              item.lotNumber == stock.lotNumber && 
+              item.location == stock.location && 
+              item.warehouse == stock.warehouse) {
+            cartQty += item.quantity;
+          }
+        }
+        return stock.copyWith(totalQty: stock.totalQty - cartQty);
+      }).toList();
       if (mounted) {
         setState(() {
           _allLots = lots;

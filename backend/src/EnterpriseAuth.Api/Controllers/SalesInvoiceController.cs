@@ -47,8 +47,13 @@ namespace EnterpriseAuth.Api.Controllers
                     PricingRule = payload.PricingRule,
                     DueDate = payload.DueDate,
                     CreatedAt = payload.CreatedAt,
+                    Reference = payload.Reference,
+                    InvoiceType = !string.IsNullOrEmpty(payload.InvoiceType) ? payload.InvoiceType : "STD",
                     IsProcessedByX3 = false,
-                    SyncedAt = DateTime.UtcNow
+                    SyncedAt = DateTime.UtcNow,
+                    UserName = payload.UserName,
+                    SalesRep = payload.SalesRep,
+                    TransactionalId = payload.TransactionalId
                 };
 
                 foreach(var l in payload.Lines)
@@ -62,7 +67,12 @@ namespace EnterpriseAuth.Api.Controllers
                         Quantity = (double)l.Quantity,
                         BasePrice = (double)l.BasePrice,
                         DiscountAmount = (double)l.DiscountAmount,
-                        VatAmount = (double)l.VatAmount
+                        VatAmount = (double)l.VatAmount,
+                        LotNumber = l.LotNumber,
+                        Warehouse = l.Warehouse,
+                        SalesUnit = l.SalesUnit,
+                        Cce0 = l.Cce0,
+                        TaxRule = l.TaxRule
                     });
                 }
 
@@ -75,11 +85,15 @@ namespace EnterpriseAuth.Api.Controllers
                 if (importResult.Success)
                 {
                     stagingHeader.IsProcessedByX3 = true;
+                    if (!string.IsNullOrEmpty(importResult.DocumentId))
+                    {
+                        stagingHeader.X3DocumentId = importResult.DocumentId;
+                    }
                     await _dbContext.SaveChangesAsync();
                     
                     // 3. Commit exactly on success
                     await transaction.CommitAsync();
-                    return Ok(new { success = true, invoiceId = payload.InvoiceId, x3Request = importResult.RequestNumber });
+                    return Ok(new { success = true, invoiceId = payload.InvoiceId, x3Request = importResult.RequestNumber, x3DocumentId = importResult.DocumentId });
                 }
                 else
                 {
@@ -142,6 +156,34 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 var details = await _repository.GetItemStockDetailsAsync();
                 return Ok(details);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
+
+        [HttpGet("tax-determinations")]
+        public async Task<IActionResult> GetTaxDeterminations()
+        {
+            try
+            {
+                var data = await _repository.GetTaxDeterminationsAsync();
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
+
+        [HttpGet("tax-rates")]
+        public async Task<IActionResult> GetTaxRates()
+        {
+            try
+            {
+                var data = await _repository.GetTaxRatesAsync();
+                return Ok(data);
             }
             catch (System.Exception ex)
             {

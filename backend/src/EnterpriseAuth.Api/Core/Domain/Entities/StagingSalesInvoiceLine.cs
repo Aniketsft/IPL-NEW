@@ -29,5 +29,20 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public double DiscountAmount { get; set; }
         public double VatAmount { get; set; }
         public double Total { get; set; }
+
+        [MaxLength(100)]
+        public string? LotNumber { get; set; }
+
+        [MaxLength(50)]
+        public string? Warehouse { get; set; }
+
+        [MaxLength(20)]
+        public string? SalesUnit { get; set; }
+
+        [MaxLength(50)]
+        public string? Cce0 { get; set; }
+
+        [MaxLength(20)]
+        public string? TaxRule { get; set; }
     }
 }

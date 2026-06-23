@@ -9,8 +9,8 @@ class VatCalculatorService {
   /// 1. Find the resulting TaxCode from tbl_tax_matrix where customerTaxRule = customerRule AND itemTaxLevel = itemLevel
   /// 2. If a TaxCode is found, look up the rate in tbl_tax_rates
   /// 3. Returns the taxRatePercent or 0.0 if not found
-  Future<double> resolveVatPercentage(String customerRule, String itemLevel) async {
-    if (customerRule.isEmpty || itemLevel.isEmpty) return 0.0;
+  Future<({double rate, String code})> resolveVatDetails(String customerRule, String itemLevel) async {
+    if (customerRule.isEmpty || itemLevel.isEmpty) return (rate: 0.0, code: '');
 
     final db = await LocalDatabaseHelper.instance.database;
     
@@ -30,14 +30,14 @@ class VatCalculatorService {
 
     if (matrixResult.isEmpty) {
       debugPrint('VAT Calc: No matrix entry found for $customerRule and $itemLevel');
-      return 0.0;
+      return (rate: 0.0, code: '');
     }
 
     final taxCode = matrixResult.first[LocalDatabaseHelper.colTaxMatrixTaxCode] as String?;
     debugPrint('VAT Calc: Matrix gave taxCode=$taxCode');
 
     if (taxCode == null || taxCode.isEmpty) {
-      return 0.0;
+      return (rate: 0.0, code: '');
     }
 
     // 2. Lookup Tax Rate
@@ -51,11 +51,11 @@ class VatCalculatorService {
 
     if (rateResult.isEmpty) {
       debugPrint('VAT Calc: No rate found for taxCode=$taxCode');
-      return 0.0;
+      return (rate: 0.0, code: taxCode);
     }
 
     final rate = (rateResult.first[LocalDatabaseHelper.colTaxRatePercent] as num?)?.toDouble() ?? 0.0;
-    debugPrint('VAT Calc: Found final rate=$rate');
-    return rate;
+    debugPrint('VAT Calc: Found final rate=$rate for code=$taxCode');
+    return (rate: rate, code: taxCode);
   }
 }

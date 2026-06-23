@@ -23,6 +23,32 @@ class SalesInvoiceItemStockModel {
     this.isSynced = 1,
   });
 
+  SalesInvoiceItemStockModel copyWith({
+    String? itemCode,
+    String? itemName,
+    String? lotNumber,
+    String? warehouse,
+    String? warehouseName,
+    String? location,
+    String? locationType,
+    double? totalQty,
+    String? taxLevel,
+    int? isSynced,
+  }) {
+    return SalesInvoiceItemStockModel(
+      itemCode: itemCode ?? this.itemCode,
+      itemName: itemName ?? this.itemName,
+      lotNumber: lotNumber ?? this.lotNumber,
+      warehouse: warehouse ?? this.warehouse,
+      warehouseName: warehouseName ?? this.warehouseName,
+      location: location ?? this.location,
+      locationType: locationType ?? this.locationType,
+      totalQty: totalQty ?? this.totalQty,
+      taxLevel: taxLevel ?? this.taxLevel,
+      isSynced: isSynced ?? this.isSynced,
+    );
+  }
+
   factory SalesInvoiceItemStockModel.fromJson(Map<String, dynamic> json) {
     return SalesInvoiceItemStockModel(
       itemCode: (json['itemCode'] ?? '').toString(),

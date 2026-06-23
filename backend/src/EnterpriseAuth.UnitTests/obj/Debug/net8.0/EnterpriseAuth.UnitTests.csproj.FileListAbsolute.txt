@@ -166,3 +166,13 @@ C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTe
 C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.dll
 C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\refint\EnterpriseAuth.UnitTests.dll
 C:\Users\Aniket\Desktop\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.pdb
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\bin\Debug\net8.0\CoverletSourceRootsMapping_EnterpriseAuth.UnitTests
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.csproj.AssemblyReference.cache
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.GeneratedMSBuildEditorConfig.editorconfig
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.AssemblyInfoInputs.cache
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.AssemblyInfo.cs
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.csproj.CoreCompileInputs.cache
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.sourcelink.json
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.dll
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\refint\EnterpriseAuth.UnitTests.dll
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.UnitTests\obj\Debug\net8.0\EnterpriseAuth.UnitTests.pdb

@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 62;
+  static const _databaseVersion = 67;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -212,6 +212,34 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 67) {
+      debugPrint('DB Upgrade: Adding transactionalId to SI tables (v67)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN transactionalId TEXT');
+      } catch (e) {
+        debugPrint("Migration error v67: $e");
+      }
+    }
+
+    if (oldVersion < 65) {
+      debugPrint('DB Upgrade: Adding isReversed to SI tables (v65)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN isReversed INTEGER DEFAULT 0');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN isReversed INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v65: $e");
+      }
+    }
+
+    if (oldVersion < 64) {
+      debugPrint('DB Upgrade: Adding taxRule to SI invoice lines (v64)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN taxRule TEXT');
+      } catch (e) {
+        debugPrint("Migration error v64: $e");
+      }
+    }
+
     if (oldVersion < 62) {
       debugPrint('DB Upgrade: Adding missing columns to Sales Invoice tables (v62)');
       try {
@@ -229,6 +257,21 @@ class LocalDatabaseHelper {
         await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN lineNo INTEGER DEFAULT 0');
       } catch (e) {
         debugPrint("Migration error v62 (InvoiceLines): $e");
+      }
+    }
+
+    if (oldVersion < 63) {
+      debugPrint('DB Upgrade: Adding Lot, Warehouse, Reference, SalesUnit, CCE0 to SI tables (v63)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN reference TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN invoiceType TEXT DEFAULT "STD"');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN lotNumber TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN warehouse TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN salesUnit TEXT');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN cce0 TEXT');
+        await db.execute('ALTER TABLE $tableSalesInvoiceProducts ADD COLUMN cce0 TEXT');
+      } catch (e) {
+        debugPrint("Migration error v63: $e");
       }
     }
 
@@ -1102,6 +1145,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v61: $e");
       }
     }
+    if (oldVersion < 66) {
+      debugPrint('DB Upgrade: Adding location to tbl_si_invoice_lines (v66)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN location TEXT');
+      } catch (e) {
+        debugPrint("Migration error v66: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1181,7 +1232,17 @@ class LocalDatabaseHelper {
         createdByUserId TEXT,
         createdByUserName TEXT,
         deviceId TEXT,
-        appVersion TEXT
+        appVersion TEXT,
+        reference TEXT,
+        invoiceType TEXT DEFAULT 'STD',
+        salesSite TEXT,
+        salesRep TEXT,
+        pricingRule TEXT,
+        dueDate TEXT,
+        userName TEXT,
+        createdBy TEXT,
+        isReversed INTEGER DEFAULT 0,
+        transactionalId TEXT
       )
     ''');
 
@@ -1195,7 +1256,14 @@ class LocalDatabaseHelper {
         basePrice REAL,
         discountAmount REAL,
         vatAmount REAL,
-        total REAL
+        total REAL,
+        lotNumber TEXT,
+        warehouse TEXT,
+        location TEXT,
+        salesUnit TEXT,
+        cce0 TEXT,
+        taxRule TEXT,
+        isReversed INTEGER DEFAULT 0
       )
     ''');
 
@@ -1220,7 +1288,8 @@ class LocalDatabaseHelper {
         $colSiProdStockQty REAL,
         $colSiProdWarehouse TEXT,
         $colSiProdSalesUnit TEXT,
-        $colSiProdIsSynced INTEGER NOT NULL DEFAULT 1
+        $colSiProdIsSynced INTEGER NOT NULL DEFAULT 1,
+        cce0 TEXT
       )
     ''');
 
@@ -2594,23 +2663,64 @@ class LocalDatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  Future<void> refreshSalesInvoiceCustomers(List<dynamic> customers) async {
+  static List<Map<String, dynamic>> _parseCustomers(List<dynamic> customers) {
+    return customers.map((customer) => {
+      'code': customer['code']?.toString().trim() ?? '',
+      'name': customer['name']?.toString().trim() ?? '',
+      'paymentTerm': customer['paymentTerm'],
+      'creditLimit': customer['creditLimit'],
+      'statusFlag': customer['statusFlag'],
+      'taxRule': customer['taxRule'],
+      'outstandingBalance': customer['outstandingBalance'],
+      'isSynced': 1, // hardcoded from columnIsSynced
+    }).toList();
+  }
+
+  Future<void> refreshSalesInvoiceTaxData(List<dynamic> matrix, List<dynamic> rates) async {
     final db = await instance.database;
-    final batch = db.batch();
-    batch.delete(tableSalesInvoiceCustomers);
-    for (var customer in customers) {
-      batch.insert(tableSalesInvoiceCustomers, {
-        colCode: customer['code']?.toString().trim() ?? '',
-        colName: customer['name']?.toString().trim() ?? '',
-        'paymentTerm': customer['paymentTerm'],
-        'creditLimit': customer['creditLimit'],
-        'statusFlag': customer['statusFlag'],
-        'taxRule': customer['taxRule'],
-        'outstandingBalance': customer['outstandingBalance'],
-        columnIsSynced: 1,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-    await batch.commit(noResult: true);
+    await db.transaction((txn) async {
+      await txn.delete(tableTaxMatrix);
+      await txn.delete(tableTaxRates);
+      
+      final batch = txn.batch();
+      for (var item in matrix) {
+        batch.insert(
+          tableTaxMatrix,
+          Map<String, dynamic>.from(item),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (var item in rates) {
+        batch.insert(
+          tableTaxRates,
+          Map<String, dynamic>.from(item),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<void> refreshSalesInvoiceCustomers(List<dynamic> customers) async {
+    final List<Map<String, dynamic>> parsedData = await compute(_parseCustomers, customers);
+    final db = await instance.database;
+    
+    await db.transaction((txn) async {
+      await txn.delete(tableSalesInvoiceCustomers);
+      
+      const chunkSize = 1000;
+      for (int i = 0; i < parsedData.length; i += chunkSize) {
+        final batch = txn.batch();
+        final end = (i + chunkSize < parsedData.length) ? i + chunkSize : parsedData.length;
+        final chunk = parsedData.sublist(i, end);
+        
+        for (var map in chunk) {
+          batch.insert(tableSalesInvoiceCustomers, map, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        await batch.commit(noResult: true);
+        await Future.delayed(Duration.zero);
+      }
+    });
   }
 
   Future<List<String>> getDistinctPaymentTerms() async {
@@ -2672,8 +2782,8 @@ class LocalDatabaseHelper {
     final db = await database;
     return await db.query(
       tableSiInvoices,
-      where: 'isSynced = ? OR isSynced IS NULL',
-      whereArgs: [0],
+      where: '(isSynced = ? OR isSynced IS NULL) AND (isReversed = ? OR isReversed IS NULL)',
+      whereArgs: [0, 0],
     );
   }
 

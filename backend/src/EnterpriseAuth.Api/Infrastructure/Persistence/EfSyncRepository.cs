@@ -165,13 +165,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SELECT 
                     LTRIM(RTRIM(VACBPR_0)) AS CustomerTaxRule,
                     LTRIM(RTRIM(VACITM_0)) AS ItemTaxLevel,
-                    LTRIM(RTRIM(VAT_0)) AS TaxCode
+                    VAT_0 AS TaxCode
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAC WITH (NOLOCK)";
             var taxMatrixTask = FetchFromInnodisAsync<TaxMatrixDto>(taxMatrixSql);
 
             var taxRateSql = $@"
                 SELECT 
-                    LTRIM(RTRIM(VAT_0)) AS TaxCode,
+                    VAT_0 AS TaxCode,
                     LTRIM(RTRIM(VATDES_0)) AS Description,
                     VATRAT_0 AS TaxRatePercent
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";

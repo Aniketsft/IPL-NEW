@@ -30,6 +30,7 @@ class TransactionModel {
   final String createdAt;
   final String status;
   final int isSynced;
+  final int isReversed;
   final AuditMetadata auditMetadata;
 
   const TransactionModel({
@@ -41,6 +42,7 @@ class TransactionModel {
     required this.createdAt,
     required this.status,
     required this.isSynced,
+    required this.isReversed,
     required this.auditMetadata,
   });
 
@@ -54,6 +56,7 @@ class TransactionModel {
       createdAt: json['createdAt'] ?? '',
       status: json['status'] ?? '',
       isSynced: json['isSynced'] ?? 0,
+      isReversed: json['isReversed'] ?? 0,
       auditMetadata: AuditMetadata.fromJson(json),
     );
   }

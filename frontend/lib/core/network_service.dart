@@ -97,7 +97,7 @@ class NetworkService {
           requestHeader: true,
           requestBody: true,
           responseHeader: false,
-          responseBody: true,
+          responseBody: false, // Turned off to save memory during big syncs
         ),
       );
     }

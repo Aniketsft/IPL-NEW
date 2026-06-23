@@ -313,10 +313,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string site = string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite;
                 string pricingRule = string.IsNullOrWhiteSpace(invoice.PricingRule) ? "75.7" : invoice.PricingRule;
 
-                // Header Record: H;SalesSite;CustomerCode;InvoiceDate;PricingRule;DueDate|
-                fileBuilder.Append($"H;{site};{invoice.CustomerCode};{invoiceDate};{pricingRule};{dueDate}|");
+                // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
+                fileBuilder.Append($"V;{site};{invoice.InvoiceType};{site};1;;{invoice.CustomerCode};{invoiceDate};{invoice.Reference ?? ""};2;;MUR;{dueDate};;|");
 
-                // Line Records: L;LineNo;ProductCode;ProductDescription;SalesUnit;Quantity;BasePrice;DiscountAmount;VatAmount|
+                int lineMultiplier = 1000;
                 foreach (var line in invoice.Lines)
                 {
                     string qty = line.Quantity.ToString("F3");
@@ -324,7 +324,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     string discount = line.DiscountAmount.ToString("F2");
                     string vat = line.VatAmount.ToString("F2");
 
-                    fileBuilder.Append($"L;{line.LineNo};{line.Sku};{line.Name};EA;{qty};{basePrice};{discount};{vat}|");
+                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;LotNumber;BasePrice;DiscountAmount1;DiscountAmount2;DiscountAmount3;TaxRule;;VatAmount;;|
+                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{line.SalesUnit ?? "EA"};{qty};{line.LotNumber ?? ""};{basePrice};{discount};0.00;0.00;{line.TaxRule ?? ""};;{vat};;|");
+                    
+                    // Analytical Record: A;DPT;Cce0|
+                    fileBuilder.Append($"A;DPT;{line.Cce0 ?? ""}|");
+                    
+                    lineMultiplier += 1000;
                 }
 
                 fileBuilder.Append("END");
@@ -723,7 +729,14 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                             if (fields.TryGetValue("O_MESSA", out var oMessa) && !string.IsNullOrWhiteSpace(oMessa))
                             {
-                                result.Messages.Add($"Sage X3: {oMessa}");
+                                if (importSuccess && oMessa.Contains("Creation of "))
+                                {
+                                    result.DocumentId = oMessa.Replace("Creation of ", "").Trim();
+                                }
+                                else
+                                {
+                                    result.Messages.Add($"Sage X3: {oMessa}");
+                                }
                             }
                         }
                     }
@@ -734,14 +747,17 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 }
 
                 // 2. Global Status in the SOAP XML: 1 = Success, 0 = Error
-                var statusNode = doc.Descendants("status").FirstOrDefault();
+                var statusNode = doc.Descendants().FirstOrDefault(d => d.Name.LocalName == "status");
                 bool endpointSuccess = statusNode?.Value == "1";
 
                 // Success is true ONLY if the SOAP call completed successfully AND the Sage X3 import completed successfully
                 result.Success = endpointSuccess && importSuccess;
 
                 // 3. Extract all messages from multiRef blocks (if any validation errors exist)
-                var messages = doc.Descendants().Where(d => d.Name.LocalName == "message").Select(m => m.Value).ToList();
+                var messages = doc.Descendants().Where(d => d.Name.LocalName == "message")
+                                    .Select(m => m.Value)
+                                    .Where(m => !m.StartsWith("Creation of "))
+                                    .ToList();
                 result.Messages.AddRange(messages);
 
                 return result;

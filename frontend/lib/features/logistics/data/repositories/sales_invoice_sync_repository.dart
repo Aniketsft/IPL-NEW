@@ -45,6 +45,10 @@ class SalesInvoiceSyncRepository {
             "pricingRule": invoice['pricingRule'] ?? 'DEFAULT',
             "dueDate": invoice['dueDate'] ?? DateTime.now().toIso8601String(),
             "createdAt": invoice['createdAt'] ?? DateTime.now().toIso8601String(),
+            "userName": invoice['userName'] ?? '',
+            "reference": invoice['reference'] ?? '',
+            "invoiceType": invoice['invoiceType'] ?? 'STD',
+            "transactionalId": invoice['transactionalId'] ?? invoiceId,
             "lines": lines.map((l) => {
               "sku": l['sku'],
               "name": l['name'],
@@ -52,7 +56,12 @@ class SalesInvoiceSyncRepository {
               "quantity": l['quantity'] ?? 0.0,
               "basePrice": l['basePrice'] ?? 0.0,
               "discountAmount": l['discountAmount'] ?? 0.0,
-              "vatAmount": l['vatAmount'] ?? 0.0
+              "vatAmount": l['vatAmount'] ?? 0.0,
+              "lotNumber": l['lotNumber'] ?? '',
+              "warehouse": l['warehouse'] ?? '',
+              "salesUnit": l['salesUnit'] ?? 'EA',
+              "cce0": l['cce0'] ?? '',
+              "taxRule": l['taxRule'] ?? ''
             }).toList()
           };
 
@@ -82,6 +91,14 @@ class SalesInvoiceSyncRepository {
 
       // 3. Fetch Sales Invoice Item Stock Details
       await _productRepository.syncSalesInvoiceItemStockDetails();
+      
+      // 4. Fetch Tax Matrix and Tax Rates
+      final taxMatrixResponse = await _dio.get('SalesInvoice/tax-determinations');
+      final taxRatesResponse = await _dio.get('SalesInvoice/tax-rates');
+      final taxMatrix = taxMatrixResponse.data as List<dynamic>? ?? [];
+      final taxRates = taxRatesResponse.data as List<dynamic>? ?? [];
+      await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
+      debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
       
       final duration = stopwatch.elapsedMilliseconds;
       debugPrint('Sales Invoice Sync completed in ${duration}ms');

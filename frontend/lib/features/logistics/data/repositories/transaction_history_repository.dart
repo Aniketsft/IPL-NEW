@@ -56,4 +56,104 @@ class TransactionHistoryRepository {
     );
     return maps.map((e) => e['transactionType'] as String).toList();
   }
+
+  Future<List<Map<String, dynamic>>> getTransactionLines(String invoiceId) async {
+    return await _dbHelper.getSalesInvoiceLines(invoiceId);
+  }
+
+  Future<void> cancelInvoice(TransactionModel transaction) async {
+    final db = await _dbHelper.database;
+    final batch = db.batch();
+
+    // 1. Mark original invoice as reversed
+    batch.update(
+      LocalDatabaseHelper.tableSiInvoices,
+      {'isReversed': 1},
+      where: 'invoiceId = ?',
+      whereArgs: [transaction.id],
+    );
+
+    // 2. Mark its lines as reversed
+    batch.update(
+      LocalDatabaseHelper.tableSiInvoiceLines,
+      {'isReversed': 1},
+      where: 'invoiceId = ?',
+      whereArgs: [transaction.id],
+    );
+
+    // 3. Generate a new Credit Note row
+    final creditNoteId = 'CN-${transaction.id}';
+    final now = DateTime.now().toIso8601String();
+    
+    // Fetch original invoice to get exact vat and discount
+    final originalInvoice = await db.query(
+      LocalDatabaseHelper.tableSiInvoices,
+      where: 'invoiceId = ?',
+      whereArgs: [transaction.id],
+      limit: 1,
+    );
+    
+    double totalVat = 0.0;
+    double totalDiscount = 0.0;
+    if (originalInvoice.isNotEmpty) {
+      totalVat = (originalInvoice.first['totalVat'] as num?)?.toDouble() ?? 0.0;
+      totalDiscount = (originalInvoice.first['totalDiscount'] as num?)?.toDouble() ?? 0.0;
+    }
+    
+    batch.insert(LocalDatabaseHelper.tableSiInvoices, {
+      'invoiceId': creditNoteId,
+      'customerCode': transaction.customerCode,
+      'customerName': transaction.customerName,
+      'totalVat': totalVat,
+      'totalDiscount': totalDiscount,
+      'grandTotal': transaction.grandTotal,
+      'createdAt': now,
+      'status': 'CREDIT_NOTE',
+      'isSynced': 0,
+      'transactionType': 'CREDIT_NOTE',
+      'createdByUserId': transaction.auditMetadata.createdByUserId,
+      'createdByUserName': transaction.auditMetadata.createdByUserName,
+      'deviceId': transaction.auditMetadata.deviceId,
+      'appVersion': transaction.auditMetadata.appVersion,
+      'reference': transaction.id, // Links to original invoice
+      'invoiceType': 'CREDIT_NOTE',
+      'isReversed': 0,
+      'transactionalId': transaction.id,
+    });
+
+    // 4. Copy lines and increment stock
+    final lines = await getTransactionLines(transaction.id);
+    for (var line in lines) {
+      // Copy line
+      batch.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
+        'invoiceId': creditNoteId,
+        'sku': line['sku'],
+        'name': line['name'],
+        'quantity': line['quantity'],
+        'basePrice': line['basePrice'],
+        'discountAmount': line['discountAmount'],
+        'vatAmount': line['vatAmount'],
+        'total': line['total'],
+        'lotNumber': line['lotNumber'],
+        'warehouse': line['warehouse'],
+        'location': line['location'],
+        'salesUnit': line['salesUnit'],
+        'cce0': line['cce0'],
+        'taxRule': line['taxRule'],
+        'isReversed': 0,
+      });
+
+      // Increment stock
+      batch.rawUpdate(
+        '''
+        UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+        SET totalQty = totalQty + ? 
+        WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+        ''',
+        [line['quantity'], line['sku'], line['lotNumber'], line['warehouse'], line['location']],
+      );
+    }
+
+    await batch.commit(noResult: true);
+  }
 }

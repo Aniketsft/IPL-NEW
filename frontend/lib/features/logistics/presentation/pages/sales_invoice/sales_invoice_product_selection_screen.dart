@@ -212,9 +212,14 @@ class _SalesInvoiceProductSelectionScreenState
   ) {
     final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
     double cartQty = 0;
-    for (var item in cartItems) {
+    CartItem? existingItem;
+    int? editingIndex;
+    for (int i = 0; i < cartItems.length; i++) {
+      var item = cartItems[i];
       if (item.product.sku == product.sku) {
         cartQty += item.quantity;
+        existingItem = item;
+        editingIndex = i;
       }
     }
 
@@ -226,7 +231,11 @@ class _SalesInvoiceProductSelectionScreenState
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => AddItemDetailScreen(product: product),
+            builder: (context) => AddItemDetailScreen(
+              product: product,
+              existingItem: existingItem,
+              editingIndex: editingIndex,
+            ),
           ),
         );
       },
