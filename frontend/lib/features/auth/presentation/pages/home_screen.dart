@@ -16,6 +16,8 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/tra
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_event.dart';
@@ -44,6 +46,112 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _hasAccess(String permissionString) {
     return widget.permissions.contains(permissionString);
+  }
+
+  Future<void> _showLotNumberDialog(BuildContext context) async {
+    final repository = context.read<DeliveryRepository>();
+    final settings = await repository.getAppSettings();
+    
+    final bool isLocked = settings.lastLotDate != null && 
+                          settings.dailyLotNumber != null &&
+                          settings.lastLotDate == DateFormat('yyyy-MM-dd').format(DateTime.now());
+    
+    final bool canUpdate = _hasAccess('settings.lot.update') || _hasAccess('settings.lot.create');
+    final TextEditingController lotController = TextEditingController(text: settings.dailyLotNumber ?? '');
+    
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Row(
+            children: [
+              Icon(Icons.tag, color: theme.primaryColor),
+              const SizedBox(width: 8),
+              const Text('Daily Lot Number'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Only one lot number can be created per day and will default in production tracking.',
+                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: lotController,
+                enabled: !isLocked && canUpdate,
+                decoration: InputDecoration(
+                  labelText: 'Lot Number',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.edit_note),
+                ),
+              ),
+              if (isLocked) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.lock, color: theme.primaryColor, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      'LOCKED FOR TODAY: ${settings.lastLotDate}',
+                      style: TextStyle(color: theme.primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+              if (!canUpdate && !isLocked) ...[
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Icon(Icons.visibility, color: Colors.grey, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'READ ONLY',
+                      style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            if (!isLocked && canUpdate)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                onPressed: () async {
+                  final updated = settings.copyWith(
+                    dailyLotNumber: lotController.text,
+                    lastLotDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                  );
+                  await repository.updateAppSettings(updated);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Lot Number updated.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('SAVE', style: TextStyle(color: Colors.white)),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -431,6 +539,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         context,
                         MaterialPageRoute(builder: (_) => const SettingsModulesScreen()),
                       );
+                    },
+                  ),
+                if (_hasAccess('settings.lot.read'))
+                  ListTile(
+                    leading: Icon(
+                      Icons.tag,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    title: Text(
+                      'Lot Number',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showLotNumberDialog(context);
                     },
                   ),
                 if (_hasAccess('administration.user_management.read'))

@@ -56,7 +56,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
                 ( "administration", new[] { "user_management", "sync_logs" } ),
-                ( "settings", new[] { "general", "printer" } )
+                ( "settings", new[] { "general", "printer", "lot" } )
             };
             
             var actions = new[] { "Create", "Read", "Update", "Delete" };

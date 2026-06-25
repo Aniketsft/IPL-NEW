@@ -19,7 +19,6 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
   AppSettings? _settings;
   
   // Local controllers for immediate UI feedback
-  final TextEditingController _lotController = TextEditingController();
   final TextEditingController _toleranceController = TextEditingController();
   
   List<Map<String, String>> _customersList = [];
@@ -52,7 +51,6 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
         _salesRepsList = reps.map((r) => {'code': r.code, 'name': r.name}).toList();
         _settings = settings;
         
-        _lotController.text = _settings?.dailyLotNumber ?? '';
         _toleranceController.text = (_settings?.tolerancePercentage ?? 0.0).toString();
         _selectedCustomer = _settings?.excessDefaultCustomer;
         _selectedSalesman = _settings?.excessDefaultSalesman;
@@ -68,12 +66,6 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     }
   }
 
-  bool get _isLotLocked {
-    if (_settings?.lastLotDate == null || _settings!.dailyLotNumber == null) return false;
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    return _settings!.lastLotDate == today;
-  }
-
   bool get _canUpdate {
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
@@ -87,8 +79,8 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
     if (_settings == null) return;
     
     final updated = _settings!.copyWith(
-      dailyLotNumber: _lotController.text,
-      lastLotDate: _isLotLocked ? _settings!.lastLotDate : DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      dailyLotNumber: _settings!.dailyLotNumber,
+      lastLotDate: _settings!.lastLotDate,
       excessDefaultCustomer: _selectedCustomer,
       excessDefaultSalesman: _selectedSalesman,
       tolerancePercentage: double.tryParse(_toleranceController.text) ?? 0.0,
@@ -136,45 +128,7 @@ class _SettingsModulesScreenState extends State<SettingsModulesScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   child: Column(
                     children: [
-                      // 1. LOT NUMBER MODULE
-                      _buildModuleCard(
-                        title: 'DAILY LOT NUMBER',
-                        icon: Icons.tag,
-                        accentColor: orange,
-                        isLocked: _isLotLocked,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Only one lot number can be created per day and will default in production tracking.',
-                              style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _lotController,
-                              hint: 'Enter Lot Number...',
-                              enabled: !_isLotLocked && _canUpdate,
-                              icon: Icons.edit_note,
-                            ),
-                            if (_isLotLocked) ...[
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(Icons.lock, color: orange, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'LOCKED FOR TODAY: ${_settings?.lastLotDate}',
-                                    style: TextStyle(color: orange, fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // 2. EXCESS DEFAULT MODULE
+                      // 1. EXCESS DEFAULT MODULE
                       _buildModuleCard(
                         title: 'EXCESS DEFAULTS',
                         icon: Icons.person_outline,

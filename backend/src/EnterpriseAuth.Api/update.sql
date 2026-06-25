@@ -1,4 +1,4 @@
-﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -425,6 +425,21 @@ GO
 
 INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
 VALUES (N'20260420042522_AddStagingTable', N'8.0.0');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [Permissions] WHERE [Name] = 'settings.lot.read')
+BEGIN
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.read', 'Read access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.create', 'Create access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.update', 'Update access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.delete', 'Delete access to lot in settings');
+END
 GO
 
 COMMIT;

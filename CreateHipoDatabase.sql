@@ -1,4 +1,4 @@
-﻿-- Create the Hipo database
+-- Create the Hipo database
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'Hipo')
 BEGIN
     CREATE DATABASE Hipo;
@@ -187,6 +187,10 @@ INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('3207ceb0-
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('3f9d96b3-32dc-46fd-ac0e-c2eb1196a9aa', N'logistics.delivery.delete', N'Delete access to delivery in logistics');
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('6b292bd5-1654-40f5-ac87-c37dfe6af3a5', N'inventory.picking.create', N'Create access to picking in inventory');
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('1387d610-6bf6-4089-9577-cc596ca2c04f', N'settings.general.read', N'Read access to general in settings');
+INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), N'settings.lot.read', N'Read access to lot in settings');
+INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), N'settings.lot.create', N'Create access to lot in settings');
+INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), N'settings.lot.update', N'Update access to lot in settings');
+INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), N'settings.lot.delete', N'Delete access to lot in settings');
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('109aeada-c8cd-49e3-93cb-d37660e98c31', N'settings.general.delete', N'Delete access to general in settings');
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('ad8cd39e-2f9b-479a-8578-d5137ab421e1', N'inventory.picking.read', N'Read access to picking in inventory');
 INSERT INTO [dbo].[Permissions] ([Id], [Name], [Description]) VALUES ('d216a7ff-41ee-45c4-92ce-e1bc23d54bf5', N'administration.user_management.delete', N'Delete access to user_management in administration');

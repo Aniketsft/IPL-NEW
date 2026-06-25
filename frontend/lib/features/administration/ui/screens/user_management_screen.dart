@@ -57,6 +57,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     final List<PermissionNode> _permissionTree = [
       PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
       PermissionNode(label: 'Settings', moduleId: 'settings.general'),
+      PermissionNode(label: 'Lot Settings', moduleId: 'settings.lot'),
       PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
       PermissionNode(label: 'Sync Logs', moduleId: 'administration.sync_logs'),
       PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
@@ -502,6 +503,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     switch (label) {
       case 'Home Screen':      return Icons.home_outlined;
       case 'Settings':         return Icons.settings_outlined;
+      case 'Lot Settings':     return Icons.tag_outlined;
       case 'Administration':   return Icons.admin_panel_settings_outlined;
       case 'Sync Logs':        return Icons.sync_alt;
       case 'Delivery':         return Icons.local_shipping_outlined;
@@ -516,6 +518,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     switch (label) {
       case 'Home Screen':      return const Color(0xFFFF9800);
       case 'Settings':         return const Color(0xFF9C27B0);
+      case 'Lot Settings':     return const Color(0xFFE91E63);
       case 'Administration':   return const Color(0xFFF44336);
       case 'Sync Logs':        return const Color(0xFF009688);
       case 'Delivery':         return const Color(0xFF2196F3);
@@ -530,6 +533,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     switch (label) {
       case 'Home Screen':      return 'Dashboard & data sync';
       case 'Settings':         return 'App configuration';
+      case 'Lot Settings':     return 'Daily lot number management';
       case 'Administration':   return 'User & role management';
       case 'Sync Logs':        return 'Real-time device sync tracking';
       case 'Delivery':         return 'EOD, scanning & manifests';
