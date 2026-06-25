@@ -114,10 +114,10 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   bool _isEodDone = false;
   bool _isSendingToX3 = false;
 
-  bool get _canUpdate {
-    return widget.permissions.contains('manufacturing.all.update') ||
-           widget.permissions.contains('manufacturing.all.create') ||
-           widget.permissions.contains('manufacturing.all.delete');
+  bool get _canUpdateEod {
+    return widget.permissions.contains('manufacturing.eod.update') ||
+           widget.permissions.contains('manufacturing.eod.create') ||
+           widget.permissions.contains('manufacturing.eod.delete');
   }
 
   static const _amber = Color(0xFFFF9800);
@@ -600,8 +600,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         else
           IconButton(
             tooltip: 'Export to Sage X3',
-            icon: Icon(Icons.send_and_archive, color: _canUpdate ? _amber : Colors.grey),
-            onPressed: (_isEodDone && _canUpdate) ? _processProductionEod : null,
+            icon: Icon(Icons.send_and_archive, color: _canUpdateEod ? _amber : Colors.grey),
+            onPressed: (_isEodDone && _canUpdateEod) ? _processProductionEod : null,
           ),
       ],
       body: Column(
@@ -899,12 +899,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _actionButton() => ElevatedButton.icon(
-        onPressed: (_isSaving || _isEodDone || !_canUpdate) ? null : _completeEndOfDay,
+        onPressed: (_isSaving || _isEodDone || !_canUpdateEod) ? null : _completeEndOfDay,
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: Text(_isSaving ? 'COMPLETING...' : 'END OF DAY'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: (_isEodDone || !_canUpdate) ? Colors.grey : _amber,
-          foregroundColor: (_isEodDone || !_canUpdate) ? Colors.white70 : Colors.black,
+          backgroundColor: (_isEodDone || !_canUpdateEod) ? Colors.grey : _amber,
+          foregroundColor: (_isEodDone || !_canUpdateEod) ? Colors.white70 : Colors.black,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),

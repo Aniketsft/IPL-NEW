@@ -62,6 +62,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'Sync Logs', moduleId: 'administration.sync_logs'),
       PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
       PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
+      PermissionNode(label: 'End of Day', moduleId: 'manufacturing.eod'),
       PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
       PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
     ];
@@ -508,6 +509,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Sync Logs':        return Icons.sync_alt;
       case 'Delivery':         return Icons.local_shipping_outlined;
       case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
+      case 'End of Day':       return Icons.wb_twilight;
       case 'QR Label':         return Icons.qr_code_scanner_rounded;
       case 'Printer Settings': return Icons.print_outlined;
       default:                 return Icons.folder_outlined;
@@ -523,6 +525,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Sync Logs':        return const Color(0xFF009688);
       case 'Delivery':         return const Color(0xFF2196F3);
       case 'Manufacturing':    return Theme.of(context).primaryColor;
+      case 'End of Day':       return const Color(0xFFFFC107);
       case 'QR Label':         return const Color(0xFF4CAF50);
       case 'Printer Settings': return const Color(0xFF607D8B);
       default:                 return Colors.grey;
@@ -538,6 +541,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Sync Logs':        return 'Real-time device sync tracking';
       case 'Delivery':         return 'EOD, scanning & manifests';
       case 'Manufacturing':    return 'Sales orders & tracking';
+      case 'End of Day':       return 'End of day processing and X3 export';
       case 'QR Label':         return 'QR aggregation & printing';
       case 'Printer Settings': return 'Printer configuration';
       default:                 return '';

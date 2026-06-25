@@ -292,3 +292,20 @@ SET IDENTITY_INSERT [dbo].[audit_log] OFF;
 SET IDENTITY_INSERT [dbo].[cut_bulk_entries] OFF;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM [Permissions] WHERE [Name] = 'settings.lot.read')
+BEGIN
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.read', 'Read access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.create', 'Create access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.update', 'Update access to lot in settings');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'settings.lot.delete', 'Delete access to lot in settings');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [Permissions] WHERE [Name] = 'manufacturing.eod.read')
+BEGIN
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.read', 'Read access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.create', 'Create access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.update', 'Update access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.delete', 'Delete access to eod in manufacturing');
+END
+GO

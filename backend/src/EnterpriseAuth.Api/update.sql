@@ -442,6 +442,14 @@ BEGIN
 END
 GO
 
-COMMIT;
+IF NOT EXISTS (SELECT 1 FROM [Permissions] WHERE [Name] = 'manufacturing.eod.read')
+BEGIN
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.read', 'Read access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.create', 'Create access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.update', 'Update access to eod in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.eod.delete', 'Delete access to eod in manufacturing');
+END
 GO
 
+COMMIT;
+GO
