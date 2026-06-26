@@ -11,6 +11,7 @@ class ProductionTrackingSoBreakdownScreen extends StatefulWidget {
   final String description;
   final List<SalesOrderDetail> soItems;
   final List<String> permissions;
+  final double tolerancePercentage;
 
   const ProductionTrackingSoBreakdownScreen({
     super.key,
@@ -18,6 +19,7 @@ class ProductionTrackingSoBreakdownScreen extends StatefulWidget {
     required this.description,
     required this.soItems,
     required this.permissions,
+    this.tolerancePercentage = 0.0,
   });
 
   @override
@@ -414,19 +416,32 @@ class _ProductionTrackingSoBreakdownScreenState
                   ),
                 ),
                 Expanded(
-                  child: _soStat(
-                    'Produced (M)',
-                    '${item.formatQuantity(item.manufacturedQuantity)} ${item.unit}',
-                    orange,
-                    isDark,
+                  child: Builder(
+                    builder: (context) {
+                      final bool isEA = item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS';
+                      final double tolerance = isEA ? 0.0 : widget.tolerancePercentage;
+                      final effectiveLimit = item.quantity * (1 + tolerance / 100);
+                      return _soStat(
+                        'Max Allowed',
+                        '${item.formatQuantity(effectiveLimit)} ${item.unit}',
+                        isDark ? Colors.white70 : Colors.black87,
+                        isDark,
+                      );
+                    },
                   ),
                 ),
                 Expanded(
-                  child: _soStat(
-                    'Scanned (S)',
-                    '${item.formatQuantity(item.scannedQuantity)} scans',
-                    isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
-                    isDark,
+                  child: Builder(
+                    builder: (context) {
+                      final bool isEA = item.unit.toUpperCase() == 'EA' || item.unit.toUpperCase() == 'PCS';
+                      final double scannedQty = isEA ? item.eaScannedQuantity : item.manufacturedQuantity;
+                      return _soStat(
+                        'Scanned',
+                        '${item.formatQuantity(scannedQty)} ${item.unit}',
+                        orange,
+                        isDark,
+                      );
+                    },
                   ),
                 ),
                 Expanded(

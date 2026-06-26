@@ -1754,7 +1754,7 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-   Future<void> allocateExcess({
+   Future<String> allocateExcess({
     required String sourceBulkSoNumber,
     required String targetSoNumber,
     required String itemCode,
@@ -1768,6 +1768,7 @@ class DeliveryRepository implements ILogisticsRepository {
     
     // 1. Save locally with the physical location and lot
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final syncId = const Uuid().v4();
     
     // 1. Save positive scan for the target order
     final scanRecord = {
@@ -1783,7 +1784,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnBarcode: 'ALLOC-$sourceBulkSoNumber-$timestamp',
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
-      LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
+      LocalDatabaseHelper.columnSyncId: syncId,
     };
 
     // 2. Save negative reconciliation scan for the dummy bulk order
@@ -1805,12 +1806,19 @@ class DeliveryRepository implements ILogisticsRepository {
 
     await LocalDatabaseHelper.instance.insertScan(scanRecord);
     await LocalDatabaseHelper.instance.insertScan(negativeRecord);
+
+    return syncId;
   }
 
   @override
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     return await LocalDatabaseHelper.instance.getExcessPoolSummaries(dateStr);
+  }
+
+  @override
+  Future<Set<String>> getOrdersWithExcessAvailable() async {
+    return await LocalDatabaseHelper.instance.getOrdersWithExcessAvailable();
   }
 
   @override

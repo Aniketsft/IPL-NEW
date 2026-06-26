@@ -1408,8 +1408,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               (selectedPool['poolQty'] as num).toDouble() -
               (selectedPool['allocatedQty'] as num).toDouble();
 
+          final bool isEA = widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS';
+          final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+          final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
+
           final remainingOrder =
-              widget.product.quantity -
+              effectiveLimit -
               _localManufacturedQty -
               _baseSessionScannedQty -
               _cumulativeQty;
@@ -1632,7 +1636,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     try {
       final repository = context.read<DeliveryRepository>();
 
-      await repository.allocateExcess(
+      final newSyncId = await repository.allocateExcess(
         sourceBulkSoNumber: sourcePool,
         targetSoNumber: widget.order.orderNumber,
         itemCode: widget.product.itemCode,
@@ -1659,6 +1663,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           'lot': _selectedLot,
           'soNumber': widget.order.orderNumber,
           'isSaved': true,
+          'syncId': newSyncId,
         });
         _baseSessionScannedQty += amount;
         _isDirty = true;

@@ -46,6 +46,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   List<SalesOrder> _filteredOrders = [];
+  Set<String> _ordersWithBulkAvailable = {};
   String _poTypeFilter = 'ALL'; 
   Timer? _debounceTimer;
 
@@ -231,7 +232,10 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
         offset: 0,
       );
 
+      final bulkOrders = await repository.getOrdersWithExcessAvailable();
+
       setState(() {
+        _ordersWithBulkAvailable = bulkOrders;
         _orders = results;
         _applyLocalFilters();
         _hasMore = results.length == 100;
@@ -499,9 +503,11 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                               ),
                             );
                           }
+                          final order = _filteredOrders[index];
                           return SalesOrderCard(
-                            order: _filteredOrders[index],
+                            order: order,
                             permissions: widget.permissions,
+                            hasBulkAvailable: _ordersWithBulkAvailable.contains(order.orderNumber),
                             onRefresh: _fetchOrders,
                           );
                         },

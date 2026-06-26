@@ -8,6 +8,7 @@ class SalesOrderCard extends StatelessWidget {
   final VoidCallback? onRefresh;
   final bool isDeliveryMode;
   final List<String> permissions;
+  final bool hasBulkAvailable;
 
   const SalesOrderCard({
     super.key,
@@ -15,6 +16,7 @@ class SalesOrderCard extends StatelessWidget {
     required this.permissions,
     this.onRefresh,
     this.isDeliveryMode = false,
+    this.hasBulkAvailable = false,
   });
 
   @override
@@ -77,6 +79,32 @@ class SalesOrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (hasBulkAvailable) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.inventory_2_outlined, size: 10, color: isDark ? Colors.blue[300] : Colors.blue[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Bulk',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.blue[300] : Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

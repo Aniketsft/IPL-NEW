@@ -1729,6 +1729,32 @@ class LocalDatabaseHelper {
     return summaries;
   }
 
+  /// Finds all normal orders (not BLK/CUTS) that have items matching an available excess pool on their delivery date.
+  Future<Set<String>> getOrdersWithExcessAvailable() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT DISTINCT det.$colDetSoNum AS soNumber
+      FROM $tableDetails det
+      INNER JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
+      INNER JOIN (
+        SELECT 
+          s.$columnProductCode,
+          o.$colDeliveryDate,
+          SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') THEN s.$columnQuantity ELSE 0 END) AS poolQty,
+          SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND s.$columnBarcode LIKE 'ALLOC-OUT-%' THEN -s.$columnQuantity ELSE 0 END) AS allocatedQty
+        FROM $tableScans s
+        INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
+        WHERE (o.$colOrderNum LIKE 'BLK-%' OR o.$colOrderNum LIKE 'CUTS-%')
+        GROUP BY s.$columnProductCode, o.$colDeliveryDate
+      ) pools ON det.$colDetItemCode = pools.$columnProductCode AND ord.$colDeliveryDate = pools.$colDeliveryDate
+      WHERE (pools.poolQty - pools.allocatedQty) > 0.001
+        AND ord.$colOrderNum NOT LIKE 'BLK-%'
+        AND ord.$colOrderNum NOT LIKE 'CUTS-%'
+    ''');
+    
+    return results.map((r) => r['soNumber'] as String).toSet();
+  }
+
   // --- LABEL AUDIT METHODS ---
 
   Future<int> insertLabelAudit(Map<String, dynamic> audit) async {

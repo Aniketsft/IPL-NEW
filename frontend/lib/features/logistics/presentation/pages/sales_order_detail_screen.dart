@@ -38,6 +38,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   final Set<String> _selectedItemCodes = {};
   double _tolerancePercentage = 0.0;
   bool _isHeaderExpanded = false;
+  Map<String, double> _excessPoolSummaries = {};
 
   @override
   void initState() {
@@ -116,11 +117,13 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
       final results = await repository.fetchSalesOrderDetails(
         widget.order.orderNumber,
       );
+      final pools = await repository.getExcessPoolSummaries(widget.order.date);
 
       if (mounted) {
         setState(() {
           _tolerancePercentage = settings.tolerancePercentage ?? 0.0;
           _details = results;
+          _excessPoolSummaries = pools;
           _isLoading = false;
         });
       }
@@ -762,7 +765,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                 SizedBox(
                   width: 72,
                   child: const Text(
-                    'REMAIN',
+                    'MAX ALLOWED',
                     textAlign: TextAlign.end,
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
@@ -1071,6 +1074,35 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (_excessPoolSummaries[item.itemCode] != null && 
+                            _excessPoolSummaries[item.itemCode]! > 0 &&
+                            !widget.order.orderNumber.startsWith('BLK-') &&
+                            !widget.order.orderNumber.startsWith('CUTS-')) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.inventory_2_outlined, size: 10, color: isDark ? Colors.blue[300] : Colors.blue[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Bulk',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.blue[300] : Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                       ],
                     ),
@@ -1116,21 +1148,16 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                 : _tolerancePercentage;
                             final effectiveLimit =
                                 item.quantity * (1 + tolerance / 100);
-                            final effectiveRemaining = isEA
-                                ? (item.quantity - item.eaScannedQuantity)
-                                : (effectiveLimit - item.manufacturedQuantity);
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '${item.formatQuantity(effectiveRemaining)}',
+                                  '${item.formatQuantity(effectiveLimit)}',
                                   textAlign: TextAlign.end,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
-                                    color: effectiveRemaining <= 0
-                                        ? Colors.green
-                                        : Colors.red,
+                                    color: isDark ? Colors.white70 : Colors.black87,
                                   ),
                                 ),
                                 Text(
@@ -1138,9 +1165,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                   textAlign: TextAlign.end,
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: effectiveRemaining <= 0
-                                        ? Colors.green.withValues(alpha: 0.7)
-                                        : Colors.red.withValues(alpha: 0.7),
+                                    color: isDark ? Colors.white54 : Colors.black54,
                                   ),
                                 ),
                               ],

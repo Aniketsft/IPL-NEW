@@ -9,6 +9,7 @@ import '../widgets/sync_status_header.dart';
 import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
 import '../../domain/entities/sales_order.dart';
+import '../../data/repositories/delivery_repository.dart';
 import '../../../settings/data/models/site.dart';
 
 class ProductionTrackingListScreen extends StatefulWidget {
@@ -28,12 +29,28 @@ class _ProductionTrackingListScreenState
   final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
   String? _selectedSiteId; // Default to All Sites to show INTERNAL (dummy) orders
   List<Site> _sites = [];
+  double _tolerancePercentage = 0.0;
 
   @override
   void initState() {
     super.initState();
     _sites = Site.mockSites;
+    _fetchAppSettings();
     _applyFilters();
+  }
+
+  Future<void> _fetchAppSettings() async {
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final settings = await repository.getAppSettings();
+      if (mounted) {
+        setState(() {
+          _tolerancePercentage = settings.tolerancePercentage ?? 0.0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch app settings: $e');
+    }
   }
 
   void _applyFilters() {
@@ -228,11 +245,19 @@ class _ProductionTrackingListScreenState
                   child: _buildStat('Ordered', '${item.formatQuantity(item.quantity ?? 0)} ${item.unit}', isDark),
                 ),
                 Expanded(
-                  child: _buildStat(
-                    'Remaining',
-                    '${item.remainingDisplay} ${item.unit}',
-                    isDark,
-                    color: (item.remaining ?? 0) < 0 ? Colors.green : (isDark ? Colors.white70 : Colors.black87),
+                  child: Builder(
+                    builder: (context) {
+                      final bool isEA = (item.unit ?? '').toUpperCase() == 'EA' ||
+                                        (item.unit ?? '').toUpperCase() == 'PCS';
+                      final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+                      final effectiveLimit = (item.quantity ?? 0) * (1 + tolerance / 100);
+                      return _buildStat(
+                        'Max Allowed',
+                        '${item.formatQuantity(effectiveLimit)} ${item.unit}',
+                        isDark,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      );
+                    },
                   ),
                 ),
                 Expanded(

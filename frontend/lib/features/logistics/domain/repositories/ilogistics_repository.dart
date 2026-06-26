@@ -66,7 +66,7 @@ abstract class ILogisticsRepository {
   });
   Future<Map<String, dynamic>?> getProductByBarcode(String barcode);
   Future<List<Map<String, dynamic>>> getExcessByDateAndItem(DateTime deliveryDate, String itemCode);
-  Future<void> allocateExcess({
+  Future<String> allocateExcess({
     required String sourceBulkSoNumber,
     required String targetSoNumber,
     required String itemCode,
@@ -76,6 +76,7 @@ abstract class ILogisticsRepository {
     String? siteId,
   });
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date);
+  Future<Set<String>> getOrdersWithExcessAvailable();
   Future<String> logLabelAudit(Map<String, dynamic> auditData);
   Future<List<Map<String, String>>> getOpenInternalOrders();
   Future<Map<String, dynamic>> processEndOfDay();
