@@ -46,6 +46,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   bool _isDirty = false;
   bool _isProcessingBarcode = false;
   bool _isLoadingHistory = false;
+  bool _isMultiplierMode = false;
   List<String> _sites = [];
   String? _selectedSite;
   List<String> _lots = [];
@@ -408,22 +409,27 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             }
           }
 
-          setState(() {
-            _pendingScan = {
-              'barcode': result.processedBarcode,
-              'originalBarcode': result.originalBarcode,
-              'productCode': result.itemCode,
-              'scannedQty': result.scannedQty,
-              'manufacturedQty': result.manufacturedQty,
-              'weight': result.manufacturedQty,
-              'unit': targetUnit,
-              'timestamp': DateTime.now().toIso8601String(),
-              'syncId': Uuid().v4(),
-            };
+          final pending = {
+            'barcode': result.processedBarcode,
+            'originalBarcode': result.originalBarcode,
+            'productCode': result.itemCode,
+            'scannedQty': result.scannedQty,
+            'manufacturedQty': result.manufacturedQty,
+            'weight': result.manufacturedQty,
+            'unit': targetUnit,
+            'timestamp': DateTime.now().toIso8601String(),
+          };
 
-            // --- Instant Save (Removes 2FA / Confirmation) ---
-            _savePendingScan();
-          });
+          if (_isMultiplierMode) {
+            _showMultiplierPrompt(pending);
+          } else {
+            setState(() {
+              pending['syncId'] = const Uuid().v4();
+              _pendingScan = pending;
+              // --- Instant Save (Removes 2FA / Confirmation) ---
+              _savePendingScan();
+            });
+          }
 
           AudioService.instance.playSuccess();
           HapticFeedback.lightImpact();
@@ -451,12 +457,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.error_outline, color: Colors.red),
             const SizedBox(width: 8),
-            Text(title, style: const TextStyle(color: Colors.white)),
+            Expanded(child: Text(title, style: const TextStyle(color: Colors.white))),
           ],
         ),
         content: Text(message, style: const TextStyle(color: Colors.white70)),
@@ -543,6 +548,93 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         content: Text('Scan saved'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _showMultiplierPrompt(Map<String, dynamic> pendingScan) {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final orange = theme.primaryColor;
+        
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text('Multiplier Mode', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Enter the number of times to multiply this scan record:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Quantity',
+                  labelStyle: TextStyle(color: orange),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black26)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final int? count = int.tryParse(controller.text);
+                if (count != null && count > 0) {
+                  Navigator.pop(context);
+                  _applyMultiplier(pendingScan, count);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: orange),
+              child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _applyMultiplier(Map<String, dynamic> pendingScan, int count) {
+    setState(() {
+      for (int i = 0; i < count; i++) {
+        final scanWithMetadata = Map<String, dynamic>.from(pendingScan);
+        scanWithMetadata['status'] = _status;
+        scanWithMetadata['siteId'] = _selectedSite;
+        scanWithMetadata['locationCode'] = _selectedLocation?.location;
+        scanWithMetadata['lot'] = _selectedLot;
+        scanWithMetadata['soNumber'] = widget.order.orderNumber;
+        scanWithMetadata['productCode'] = widget.product.itemCode;
+        scanWithMetadata['isSaved'] = false;
+        scanWithMetadata['syncId'] = const Uuid().v4();
+        
+        _scans.insert(0, scanWithMetadata);
+        if (_status == 'A') {
+          _cumulativeQty += scanWithMetadata['scannedQty'] as double;
+          _cumulativeWeight += (scanWithMetadata['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+          _isDirty = true;
+        }
+      }
+      _pendingScan = null;
+    });
+    AudioService.instance.playSuccess();
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$count records generated'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -1962,6 +2054,30 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   letterSpacing: 0.5,
                 ),
               ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isMultiplierMode = !_isMultiplierMode;
+                  });
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: _isMultiplierMode ? orange : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _isMultiplierMode ? orange : (isDark ? Colors.white38 : Colors.black26),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: _isMultiplierMode ? Colors.white : (isDark ? Colors.white54 : Colors.black54),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -2150,13 +2266,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 );
                 return;
               }
-              final success = await _handleScan(code);
-              if (success && mounted) {
-                Navigator.pop(ctx);
-                if (_pendingScan != null) {
-                  _savePendingScan();
-                }
-              }
+              Navigator.pop(ctx);
+              await _handleScan(code);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.primaryColor,

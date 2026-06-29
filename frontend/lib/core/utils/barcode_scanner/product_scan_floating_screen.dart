@@ -10,6 +10,7 @@ import 'barcode_processor.dart';
 import 'hardware_scanner_mixin.dart';
 import 'dart:ui' show ImageFilter;
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import '../../../features/logistics/presentation/widgets/scan_item_card.dart';
 import '../../app_theme.dart';
 
@@ -40,6 +41,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
   List<String> _sites = [];
   bool _isLoadingSites = false;
   bool _isProcessingScan = false;
+  bool _isMultiplierMode = false;
   
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocationEntity;
@@ -248,23 +250,27 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
             return;
           }
 
+          final pending = {
+            'barcode': result.processedBarcode,
+            'originalBarcode': result.originalBarcode,
+            'productCode': result.itemCode,
+            'scannedQty': result.scannedQty,
+            'manufacturedQty': result.manufacturedQty,
+            'weight': result.manufacturedQty,
+            'unit': targetUnit,
+            'timestamp': DateTime.now().toIso8601String(),
+          };
+
           setState(() {
-            _pendingScan = {
-              'barcode': result.processedBarcode,
-              'originalBarcode': result.originalBarcode,
-              'productCode': result.itemCode,
-              'scannedQty': result.scannedQty,
-              'manufacturedQty': result.manufacturedQty,
-              'weight': result.manufacturedQty,
-              'unit': targetUnit,
-              'timestamp': DateTime.now().toIso8601String(),
-            };
+            _pendingScan = pending;
           });
 
           AudioService.instance.playSuccess();
           HapticFeedback.lightImpact();
 
-          if (isManual) {
+          if (_isMultiplierMode) {
+            _showMultiplierPrompt(pending);
+          } else if (isManual) {
             _showConfirmationPrompt(result);
           } else {
             // --- Instant Save (Removes 2FA / Confirmation) ---
@@ -366,6 +372,85 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
         content: Text('Scan saved'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _showMultiplierPrompt(Map<String, dynamic> pendingScan) {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final orange = theme.primaryColor;
+        
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text('Multiplier Mode', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Enter the number of times to multiply this scan record:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Quantity',
+                  labelStyle: TextStyle(color: orange),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black26)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final int? count = int.tryParse(controller.text);
+                if (count != null && count > 0) {
+                  Navigator.pop(context);
+                  _applyMultiplier(pendingScan, count);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: orange),
+              child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _applyMultiplier(Map<String, dynamic> pendingScan, int count) {
+    setState(() {
+      for (int i = 0; i < count; i++) {
+        final scanWithMetadata = Map<String, dynamic>.from(pendingScan);
+        scanWithMetadata['site'] = _selectedSite;
+        scanWithMetadata['location'] = _selectedLocationEntity?.location;
+        scanWithMetadata['lot'] = _selectedLot;
+        scanWithMetadata['status'] = 'A';
+        scanWithMetadata['syncId'] = const Uuid().v4();
+        
+        _scans.insert(0, scanWithMetadata);
+      }
+      _pendingScan = null;
+    });
+    AudioService.instance.playSuccess();
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$count records generated'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -760,13 +845,34 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Scan product to track',
-                        style: TextStyle(
-                          color: isDark ? Colors.white60 : Colors.black54,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Scan product to track',
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : Colors.black54,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: _isMultiplierMode ? orange.withValues(alpha: 0.1) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.close),
+                              color: _isMultiplierMode ? orange : (isDark ? Colors.white38 : Colors.black38),
+                              onPressed: () {
+                                setState(() {
+                                  _isMultiplierMode = !_isMultiplierMode;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Row(
