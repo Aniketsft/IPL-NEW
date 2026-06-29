@@ -278,21 +278,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                  if (_productsExpanded) ...[
                    for (int i = 0; i < _selectedProducts.length; i++)
                      _buildProductItemCard(_selectedProducts[i], i),
-                   Row(
-                     mainAxisAlignment: MainAxisAlignment.center,
-                     children: [
-                       TextButton.icon(
-                         onPressed: _addProduct,
-                         icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
-                         label: const Text('Add Product', style: TextStyle(color: Color(0xFFFF9800))),
-                       ),
-                       const SizedBox(width: 16),
-                       TextButton.icon(
-                         onPressed: _scanProduct,
-                         icon: const Icon(Icons.qr_code_scanner, color: Color(0xFFFF9800)),
-                         label: const Text('Scan Product', style: TextStyle(color: Color(0xFFFF9800))),
-                       ),
-                     ],
+                   Center(
+                     child: TextButton.icon(
+                       onPressed: _addProduct,
+                       icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
+                       label: const Text('Add Product', style: TextStyle(color: Color(0xFFFF9800))),
+                     ),
                    ),
                  ],
               ],
@@ -639,71 +630,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     });
   }
 
-  void _scanProduct() {
-     final theme = Theme.of(context);
-     final isDark = theme.brightness == Brightness.dark;
-     final orange = theme.primaryColor;
 
-     showModalBottomSheet(
-      context: context,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          top: 24,
-          left: 16,
-          right: 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Scan Product Barcode/SKU', 
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87, 
-                fontSize: 16, 
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 150,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.barcode_reader, color: orange.withValues(alpha: 0.5), size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    'HARDWARE SCANNER READY',
-                    style: TextStyle(
-                      color: orange.withValues(alpha: 0.8),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Use the physical side button',
-                    style: TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _processScannedProductCode(String code) async {
     try {
@@ -724,30 +651,30 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       );
 
       // Check if already added
-      final exists = _selectedProducts.any((p) => p['code'] == product['code']);
-      if (exists) {
+      final existingIndex = _selectedProducts.indexWhere((p) => p['code'] == product['code']);
+      if (existingIndex != -1) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('${product['name']} is already added'))
-          );
+          // Auto-open tracking overlay for the existing product
+          _navigateToScan(_selectedProducts[existingIndex], existingIndex);
         }
         return;
       }
 
+      final newProduct = {
+        'code': product['code'],
+        'name': product['name'],
+        'unit': product['unit'] ?? 'KG',
+        'sku': 'SKU-${product['code']}',
+        'qty': 0.0,
+        'scans': [],
+      };
+
       setState(() {
-        _selectedProducts.add({
-          'code': product['code'],
-          'name': product['name'],
-          'unit': product['unit'] ?? 'KG',
-          'sku': 'SKU-${product['code']}',
-          'qty': 0.0,
-          'scans': [],
-        });
+        _selectedProducts.add(newProduct);
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added: ${product['name']}'))
-        );
+        // Automatically open the tracking overlay for the new product
+        _navigateToScan(newProduct, _selectedProducts.length - 1);
       }
     } catch (e) {
       if (mounted) {
@@ -1016,24 +943,38 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
             top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
           ),
         ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _handleSave,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Scan product to track',
+              style: TextStyle(
+                color: isDark ? Colors.white60 : Colors.black54,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
-              elevation: isDark ? 0 : 4,
             ),
-            child: const Text(
-              'Save',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _handleSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: isDark ? 0 : 4,
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
