@@ -8,7 +8,6 @@ import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import '../widgets/label_printing_handler.dart';
 import 'production_tracking_screen.dart';
-import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 
@@ -54,42 +53,96 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     try {
       final processor = OfflineBarcodeProcessor();
       final result = await processor.processBarcode(data);
-      final targetItemCode = result?.itemCode ?? data;
+      
+      if (result == null) {
+        throw Exception('Unknown barcode format: $data');
+      }
+      
+      final targetItemCode = result.itemCode;
+      if (targetItemCode.isEmpty) {
+        throw Exception('Product found but item code is missing.');
+      }
 
       // Find the item in the list
-      final matchedItem = _details.firstWhere(
-        (d) => d.itemCode.toUpperCase() == targetItemCode.toUpperCase(),
-        orElse: () => _details.firstWhere(
-          (d) => d.description.toLowerCase().contains(
-            targetItemCode.toLowerCase(),
-          ),
-          orElse: () => throw Exception(
-            'Product "$targetItemCode" not found in this Sales Order.',
-          ),
-        ),
-      );
+      SalesOrderDetail? matchedItem;
+      try {
+        matchedItem = _details.firstWhere(
+          (d) => d.itemCode.toUpperCase() == targetItemCode.toUpperCase(),
+        );
+      } catch (_) {
+        try {
+          matchedItem = _details.firstWhere(
+            (d) => d.description.toLowerCase().contains(targetItemCode.toLowerCase()),
+          );
+        } catch (_) {}
+      }
 
       if (mounted) {
-        if (widget.isDeliveryMode) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Long-press the item "${matchedItem.itemCode}" to validate shipment.'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-          return;
-        }
+        if (matchedItem != null) {
+          if (widget.isDeliveryMode) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Long-press the item "${matchedItem.itemCode}" to validate shipment.'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductionTrackingScreen(
-              order: widget.order,
-              product: matchedItem,
-              permissions: widget.permissions,
+          if (matchedItem.isPrepared) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Product "${matchedItem.itemCode}" is already marked as PREPARED.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductionTrackingScreen(
+                order: widget.order,
+                product: matchedItem!,
+                permissions: widget.permissions,
+              ),
             ),
-          ),
-        ).then((_) => _fetchDetails()); // Refresh when coming back
+          ).then((_) => _fetchDetails()); // Refresh when coming back
+        } else {
+          // Item not found in details. Check for BLK or CUTS orders.
+          final isCutBulkOrder =
+              widget.order.orderNumber.startsWith('BLK-') ||
+              widget.order.orderNumber.startsWith('CUTS-');
+
+          if (isCutBulkOrder) {
+            final newDetail = SalesOrderDetail(
+              soNumber: widget.order.orderNumber,
+              itemCode: result.itemCode,
+              description: result.description,
+              quantity: 0.0,
+              unit: result.unit,
+              barcodeType: '',
+              remaining: 0.0,
+              scannedQuantity: 0.0,
+              manufacturedQuantity: 0.0,
+              isPrepared: false,
+            );
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProductionTrackingScreen(
+                  order: widget.order,
+                  product: newDetail,
+                  permissions: widget.permissions,
+                ),
+              ),
+            ).then((_) => _fetchDetails());
+          } else {
+            throw Exception('Product "$targetItemCode" not found in this Sales Order.');
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1384,35 +1437,28 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                   ),
                                 ),
                         )
-                      : ElevatedButton.icon(
-                          onPressed: _isLoading
-                              ? null
-                              : () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        ProductionTrackingScanner(
-                                          order: widget.order,
-                                          details: _details,
-                                          permissions: widget.permissions,
-                                        ),
-                                  ),
-                                ).then((_) => _fetchDetails()),
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text(
-                            'Scan Product to Track',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                      : Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.barcode_reader, size: 20, color: Colors.orange.withValues(alpha: 0.7)),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Scan product to track',
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
                           ),
                         )),
           ),

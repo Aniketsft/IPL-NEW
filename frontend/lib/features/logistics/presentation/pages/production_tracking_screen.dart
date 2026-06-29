@@ -53,7 +53,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   List<LocationLookup> _locations = [];
   LocationLookup? _selectedLocation;
   final TextEditingController _lotController = TextEditingController();
-  bool _isScannerVisible = false;
   bool _isSettingsExpanded = false;
   List<Map<String, dynamic>> _excessPools = [];
   bool _isLoadingExcess = false;
@@ -70,12 +69,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     _fetchInitialData();
     _fetchHistoricalScans();
     _fetchExcessPools();
-    // Auto-launch scanner immediately on screen entry
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_isScannerVisible) {
-        setState(() => _isScannerVisible = true);
-      }
-    });
   }
 
   @override
@@ -320,9 +313,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     }
   }
 
-  void _toggleScanner() {
-    setState(() => _isScannerVisible = !_isScannerVisible);
-  }
+
 
   void _removeScan(int index) {
     if (!widget.permissions.contains('manufacturing.all.update')) return;
@@ -1287,8 +1278,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _statTile(
-                'Remaining',
-                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (widget.product.quantity - _localEaScannedQty - _baseSessionScannedQty - _cumulativeQty) : ((widget.product.quantity * (1 + tolerance / 100)) - _localManufacturedQty - _baseSessionScannedQty - _cumulativeQty))} ${widget.product.unit}',
+                'Max Allowed',
+                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? widget.product.quantity : (widget.product.quantity * (1 + tolerance / 100)))} ${widget.product.unit}',
                 isDark,
               ),
               _statTile(
@@ -1760,80 +1751,15 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   Widget _buildScannerOrSummary() {
-    return _isScannerVisible
-        ? _buildScannerSection()
-        : _buildManualSummaryCard();
-  }
-
-  Widget _buildScannerSection() {
-    final theme = Theme.of(context);
-    final orange = theme.primaryColor;
-    final isDark = theme.brightness == Brightness.dark;
-
     return Stack(
       children: [
-        Container(
-          height: 320,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: orange, width: 2),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: orange.withValues(alpha: 0.2),
-                      blurRadius: 15,
-                      spreadRadius: -2,
-                    ),
-                  ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.barcode_reader, color: orange.withValues(alpha: 0.5), size: 64),
-                  const SizedBox(height: 16),
-                  Text(
-                    'HARDWARE SCANNER ACTIVE',
-                    style: TextStyle(
-                      color: orange.withValues(alpha: 0.7),
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Press physical side button to scan',
-                    style: TextStyle(
-                      color: Colors.white24,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        _buildManualSummaryCard(),
         if (_pendingScan != null) _buildScanSuccessOverlay(),
-        if (widget.permissions.contains('manufacturing.all.update'))
-          Positioned(
-            top: 12,
-            right: 12,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white70),
-              onPressed: _toggleScanner,
-            ),
-          ),
       ],
     );
   }
+
+
 
   Widget _buildScanSuccessOverlay() {
     final theme = Theme.of(context);
@@ -2021,52 +1947,22 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
           ),
           const SizedBox(height: 28),
 
-          // ── Primary: LAUNCH SCANNER (full-width, gradient, glow) ──
-          SizedBox(
-            width: double.infinity,
-            height: 72,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    orange,
-                    HSLColor.fromColor(orange).withLightness(0.38).toColor(),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(36),
-                boxShadow: [
-                  BoxShadow(
-                    color: orange.withValues(alpha: 0.45),
-                    blurRadius: 20,
-                    spreadRadius: -4,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _toggleScanner,
-                icon: const Icon(Icons.qr_code_scanner, size: 22),
-                label: const Text(
-                  'LAUNCH SCANNER',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  shadowColor: Colors.transparent,
-                  minimumSize: const Size(double.infinity, 72),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(36),
-                  ),
+          // ── Primary: Scan instruction text ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.barcode_reader, size: 18, color: orange.withValues(alpha: 0.7)),
+              const SizedBox(width: 8),
+              Text(
+                'Scan product to track',
+                style: TextStyle(
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
                 ),
               ),
-            ),
+            ],
           ),
           const SizedBox(height: 14),
 
