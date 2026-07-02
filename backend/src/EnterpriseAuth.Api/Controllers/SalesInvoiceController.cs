@@ -193,5 +193,19 @@ namespace EnterpriseAuth.Api.Controllers
                 return StatusCode(500, ex.ToString());
             }
         }
+
+        [HttpGet("price-lists")]
+        public async Task<IActionResult> GetPriceLists()
+        {
+            try
+            {
+                var data = await _repository.GetPriceListsAsync();
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
     }
 }

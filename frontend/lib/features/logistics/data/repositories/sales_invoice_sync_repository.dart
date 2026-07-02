@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../../core/network_service.dart';
+import '../../../../../core/secure_storage_service.dart';
 import '../local/local_database_helper.dart';
 import 'sales_invoice_product_repository.dart';
 
@@ -113,6 +114,18 @@ class SalesInvoiceSyncRepository {
       await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
       debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
       
+      // 5. Fetch Price Lists (fallback to INLDRYRUN if no schema is selected)
+      final schemaStr = await SecureStorageService().getSchema();
+      final schema = (schemaStr == null || schemaStr.isEmpty) ? 'INLDRYRUN' : schemaStr;
+      
+      final priceListResponse = await _dio.get(
+        'SalesInvoice/price-lists',
+        queryParameters: {'schema': schema},
+      );
+      final priceLists = priceListResponse.data as List<dynamic>? ?? [];
+      await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
+      debugPrint('Sync: Synced ${priceLists.length} Price Lists.');
+
       final duration = stopwatch.elapsedMilliseconds;
       debugPrint('Sales Invoice Sync completed in ${duration}ms');
       

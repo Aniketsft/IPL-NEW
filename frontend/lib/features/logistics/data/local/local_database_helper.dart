@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 68;
+  static const _databaseVersion = 72;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -40,7 +40,9 @@ class LocalDatabaseHelper {
   static const tableTaxRates = 'tbl_tax_rates';
   static const tableSiInvoices = 'tbl_si_invoices';
   static const tableSiInvoiceLines = 'tbl_si_invoice_lines';
+  static const colSiLineIsFoc = 'isFoc';
   static const tableSiPayments = 'tbl_si_payments';
+  static const tablePriceLists = 'tbl_price_lists';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -212,6 +214,47 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 72) {
+      debugPrint('DB Upgrade: Adding isFoc to tbl_si_invoice_lines (v72)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN $colSiLineIsFoc INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v72: $e");
+      }
+    }
+
+    if (oldVersion < 70) {
+      debugPrint('DB Upgrade: Creating Price Lists table (v70)');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tablePriceLists (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          pliCode     TEXT,
+          priority    INTEGER,
+          ruleType    INTEGER,
+          isQtyBased  INTEGER,
+          focType     INTEGER,
+          fil0        TEXT,
+          fld0        TEXT,
+          fil1        TEXT,
+          fld1        TEXT,
+          matchKey1   TEXT,
+          matchKey2   TEXT,
+          basePrice   REAL,
+          discountPct REAL,
+          discountAmt REAL,
+          focQtyMin   REAL,
+          focQtyBkt   REAL,
+          focItmRef   TEXT,
+          focQty      REAL,
+          minQty      REAL,
+          maxQty      REAL,
+          validFrom   TEXT,
+          validTo     TEXT,
+          cachedAt    TEXT
+        )
+      ''');
+    }
+
     if (oldVersion < 68) {
       debugPrint('DB Upgrade: Adding cce0 to tbl_si_item_stock_details (v68)');
       try {
@@ -1162,6 +1205,48 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v66: $e");
       }
     }
+    if (oldVersion < 70) {
+      debugPrint('DB Upgrade: Creating tbl_price_lists (v70)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tablePriceLists (
+            pliCode TEXT,
+            priority INTEGER,
+            ruleType INTEGER,
+            isQtyBased INTEGER,
+            focType INTEGER,
+            fil0 TEXT,
+            fld0 TEXT,
+            fil1 TEXT,
+            fld1 TEXT,
+            matchKey1 TEXT,
+            matchKey2 TEXT,
+            basePrice REAL,
+            discountPct REAL,
+            discountAmt REAL,
+            focQtyMin REAL,
+            focQtyBkt REAL,
+            focItmRef TEXT,
+            focQty REAL,
+            minQty REAL,
+            maxQty REAL,
+            validFrom TEXT,
+            validTo TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v70: $e");
+      }
+    }
+    if (oldVersion < 71) {
+      debugPrint('DB Upgrade: Adding bcgcod and tsccod to tbl_si_customers (v71)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN bcgcod TEXT');
+        await db.execute('ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN tsccod TEXT');
+      } catch (e) {
+        debugPrint("Migration error v71: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1206,6 +1291,8 @@ class LocalDatabaseHelper {
         statusFlag TEXT,
         taxRule TEXT,
         outstandingBalance REAL DEFAULT 0,
+        bcgcod TEXT,
+        tsccod TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -1381,6 +1468,33 @@ class LocalDatabaseHelper {
       CREATE TABLE IF NOT EXISTS $tableCustomers (
         $colCode TEXT PRIMARY KEY,
         $colName TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tablePriceLists (
+        pliCode TEXT,
+        priority INTEGER,
+        ruleType INTEGER,
+        isQtyBased INTEGER,
+        focType INTEGER,
+        fil0 TEXT,
+        fld0 TEXT,
+        fil1 TEXT,
+        fld1 TEXT,
+        matchKey1 TEXT,
+        matchKey2 TEXT,
+        basePrice REAL,
+        discountPct REAL,
+        discountAmt REAL,
+        focQtyMin REAL,
+        focQtyBkt REAL,
+        focItmRef TEXT,
+        focQty REAL,
+        minQty REAL,
+        maxQty REAL,
+        validFrom TEXT,
+        validTo TEXT
       )
     ''');
 
@@ -2682,6 +2796,8 @@ class LocalDatabaseHelper {
       'statusFlag': customer['statusFlag'],
       'taxRule': customer['taxRule'],
       'outstandingBalance': customer['outstandingBalance'],
+      'bcgcod': (customer['bcgcod'] ?? customer['Bcgcod'])?.toString().trim() ?? '',
+      'tsccod': (customer['tsccod'] ?? customer['Tsccod'])?.toString().trim() ?? '',
       'isSynced': 1, // hardcoded from columnIsSynced
     }).toList();
   }
@@ -2815,5 +2931,32 @@ class LocalDatabaseHelper {
       where: 'invoiceId = ?',
       whereArgs: [invoiceId],
     );
+  }
+
+  Future<void> refreshPriceLists(List<dynamic> priceLists) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.delete(tablePriceLists);
+      const chunkSize = 500;
+      for (int i = 0; i < priceLists.length; i += chunkSize) {
+        final batch = txn.batch();
+        final end = (i + chunkSize < priceLists.length) ? i + chunkSize : priceLists.length;
+        final chunk = priceLists.sublist(i, end);
+
+        for (var item in chunk) {
+          // Convert PascalCase JSON keys (from .NET backend) to camelCase for SQLite columns
+          final Map<String, dynamic> row = {};
+          (item as Map<String, dynamic>).forEach((key, value) {
+            final camelKey = key.isNotEmpty
+                ? key[0].toLowerCase() + key.substring(1)
+                : key;
+            row[camelKey] = value;
+          });
+          batch.insert(tablePriceLists, row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        await batch.commit(noResult: true);
+        await Future.delayed(Duration.zero);
+      }
+    });
   }
 }

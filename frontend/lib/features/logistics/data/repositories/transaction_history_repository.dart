@@ -140,6 +140,7 @@ class TransactionHistoryRepository {
         'salesUnit': line['salesUnit'],
         'cce0': line['cce0'],
         'taxRule': line['taxRule'],
+        'isFoc': line['isFoc'],
         'isReversed': 0,
       });
 

@@ -9,5 +9,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal? OutstandingBalance { get; set; }
         public string? StatusFlag { get; set; }
         public string TaxRule { get; set; } = string.Empty;
+        public string? Bcgcod { get; set; }
+        public string? Tsccod { get; set; }
     }
 }

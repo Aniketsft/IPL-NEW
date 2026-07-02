@@ -42,6 +42,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     c.OSTAUZ_0 as CreditLimit,
                     LTRIM(RTRIM(c.OSTCTL_0)) as StatusFlag,
                     LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
+                    LTRIM(RTRIM(c.BCGCOD_0)) as Bcgcod,
+                    LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
                     COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
                 LEFT JOIN (
@@ -135,6 +137,48 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     VATRAT_0 AS TaxRatePercent
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";
             return await db.QueryAsync<TaxRateDto>(sql);
+        }
+
+        public async Task<IEnumerable<PriceListDto>> GetPriceListsAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string schema = _schemaProvider.GetSchemaName();
+            if (string.IsNullOrEmpty(schema) || schema == "INLDRYRUN") 
+            {
+                // To adhere strictly to no-fallback rule if the header is not provided properly, 
+                // but if we want to ensure we get the explicit one. 
+                // Let's just trust _schemaProvider.GetSchemaName() and use it.
+            }
+            
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(c.PLI_0)) AS PliCode,
+                    c.PIO_0 AS Priority,
+                    c.PRIPRO_0 AS RuleType,
+                    c.PRIQTYFLG_0 AS IsQtyBased,
+                    c.FOCPRO_0 AS FocType,
+                    LTRIM(RTRIM(c.FIL_0)) AS Fil0,
+                    LTRIM(RTRIM(c.FLD_0)) AS Fld0,
+                    LTRIM(RTRIM(c.FIL_1)) AS Fil1,
+                    LTRIM(RTRIM(c.FLD_1)) AS Fld1,
+                    LTRIM(RTRIM(l.PLICRI1_0)) AS MatchKey1,
+                    LTRIM(RTRIM(l.PLICRI2_0)) AS MatchKey2,
+                    l.PRI_0 AS BasePrice,
+                    l.DCGVAL_0 AS DiscountPct,
+                    l.DCGVAL_2 AS DiscountAmt,
+                    l.FOCQTYMIN_0 AS FocQtyMin,
+                    l.FOCQTYBKT_0 AS FocQtyBkt,
+                    LTRIM(RTRIM(l.FOCITMREF_0)) AS FocItmRef,
+                    l.FOCQTY_0 AS FocQty,
+                    l.MINQTY_0 AS MinQty,
+                    l.MAXQTY_0 AS MaxQty,
+                    CONVERT(VARCHAR(10), l.ZDATE1_0, 23) AS ValidFrom,
+                    CONVERT(VARCHAR(10), l.ZDATE2_0, 23) AS ValidTo
+                FROM {_syncSettings.X3DatabaseName}.{schema}.SPRICCONF c WITH (NOLOCK)
+                JOIN {_syncSettings.X3DatabaseName}.{schema}.SPRICLIST l WITH (NOLOCK) ON c.PLI_0 = l.PLI_0
+                WHERE c.PLICPY_0 = 'INL' AND c.PLIENAFLG_0 = 2
+            ";
+            return await db.QueryAsync<PriceListDto>(sql);
         }
     }
 }

@@ -16,6 +16,7 @@ class CartItem extends Equatable {
   final double discountPercent;
   final double vatRatePercent;
   final String taxRule;
+  final bool isFoc;
 
   const CartItem({
     required this.product,
@@ -29,6 +30,7 @@ class CartItem extends Equatable {
     this.discountPercent = 0.0,
     this.vatRatePercent = 0.0,
     this.taxRule = '',
+    this.isFoc = false,
   });
 
   double get discountAmount => basePrice * quantity * (discountPercent / 100);
@@ -48,6 +50,7 @@ class CartItem extends Equatable {
     double? discountPercent,
     double? vatRatePercent,
     String? taxRule,
+    bool? isFoc,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -61,6 +64,7 @@ class CartItem extends Equatable {
       discountPercent: discountPercent ?? this.discountPercent,
       vatRatePercent: vatRatePercent ?? this.vatRatePercent,
       taxRule: taxRule ?? this.taxRule,
+      isFoc: isFoc ?? this.isFoc,
     );
   }
 
@@ -77,6 +81,7 @@ class CartItem extends Equatable {
         discountPercent,
         vatRatePercent,
         taxRule,
+        isFoc,
       ];
 }
 

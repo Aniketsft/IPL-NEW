@@ -290,6 +290,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           'salesUnit': item.product.salesUnit,
           'cce0': item.product.cce0,
           'taxRule': item.taxRule,
+          'isFoc': item.isFoc ? 1 : 0,
         });
 
         // Deduct from local stock to prevent overselling offline

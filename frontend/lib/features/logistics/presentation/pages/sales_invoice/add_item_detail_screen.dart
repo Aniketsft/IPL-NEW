@@ -9,6 +9,7 @@ import '../../../data/local/local_database_helper.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../../../core/network_service.dart';
 import '../../../domain/services/vat_calculator_service.dart';
+import '../../../domain/services/pricing_engine_service.dart';
 import 'lot_selection_screen.dart';
 
 class AddItemDetailScreen extends StatefulWidget {
@@ -36,9 +37,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   int _quantity = 1;
   final TextEditingController _qtyController = TextEditingController(text: '1');
 
-  final TextEditingController _basePriceController = TextEditingController(
-    text: '1250.00',
-  );
+  final TextEditingController _basePriceController = TextEditingController();
   double get _basePrice => double.tryParse(_basePriceController.text) ?? 0.0;
 
   double _discountPercent = 0.0;
@@ -51,12 +50,19 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   String _itemTaxLevel = ''; // Stored from stock/product
   final VatCalculatorService _vatCalculator = VatCalculatorService();
 
+  bool _isResolvingPrice = false;
+  String _priceSource = '';
+
   String _lotNumber = ''; // dynamically loaded
   String _warehouse = 'Main (WH-01)';
   String _warehouseName = '';
   String _location = 'A4-S2-B12';
   String _locationType = 'Standard Storage (Pickable)';
   double _lotTotalQty = 0.0;
+
+  bool _hasFoc = false;
+  double _focQuantity = 0.0;
+  String _focItemSku = '';
 
   @override
   void initState() {
@@ -84,24 +90,89 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           : _locationType;
       _loadSpecificLotStock();
     } else {
-      _loadItemStocks();
+      _loadItemStocks().then((_) => _resolvePrice());
+    }
+  }
+
+  Future<void> _resolvePrice() async {
+    final customer = context.read<SalesInvoiceCartCubit>().state.customer;
+    if (customer == null) return;
+
+    if (mounted) {
+      setState(() => _isResolvingPrice = true);
+    }
+
+    final customerCode = customer['code']?.toString() ?? '';
+    final bcgcod = customer['bcgcod']?.toString() ?? '';
+    final tsccod = customer['tsccod']?.toString() ?? '';
+
+    try {
+      final pricingEngine = PricingEngineService();
+      final result = await pricingEngine.resolvePrice(
+        customerCode: customerCode,
+        bcgcod: bcgcod,
+        tsccod: tsccod,
+        sku: widget.product.sku,
+        qty: _quantity.toDouble(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _basePriceController.text = result.basePrice.toStringAsFixed(2);
+          _discountPercent = result.discountPct;
+          _discountController.text = result.discountPct.toString();
+          _priceSource = result.source;
+          _isResolvingPrice = false;
+          _hasFoc = result.hasFoc;
+          _focQuantity = result.focQuantity;
+          _focItemSku = result.focItemSku;
+        });
+
+        if (result.hasFoc && result.focQuantity > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'FOC applied: ${result.focQuantity.toInt()} of ${result.focItemSku} will be added.',
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error resolving price: $e');
+      if (mounted) {
+        setState(() => _isResolvingPrice = false);
+      }
     }
   }
 
   Future<void> _loadSpecificLotStock() async {
     if (!mounted) return;
-    final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
-    final stocks = await repository.getSalesInvoiceItemStockDetails(widget.product.sku);
-    
+    final repository = SalesInvoiceProductRepository(
+      context.read<NetworkService>(),
+    );
+    final stocks = await repository.getSalesInvoiceItemStockDetails(
+      widget.product.sku,
+    );
+
     try {
-      final stock = stocks.firstWhere((s) => s.lotNumber == _lotNumber && s.location == _location && s.warehouse == _warehouse);
-      
+      final stock = stocks.firstWhere(
+        (s) =>
+            s.lotNumber == _lotNumber &&
+            s.location == _location &&
+            s.warehouse == _warehouse,
+      );
+
       // Calculate cart deduction for this lot
       final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
       double cartQty = 0;
       for (var item in cartItems) {
-        if (item.product.sku == widget.product.sku && item.lotNumber == _lotNumber && item.location == _location && item.warehouse == _warehouse) {
-         cartQty += item.quantity;
+        if (item.product.sku == widget.product.sku &&
+            item.lotNumber == _lotNumber &&
+            item.location == _location &&
+            item.warehouse == _warehouse) {
+          cartQty += item.quantity;
         }
       }
 
@@ -119,8 +190,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   Future<void> _loadItemStocks() async {
     if (!mounted) return;
-    final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
-    final stocks = await repository.getSalesInvoiceItemStockDetails(widget.product.sku);
+    final repository = SalesInvoiceProductRepository(
+      context.read<NetworkService>(),
+    );
+    final stocks = await repository.getSalesInvoiceItemStockDetails(
+      widget.product.sku,
+    );
 
     if (mounted && stocks.isNotEmpty) {
       final firstStock = stocks.first;
@@ -129,8 +204,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
       double cartQty = 0;
       for (var item in cartItems) {
-        if (item.product.sku == widget.product.sku && item.lotNumber == firstStock.lotNumber && item.location == firstStock.location && item.warehouse == firstStock.warehouse) {
-           cartQty += item.quantity;
+        if (item.product.sku == widget.product.sku &&
+            item.lotNumber == firstStock.lotNumber &&
+            item.location == firstStock.location &&
+            item.warehouse == firstStock.warehouse) {
+          cartQty += item.quantity;
         }
       }
 
@@ -169,7 +247,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       customerRule,
       _itemTaxLevel,
     );
-    debugPrint('VAT Calc: Resulting Rate=${vatDetails.rate}, Code=${vatDetails.code}');
+    debugPrint(
+      'VAT Calc: Resulting Rate=${vatDetails.rate}, Code=${vatDetails.code}',
+    );
 
     if (mounted) {
       setState(() {
@@ -213,6 +293,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _quantity = newQty;
       _qtyController.text = _quantity.toString();
     });
+    _resolvePrice();
   }
 
   double get _discountAmount =>
@@ -248,7 +329,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         totalCartQtyOfProduct += item.quantity;
       }
     }
-    
+
     final actualTotalStock = widget.product.stockQty - totalCartQtyOfProduct;
 
     return Scaffold(
@@ -410,6 +491,22 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       setState(() {});
                     },
                   ),
+                  if (_isResolvingPrice)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'Resolving price...',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    )
+                  else if (_priceSource.isNotEmpty && _priceSource != 'MANUAL')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'Price auto-filled from pricelist [$_priceSource]',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
 
                   const SizedBox(height: 24),
 
@@ -417,17 +514,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildInputField(
+                        child: _buildReadOnlyField(
                           'Discount %',
-                          _discountController,
+                          _discountPercent.toString(),
                           isDark,
-                          suffixText: '%',
-                          onChanged: (val) {
-                            final parsed = double.tryParse(val);
-                            if (parsed != null) {
-                              setState(() => _discountPercent = parsed);
-                            }
-                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -537,6 +627,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                     );
                                   }
                                   setState(() => _quantity = updatedQty);
+                                  _resolvePrice();
                                 }
                               },
                             ),
@@ -582,18 +673,53 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               discountPercent: _discountPercent,
                               vatRatePercent: _vatRatePercent,
                               taxRule: _taxRuleCode,
+                              isFoc: false,
                             );
+
+                            CartItem? focItem;
+                            if (_hasFoc && _focQuantity > 0) {
+                              final bool isSameItem = _focItemSku.isEmpty || _focItemSku == widget.product.sku;
+                              final focProduct = isSameItem 
+                                ? widget.product 
+                                : SalesInvoiceProductModel(
+                                    sku: _focItemSku,
+                                    name: 'Promo Item ($_focItemSku)',
+                                    stockQty: 0.0,
+                                    warehouse: '',
+                                    salesUnit: 'EA',
+                                    cce0: '',
+                                  );
+
+                              focItem = CartItem(
+                                product: focProduct,
+                                quantity: _focQuantity.toInt(),
+                                lotNumber: isSameItem ? _lotNumber : '',
+                                warehouse: isSameItem ? _warehouse : '',
+                                warehouseName: isSameItem ? _warehouseName : '',
+                                location: isSameItem ? _location : '',
+                                locationType: isSameItem ? _locationType : '',
+                                basePrice: 0.0,
+                                discountPercent: 0.0,
+                                vatRatePercent: _vatRatePercent,
+                                taxRule: _taxRuleCode,
+                                isFoc: true,
+                              );
+                            }
 
                             if (widget.editingIndex != null) {
                               context.read<SalesInvoiceCartCubit>().updateItem(
                                 widget.editingIndex!,
                                 item,
                               );
+                              if (focItem != null) {
+                                context.read<SalesInvoiceCartCubit>().addItem(focItem);
+                              }
                               Navigator.of(context).pop();
                             } else {
-                              context.read<SalesInvoiceCartCubit>().addItem(
-                                item,
-                              );
+                              context.read<SalesInvoiceCartCubit>().addItem(item);
+                              if (focItem != null) {
+                                context.read<SalesInvoiceCartCubit>().addItem(focItem);
+                              }
                               // Pop twice (Add Item Screen -> Product Selection Screen -> Order Summary)
                               Navigator.of(context)
                                 ..pop()
