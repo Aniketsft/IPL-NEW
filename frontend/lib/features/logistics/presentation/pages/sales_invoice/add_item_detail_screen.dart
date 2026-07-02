@@ -749,7 +749,15 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       SizedBox(
                         height: 48,
                         child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () {
+                            if (widget.editingIndex != null) {
+                              Navigator.of(context).pop();
+                            } else {
+                              Navigator.of(context)
+                                ..pop()
+                                ..pop();
+                            }
+                          },
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
                               color: Colors.grey.withOpacity(0.3),
