@@ -16,6 +16,7 @@ import '../../data/repositories/delivery_repository.dart';
 import '../../domain/entities/location_lookup.dart';
 import '../widgets/scan_item_card.dart';
 import '../../data/local/local_database_helper.dart';
+import '../../../../core/utils/app_ui.dart';
 
 class ProductionTrackingScreen extends StatefulWidget {
   final SalesOrder order;
@@ -75,9 +76,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   @override
   void onHardwareScan(String data) {
     if (!widget.permissions.contains('manufacturing.all.update')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You do not have permission to scan items.')),
-      );
+      AppUI.showErrorSnackBar(context: context, message: 'You do not have permission to scan items.');
       return;
     }
     _handleScan(data);
@@ -99,9 +98,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading initial data: $e')),
-        );
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading initial data: $e');
       }
     }
   }
@@ -208,9 +205,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading locations: $e')));
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading locations: $e');
       }
     }
   }
@@ -231,9 +226,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading production sites: $e')),
-        );
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading production sites: $e');
       }
     }
   }
@@ -295,9 +288,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading lots: $e')));
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading lots: $e');
       }
     }
   }
@@ -459,7 +450,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.red),
+            const Icon(Icons.warning_amber_rounded, color: Colors.amber),
             const SizedBox(width: 8),
             Expanded(child: Text(title, style: const TextStyle(color: Colors.white))),
           ],
@@ -468,7 +459,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
             child: const Text('OK'),
           ),
         ],
@@ -694,15 +685,11 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   Future<void> _saveAndUpload() async {
     final pendingScans = _scans.where((s) => s['isSaved'] != true).toList();
     if (pendingScans.isEmpty && !_isDirty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No new scans to save')));
+      AppUI.showWarningSnackBar(context: context, message: 'No new scans to save');
       return;
     }
     if (_selectedLocation == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select target location')));
+      AppUI.showWarningSnackBar(context: context, message: 'Select target location');
       return;
     }
 
@@ -756,9 +743,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        AppUI.showErrorSnackBar(context: context, message: 'Failed to save: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1671,20 +1656,12 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   if (amount <= 0) return;
 
                   if (amount > poolAvailable + 0.001) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Not enough excess available'),
-                      ),
-                    );
+                    AppUI.showWarningSnackBar(context: context, message: 'Not enough excess available');
                     return;
                   }
 
                   if (amount > remainingOrder + 0.001) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Exceeds target order limit'),
-                      ),
-                    );
+                    AppUI.showWarningSnackBar(context: context, message: 'Exceeds target order limit');
                     return;
                   }
 
@@ -2210,9 +2187,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _showManualBarcodeDialog() {
     if (!widget.permissions.contains('manufacturing.all.update')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You do not have permission to add manual scans.')),
-      );
+      AppUI.showErrorSnackBar(context: context, message: 'You do not have permission to add manual scans.');
       return;
     }
 

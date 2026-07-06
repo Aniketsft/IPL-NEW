@@ -109,8 +109,8 @@ class _QrLabelScreenState extends State<QrLabelScreen> with HardwareScannerMixin
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.redAccent,
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+        backgroundColor: Colors.amber,
         behavior: SnackBarBehavior.floating,
       ),
     );

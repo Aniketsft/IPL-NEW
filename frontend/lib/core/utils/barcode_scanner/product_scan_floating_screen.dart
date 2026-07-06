@@ -304,7 +304,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
         backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         title: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.red),
+            const Icon(Icons.warning_amber_rounded, color: Colors.amber),
             const SizedBox(width: 8),
             Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
           ],
@@ -313,7 +313,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
             child: const Text('OK'),
           ),
         ],

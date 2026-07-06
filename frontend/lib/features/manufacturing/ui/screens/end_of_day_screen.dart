@@ -943,18 +943,18 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   Widget _errorCard() => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.08),
+          color: Colors.amber.withOpacity(0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+          border: Border.all(color: Colors.amber.withOpacity(0.4)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+            const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 _errorMessage!,
-                style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
+                style: const TextStyle(color: Colors.amber, fontSize: 13),
               ),
             ),
           ],

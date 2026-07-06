@@ -14,6 +14,7 @@ import 'new_cuts_bulk_screen.dart';
 import '../widgets/sync_overlay.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
+import '../../../../core/utils/app_ui.dart';
 
 class ViewSalesOrderScreen extends StatefulWidget {
   final List<String> permissions;
@@ -205,7 +206,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingLookups = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading lookups: $e');
       }
     }
   }
@@ -419,7 +420,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                             value: _selectedSalesmanCode,
                             icon: Icons.person_outline,
                             onTap: _selectedDate == null
-                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Delivery Date first')))
+                                ? () => AppUI.showWarningSnackBar(context: context, message: 'Select a Delivery Date first')
                                 : () => _showSearchPicker(
                                       'Salesman',
                                       _salesRepsList,
@@ -443,7 +444,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                             value: _selectedCustomerCode,
                             icon: Icons.business,
                             onTap: _selectedSalesmanCode == null || _selectedDate == null
-                                ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a Date and Salesman first')))
+                                ? () => AppUI.showWarningSnackBar(context: context, message: 'Select a Date and Salesman first')
                                 : () => _showSearchPicker(
                                       'Customer',
                                       _customersList,

@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/settings/data/models/app_setting
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
+import '../../../../core/utils/app_ui.dart';
 
 
 class NewCutsBulkScreen extends StatefulWidget {
@@ -126,9 +127,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading lookups: $e')));
+        AppUI.showWarningSnackBar(context: context, message: 'Error loading lookups: $e');
       }
     }
   }
@@ -167,24 +166,18 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
 
   Future<void> _handleSave() async {
     if (_selectedProducts.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please add at least one product')));
+      AppUI.showWarningSnackBar(context: context, message: 'Please add at least one product');
       return;
     }
 
     final amount = _totalWeight;
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please scan or add at least one item')),
-      );
+      AppUI.showWarningSnackBar(context: context, message: 'Please scan or add at least one item');
       return;
     }
 
     if (_settings?.excessDefaultCustomer == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Default Customer not set. Please update Logistics Settings.')),
-      );
+      AppUI.showWarningSnackBar(context: context, message: 'Default Customer not set. Please update Logistics Settings.');
       return;
     }
 
@@ -221,9 +214,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
+        AppUI.showErrorSnackBar(context: context, message: 'Error saving: $e');
       }
     }
   }
@@ -678,9 +669,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Product not found in lookups'))
-        );
+        AppUI.showWarningSnackBar(context: context, message: 'Product not found in lookups');
       }
     }
   }
