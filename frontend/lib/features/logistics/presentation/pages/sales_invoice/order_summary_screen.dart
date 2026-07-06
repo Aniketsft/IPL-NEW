@@ -149,6 +149,24 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                           onPressed: cartState.items.isEmpty
                               ? null
                               : () {
+                                  final missingLotItems = cartState.items.where((i) => i.isFoc && i.lotNumber.isEmpty);
+                                  if (missingLotItems.isNotEmpty) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Missing Lot Number'),
+                                        content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text('OK'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    return;
+                                  }
+
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -198,11 +216,16 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     bool isDark,
   ) {
     final theme = Theme.of(context);
+    final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty;
+
     return Material(
       color: isDark ? Colors.grey[900] : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+        side: BorderSide(
+          color: Colors.grey.withOpacity(0.2),
+          width: 1,
+        ),
       ),
       elevation: isDark ? 0 : 0.5,
       shadowColor: Colors.black.withOpacity(0.05),
@@ -297,6 +320,37 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                 'SKU: ${item.product.sku}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
+              if (item.isFoc)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isFocMissingLot ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: isFocMissingLot ? Colors.orange : Colors.green),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFocMissingLot ? Icons.warning_amber_rounded : Icons.check_circle,
+                          color: isFocMissingLot ? Colors.orange : Colors.green,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isFocMissingLot ? 'Missing Lot Number - Tap to assign' : 'FOC Applied',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isFocMissingLot ? Colors.orange : Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

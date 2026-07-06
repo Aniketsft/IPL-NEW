@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 72;
+  static const _databaseVersion = 73;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -214,6 +214,20 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 73) {
+      debugPrint('DB Upgrade: Ensuring isFoc and lineNo in tbl_si_invoice_lines (v73)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN $colSiLineIsFoc INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v73 (isFoc): $e");
+      }
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN lineNo INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v73 (lineNo): $e");
+      }
+    }
+
     if (oldVersion < 72) {
       debugPrint('DB Upgrade: Adding isFoc to tbl_si_invoice_lines (v72)');
       try {
@@ -1346,6 +1360,7 @@ class LocalDatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableSiInvoiceLines (
         lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+        lineNo INTEGER DEFAULT 0,
         invoiceId TEXT,
         sku TEXT,
         name TEXT,
@@ -1360,6 +1375,7 @@ class LocalDatabaseHelper {
         salesUnit TEXT,
         cce0 TEXT,
         taxRule TEXT,
+        isFoc INTEGER DEFAULT 0,
         isReversed INTEGER DEFAULT 0
       )
     ''');

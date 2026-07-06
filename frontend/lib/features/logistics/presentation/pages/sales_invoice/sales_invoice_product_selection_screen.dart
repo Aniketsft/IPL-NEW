@@ -263,6 +263,7 @@ class _SalesInvoiceProductSelectionScreenState
               product: product,
               existingItem: existingItem,
               editingIndex: editingIndex,
+              fromProductSelection: true,
             ),
           ),
         );

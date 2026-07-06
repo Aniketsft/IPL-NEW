@@ -69,10 +69,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit,
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS StockQty
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC stk 
-                    ON itm.ITMREF_0 = stk.ITMREF_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
+                    ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
+                    ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE 
                     itm.ITMSTA_0 = 1
+                    AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
                     LTRIM(RTRIM(itm.ZFULLDES_0)),
@@ -86,9 +89,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(zlw.WAREHOUSE_0)) AS Warehouse, 
+                    LTRIM(RTRIM(stk.STOFCY_0)) AS Warehouse, 
                     LTRIM(RTRIM(zlw.WRHNAM_0)) AS WarehouseName, 
-                    LTRIM(RTRIM(zlw.LOCATION_0)) AS Location, 
+                    LTRIM(RTRIM(stk.LOC_0)) AS Location, 
                     LTRIM(RTRIM(zlw.LOCTYPNAM_0)) AS LocationType,
                     LTRIM(RTRIM(itm.ITMREF_0)) AS ItemCode,
                     LTRIM(RTRIM(itm.ITMDES1_0)) AS ItemName,  
@@ -97,20 +100,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(itm.VACITM_0)) AS TaxLevel,
                     LTRIM(RTRIM(itm.CCE_0)) AS Cce0
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZSTKBYLOC zsbl 
-                    ON itm.ITMREF_0 = zsbl.ITMREF_0
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw 
-                    ON zsbl.WRH_0 = zlw.WAREHOUSE_0 AND zsbl.LOC_0 = zlw.LOCATION_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
-                    ON zsbl.WRH_0 = stk.STOFCY_0 AND zsbl.LOC_0 = stk.LOC_0 AND zsbl.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                    ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw 
+                    ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
-                WHERE itm.ITMSTA_0 = 1
+                WHERE itm.ITMSTA_0 = 1 
+                  AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                 GROUP BY 
-                    zlw.WAREHOUSE_0, zlw.WRHNAM_0, zlw.LOCATION_0, zlw.LOCTYPNAM_0,
+                    stk.STOFCY_0, zlw.WRHNAM_0, stk.LOC_0, zlw.LOCTYPNAM_0,
                     itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0, itm.CCE_0
                 ORDER BY 
-                    zlw.WAREHOUSE_0, itm.ITMREF_0, stk.LOT_0";
+                    stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0";
 
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql);
         }

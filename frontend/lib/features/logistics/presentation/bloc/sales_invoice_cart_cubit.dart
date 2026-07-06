@@ -17,6 +17,7 @@ class CartItem extends Equatable {
   final double vatRatePercent;
   final String taxRule;
   final bool isFoc;
+  final String? mainItemSku;
 
   const CartItem({
     required this.product,
@@ -31,6 +32,7 @@ class CartItem extends Equatable {
     this.vatRatePercent = 0.0,
     this.taxRule = '',
     this.isFoc = false,
+    this.mainItemSku,
   });
 
   double get discountAmount => basePrice * quantity * (discountPercent / 100);
@@ -51,6 +53,7 @@ class CartItem extends Equatable {
     double? vatRatePercent,
     String? taxRule,
     bool? isFoc,
+    String? mainItemSku,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -65,6 +68,7 @@ class CartItem extends Equatable {
       vatRatePercent: vatRatePercent ?? this.vatRatePercent,
       taxRule: taxRule ?? this.taxRule,
       isFoc: isFoc ?? this.isFoc,
+      mainItemSku: mainItemSku ?? this.mainItemSku,
     );
   }
 
@@ -82,6 +86,7 @@ class CartItem extends Equatable {
         vatRatePercent,
         taxRule,
         isFoc,
+        mainItemSku,
       ];
 }
 
@@ -143,7 +148,20 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   void removeItem(int index) {
     final updatedItems = List<CartItem>.from(state.items);
     if (index >= 0 && index < updatedItems.length) {
+      final itemToRemove = updatedItems[index];
       updatedItems.removeAt(index);
+      
+      // If we removed a main item, check if there are any other main items with the same SKU.
+      // If not, we should also remove any FOC items that were granted by this SKU.
+      if (!itemToRemove.isFoc) {
+        final mainSku = itemToRemove.product.sku;
+        final hasOtherMainItems = updatedItems.any((i) => !i.isFoc && i.product.sku == mainSku);
+        
+        if (!hasOtherMainItems) {
+          updatedItems.removeWhere((i) => i.isFoc && i.mainItemSku == mainSku);
+        }
+      }
+
       emit(state.copyWith(items: updatedItems));
     }
   }

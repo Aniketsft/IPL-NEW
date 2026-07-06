@@ -16,12 +16,14 @@ class AddItemDetailScreen extends StatefulWidget {
   final SalesInvoiceProductModel product;
   final CartItem? existingItem;
   final int? editingIndex;
+  final bool fromProductSelection;
 
   const AddItemDetailScreen({
     super.key,
     required this.product,
     this.existingItem,
     this.editingIndex,
+    this.fromProductSelection = false,
   });
 
   @override
@@ -322,6 +324,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final bool isFocLocked = widget.existingItem?.isFoc == true;
+
     final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
     double totalCartQtyOfProduct = 0;
     for (var item in cartItems) {
@@ -578,50 +582,88 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          'Total:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _currencyFormat.format((_priceAfterDiscount + _vatAmount)),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
                     Text(
                       'Quantity',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        color: isDark ? Colors.grey[300] : Colors.grey[800],
                       ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       height: 48,
+                      width: 144, // Fixed width for nice proportions
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[800] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
+                        color: isDark 
+                            ? (isFocLocked ? Colors.grey[900]!.withOpacity(0.5) : Colors.grey[800]) 
+                            : (isFocLocked ? Colors.grey[200] : Colors.grey[100]),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark 
+                              ? (isFocLocked ? Colors.grey[850]! : Colors.grey[700]!) 
+                              : (isFocLocked ? Colors.grey[300]! : Colors.grey[300]!),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
                           _buildStepperButton(
                             Icons.remove,
-                            () => _updateQuantity(-1),
+                            isFocLocked ? null : () => _updateQuantity(-1),
                             isDark,
+                            disabled: isFocLocked,
+                            isLeft: true,
                           ),
-                          Container(
-                            width: 48,
-                            alignment: Alignment.center,
+                          Expanded(
                             child: TextField(
                               controller: _qtyController,
                               textAlign: TextAlign.center,
                               keyboardType: TextInputType.number,
+                              enabled: !isFocLocked,
                               decoration: const InputDecoration(
                                 border: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
                                 isDense: true,
+                                filled: false,
                                 contentPadding: EdgeInsets.zero,
                               ),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
+                                color: isFocLocked ? Colors.grey : (isDark ? Colors.white : Colors.black),
                               ),
                               onChanged: (val) {
                                 final parsed = int.tryParse(val);
                                 if (parsed != null && parsed > 0) {
                                   int updatedQty = parsed;
-                                  if (_maxValidQty > 0 &&
-                                      updatedQty > _maxValidQty) {
+                                  if (_maxValidQty > 0 && updatedQty > _maxValidQty) {
                                     _showStockErrorDialog(
                                       'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
                                     );
@@ -634,12 +676,32 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           ),
                           _buildStepperButton(
                             Icons.add,
-                            () => _updateQuantity(1),
+                            isFocLocked ? null : () => _updateQuantity(1),
                             isDark,
+                            disabled: isFocLocked,
+                            isLeft: false,
                           ),
                         ],
                       ),
                     ),
+                    if (isFocLocked)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_outline, size: 12, color: Colors.orange[400]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'FOC Locked',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange[400],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(width: 12),
@@ -653,8 +715,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       SizedBox(
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_maxValidQty > 0 && _quantity > _maxValidQty) {
+                          onPressed: () async {
+                            if (_quantity > _maxValidQty) {
                               _showStockErrorDialog(
                                 'Cannot proceed: Insufficient stock in this lot (${_maxValidQty.toInt()} available).',
                               );
@@ -673,20 +735,48 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               discountPercent: _discountPercent,
                               vatRatePercent: _vatRatePercent,
                               taxRule: _taxRuleCode,
-                              isFoc: false,
+                              isFoc: isFocLocked,
                             );
 
                             CartItem? focItem;
-                            if (_hasFoc && _focQuantity > 0) {
+                            if (!isFocLocked && _hasFoc && _focQuantity > 0) {
                               final bool isSameItem = _focItemSku.isEmpty || _focItemSku == widget.product.sku;
+                              
+                              String focName = '';
+                              String focSalesUnit = 'EA';
+                              double focTotalStock = 0.0;
+                              
+                              if (!isSameItem && _focItemSku.isNotEmpty) {
+                                final db = await LocalDatabaseHelper.instance.database;
+                                final result = await db.query(
+                                  LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+                                  where: 'itemCode = ?',
+                                  whereArgs: [_focItemSku.trim()],
+                                  limit: 1,
+                                );
+                                if (result.isNotEmpty) {
+                                  final productRow = result.first;
+                                  focName = productRow['itemName']?.toString() ?? '';
+                                  focSalesUnit = 'EA';
+                                }
+
+                                final sumResult = await db.rawQuery(
+                                  'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ?',
+                                  [_focItemSku.trim()]
+                                );
+                                if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
+                                  focTotalStock = (sumResult.first['total'] as num).toDouble();
+                                }
+                              }
+
                               final focProduct = isSameItem 
                                 ? widget.product 
                                 : SalesInvoiceProductModel(
                                     sku: _focItemSku,
-                                    name: 'Promo Item ($_focItemSku)',
-                                    stockQty: 0.0,
+                                    name: focName,
+                                    stockQty: focTotalStock,
                                     warehouse: '',
-                                    salesUnit: 'EA',
+                                    salesUnit: focSalesUnit,
                                     cce0: '',
                                   );
 
@@ -703,24 +793,44 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 vatRatePercent: _vatRatePercent,
                                 taxRule: _taxRuleCode,
                                 isFoc: true,
+                                mainItemSku: widget.product.sku,
                               );
                             }
 
+                            if (!mounted) return;
+                            
+                            final cartCubit = context.read<SalesInvoiceCartCubit>();
+
                             if (widget.editingIndex != null) {
-                              context.read<SalesInvoiceCartCubit>().updateItem(
-                                widget.editingIndex!,
-                                item,
-                              );
+                              cartCubit.updateItem(widget.editingIndex!, item);
+                              
                               if (focItem != null) {
-                                context.read<SalesInvoiceCartCubit>().addItem(focItem);
+                                final cartItems = cartCubit.state.items;
+                                int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && i.product.sku == focItem!.product.sku);
+                                if (existingFocIndex != -1) {
+                                  final existingFoc = cartItems[existingFocIndex];
+                                  focItem = focItem.copyWith(
+                                    lotNumber: existingFoc.lotNumber, 
+                                    location: existingFoc.location, 
+                                    warehouse: existingFoc.warehouse,
+                                    warehouseName: existingFoc.warehouseName,
+                                    locationType: existingFoc.locationType
+                                  );
+                                  cartCubit.updateItem(existingFocIndex, focItem);
+                                } else {
+                                  cartCubit.addItem(focItem);
+                                }
                               }
-                              Navigator.of(context).pop();
+                              if (widget.fromProductSelection) {
+                                Navigator.of(context)..pop()..pop();
+                              } else {
+                                Navigator.of(context).pop();
+                              }
                             } else {
-                              context.read<SalesInvoiceCartCubit>().addItem(item);
+                              cartCubit.addItem(item);
                               if (focItem != null) {
-                                context.read<SalesInvoiceCartCubit>().addItem(focItem);
+                                cartCubit.addItem(focItem);
                               }
-                              // Pop twice (Add Item Screen -> Product Selection Screen -> Order Summary)
                               Navigator.of(context)
                                 ..pop()
                                 ..pop();
@@ -788,20 +898,31 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   Widget _buildStepperButton(
     IconData icon,
-    VoidCallback onPressed,
-    bool isDark,
-  ) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.grey[800] : Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
+    VoidCallback? onPressed,
+    bool isDark, {
+    bool disabled = false,
+    bool isLeft = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: disabled ? null : onPressed,
+        borderRadius: BorderRadius.horizontal(
+          left: isLeft ? const Radius.circular(11) : Radius.zero,
+          right: !isLeft ? const Radius.circular(11) : Radius.zero,
         ),
-        child: Icon(icon, color: isDark ? Colors.white : Colors.black87),
+        child: Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          child: Icon(
+            icon, 
+            color: disabled 
+                ? (isDark ? Colors.grey[700] : Colors.grey[400]) 
+                : (isDark ? Colors.white : Colors.black87),
+            size: 20,
+          ),
+        ),
       ),
     );
   }

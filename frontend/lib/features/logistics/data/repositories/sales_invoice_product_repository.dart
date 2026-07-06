@@ -162,6 +162,30 @@ class SalesInvoiceProductRepository {
   }
 
   Future<void> _applyUnsyncedLedgerToStock(Transaction txn) async {
+    // 0. Ensure all unsynced lots exist in stock details (with 0 initial qty) so we can deduct/add from them.
+    await txn.rawInsert('''
+      INSERT OR IGNORE INTO ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+        (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, isSynced, createdAt, updatedAt, deviceId)
+      SELECT DISTINCT 
+        L.sku, 
+        COALESCE((SELECT itemName FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = L.sku LIMIT 1), ''),
+        L.lotNumber, 
+        L.warehouse, 
+        '', 
+        L.location, 
+        '', 
+        0.0, 
+        '', 
+        '', 
+        1, 
+        datetime('now'), 
+        datetime('now'), 
+        ''
+      FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L
+      JOIN ${LocalDatabaseHelper.tableSiInvoices} I ON L.invoiceId = I.invoiceId
+      WHERE I.isSynced = 0 OR I.isSynced IS NULL
+    ''');
+
     // 1. Deduct unsynced active INVOICES
     await txn.rawUpdate('''
       UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}

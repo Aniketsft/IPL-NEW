@@ -24,6 +24,18 @@ class SalesInvoiceSyncRepository {
 
   Dio get _dio => _networkService.dio;
 
+  String _extractX3InvoiceId(String fallbackInvoiceId, dynamic responseData) {
+    String displayId = fallbackInvoiceId;
+    if (responseData is Map && responseData.containsKey('rawPayload')) {
+      final rawPayload = responseData['rawPayload']?.toString() ?? '';
+      final match = RegExp(r'[Cc]reation of\s+([A-Za-z0-9_-]+)').firstMatch(rawPayload);
+      if (match != null && match.groupCount >= 1) {
+        displayId = match.group(1)!;
+      }
+    }
+    return displayId;
+  }
+
   Future<SyncBatchResult> synchronizeSalesInvoiceData(String siteCode) async {
     final stopwatch = Stopwatch()..start();
     final List<String> successes = [];
@@ -70,7 +82,9 @@ class SalesInvoiceSyncRepository {
           final response = await _dio.post('SalesInvoice/sync', data: payload);
           if (response.statusCode == 200 || response.statusCode == 201) {
              await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
-             successes.add(invoiceId);
+             
+             final displayId = _extractX3InvoiceId(invoiceId, response.data);
+             successes.add(displayId);
           } else {
              failures.add('$invoiceId: ${response.data}');
           }
@@ -82,7 +96,9 @@ class SalesInvoiceSyncRepository {
               final rawPayload = data['rawPayload']?.toString();
               if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
                 await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
-                successes.add(invoiceId);
+                
+                final displayId = _extractX3InvoiceId(invoiceId, data);
+                successes.add(displayId);
               } else if (data.containsKey('error')) {
                 failures.add('$invoiceId: ${data['error']}');
               } else {
