@@ -161,24 +161,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE STOFCY_0 = @Site AND QTYPCU_0 > 0";
             var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
 
-            var taxMatrixSql = $@"
-                SELECT 
-                    LTRIM(RTRIM(VACBPR_0)) AS CustomerTaxRule,
-                    LTRIM(RTRIM(VACITM_0)) AS ItemTaxLevel,
-                    VAT_0 AS TaxCode
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAC WITH (NOLOCK)";
-            var taxMatrixTask = FetchFromInnodisAsync<TaxMatrixDto>(taxMatrixSql);
-
-            var taxRateSql = $@"
-                SELECT 
-                    VAT_0 AS TaxCode,
-                    LTRIM(RTRIM(VATDES_0)) AS Description,
-                    VATRAT_0 AS TaxRatePercent
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";
-            var taxRateTask = FetchFromInnodisAsync<TaxRateDto>(taxRateSql);
-
             // Execute tasks in parallel
-            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask, lotsTask, taxMatrixTask, taxRateTask);
+            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask, lotsTask);
 
             package.Orders = ordersTask.Result.ToList();
             package.Details = detailsTask.Result.ToList();
@@ -232,8 +216,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             package.Locations = locationsTask.Result.ToList();
             package.Products = productsTask.Result.ToList();
             package.Lots = lotsTask.Result.ToList();
-            package.TaxDeterminations = taxMatrixTask.Result.ToList();
-            package.TaxRates = taxRateTask.Result.ToList();
 
             // Override status from NORMALIZED tables
             var allSoNumbers = package.Orders.Select(o => o.SohNum).ToList();
