@@ -61,8 +61,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   double _tolerancePercentage = 0.0;
   double _localManufacturedQty = 0.0;
   double _localEaScannedQty = 0.0;
-  String? _activeAllocationPool;
-  double _activeAllocationPoolAvailable = 0.0;
 
   @override
   void initState() {
@@ -402,18 +400,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             }
           }
 
-          if (_activeAllocationPool != null) {
-            if (result.manufacturedQty > _activeAllocationPoolAvailable + 0.001) {
-              AudioService.instance.playError();
-              HapticFeedback.heavyImpact();
-              _showErrorDialog(
-                'Pool Exceeded',
-                'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} exceeds available pool (${widget.product.formatQuantity(_activeAllocationPoolAvailable)}).',
-              );
-              return false;
-            }
-          }
-
           final pending = {
             'barcode': result.processedBarcode,
             'originalBarcode': result.originalBarcode,
@@ -529,7 +515,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _savePendingScan() {
     if (_pendingScan == null) return;
-    Map<String, dynamic>? savedScan;
     setState(() {
       final scanWithMetadata = Map<String, dynamic>.from(_pendingScan!);
       scanWithMetadata['status'] = _status;
@@ -546,7 +531,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         _cumulativeWeight += (_pendingScan!['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
         _isDirty = true;
       }
-      savedScan = scanWithMetadata;
       _pendingScan = null;
     });
 
@@ -557,20 +541,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         duration: Duration(seconds: 1),
       ),
     );
-
-    if (_activeAllocationPool != null && savedScan != null) {
-      final double weight = (savedScan!['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-      
-      setState(() {
-        _activeAllocationPoolAvailable -= weight;
-      });
-
-      _performAllocation(
-        sourcePool: _activeAllocationPool!,
-        amount: weight,
-        skipLocalScanInsert: true,
-      );
-    }
   }
 
   void _showMultiplierPrompt(Map<String, dynamic> pendingScan) {
@@ -614,21 +584,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               onPressed: () {
                 final int? count = int.tryParse(controller.text);
                 if (count != null && count > 0) {
-                  final double singleWeight = (pendingScan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-                  final double totalWeight = singleWeight * count;
-
-                  if (_activeAllocationPool != null) {
-                    if (totalWeight > _activeAllocationPoolAvailable + 0.001) {
-                      AppUI.showWarningSnackBar(
-                        context: context,
-                        message: 'Pool Exceeded: Generating $count records (${widget.product.formatQuantity(totalWeight)}) exceeds available pool (${widget.product.formatQuantity(_activeAllocationPoolAvailable)}).',
-                      );
-                      return;
-                    }
-                  }
-
                   Navigator.pop(context);
-                  _applyMultiplier(pendingScan, count, totalWeight);
+                  _applyMultiplier(pendingScan, count);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: orange),
@@ -640,7 +597,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     );
   }
 
-  void _applyMultiplier(Map<String, dynamic> pendingScan, int count, double totalWeight) {
+  void _applyMultiplier(Map<String, dynamic> pendingScan, int count) {
     setState(() {
       for (int i = 0; i < count; i++) {
         final scanWithMetadata = Map<String, dynamic>.from(pendingScan);
@@ -661,23 +618,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         }
       }
       _pendingScan = null;
-      
-      if (_activeAllocationPool != null) {
-        _activeAllocationPoolAvailable -= totalWeight;
-      }
     });
-
-    if (_activeAllocationPool != null) {
-      final double singleWeight = (pendingScan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-      for (int i = 0; i < count; i++) {
-        _performAllocation(
-          sourcePool: _activeAllocationPool!,
-          amount: singleWeight,
-          skipLocalScanInsert: true,
-        );
-      }
-    }
-
     AudioService.instance.playSuccess();
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -856,10 +797,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                         children: [
                           const SizedBox(height: 8),
                           _buildHeaderCard(),
-                          if (_activeAllocationPool != null) ...[
-                            const SizedBox(height: 16),
-                            _buildAllocationBanner(),
-                          ],
                           const SizedBox(height: 16),
                           _buildSettingsCard(),
                           const SizedBox(height: 16),
@@ -1018,63 +955,6 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       final double allocated = (p['allocatedQty'] as num).toDouble();
       return sum + (pool - allocated);
     });
-  }
-
-  Widget _buildAllocationBanner() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.qr_code_scanner, color: Colors.amber, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Allocation Mode Active',
-                  style: TextStyle(
-                    color: isDark ? Colors.amber[300] : Colors.amber[900],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  'Deducting scans from pool: $_activeAllocationPool',
-                  style: TextStyle(
-                    color: isDark ? Colors.white70 : Colors.black87,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _activeAllocationPool = null;
-                _activeAllocationPoolAvailable = 0.0;
-              });
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.redAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('EXIT', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildHeaderCard() {
@@ -1585,6 +1465,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
+    final TextEditingController amountController = TextEditingController();
     Map<String, dynamic> selectedPool = _excessPools.first;
 
     showDialog(
@@ -1595,6 +1476,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               (selectedPool['poolQty'] as num).toDouble() -
               (selectedPool['allocatedQty'] as num).toDouble();
 
+          final bool isEA = widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS';
+          final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+          final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
+
+          final remainingOrder =
+              effectiveLimit -
+              _localManufacturedQty -
+              _baseSessionScannedQty -
+              _cumulativeQty;
+
           return AlertDialog(
             backgroundColor: theme.cardColor,
             shape: RoundedRectangleBorder(
@@ -1602,10 +1493,10 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             ),
             title: Row(
               children: [
-                Icon(Icons.qr_code_scanner, color: orange),
+                Icon(Icons.layers_outlined, color: orange),
                 const SizedBox(width: 12),
                 Text(
-                  'Scan to Allocate',
+                  'Manual Allocation',
                   style: TextStyle(
                     color: isDark ? Colors.white : Colors.black87,
                     fontSize: 18,
@@ -1663,6 +1554,61 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                     ),
                   ),
                   const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Amount to Allocate (KG):',
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        'Max: ${widget.product.formatQuantity(poolAvailable < remainingOrder ? poolAvailable : remainingOrder)}',
+                        style: TextStyle(
+                          color: orange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: theme.scaffoldBackgroundColor,
+                      hintText: '0.000',
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.white24 : Colors.black26,
+                      ),
+                      suffixText: widget.product.unit,
+                      suffixStyle: TextStyle(
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? Colors.white10 : Colors.black12,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -1681,7 +1627,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Entering this mode will deduct all subsequent scans from ${selectedPool['soNumber']}.',
+                            'Allocation will draw from ${selectedPool['soNumber']} pool and add to current order.',
                             style: TextStyle(
                               color: isDark ? Colors.white54 : Colors.black54,
                               fontSize: 11,
@@ -1705,12 +1651,22 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 ),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  final amount = double.tryParse(amountController.text) ?? 0;
+                  if (amount <= 0) return;
+
+                  if (amount > poolAvailable + 0.001) {
+                    AppUI.showWarningSnackBar(context: context, message: 'Not enough excess available');
+                    return;
+                  }
+
+                  if (amount > remainingOrder + 0.001) {
+                    AppUI.showWarningSnackBar(context: context, message: 'Exceeds target order limit');
+                    return;
+                  }
+
                   Navigator.pop(context);
-                  setState(() {
-                    _activeAllocationPool = selectedPool['soNumber'];
-                    _activeAllocationPoolAvailable = poolAvailable;
-                  });
+                  _performAllocation(selectedPool['soNumber'], amount);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: orange,
@@ -1724,7 +1680,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   ),
                 ),
                 child: const Text(
-                  'START SCANNING',
+                  'ALLOCATE',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1735,7 +1691,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     );
   }
 
-  Future<void> _performAllocation({required String sourcePool, required double amount, bool skipLocalScanInsert = false}) async {
+  Future<void> _performAllocation(String sourcePool, double amount) async {
     setState(() => _isSaving = true);
     try {
       final repository = context.read<DeliveryRepository>();
@@ -1750,30 +1706,28 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         siteId: _selectedSite,
       );
 
-      if (!skipLocalScanInsert) {
-        setState(() {
-          _scans.insert(0, {
-            'barcode':
-                'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
-            'originalBarcode': 'ALLOC-$sourcePool',
-            'productCode': widget.product.itemCode,
-            'scannedQty': amount,
-            'manufacturedQty': amount,
-            'weight': amount,
-            'unit': widget.product.unit,
-            'timestamp': DateTime.now().toIso8601String(),
-            'status': 'A',
-            'siteId': _selectedSite,
-            'locationCode': 'ALLOC-$sourcePool',
-            'lot': _selectedLot,
-            'soNumber': widget.order.orderNumber,
-            'isSaved': true,
-            'syncId': newSyncId,
-          });
-          _baseSessionScannedQty += amount;
-          _isDirty = true;
+      setState(() {
+        _scans.insert(0, {
+          'barcode':
+              'ALLOC-${sourcePool}-${DateTime.now().millisecondsSinceEpoch}',
+          'originalBarcode': 'ALLOC-$sourcePool',
+          'productCode': widget.product.itemCode,
+          'scannedQty': amount,
+          'manufacturedQty': amount,
+          'weight': amount,
+          'unit': widget.product.unit,
+          'timestamp': DateTime.now().toIso8601String(),
+          'status': 'A',
+          'siteId': _selectedSite,
+          'locationCode': 'ALLOC-$sourcePool',
+          'lot': _selectedLot,
+          'soNumber': widget.order.orderNumber,
+          'isSaved': true,
+          'syncId': newSyncId,
         });
-      }
+        _baseSessionScannedQty += amount;
+        _isDirty = true;
+      });
 
       await _fetchExcessPools();
 
