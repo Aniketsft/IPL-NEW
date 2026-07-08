@@ -200,6 +200,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     foreach (var line in order.Lines)
                     {
+                        if (line.ItemCode == "PROD-BLK" || line.ItemCode == "PROD-CUT")
+                            continue;
+
                         package.Details.Add(new SalesOrderDetailDto
                         {
                             SoNumber = order.SourceOrderId,
@@ -330,7 +333,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                 package.CutBulkEntries.Add(new CutBulkEntryDto {
                     EntryNumber = order.SourceOrderId,
-                    Type = line?.ItemCode == "PROD-CUT" ? "Cuts" : "Bulk",
+                    Type = order.SourceOrderId.StartsWith("CUTS", StringComparison.OrdinalIgnoreCase) ? "Cuts" : "Bulk",
                     CustomerCode = order.CustomerCode,
                     CustomerName = order.CustomerName,
                     Date = order.OrderDate,
@@ -399,14 +402,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Source = "Internal"
                     }).ToList();
 
-                    var detailDtos = request.CutBulkEntries.Select(cb => new SalesOrderDetailDto
-                    {
-                        SoNumber = cb.EntryNumber,
-                        ItemCode = cb.ItemCode ?? (cb.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
-                        Description = cb.ProductName ?? (cb.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
-                        Quantity = cb.AmountKg,
-                        Unit = "KG"
-                    }).ToList();
+                    var detailDtos = request.CutBulkEntries
+                        .Where(cb => !string.IsNullOrEmpty(cb.ItemCode))
+                        .Select(cb => new SalesOrderDetailDto
+                        {
+                            SoNumber = cb.EntryNumber,
+                            ItemCode = cb.ItemCode,
+                            Description = cb.ProductName ?? "Internal Production Component",
+                            Quantity = cb.AmountKg,
+                            Unit = "KG"
+                        }).ToList();
 
                     await SyncEnterpriseOrdersAndLinesAsync(headerDtos, detailDtos);
 

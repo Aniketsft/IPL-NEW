@@ -402,12 +402,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 _scanContext.SalesOrders.Add(order);
 
                 // 2. Unified SalesOrderLine
-                var itemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK");
+                if (string.IsNullOrEmpty(dto.ItemCode))
+                {
+                    throw new ArgumentException("ItemCode is strictly required for internal orders.");
+                }
+                
                 var line = new SalesOrderLine
                 {
                     Order = order,
-                    ItemCode = itemCode,
-                    Description = !string.IsNullOrEmpty(dto.ProductName) ? dto.ProductName : (dto.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
+                    ItemCode = dto.ItemCode,
+                    Description = !string.IsNullOrEmpty(dto.ProductName) ? dto.ProductName : "Internal Production Component",
                     OrderedQuantity = 0m,
                     LineNumber = 1,
                     LineStatus = 1
@@ -423,10 +427,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             if (!skipScan)
             {
+                if (string.IsNullOrEmpty(dto.ItemCode))
+                {
+                    throw new ArgumentException("ItemCode is strictly required for internal scans.");
+                }
+                
                 await SaveProductionScanAsync(new ProductionScanDto
                 {
                     SoNumber = soNumber,
-                    ItemCode = !string.IsNullOrEmpty(dto.ItemCode) ? dto.ItemCode : (dto.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
+                    ItemCode = dto.ItemCode,
                     ScanAmountKg = dto.AmountKg,
                     ItemStatus = "A",
                     Location = "PROD",

@@ -638,63 +638,7 @@ class DeliveryRepository implements ILogisticsRepository {
           }
         }
       } else {
-        // Fallback for legacy single-product entries
-        final productCode = entry['productCode'] ??
-            (entry['type'] == 'Cuts' ? 'PROD-CUT' : 'PROD-BLK');
-        final quantity = entry['amountKg'] ?? 0.0;
-
-        final scans = entry['scans'] as List? ?? [];
-        final totalWeight = scans.isNotEmpty 
-            ? scans.fold(0.0, (sum, s) => sum + (s['weight'] as num).toDouble())
-            : quantity;
-        final totalPieces = scans.isNotEmpty
-            ? scans.fold(0.0, (sum, s) => sum + ((s['scannedQty'] ?? 0.0) as num).toDouble())
-            : 0.0;
-
-        await db.insert(LocalDatabaseHelper.tableDetails, {
-          LocalDatabaseHelper.colDetSoNum: entryNo,
-          LocalDatabaseHelper.colDetItemCode: productCode,
-          LocalDatabaseHelper.colDetDescription:
-              entry['productName'] ??
-              (entry['type'] == 'Cuts' ? 'Internal - Cuts' : 'Internal - Bulk'),
-          LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
-          LocalDatabaseHelper.colDetQuantity: quantity,
-        });
-
-        if (entry['scans'] != null && (entry['scans'] as List).isNotEmpty) {
-          final scans = entry['scans'] as List;
-          for (final scan in scans) {
-            await db.insert(LocalDatabaseHelper.tableScans, {
-              LocalDatabaseHelper.columnSoNumber: entryNo,
-              LocalDatabaseHelper.columnProductCode: scan['productCode'],
-              LocalDatabaseHelper.columnQuantity: scan['scannedQty'] ?? scan['weight'],
-              LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
-              LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
-              LocalDatabaseHelper.columnTimestamp:
-                  scan['timestamp'] ?? DateTime.now().toIso8601String(),
-              LocalDatabaseHelper.columnSyncId: scan['syncId'] ?? const Uuid().v4(),
-              LocalDatabaseHelper.columnIsSynced: 0,
-              LocalDatabaseHelper.columnItemStatus: 'A',
-              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'INTERNAL',
-              LocalDatabaseHelper.columnLocationCode: scan['location']?.toString() ?? scan['locationCode']?.toString(),
-              LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
-              LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
-            });
-          }
-        } else {
-          await db.insert(LocalDatabaseHelper.tableScans, {
-            LocalDatabaseHelper.columnSoNumber: entryNo,
-            LocalDatabaseHelper.columnProductCode: productCode,
-            LocalDatabaseHelper.columnQuantity: quantity,
-            LocalDatabaseHelper.columnManufacturedQuantity: quantity,
-            LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
-            LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
-            LocalDatabaseHelper.columnIsSynced: 0,
-            LocalDatabaseHelper.columnItemStatus: 'A',
-            LocalDatabaseHelper.columnSite: 'IPL',
-            LocalDatabaseHelper.columnLot: entry['lot']?.toString(),
-          });
-        }
+        throw StateError("A valid product is strictly required to create a Cut/Bulk entry.");
       }
 
       // Mark order as unsynced if it was previously synced (adding new detail)
