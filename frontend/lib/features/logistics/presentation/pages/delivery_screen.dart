@@ -277,10 +277,33 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
 
   Future<void> _showManualEntryDialog() async {
     if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+    List<SalesOrder> allClosedOrders = [];
+    try {
+      allClosedOrders = await context.read<DeliveryRepository>().fetchSalesOrderHeaders(
+        status: 'closed',
+        limit: 2000,
+      );
+    } catch (e) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+
+    final loadedOrderNumbers = _orders.map((o) => o.orderNumber).toSet();
+
+    final validOrderNumbers = allClosedOrders
+        .where((o) => o.isPreparedForShipment == false && !loadedOrderNumbers.contains(o.orderNumber))
+        .map((o) => o.orderNumber)
+        .toList();
+
+    if (!mounted) return;
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
-    final controller = TextEditingController();
+    String currentText = '';
 
     await showDialog(
       context: context,
@@ -308,43 +331,107 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter the Sales Order number to manually load it into the manifest.',
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : Colors.black54,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.characters,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                decoration: InputDecoration(
-                  labelText: 'Sales Order Number',
-                  labelStyle: TextStyle(color: orange),
-                  hintText: 'e.g., SO001234',
-                  hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: orange, width: 2),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Search or enter the Sales Order number to manually load it into the manifest.',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    fontSize: 13,
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: isDark ? Colors.white10 : Colors.black12,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    final query = textEditingValue.text.trim().toLowerCase();
+                    if (query.isEmpty) {
+                      return const Iterable<String>.empty();
+                    }
+                    return validOrderNumbers.where((number) {
+                      return number.toLowerCase().contains(query);
+                    }).take(10);
+                  },
+                  onSelected: (String selection) {
+                    currentText = selection;
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    controller.addListener(() {
+                      currentText = controller.text;
+                    });
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.characters,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      decoration: InputDecoration(
+                        labelText: 'Sales Order Number',
+                        labelStyle: TextStyle(color: orange),
+                        hintText: 'e.g., 1234 or SO001234',
+                        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: orange, width: 2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isDark ? Colors.white10 : Colors.black12,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                      ),
+                      onSubmitted: (String value) {
+                        onFieldSubmitted();
+                        if (currentText.trim().isNotEmpty) {
+                          Navigator.pop(context);
+                          _manualLoadSalesOrder(currentText.trim());
+                        }
+                      },
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4.0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                        ),
+                        color: theme.colorScheme.surface,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final option = options.elementAt(index);
+                              return InkWell(
+                                onTap: () => onSelected(option),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(
+                                    option,
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
@@ -360,7 +447,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
             ),
             ElevatedButton(
               onPressed: () {
-                final text = controller.text.trim();
+                final text = currentText.trim();
                 if (text.isNotEmpty) {
                   Navigator.pop(context);
                   _manualLoadSalesOrder(text);

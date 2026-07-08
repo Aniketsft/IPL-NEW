@@ -8,6 +8,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/local/local_datab
 import 'package:sqflite/sqflite.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
 
 class AuthRepository implements IAuthRepository {
   final Dio _dio;
@@ -189,13 +190,6 @@ class AuthRepository implements IAuthRepository {
   }
 
   String _handleDioError(DioException e, String operation) {
-    if (e.response != null) {
-      final data = e.response?.data;
-      if (data is Map && data.containsKey('message')) {
-        return data['message'];
-      }
-      return '$operation failed: Server returned ${e.response?.statusCode}';
-    }
-    return '$operation failed: ${e.message}';
+    return '$operation failed: ${ApiErrorHandler.getErrorMessage(e)}';
   }
 }

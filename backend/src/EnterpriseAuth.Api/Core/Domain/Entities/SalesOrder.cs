@@ -71,6 +71,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("IsProcessed")]
         public bool IsProcessed { get; set; }
 
+        [MaxLength(100)]
+        [Column("TargetLorry")]
+        public string? TargetLorry { get; set; }
+
         // Navigation
         public ICollection<SalesOrderLine> Lines { get; set; } = new List<SalesOrderLine>();
     }

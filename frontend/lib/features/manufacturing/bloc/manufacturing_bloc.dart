@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
 import '../../logistics/domain/usecases/get_production_tracking_use_case.dart';
 import '../../logistics/domain/usecases/synchronize_logistics_use_case.dart';
 import '../../logistics/domain/usecases/set_preparation_status_use_case.dart';
@@ -169,7 +170,7 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
         ),
       );
     } catch (e) {
-      emit(ManufacturingFailure('Sync failed: $e', selectedSchema: state.selectedSchema));
+      emit(ManufacturingFailure('Sync failed: ${ApiErrorHandler.getErrorMessage(e)}', selectedSchema: state.selectedSchema));
     }
   }
 

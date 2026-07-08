@@ -2049,7 +2049,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                     ),
                   ),
                   child: Icon(
-                    Icons.close,
+                    Icons.check,
                     size: 16,
                     color: _isMultiplierMode ? Colors.white : (isDark ? Colors.white54 : Colors.black54),
                   ),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/user_management.dart';
 import 'package:enterprise_auth_mobile/core/config/api_config.dart';
+import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
 
 class UserManagementRepository {
   final Dio _dio;
@@ -43,7 +44,7 @@ class UserManagementRepository {
       final data = response.data as List;
       return data.map((json) => _mapJsonToRole(json)).toList();
     } catch (e) {
-      throw 'Failed to fetch roles: $e';
+      throw 'Failed to fetch roles: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -55,7 +56,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update role: $e';
+      throw 'Failed to update role: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -63,7 +64,7 @@ class UserManagementRepository {
     try {
       await _dio.delete('Roles/$roleId');
     } catch (e) {
-      throw 'Failed to delete role: $e';
+      throw 'Failed to delete role: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -82,7 +83,7 @@ class UserManagementRepository {
           )
           .toList();
     } catch (e) {
-      throw 'Failed to fetch groups: $e';
+      throw 'Failed to fetch groups: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -94,7 +95,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update group: $e';
+      throw 'Failed to update group: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -130,7 +131,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to create user: $e';
+      throw 'Failed to create user: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -148,7 +149,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update user: $e';
+      throw 'Failed to update user: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -160,7 +161,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to create role: $e';
+      throw 'Failed to create role: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -172,7 +173,7 @@ class UserManagementRepository {
           .map((json) => _mapJsonToUser(json))
           .toList();
     } catch (e) {
-      throw 'Failed to fetch users: $e';
+      throw 'Failed to fetch users: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -196,7 +197,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update user permissions: $e';
+      throw 'Failed to update user permissions: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 

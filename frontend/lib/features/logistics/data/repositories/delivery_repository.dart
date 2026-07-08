@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
 import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:flutter/foundation.dart';
@@ -78,7 +79,7 @@ class DeliveryRepository implements ILogisticsRepository {
         );
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch reconciled sales order details: $e';
+      throw 'Failed to fetch reconciled sales order details: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -163,7 +164,7 @@ class DeliveryRepository implements ILogisticsRepository {
         );
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch production tracking: $e';
+      throw 'Failed to fetch production tracking: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -208,7 +209,7 @@ class DeliveryRepository implements ILogisticsRepository {
         );
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch sales orders: $e';
+      throw 'Failed to fetch sales orders: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -292,7 +293,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
       return maps.map((m) => _mapLocalHeaderToEntity(m)).toList();
     } catch (e) {
-      throw 'Failed to fetch sales order headers from local DB: $e';
+      throw 'Failed to fetch sales order headers from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -355,7 +356,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final maps = await db.rawQuery(sql, soNumbers);
       return maps.map((m) => _mapLocalHeaderToEntity(m)).toList();
     } catch (e) {
-      throw 'Failed to fetch delivery sales orders: $e';
+      throw 'Failed to fetch delivery sales orders: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -368,7 +369,7 @@ class DeliveryRepository implements ILogisticsRepository {
       // Removed immediate background push attempt to enforce strict offline-first sync architecture.
 
     } catch (e) {
-      throw 'Failed to close order locally: $e';
+      throw 'Failed to close order locally: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -385,7 +386,7 @@ class DeliveryRepository implements ILogisticsRepository {
         name: (m[LocalDatabaseHelper.colName] ?? '').toString(),
       )).toList();
     } catch (e) {
-      throw 'Failed to fetch sites from local DB: $e';
+      throw 'Failed to fetch sites from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -406,7 +407,7 @@ class DeliveryRepository implements ILogisticsRepository {
           )
           .toList();
     } catch (e) {
-      throw 'Failed to fetch customers from local DB: $e';
+      throw 'Failed to fetch customers from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -427,7 +428,7 @@ class DeliveryRepository implements ILogisticsRepository {
           )
           .toList();
     } catch (e) {
-      throw 'Failed to fetch sales representatives from local DB: $e';
+      throw 'Failed to fetch sales representatives from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -485,7 +486,7 @@ class DeliveryRepository implements ILogisticsRepository {
       if (maps.isEmpty) return null;
       return _mapLocalDetailToEntity(maps.first);
     } catch (e) {
-      throw 'Failed to fetch tracking info from local DB: $e';
+      throw 'Failed to fetch tracking info from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -501,7 +502,7 @@ class DeliveryRepository implements ILogisticsRepository {
         'unit': r[LocalDatabaseHelper.colProdStu]?.toString() ?? 'KG',
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch products from local DB: $e';
+      throw 'Failed to fetch products from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -518,7 +519,7 @@ class DeliveryRepository implements ILogisticsRepository {
         'name': '${r[LocalDatabaseHelper.colCustomerName] ?? ''} (${r[LocalDatabaseHelper.colOrderDate]?.toString().substring(0, 10) ?? ''})',
       }).toList();
     } catch (e) {
-      throw 'Failed to fetch existing Cut/Bulk SOs: $e';
+      throw 'Failed to fetch existing Cut/Bulk SOs: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -731,7 +732,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
       return entryNo;
     } catch (e) {
-      throw 'Failed to save Cut/Bulk entry locally: $e';
+      throw 'Failed to save Cut/Bulk entry locally: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -988,7 +989,7 @@ class DeliveryRepository implements ILogisticsRepository {
         counts: counts.isNotEmpty ? counts : null,
       );
       debugPrint("Sync: Operation failed: $e");
-      throw 'Sync failed: $e';
+      throw 'Sync failed: ${ApiErrorHandler.getErrorMessage(e)}';
     } finally {
       _isSyncing = false;
       stopwatch.stop();
@@ -1356,7 +1357,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
       await _dio.post('Logistics/sync-scans', data: payload);
     } catch (e) {
-      throw 'Failed to sync scans: $e';
+      throw 'Failed to sync scans: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1387,7 +1388,7 @@ class DeliveryRepository implements ILogisticsRepository {
       debugPrint("Offline-First: Scan saved locally with ID $id. Will sync via Sync/push.");
     } catch (e) {
       debugPrint("CRITICAL: Local persistence failed for scan: $e");
-      throw 'Failed to save scan: $e';
+      throw 'Failed to save scan: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1564,7 +1565,7 @@ class DeliveryRepository implements ILogisticsRepository {
           )
           .toList();
     } catch (e) {
-      throw 'Failed to fetch location lookups from local DB: $e';
+      throw 'Failed to fetch location lookups from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1641,7 +1642,7 @@ class DeliveryRepository implements ILogisticsRepository {
         whereArgs: [soNumber, itemCode],
       );
     } catch (e) {
-      throw 'Failed to update item status: $e';
+      throw 'Failed to update item status: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1660,7 +1661,7 @@ class DeliveryRepository implements ILogisticsRepository {
         isValidation: isValidation,
       );
     } catch (e) {
-      throw 'Failed to bulk update status: $e';
+      throw 'Failed to bulk update status: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1681,7 +1682,7 @@ class DeliveryRepository implements ILogisticsRepository {
         whereArgs: [soNumber],
       );
     } catch (e) {
-      throw 'Failed to update shipment preparation status: $e';
+      throw 'Failed to update shipment preparation status: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1876,7 +1877,7 @@ class DeliveryRepository implements ILogisticsRepository {
       final response = await _dio.post('Logistics/end-of-day');
       return response.data as Map<String, dynamic>;
     } catch (e) {
-      throw 'Failed to process End of Day: $e';
+      throw 'Failed to process End of Day: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1889,7 +1890,7 @@ class DeliveryRepository implements ILogisticsRepository {
       });
     } catch (e) {
       debugPrint('Failed to complete Production EOD via API: $e');
-      throw 'Failed to complete Production EOD: $e';
+      throw 'Failed to complete Production EOD: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1909,7 +1910,7 @@ class DeliveryRepository implements ILogisticsRepository {
       }
     } catch (e) {
       debugPrint('Failed to fetch production summary from server: $e');
-      throw 'Failed to fetch production summary: $e';
+      throw 'Failed to fetch production summary: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
@@ -1993,7 +1994,7 @@ class DeliveryRepository implements ILogisticsRepository {
       }
     } catch (e) {
       debugPrint("Failed to update app settings in SQLite: $e");
-      throw 'Failed to update app settings: $e';
+      throw 'Failed to update app settings: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 

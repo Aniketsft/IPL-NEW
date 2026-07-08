@@ -83,11 +83,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f0.STOFCY_0 COLLATE DATABASE_DEFAULT as [Site],
                     ISNULL(CONCAT(LTRIM(RTRIM(sdh.REPNUM2_0)), ' - ', LTRIM(RTRIM(sdh.REP2_0))), LTRIM(RTRIM(f0.REP_0))) COLLATE DATABASE_DEFAULT as [Salesman],
                     f0.ORDSTA_0 as [Status],
-                    'External' as [Source]
+                    'External' as [Source],
+                    LEFT(f3.LANMES_0, 2) COLLATE DATABASE_DEFAULT as [TargetLorry]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f_orig WITH (NOLOCK) ON f_orig.SOHNUM_0 = sdh.ORIGINALSO_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.APLSTD f3 WITH (NOLOCK) 
+                    ON f3.LANCHP_0 = 409 AND f3.LANNUM_0 = ISNULL(NULLIF(f0.DRN_0, 1), f_orig.DRN_0) AND f3.LAN_0 = 'BRI'
                 WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))
                 ORDER BY f0.ORDDAT_0 DESC", new { Site = site });
 
@@ -1321,6 +1325,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     existing.CustomerName = dto.CustomerName;
                     existing.Site = dto.Site;
                     existing.Status = dto.Status;
+                    existing.TargetLorry = dto.TargetLorry;
                     existing.UpdatedAt = DateTime.UtcNow;
                 }
                 else
@@ -1339,6 +1344,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         CustomerName = dto.CustomerName,
                         Site = dto.Site,
                         Status = dto.Status,
+                        TargetLorry = dto.TargetLorry,
                         CreatedAt = DateTime.UtcNow
                     };
                     _scanContext.SalesOrders.Add(existing);

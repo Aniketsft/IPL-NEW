@@ -102,11 +102,15 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             // Mapping ZLOCFCY_0 logic: First 2 characters of Lorry trip code
             string lorryCode = "IPL"; // Default
-            if (!string.IsNullOrEmpty(metadata.SO_LORRY))
+            string? targetLorry = order.TargetLorry;
+            if (string.IsNullOrEmpty(targetLorry)) targetLorry = metadata.SO_LORRY;
+            if (string.IsNullOrEmpty(targetLorry)) targetLorry = metadata.ORI_SO_LORRY;
+            
+            if (!string.IsNullOrEmpty(targetLorry))
             {
-                lorryCode = metadata.SO_LORRY.Length >= 2 
-                    ? metadata.SO_LORRY.Substring(0, 2) 
-                    : metadata.SO_LORRY;
+                lorryCode = targetLorry.Length >= 2 
+                    ? targetLorry.Substring(0, 2) 
+                    : targetLorry;
             }
 
             // A. Create Header Record (H) — ZVACITM_0 is null for the header row
@@ -246,8 +250,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         SDH.SOHNUM_0 AS SO_NO,
                         SOH.BPCORD_0 AS ZBPCORD_0,
                         SDH.SDHNUM_0 AS DELIVERY_NO,
-                        TRP.LANMES_0 AS SO_LORRY,
-                        TRP3.LANMES_0 AS ORI_SO_LORRY,
+                        LEFT(TRP.LANMES_0, 2) AS SO_LORRY,
+                        LEFT(TRP3.LANMES_0, 2) AS ORI_SO_LORRY,
                         SDH.ORIGINALSO_0 AS ORI_SO_NO
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS SDH
                     LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOH ON SDH.SOHNUM_0 = SOH.SOHNUM_0

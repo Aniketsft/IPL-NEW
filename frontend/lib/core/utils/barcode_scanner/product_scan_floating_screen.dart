@@ -863,7 +863,7 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.close),
+                              icon: const Icon(Icons.check),
                               color: _isMultiplierMode ? orange : (isDark ? Colors.white38 : Colors.black38),
                               onPressed: () {
                                 setState(() {

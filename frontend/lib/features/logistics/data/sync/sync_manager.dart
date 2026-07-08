@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/local_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import '../local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
 
 class SyncManager {
   final LocalRepository _localRepository;
@@ -64,7 +65,7 @@ class SyncManager {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Sync failed: $e. Will retry later.');
+        print('Sync failed: ${ApiErrorHandler.getErrorMessage(e)}. Will retry later.');
       }
     } finally {
       _isSyncing = false;

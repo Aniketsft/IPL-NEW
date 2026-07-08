@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 51;
+  static const _databaseVersion = 52;
 
 
   static const tableScans = 'tbl_scans';
@@ -78,6 +78,7 @@ class LocalDatabaseHelper {
   static const colStatusLabel = 'statusLabel';
   static const colIsPreparedForShipment = 'is_prepared_for_shipment';
   static const colIsProcessed = 'is_processed';
+  static const colTargetLorry = 'targetLorry';
 
   // tbl_sales_order_details columns
 
@@ -770,6 +771,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v51: $e");
       }
     }
+    if (oldVersion < 52) {
+      debugPrint('DB Upgrade: Adding targetLorry to tbl_sales_orders (v52)');
+      try {
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colTargetLorry TEXT');
+      } catch (e) {
+        debugPrint("Migration error v52: $e");
+      }
+    }
   }
 
 
@@ -826,6 +835,7 @@ class LocalDatabaseHelper {
         $columnIsSynced INTEGER NOT NULL DEFAULT 0,
         $colIsPreparedForShipment INTEGER DEFAULT 0,
         $colIsProcessed INTEGER DEFAULT 0,
+        $colTargetLorry TEXT,
         $colDeviceId TEXT
       )
     ''');
