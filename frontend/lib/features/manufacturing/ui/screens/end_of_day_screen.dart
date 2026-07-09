@@ -737,15 +737,31 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           ),
           dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           icon: const Icon(Icons.arrow_drop_down, color: _amber),
+          itemHeight: 56.0,
           items: _workOrders.map((w) {
             return DropdownMenuItem<WorkOrderHeader>(
               value: w,
-              child: Text(
-                w.workOrder,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    w.workOrder,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  if (w.date != null)
+                    Text(
+                      DateFormat('dd MMM yyyy').format(w.date!),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                      ),
+                    ),
+                ],
               ),
             );
           }).toList(),

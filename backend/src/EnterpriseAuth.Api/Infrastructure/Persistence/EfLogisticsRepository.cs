@@ -1152,7 +1152,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 // Simple query for dropdown population
                 // Note: When using DISTINCT, the ORDER BY column must be in the SELECT list
-                sql = $@"SELECT DISTINCT TOP 100 MFGNUM_0 AS WorkOrder, CREDAT_0 AS Date FROM {schema}.MFGHEAD ORDER BY Date DESC";
+                sql = $@"SELECT TOP 100 MFGNUM_0 AS WorkOrder, CREDAT_0 AS Date 
+                         FROM {schema}.MFGHEAD 
+                         WHERE MFGSTA_0 = 1 AND MFGFCY_0 = 'IPL'
+                         ORDER BY Date DESC";
             }
             else
             {
