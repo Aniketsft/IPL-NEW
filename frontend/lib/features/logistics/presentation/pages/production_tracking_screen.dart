@@ -389,21 +389,23 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               widget.order.orderNumber.startsWith('BLK-') ||
               widget.order.orderNumber.startsWith('CUTS-');
           if (!isCutBulkOrder && _status == 'A') {
-            final bool isEA = widget.product.unit.toUpperCase() == 'EA';
+            final bool isEA = widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS';
             final double tolerance = isEA ? 0.0 : _tolerancePercentage;
-            final double effectiveLimit =
-                widget.product.quantity * (1 + tolerance / 100);
+            final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
 
-            final remaining =
-                effectiveLimit -
-                _localManufacturedQty -
-                _cumulativeQty;
-            if (result.manufacturedQty > remaining + 0.001) {
+            final double currentTotal = isEA
+                ? (_localEaScannedQty + _baseSessionScannedQty + _cumulativeQty)
+                : (_localManufacturedQty + _baseSessionScannedWeight + _cumulativeWeight);
+
+            final double remaining = effectiveLimit - currentTotal;
+            final double scanAmount = isEA ? result.scannedQty : result.manufacturedQty;
+
+            if (scanAmount > remaining + 0.001) {
               AudioService.instance.playError();
               HapticFeedback.heavyImpact();
               _showErrorDialog(
                 'Limit Exceeded',
-                'Scanning ${widget.product.formatQuantity(result.manufacturedQty)} would exceed the order limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.',
+                'Scanning ${widget.product.formatQuantity(scanAmount)} would exceed the order limit${isEA ? '' : ' (with ' + _tolerancePercentage.toString() + '% tolerance)'}.',
               );
               return false;
             }
@@ -633,13 +635,30 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   void _applyMultiplier(Map<String, dynamic> pendingScan, int count) {
+    final isEA = widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS';
+    final double amountPerScan = isEA 
+        ? (pendingScan['scannedQty'] as num?)?.toDouble() ?? 0.0
+        : (pendingScan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
+    final double totalAmount = amountPerScan * count;
+
+    final bool isCutBulkOrder = widget.order.orderNumber.startsWith('BLK-') || widget.order.orderNumber.startsWith('CUTS-');
+    if (!isCutBulkOrder && _status == 'A') {
+      final double tolerance = isEA ? 0.0 : _tolerancePercentage;
+      final double effectiveLimit = widget.product.quantity * (1 + tolerance / 100);
+      final double currentTotal = isEA
+          ? (_localEaScannedQty + _baseSessionScannedQty + _cumulativeQty)
+          : (_localManufacturedQty + _baseSessionScannedWeight + _cumulativeWeight);
+      final double remaining = effectiveLimit - currentTotal;
+
+      if (totalAmount > remaining + 0.001) {
+        AudioService.instance.playError();
+        HapticFeedback.heavyImpact();
+        AppUI.showWarningSnackBar(context: context, message: 'Total multiplied amount would exceed the order limit');
+        return;
+      }
+    }
+
     if (_selectedBulkPool != null) {
-      final isEA = widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS';
-      final double amountPerScan = isEA 
-          ? (pendingScan['scannedQty'] as num?)?.toDouble() ?? 0.0
-          : (pendingScan['manufacturedQty'] as num?)?.toDouble() ?? 0.0;
-      final double totalAmount = amountPerScan * count;
-      
       final double poolAvailable =
           (_selectedBulkPool!['poolQty'] as num).toDouble() -
           (_selectedBulkPool!['allocatedQty'] as num).toDouble();
@@ -1456,7 +1475,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               ),
               _statTile(
                 'Scanned',
-                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (_localEaScannedQty + _baseSessionScannedQty + _cumulativeQty) : (_localManufacturedQty + _baseSessionScannedQty + _cumulativeQty))} ${widget.product.unit}',
+                '${widget.product.formatQuantity((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') ? (_localEaScannedQty + _baseSessionScannedQty + _cumulativeQty) : (_localManufacturedQty + _baseSessionScannedWeight + _cumulativeWeight))} ${widget.product.unit}',
                 isDark,
                 color: orange,
               ),

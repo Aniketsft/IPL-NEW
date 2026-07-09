@@ -120,11 +120,11 @@ class EodPdfGenerator {
       columnWidths: {
         0: const pw.FixedColumnWidth(50),
         1: const pw.FlexColumnWidth(2),
-        2: const pw.FixedColumnWidth(80),
-        3: const pw.FixedColumnWidth(30),
-        4: const pw.FixedColumnWidth(40),
-        5: const pw.FixedColumnWidth(50),
-        6: const pw.FixedColumnWidth(50),
+        2: const pw.FixedColumnWidth(120),
+        3: const pw.FixedColumnWidth(40),
+        4: const pw.FixedColumnWidth(50),
+        5: const pw.FixedColumnWidth(70),
+        6: const pw.FixedColumnWidth(60),
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
@@ -155,10 +155,9 @@ class EodPdfGenerator {
         ),
         pw.SizedBox(height: 40),
         pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
-            _buildSigLine('Production Supervisor'),
-            _buildSigLine('Warehouse Manager'),
+            _buildSigLine('Production Manager'),
           ],
         ),
       ],
