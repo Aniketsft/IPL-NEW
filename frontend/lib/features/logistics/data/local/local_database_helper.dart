@@ -1695,12 +1695,10 @@ class LocalDatabaseHelper {
     return await db.rawQuery('''
       SELECT 
         o.$colOrderNum AS soNumber,
-        (SELECT COALESCE(SUM(s.$columnQuantity), 0) 
-         FROM $tableScans s 
-         WHERE s.$columnSoNumber = o.$colOrderNum 
-           AND s.$columnProductCode = ?
-           AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED')
-           AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%')) AS poolQty,
+        (SELECT COALESCE(SUM(d.$colDetQuantity), 0) 
+         FROM $tableDetails d 
+         WHERE d.$colDetSoNum = o.$colOrderNum 
+           AND d.$colDetItemCode = ?) AS poolQty,
         (SELECT COALESCE(SUM(-s.$columnQuantity), 0) 
          FROM $tableScans s 
          WHERE s.$columnSoNumber = o.$colOrderNum
@@ -1718,14 +1716,27 @@ class LocalDatabaseHelper {
     final db = await instance.database;
     final List<Map<String, dynamic>> results = await db.rawQuery('''
       SELECT 
-        s.$columnProductCode,
-        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') THEN s.$columnQuantity ELSE 0 END) AS poolQty,
-        SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND s.$columnBarcode LIKE 'ALLOC-OUT-%' THEN -s.$columnQuantity ELSE 0 END) AS allocatedQty
-      FROM $tableScans s
-      INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
-      WHERE o.$colDeliveryDate LIKE ?
-      GROUP BY s.$columnProductCode
-    ''', ['$dateStr%']);
+        d.$colDetItemCode AS productCode,
+        SUM(d.$colDetQuantity) AS poolQty,
+        COALESCE(alloc.allocatedQty, 0) AS allocatedQty
+      FROM $tableDetails d
+      INNER JOIN $tableOrders o ON d.$colDetSoNum = o.$colOrderNum
+      LEFT JOIN (
+        SELECT 
+          s.$columnProductCode,
+          SUM(-s.$columnQuantity) AS allocatedQty
+        FROM $tableScans s
+        INNER JOIN $tableOrders o2 ON s.$columnSoNumber = o2.$colOrderNum
+        WHERE (o2.$colOrderNum LIKE 'BLK-%' OR o2.$colOrderNum LIKE 'CUTS-%')
+          AND o2.$colDeliveryDate LIKE ?
+          AND s.$columnBarcode LIKE 'ALLOC-OUT-%'
+          AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED')
+        GROUP BY s.$columnProductCode
+      ) alloc ON alloc.$columnProductCode = d.$colDetItemCode
+      WHERE (o.$colOrderNum LIKE 'BLK-%' OR o.$colOrderNum LIKE 'CUTS-%')
+        AND o.$colDeliveryDate LIKE ?
+      GROUP BY d.$colDetItemCode
+    ''', ['$dateStr%', '$dateStr%']);
 
     final Map<String, double> summaries = {};
     for (var row in results) {
@@ -1733,7 +1744,7 @@ class LocalDatabaseHelper {
       final double allocated = (row['allocatedQty'] as num).toDouble();
       final double available = pool - allocated;
       if (available > 0.001) {
-        summaries[row[columnProductCode] as String] = available;
+        summaries[row['productCode'] as String] = available;
       }
     }
     return summaries;
@@ -1748,15 +1759,27 @@ class LocalDatabaseHelper {
       INNER JOIN $tableOrders ord ON det.$colDetSoNum = ord.$colOrderNum
       INNER JOIN (
         SELECT 
-          s.$columnProductCode,
-          o.$colDeliveryDate,
-          SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') THEN s.$columnQuantity ELSE 0 END) AS poolQty,
-          SUM(CASE WHEN (s.$columnSoNumber LIKE 'BLK-%' OR s.$columnSoNumber LIKE 'CUTS-%') AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED') AND s.$columnBarcode LIKE 'ALLOC-OUT-%' THEN -s.$columnQuantity ELSE 0 END) AS allocatedQty
-        FROM $tableScans s
-        INNER JOIN $tableOrders o ON s.$columnSoNumber = o.$colOrderNum
+          d.$colDetItemCode AS productCode,
+          o.$colDeliveryDate AS deliveryDate,
+          SUM(d.$colDetQuantity) AS poolQty,
+          COALESCE(alloc.allocatedQty, 0) AS allocatedQty
+        FROM $tableDetails d
+        INNER JOIN $tableOrders o ON d.$colDetSoNum = o.$colOrderNum
+        LEFT JOIN (
+          SELECT 
+            s.$columnProductCode,
+            o2.$colDeliveryDate,
+            SUM(-s.$columnQuantity) AS allocatedQty
+          FROM $tableScans s
+          INNER JOIN $tableOrders o2 ON s.$columnSoNumber = o2.$colOrderNum
+          WHERE (o2.$colOrderNum LIKE 'BLK-%' OR o2.$colOrderNum LIKE 'CUTS-%')
+            AND s.$columnBarcode LIKE 'ALLOC-OUT-%'
+            AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED')
+          GROUP BY s.$columnProductCode, o2.$colDeliveryDate
+        ) alloc ON alloc.$columnProductCode = d.$colDetItemCode AND alloc.$colDeliveryDate = o.$colDeliveryDate
         WHERE (o.$colOrderNum LIKE 'BLK-%' OR o.$colOrderNum LIKE 'CUTS-%')
-        GROUP BY s.$columnProductCode, o.$colDeliveryDate
-      ) pools ON det.$colDetItemCode = pools.$columnProductCode AND ord.$colDeliveryDate = pools.$colDeliveryDate
+        GROUP BY d.$colDetItemCode, o.$colDeliveryDate
+      ) pools ON det.$colDetItemCode = pools.productCode AND ord.$colDeliveryDate = pools.deliveryDate
       WHERE (pools.poolQty - pools.allocatedQty) > 0.001
         AND ord.$colOrderNum NOT LIKE 'BLK-%'
         AND ord.$colOrderNum NOT LIKE 'CUTS-%'
