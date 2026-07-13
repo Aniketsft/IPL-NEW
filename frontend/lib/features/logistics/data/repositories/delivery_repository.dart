@@ -610,6 +610,7 @@ class DeliveryRepository implements ILogisticsRepository {
             LocalDatabaseHelper.colDetDescription: productName,
             LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
             LocalDatabaseHelper.colDetQuantity: orderedQty,
+            LocalDatabaseHelper.colDetScanned: orderedQty,
             LocalDatabaseHelper.colDetUnit: productUnit,
             LocalDatabaseHelper.colDetLot: summaryLot,
             LocalDatabaseHelper.colDetLocation: summaryLocation,

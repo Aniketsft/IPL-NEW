@@ -1695,7 +1695,15 @@ class LocalDatabaseHelper {
     return await db.rawQuery('''
       SELECT 
         o.$colOrderNum AS soNumber,
-        (SELECT COALESCE(SUM(d.$colDetQuantity), 0) 
+        (SELECT MAX(
+            COALESCE(SUM(d.$colDetScanned), 0),
+            (SELECT COALESCE(SUM(s2.$columnQuantity), 0)
+             FROM $tableScans s2
+             WHERE s2.$columnSoNumber = o.$colOrderNum
+               AND s2.$columnProductCode = ?
+               AND (s2.$columnBarcode IS NULL OR s2.$columnBarcode NOT LIKE 'ALLOC-OUT-%')
+               AND s2.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED'))
+         )
          FROM $tableDetails d 
          WHERE d.$colDetSoNum = o.$colOrderNum 
            AND d.$colDetItemCode = ?) AS poolQty,
@@ -1709,7 +1717,7 @@ class LocalDatabaseHelper {
       WHERE (o.$colOrderNum LIKE 'BLK-%' 
           OR o.$colOrderNum LIKE 'CUTS-%')
         AND o.$colDeliveryDate LIKE ?
-    ''', [itemCode, itemCode, '$dateStr%']);
+    ''', [itemCode, itemCode, itemCode, '$dateStr%']);
   }
   /// Calculates aggregated availability (Produced - Allocated) for all bulk products on a date.
   Future<Map<String, double>> getExcessPoolSummaries(String dateStr) async {
@@ -1717,7 +1725,17 @@ class LocalDatabaseHelper {
     final List<Map<String, dynamic>> results = await db.rawQuery('''
       SELECT 
         d.$colDetItemCode AS productCode,
-        SUM(d.$colDetQuantity) AS poolQty,
+        SUM(
+          MAX(
+            d.$colDetScanned,
+            (SELECT COALESCE(SUM(s.$columnQuantity), 0)
+             FROM $tableScans s
+             WHERE s.$columnSoNumber = o.$colOrderNum 
+               AND s.$columnProductCode = d.$colDetItemCode 
+               AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') 
+               AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED'))
+          )
+        ) AS poolQty,
         COALESCE(alloc.allocatedQty, 0) AS allocatedQty
       FROM $tableDetails d
       INNER JOIN $tableOrders o ON d.$colDetSoNum = o.$colOrderNum
@@ -1761,7 +1779,17 @@ class LocalDatabaseHelper {
         SELECT 
           d.$colDetItemCode AS productCode,
           o.$colDeliveryDate AS deliveryDate,
-          SUM(d.$colDetQuantity) AS poolQty,
+          SUM(
+            MAX(
+              d.$colDetScanned,
+              (SELECT COALESCE(SUM(s.$columnQuantity), 0)
+               FROM $tableScans s
+               WHERE s.$columnSoNumber = o.$colOrderNum 
+                 AND s.$columnProductCode = d.$colDetItemCode 
+                 AND (s.$columnBarcode IS NULL OR s.$columnBarcode NOT LIKE 'ALLOC-OUT-%') 
+                 AND s.$columnItemStatus NOT IN ('DELETED_ORIGINAL', 'REVERSED'))
+            )
+          ) AS poolQty,
           COALESCE(alloc.allocatedQty, 0) AS allocatedQty
         FROM $tableDetails d
         INNER JOIN $tableOrders o ON d.$colDetSoNum = o.$colOrderNum
