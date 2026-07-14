@@ -838,14 +838,33 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             if (request.GlobalSettingsUpdates != null && request.GlobalSettingsUpdates.Any())
             {
                 var keys = request.GlobalSettingsUpdates.Select(u => u.SettingKey).ToList();
+                // Ensure LotNumberSetDate is included in keys to check for conflicts even if only DailyLotNumber is pushed
+                if (!keys.Contains("LotNumberSetDate")) keys.Add("LotNumberSetDate");
+
                 // To maintain the ledger correctly and generate AuditLog entries, we get the LATEST setting for each key.
                 var existingSettings = await _scanContext.GlobalSettings
                     .Where(s => keys.Contains(s.SettingKey))
                     .OrderByDescending(s => s.UpdatedAt)
                     .ToListAsync();
 
+                var pushedDateUpdate = request.GlobalSettingsUpdates.FirstOrDefault(u => u.SettingKey == "LotNumberSetDate");
+                string? pushedDate = pushedDateUpdate?.SettingValue;
+                var existingDateSetting = existingSettings.FirstOrDefault(s => s.SettingKey == "LotNumberSetDate");
+
                 foreach (var updateDto in request.GlobalSettingsUpdates)
                 {
+                    // Check for LotNumber conflict (First-come, first-served per day)
+                    if (updateDto.SettingKey == "DailyLotNumber" || updateDto.SettingKey == "LotNumberSetDate")
+                    {
+                        if (pushedDate != null && existingDateSetting != null && existingDateSetting.SettingValue == pushedDate)
+                        {
+                            // A lot number is already locked for this date on the server.
+                            // To maintain consistency across devices, ignore this update.
+                            Console.WriteLine($"[Sync] WARNING: Ignored {updateDto.SettingKey} update from {request.DeviceId} because a lot number is already locked for {pushedDate} on the server.");
+                            continue;
+                        }
+                    }
+
                     var existing = existingSettings.FirstOrDefault(s => s.SettingKey == updateDto.SettingKey);
                     
                     // If the value hasn't changed from the absolute latest, we could skip it to avoid blowing up the ledger.

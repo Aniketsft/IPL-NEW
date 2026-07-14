@@ -19,10 +19,10 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
   Timer? _inactivityTimer;
   Timer? _refreshTimer;
 
-  // 10 minutes timeout for inactivity
-  static const Duration timeoutDuration = Duration(minutes: 10);
+  // 30 minutes timeout for inactivity
+  static const Duration timeoutDuration = Duration(minutes: 30);
   // 5 minutes interval to refresh token if active
-  static const Duration refreshInterval = Duration(minutes: 5);
+  static const Duration refreshInterval = Duration(minutes: 30);
 
   @override
   void initState() {
@@ -33,7 +33,7 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
   void _startTimers() {
     _inactivityTimer?.cancel();
     _inactivityTimer = Timer(timeoutDuration, _onTimeout);
-    
+
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(refreshInterval, (timer) {
       _refreshToken();
@@ -45,14 +45,16 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
   }
 
   Future<void> _refreshToken() async {
-    // Only refresh if the user is authenticated. 
+    // Only refresh if the user is authenticated.
     // If they are on the login screen, don't ping the refresh endpoint.
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
       await context.read<AuthRepository>().refreshToken();
-      
+
       // Enforce Offline TTL
-      final isValid = await context.read<AuthRepository>().isOfflineSessionValid();
+      final isValid = await context
+          .read<AuthRepository>()
+          .isOfflineSessionValid();
       if (!isValid) {
         if (mounted) {
           context.read<AuthBloc>().add(LogoutRequested());
