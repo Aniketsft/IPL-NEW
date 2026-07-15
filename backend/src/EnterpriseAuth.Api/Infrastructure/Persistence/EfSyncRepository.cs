@@ -197,12 +197,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Source = "Internal",
                         IsProcessed = order.IsProcessed
                     });
+                }
 
-                    foreach (var line in order.Lines)
+                foreach (var line in order.Lines)
+                {
+                    if (line.ItemCode == "PROD-BLK" || line.ItemCode == "PROD-CUT")
+                        continue;
+
+                    if (!package.Details.Any(d => d.SoNumber == order.SourceOrderId && d.ItemCode == line.ItemCode))
                     {
-                        if (line.ItemCode == "PROD-BLK" || line.ItemCode == "PROD-CUT")
-                            continue;
-
                         package.Details.Add(new SalesOrderDetailDto
                         {
                             SoNumber = order.SourceOrderId,

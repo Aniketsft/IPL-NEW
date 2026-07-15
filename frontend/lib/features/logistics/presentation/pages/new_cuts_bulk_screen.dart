@@ -178,6 +178,18 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
       return;
     }
 
+    // Prevent dummy lines: Ensure EVERY product has at least one scan
+    for (var prod in _selectedProducts) {
+      final scans = prod['scans'] as List? ?? [];
+      if (scans.isEmpty) {
+        AppUI.showWarningSnackBar(
+          context: context,
+          message: 'Product ${prod['name']} has no scans. Please scan or remove it.',
+        );
+        return;
+      }
+    }
+
     final amount = _totalWeight;
     if (amount <= 0) {
       AppUI.showWarningSnackBar(
