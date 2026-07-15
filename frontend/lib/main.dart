@@ -35,6 +35,8 @@ import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_service.dart';
 import 'package:enterprise_auth_mobile/core/widgets/inactivity_watcher.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -163,22 +165,31 @@ class MyApp extends StatelessWidget {
         child: BlocBuilder<ThemeCubit, ThemeMode>(
           builder: (context, themeMode) {
             return InactivityWatcher(
-              child: MaterialApp(
-                title: 'Enterprise Auth',
-                theme: AppTheme.lightTheme,
-                darkTheme: AppTheme.darkTheme,
-                themeMode: themeMode,
-                debugShowCheckedModeBanner: false,
-                home: BlocBuilder<AuthBloc, AuthState>(
-                  builder: (context, state) {
-                    if (state is Authenticated) {
-                      return HomeScreen(
-                        username: state.username,
-                        permissions: state.permissions,
-                      );
-                    }
-                    return const LoginScreen();
-                  },
+              child: BlocListener<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state is Unauthenticated) {
+                    // Pop all active screens so the root (LoginScreen) is revealed
+                    appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+                  }
+                },
+                child: MaterialApp(
+                  navigatorKey: appNavigatorKey,
+                  title: 'Enterprise Auth',
+                  theme: AppTheme.lightTheme,
+                  darkTheme: AppTheme.darkTheme,
+                  themeMode: themeMode,
+                  debugShowCheckedModeBanner: false,
+                  home: BlocBuilder<AuthBloc, AuthState>(
+                    builder: (context, state) {
+                      if (state is Authenticated) {
+                        return HomeScreen(
+                          username: state.username,
+                          permissions: state.permissions,
+                        );
+                      }
+                      return const LoginScreen();
+                    },
+                  ),
                 ),
               ),
             );
