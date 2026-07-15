@@ -4,14 +4,19 @@ import '../../data/repositories/delivery_repository.dart';
 import '../../domain/usecases/synchronize_logistics_use_case.dart';
 import 'sync_event.dart';
 import 'sync_state.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_event.dart';
 
 class SyncBloc extends Bloc<SyncEvent, SyncState> {
   final SynchronizeLogisticsUseCase _synchronizeLogisticsUseCase;
+  final AppSyncBloc _appSyncBloc;
   StreamSubscription? _progressSubscription;
 
   SyncBloc({
     required SynchronizeLogisticsUseCase synchronizeLogisticsUseCase,
+    required AppSyncBloc appSyncBloc,
   }) : _synchronizeLogisticsUseCase = synchronizeLogisticsUseCase,
+       _appSyncBloc = appSyncBloc,
        super(SyncInitial()) {
     on<StartSyncRequested>(_onStartSyncRequested);
     on<SyncProgressUpdated>(_onSyncProgressUpdated);
@@ -33,6 +38,7 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     try {
       await event.exportAction();
       final lastSync = DateTime.now().toString().substring(0, 16);
+      _appSyncBloc.add(UpdateAppSyncTimeEvent(lastSync));
       emit(SyncSuccess(lastSync));
     } catch (e) {
       emit(SyncFailure(e.toString()));
@@ -81,6 +87,7 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
       emit(SyncFailure(syncError!));
     } else {
       final lastSync = DateTime.now().toString().substring(0, 16);
+      _appSyncBloc.add(UpdateAppSyncTimeEvent(lastSync));
       emit(SyncSuccess(lastSync));
     }
   }

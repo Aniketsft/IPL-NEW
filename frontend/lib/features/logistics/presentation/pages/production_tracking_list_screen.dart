@@ -5,6 +5,8 @@ import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
 import '../widgets/sync_status_header.dart';
 import '../widgets/sync_overlay.dart';
 import 'production_tracking_screen.dart';
@@ -26,7 +28,6 @@ class _ProductionTrackingListScreenState
     extends State<ProductionTrackingListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
   String? _selectedSiteId; // Default to All Sites to show INTERNAL (dummy) orders
   List<Site> _sites = [];
   double _tolerancePercentage = 0.0;
@@ -102,7 +103,11 @@ class _ProductionTrackingListScreenState
         children: [
           Column(
             children: [
-              SyncStatusHeader(lastSync: _lastSync),
+              BlocBuilder<AppSyncBloc, AppSyncState>(
+                builder: (context, state) {
+                  return SyncStatusHeader(lastSync: state.lastSyncTime);
+                },
+              ),
               _buildFilters(),
               Expanded(
                 child: BlocBuilder<ManufacturingBloc, ManufacturingState>(

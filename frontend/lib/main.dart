@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_event.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
@@ -137,18 +139,23 @@ class MyApp extends StatelessWidget {
             ),
           ),
           BlocProvider(
+            create: (context) => AppSyncBloc()..add(LoadAppSyncTimeEvent()),
+          ),
+          BlocProvider(
             create: (context) => ManufacturingBloc(
               getProductionTracking: context
                   .read<GetProductionTrackingUseCase>(),
               synchronizeLogistics: context.read<SynchronizeLogisticsUseCase>(),
               setPreparationStatus: context.read<SetPreparationStatusUseCase>(),
               storageService: context.read<SecureStorageService>(),
+              appSyncBloc: context.read<AppSyncBloc>(),
             ),
           ),
           BlocProvider(
             create: (context) => SyncBloc(
               synchronizeLogisticsUseCase:
                   context.read<SynchronizeLogisticsUseCase>(),
+              appSyncBloc: context.read<AppSyncBloc>(),
             ),
           ),
           BlocProvider(create: (_) => ThemeCubit()),

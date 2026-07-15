@@ -9,6 +9,8 @@ import '../../data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/barcode_scanner_widget.dart';
 import '../widgets/label_qr_generator.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
 import '../bloc/sync_bloc.dart';
 import '../bloc/sync_event.dart';
 import '../bloc/sync_state.dart';
@@ -33,7 +35,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
     _processScan(data);
   }
 
-  final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
   List<SalesOrder> _orders = [];
   List<SalesOrder> _filteredOrders = [];
   bool _isLoading = false;
@@ -732,7 +733,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
       ) : null,
       body: Column(
         children: [
-          SyncStatusHeader(lastSync: _lastSync),
+          BlocBuilder<AppSyncBloc, AppSyncState>(
+            builder: (context, state) {
+              return SyncStatusHeader(lastSync: state.lastSyncTime);
+            },
+          ),
           
           // Search Bar
           Padding(

@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
 import '../widgets/sync_status_header.dart';
 import '../../domain/entities/sales_order.dart';
 import '../widgets/sales_order_card.dart';
@@ -32,7 +34,6 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
   List<Map<String, String>> _salesRepsList = [];
   // ignore: unused_field
   List<Map<String, String>> _sitesList = [];
-  final String _lastSync = '2026-03-10 10:25'; // Mocked for UI demo
 
   String? _selectedCustomerCode;
   String? _selectedSalesmanCode;
@@ -315,7 +316,11 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
         children: [
           Column(
             children: [
-              SyncStatusHeader(lastSync: _lastSync),
+              BlocBuilder<AppSyncBloc, AppSyncState>(
+                builder: (context, state) {
+                  return SyncStatusHeader(lastSync: state.lastSyncTime);
+                },
+              ),
               StandardFilter(
                 onApply: _fetchOrders,
                 searchController: _searchController,

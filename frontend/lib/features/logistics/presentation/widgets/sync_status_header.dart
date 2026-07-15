@@ -7,12 +7,12 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 
 class SyncStatusHeader extends StatelessWidget {
-  final String lastSync;
+  final String? lastSync;
   final bool showSyncButton;
 
   const SyncStatusHeader({
     super.key,
-    required this.lastSync,
+    this.lastSync,
     this.showSyncButton = true,
   });
 
@@ -85,7 +85,7 @@ class SyncStatusHeader extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Last Synced: $lastSync',
+                        lastSync != null ? 'Last Synced: $lastSync' : 'Not Synced',
                         style: TextStyle(
                           color: isDark ? Colors.white60 : Colors.black45,
                           fontSize: 11,

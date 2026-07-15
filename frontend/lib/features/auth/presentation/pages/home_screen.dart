@@ -25,6 +25,8 @@ import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -42,7 +44,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _lastSyncStr = 'Never';
 
   bool _hasAccess(String permissionString) {
     return widget.permissions.contains(permissionString);
@@ -154,33 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadLastSync();
-  }
 
-  Future<void> _loadLastSync() async {
-    try {
-      final history = await LocalDatabaseHelper.instance.getSyncHistory();
-      if (history.isNotEmpty) {
-        // Find latest 'Success' entry
-        final last = history.firstWhere(
-          (h) => h[LocalDatabaseHelper.colSyncStatus] == 'Success',
-          orElse: () => history.first,
-        );
-        final timestampStr = last[LocalDatabaseHelper.colSyncTimestamp] as String;
-        final timestamp = DateTime.tryParse(timestampStr);
-        if (timestamp != null) {
-          setState(() {
-            _lastSyncStr = DateFormat('yyyy-MM-dd HH:mm').format(timestamp);
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Home: Error loading last sync: $e");
-    }
-  }
 
   void _triggerSync() {
     final authState = context.read<AuthBloc>().state;
@@ -190,10 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     context.read<ManufacturingBloc>().add(SyncDataRequested(siteCode: siteCode));
-    
-    // Periodically check if sync is done to refresh timestamp
-    Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
-    Future.delayed(const Duration(seconds: 10), () => _loadLastSync());
   }
 
   @override
@@ -311,6 +282,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final appSyncState = context.watch<AppSyncBloc>().state;
+    final lastSyncStr = appSyncState.lastSyncTime ?? 'Not Synced';
+
     final List<Widget> menuItems = [
       _buildMenuButton(
         context,
@@ -318,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Icons.sync_rounded,
         null,
         onTapOverride: _triggerSync,
-        subtitle: 'Last: $_lastSyncStr',
+        subtitle: 'Last: $lastSyncStr',
       ),
       if (_hasAccess('logistics.delivery.read'))
         _buildMenuButton(

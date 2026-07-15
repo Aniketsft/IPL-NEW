@@ -7,22 +7,27 @@ import '../../logistics/domain/entities/sales_order_detail.dart';
 import 'manufacturing_event.dart';
 import 'manufacturing_state.dart';
 import '../../../core/secure_storage_service.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_event.dart';
 
 class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
   final GetProductionTrackingUseCase _getProductionTracking;
   final SynchronizeLogisticsUseCase _synchronizeLogistics;
   final SetPreparationStatusUseCase _setPreparationStatus;
   final SecureStorageService _storageService;
+  final AppSyncBloc _appSyncBloc;
 
   ManufacturingBloc({
     required GetProductionTrackingUseCase getProductionTracking,
     required SynchronizeLogisticsUseCase synchronizeLogistics,
     required SetPreparationStatusUseCase setPreparationStatus,
     required SecureStorageService storageService,
+    required AppSyncBloc appSyncBloc,
   }) : _getProductionTracking = getProductionTracking,
        _synchronizeLogistics = synchronizeLogistics,
        _setPreparationStatus = setPreparationStatus,
        _storageService = storageService,
+       _appSyncBloc = appSyncBloc,
        super(const ManufacturingInitial()) {
     on<LoadProductionTrackingRequested>(_onLoadProductionTrackingRequested);
     on<SyncDataRequested>(_onSyncDataRequested);
@@ -150,6 +155,9 @@ class ManufacturingBloc extends Bloc<ManufacturingEvent, ManufacturingState> {
           selectedSchema: state.selectedSchema,
         ),
       );
+
+      final lastSync = DateTime.now().toString().substring(0, 16);
+      _appSyncBloc.add(UpdateAppSyncTimeEvent(lastSync));
 
       // Hold success checkmark feedback for 1.5 seconds
       await Future.delayed(const Duration(milliseconds: 1500));
