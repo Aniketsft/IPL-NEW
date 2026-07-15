@@ -47,11 +47,13 @@ abstract class ILogisticsRepository {
   Future<List<SalesRep>> getFilteredSalesReps({
     required DateTime date,
     String? siteCode,
+    String? poType,
   });
   Future<List<Customer>> getFilteredCustomers({
     required DateTime date,
     String? siteCode,
     String? salesmanCode,
+    String? poType,
   });
 
   Future<String> saveCutBulkEntry(Map<String, dynamic> entry);

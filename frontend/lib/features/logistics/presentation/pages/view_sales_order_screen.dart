@@ -155,11 +155,13 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
         repository.getFilteredSalesReps(
           date: _selectedDate!,
           siteCode: _selectedSite?.code,
+          poType: _poTypeFilter,
         ),
         repository.getFilteredCustomers(
           date: _selectedDate!,
           siteCode: _selectedSite?.code,
           salesmanCode: _selectedSalesmanCode,
+          poType: _poTypeFilter,
         ),
       ]);
 
@@ -406,11 +408,14 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                                 {'code': 'POD', 'name': 'POD'},
                                 {'code': 'PTT', 'name': 'PTT'},
                               ],
-                              (code) {
+                              (code) async {
                                 setState(() {
                                   _poTypeFilter = code ?? 'ALL';
+                                  _selectedSalesmanCode = null;
+                                  _selectedCustomerCode = null;
                                 });
                                 _applyLocalFilters();
+                                await _refreshAllLookups();
                                 setModalState(() {});
                               },
                             ),

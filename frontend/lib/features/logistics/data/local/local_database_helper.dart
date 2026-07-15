@@ -1621,7 +1621,7 @@ class LocalDatabaseHelper {
     ''', ['$dateStr%']);
   }
 
-  Future<List<Map<String, dynamic>>> getFilteredSalesReps(String dateStr, String? siteCode) async {
+  Future<List<Map<String, dynamic>>> getFilteredSalesReps(String dateStr, String? siteCode, String? poType) async {
     final db = await instance.database;
     String whereClause = 'o.$colDeliveryDate LIKE ?';
     List<dynamic> args = ['$dateStr%'];
@@ -1629,6 +1629,21 @@ class LocalDatabaseHelper {
     if (siteCode != null && siteCode.isNotEmpty) {
       whereClause += ' AND o.$colSite = ?';
       args.add(siteCode);
+    }
+
+    if (poType != null && poType != 'ALL') {
+      if (poType == 'POD') {
+        whereClause += ' AND o.$colPoNum LIKE ?';
+        args.add('%POD%');
+      } else if (poType == 'PTT') {
+        whereClause += ' AND o.$colPoNum LIKE ?';
+        args.add('%PTT%');
+      } else if (poType == 'EXCESS') {
+        whereClause += ' AND (o.$colOrderNum LIKE ? OR o.$colOrderNum LIKE ? OR LOWER(o.$colSource) = ?)';
+        args.add('CUTS-%');
+        args.add('BLK-%');
+        args.add('internal');
+      }
     }
 
     // Try to get distinct values from the unified colSalesman first
@@ -1657,6 +1672,7 @@ class LocalDatabaseHelper {
     String dateStr,
     String? siteCode,
     String? salesmanCode,
+    String? poType,
   ) async {
     final db = await instance.database;
     String whereClause = 'o.$colDeliveryDate LIKE ?';
@@ -1665,6 +1681,21 @@ class LocalDatabaseHelper {
     if (siteCode != null && siteCode.isNotEmpty) {
       whereClause += ' AND o.$colSite = ?';
       args.add(siteCode);
+    }
+
+    if (poType != null && poType != 'ALL') {
+      if (poType == 'POD') {
+        whereClause += ' AND o.$colPoNum LIKE ?';
+        args.add('%POD%');
+      } else if (poType == 'PTT') {
+        whereClause += ' AND o.$colPoNum LIKE ?';
+        args.add('%PTT%');
+      } else if (poType == 'EXCESS') {
+        whereClause += ' AND (o.$colOrderNum LIKE ? OR o.$colOrderNum LIKE ? OR LOWER(o.$colSource) = ?)';
+        args.add('CUTS-%');
+        args.add('BLK-%');
+        args.add('internal');
+      }
     }
 
     if (salesmanCode != null && salesmanCode.isNotEmpty) {

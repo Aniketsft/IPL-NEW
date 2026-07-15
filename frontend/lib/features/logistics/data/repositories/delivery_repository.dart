@@ -1663,9 +1663,10 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<SalesRep>> getFilteredSalesReps({
     required DateTime date,
     String? siteCode,
+    String? poType,
   }) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final maps = await LocalDatabaseHelper.instance.getFilteredSalesReps(dateStr, siteCode);
+    final maps = await LocalDatabaseHelper.instance.getFilteredSalesReps(dateStr, siteCode, poType);
     return maps.map((m) => SalesRep(
       code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
       name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
@@ -1677,12 +1678,14 @@ class DeliveryRepository implements ILogisticsRepository {
     required DateTime date,
     String? siteCode,
     String? salesmanCode,
+    String? poType,
   }) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final maps = await LocalDatabaseHelper.instance.getFilteredCustomers(
       dateStr,
       siteCode,
       salesmanCode,
+      poType,
     );
     return maps.map((m) => Customer(
       code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
