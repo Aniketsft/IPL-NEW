@@ -6,14 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 
-
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import '../../../../core/utils/app_ui.dart';
-
 
 class NewCutsBulkScreen extends StatefulWidget {
   const NewCutsBulkScreen({super.key});
@@ -22,13 +20,13 @@ class NewCutsBulkScreen extends StatefulWidget {
   State<NewCutsBulkScreen> createState() => _NewCutsBulkScreenState();
 }
 
-class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScannerMixin<NewCutsBulkScreen> {
+class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
+    with HardwareScannerMixin<NewCutsBulkScreen> {
   String _mode = 'bulks'; // 'cuts', 'bulks', or 'frozen'
   DateTime? _date = DateTime.now();
   bool _isNewSO = true; // Toggle: new SO vs existing SO
   bool _soDetailsExpanded = false;
   bool _productsExpanded = true;
-
 
   String? _selectedCustomerCode;
   String? _selectedSalesmanCode;
@@ -41,10 +39,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
   List<Map<String, String>> _productsList = [];
   List<Map<String, String>> _existingOrdersList = [];
   AppSettings? _settings;
-
-
-  
-
 
   @override
   void initState() {
@@ -61,7 +55,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         setState(() {
           _mode = prefs.getString('new_cuts_bulk_mode') ?? 'bulks';
           _isNewSO = prefs.getBool('new_cuts_bulk_is_new_so') ?? true;
-          _selectedExistingSO = prefs.getString('new_cuts_bulk_selected_existing_so');
+          _selectedExistingSO = prefs.getString(
+            'new_cuts_bulk_selected_existing_so',
+          );
         });
       }
     } catch (e) {
@@ -75,7 +71,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       await prefs.setString('new_cuts_bulk_mode', _mode);
       await prefs.setBool('new_cuts_bulk_is_new_so', _isNewSO);
       if (_selectedExistingSO != null) {
-        await prefs.setString('new_cuts_bulk_selected_existing_so', _selectedExistingSO!);
+        await prefs.setString(
+          'new_cuts_bulk_selected_existing_so',
+          _selectedExistingSO!,
+        );
       } else {
         await prefs.remove('new_cuts_bulk_selected_existing_so');
       }
@@ -119,7 +118,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         if (mounted) {
           setState(() {
             _existingOrdersList = internalOrders;
-            debugPrint('UI DEBUG: Populated _existingOrdersList with ${internalOrders.length} orders');
+            debugPrint(
+              'UI DEBUG: Populated _existingOrdersList with ${internalOrders.length} orders',
+            );
           });
         }
       } catch (e) {
@@ -127,12 +128,13 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       }
     } catch (e) {
       if (mounted) {
-        AppUI.showWarningSnackBar(context: context, message: 'Error loading lookups: $e');
+        AppUI.showWarningSnackBar(
+          context: context,
+          message: 'Error loading lookups: $e',
+        );
       }
     }
   }
-
-
 
   double get _totalWeight {
     double total = 0;
@@ -141,9 +143,12 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       final scans = product['scans'] as List<dynamic>? ?? [];
       for (var scan in scans) {
         if (unit == 'EA' || unit == 'PCS') {
-           total += (scan['scannedQty'] as num?)?.toDouble() ?? (scan['weight'] as num?)?.toDouble() ?? 0.0;
+          total +=
+              (scan['scannedQty'] as num?)?.toDouble() ??
+              (scan['weight'] as num?)?.toDouble() ??
+              0.0;
         } else {
-           total += (scan['weight'] as num?)?.toDouble() ?? 0.0;
+          total += (scan['weight'] as num?)?.toDouble() ?? 0.0;
         }
       }
     }
@@ -166,18 +171,27 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
 
   Future<void> _handleSave() async {
     if (_selectedProducts.isEmpty) {
-      AppUI.showWarningSnackBar(context: context, message: 'Please add at least one product');
+      AppUI.showWarningSnackBar(
+        context: context,
+        message: 'Please add at least one product',
+      );
       return;
     }
 
     final amount = _totalWeight;
     if (amount <= 0) {
-      AppUI.showWarningSnackBar(context: context, message: 'Please scan or add at least one item');
+      AppUI.showWarningSnackBar(
+        context: context,
+        message: 'Please scan or add at least one item',
+      );
       return;
     }
 
     if (_settings?.excessDefaultCustomer == null) {
-      AppUI.showWarningSnackBar(context: context, message: 'Default Customer not set. Please update Logistics Settings.');
+      AppUI.showWarningSnackBar(
+        context: context,
+        message: 'Default Customer not set. Please update Logistics Settings.',
+      );
       return;
     }
 
@@ -189,7 +203,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     )['name'];
 
     final entry = {
-      'type': _mode == 'cuts' ? 'Cuts' : (_mode == 'bulks' ? 'Bulks' : 'Frozen'),
+      'type': _mode == 'cuts'
+          ? 'Cuts'
+          : (_mode == 'bulks' ? 'Bulks' : 'Frozen'),
       'products': _selectedProducts,
       'customerCode': customerCode,
       'customerName': customerName,
@@ -236,7 +252,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                 const SizedBox(height: 16),
                 _buildModeToggle(orange),
                 const SizedBox(height: 24),
-                
+
                 if (!_isNewSO) ...[
                   _buildLabel('SELECT EXISTING SO'),
                   const SizedBox(height: 8),
@@ -252,7 +268,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                 // Section Header: SCANNED PRODUCTS
                 Row(
                   children: [
-                    const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 18),
+                    const Icon(
+                      Icons.inventory_2_outlined,
+                      color: Colors.grey,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     const Text(
                       'SCANNED PRODUCTS',
@@ -266,17 +286,20 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                   ],
                 ),
                 const SizedBox(height: 12),
-                 if (_productsExpanded) ...[
-                   for (int i = 0; i < _selectedProducts.length; i++)
-                     _buildProductItemCard(_selectedProducts[i], i),
-                   Center(
-                     child: TextButton.icon(
-                       onPressed: _addProduct,
-                       icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
-                       label: const Text('Add Product', style: TextStyle(color: Color(0xFFFF9800))),
-                     ),
-                   ),
-                 ],
+                if (_productsExpanded) ...[
+                  for (int i = 0; i < _selectedProducts.length; i++)
+                    _buildProductItemCard(_selectedProducts[i], i),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _addProduct,
+                      icon: const Icon(Icons.add, color: Color(0xFFFF9800)),
+                      label: const Text(
+                        'Add Product',
+                        style: TextStyle(color: Color(0xFFFF9800)),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -295,7 +318,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+        ),
       ),
       child: Row(
         children: [
@@ -315,7 +340,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+        ),
       ),
       child: Row(
         children: [
@@ -339,8 +366,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected 
-                ? (isDark ? Colors.white.withValues(alpha: 0.05) : theme.primaryColor.withValues(alpha: 0.05)) 
+            color: isSelected
+                ? (isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : theme.primaryColor.withValues(alpha: 0.05))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -348,7 +377,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? orange : (isDark ? Colors.white38 : Colors.black38),
+                color: isSelected
+                    ? orange
+                    : (isDark ? Colors.white38 : Colors.black38),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -391,7 +422,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
           _selectedExistingSO = val;
           if (val != null) {
             try {
-              final order = _existingOrdersList.firstWhere((it) => it['code'] == val);
+              final order = _existingOrdersList.firstWhere(
+                (it) => it['code'] == val,
+              );
               final dateStr = order['date'];
               if (dateStr != null && dateStr.isNotEmpty) {
                 _date = DateTime.parse(dateStr);
@@ -422,8 +455,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected 
-                ? (isDark ? Colors.white.withValues(alpha: 0.05) : theme.primaryColor.withValues(alpha: 0.05)) 
+            color: isSelected
+                ? (isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : theme.primaryColor.withValues(alpha: 0.05))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -431,7 +466,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? orange : (isDark ? Colors.white38 : Colors.black38),
+                color: isSelected
+                    ? orange
+                    : (isDark ? Colors.white38 : Colors.black38),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -443,38 +480,46 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
 
   Widget _buildDefaultsBanner(Color orange) {
     if (_settings == null) return const SizedBox.shrink();
-    
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final customerCode = _settings?.excessDefaultCustomer ?? 'NOT SET';
     final salesmanCode = _settings?.excessDefaultSalesman ?? 'NOT SET';
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline, color: isDark ? Colors.white38 : Colors.black38, size: 16),
+              Icon(
+                Icons.info_outline,
+                color: isDark ? Colors.white38 : Colors.black38,
+                size: 16,
+              ),
               const SizedBox(width: 8),
               Text(
                 'USING GLOBAL DEFAULTS',
                 style: TextStyle(
-                  color: isDark ? Colors.white38 : Colors.black38, 
-                  fontSize: 10, 
-                  fontWeight: FontWeight.bold, 
+                  color: isDark ? Colors.white38 : Colors.black38,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
                 ),
               ),
@@ -500,9 +545,24 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white24,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -512,36 +572,49 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
-    final displayColor = _isNewSO ? orange : (isDark ? Colors.white24 : Colors.black26);
+    final displayColor = _isNewSO
+        ? orange
+        : (isDark ? Colors.white24 : Colors.black26);
 
     return InkWell(
-      onTap: !_isNewSO ? null : () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _date ?? DateTime.now(),
-          firstDate: DateTime(2000),
-          lastDate: DateTime(2101),
-          builder: (context, child) => Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: orange,
-                primary: orange,
-                onPrimary: Colors.white,
-                surface: isDark ? const Color(0xFF1E1E1E) : theme.cardColor,
-                onSurface: isDark ? Colors.white : Colors.black87,
-                brightness: isDark ? Brightness.dark : Brightness.light,
-              ),
-            ),
-            child: child!,
-          ),
-        );
-        if (picked != null) setState(() => _date = picked);
-      },
+      onTap: !_isNewSO
+          ? null
+          : () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _date ?? DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2101),
+                builder: (context, child) => Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.fromSeed(
+                      seedColor: orange,
+                      primary: orange,
+                      onPrimary: Colors.white,
+                      surface: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : theme.cardColor,
+                      onSurface: isDark ? Colors.white : Colors.black87,
+                      brightness: isDark ? Brightness.dark : Brightness.light,
+                    ),
+                  ),
+                  child: child!,
+                ),
+              );
+              if (picked != null) setState(() => _date = picked);
+            },
       child: Row(
         children: [
-          Text(intl.DateFormat('dd/MM').format(_date!), style: TextStyle(color: displayColor, fontSize: 12, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 4),
-          Icon(Icons.calendar_month, color: displayColor, size: 16),
+          Text(
+            intl.DateFormat('dd/MM').format(_date!),
+            style: TextStyle(
+              color: displayColor,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(Icons.calendar_month, color: displayColor, size: 18),
         ],
       ),
     );
@@ -574,13 +647,19 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     }
 
     return InkWell(
-      onTap: isLoading ? null : () => _showSearchPicker(label, items, onSelected),
+      onTap: isLoading
+          ? null
+          : () => _showSearchPicker(label, items, onSelected),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white10
+                : Colors.black.withValues(alpha: 0.05),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -590,20 +669,27 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                   ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: orange),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: orange,
+                      ),
                     )
                   : Text(
                       displayName ?? 'Select $label...',
                       style: TextStyle(
-                        color: displayName == null 
-                            ? (isDark ? Colors.white24 : Colors.black26) 
+                        color: displayName == null
+                            ? (isDark ? Colors.white24 : Colors.black26)
                             : (isDark ? Colors.white : Colors.black87),
                         fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
             ),
-            Icon(Icons.arrow_drop_down, color: isDark ? Colors.white38 : Colors.black38, size: 20),
+            Icon(
+              Icons.arrow_drop_down,
+              color: isDark ? Colors.white38 : Colors.black38,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -611,7 +697,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
   }
 
   // Removed _buildPOField as per request
-
 
   void _addProduct() {
     _showSearchPicker('Product', _productsList, (code) {
@@ -621,28 +706,31 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     });
   }
 
-
-
   Future<void> _processScannedProductCode(String code) async {
     try {
       // Step 1: Decode barcode directly via our processor logic to extract the exact base item code
       final processor = OfflineBarcodeProcessor();
       final result = await processor.processBarcode(code);
-      
+
       String targetItemCode = code;
-      
+
       if (result != null && result.itemCode.isNotEmpty) {
         targetItemCode = result.itemCode;
       }
-      
+
       // Step 2: Grab the matching UI dictionary product
       final product = _productsList.firstWhere(
-        (p) => p['code'] == targetItemCode || 'SKU-${p['code']}' == targetItemCode,
-        orElse: () => throw Exception('Product base code $targetItemCode not loaded in dropdowns'),
+        (p) =>
+            p['code'] == targetItemCode || 'SKU-${p['code']}' == targetItemCode,
+        orElse: () => throw Exception(
+          'Product base code $targetItemCode not loaded in dropdowns',
+        ),
       );
 
       // Check if already added
-      final existingIndex = _selectedProducts.indexWhere((p) => p['code'] == product['code']);
+      final existingIndex = _selectedProducts.indexWhere(
+        (p) => p['code'] == product['code'],
+      );
       if (existingIndex != -1) {
         if (mounted) {
           // Auto-open tracking overlay for the existing product
@@ -669,7 +757,10 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       }
     } catch (e) {
       if (mounted) {
-        AppUI.showWarningSnackBar(context: context, message: 'Product not found in lookups');
+        AppUI.showWarningSnackBar(
+          context: context,
+          message: 'Product not found in lookups',
+        );
       }
     }
   }
@@ -701,7 +792,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
     final String name = product['name'] ?? '';
     final String sku = product['sku'] ?? 'N/A';
     final int scanCount = (product['scans'] as List?)?.length ?? 0;
-    
+
     // Calculate total scanned quantity (EA count or KG weight) for this product
     double totalScannedQty = 0;
     final String unit = (product['unit'] ?? 'KG').toString().toUpperCase();
@@ -717,15 +808,21 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: scanCount > 0 ? orange.withValues(alpha: 0.3) : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+          color: scanCount > 0
+              ? orange.withValues(alpha: 0.3)
+              : (isDark
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.05)),
         ),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: InkWell(
         onTap: () => _navigateToScan(product, index),
@@ -765,8 +862,13 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
-                    onPressed: () => setState(() => _selectedProducts.removeAt(index)),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.white24,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _selectedProducts.removeAt(index)),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -777,14 +879,19 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.black.withValues(alpha: 0.2) : theme.primaryColor.withValues(alpha: 0.05),
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.2)
+                        : theme.primaryColor.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildMiniInfo('SCANS', scanCount.toString()),
-                      _buildMiniInfo('QTY', '${_formatQuantity(totalScannedQty, unit)} $unit'),
+                      _buildMiniInfo(
+                        'QTY',
+                        '${_formatQuantity(totalScannedQty, unit)} $unit',
+                      ),
                     ],
                   ),
                 ),
@@ -792,7 +899,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.qr_code_scanner, color: Colors.white24, size: 14),
+                    const Icon(
+                      Icons.qr_code_scanner,
+                      color: Colors.white24,
+                      size: 14,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'TAP TO START SCANNING',
@@ -821,7 +932,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         Text(
           label,
           style: TextStyle(
-            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
+            color: (isDark ? Colors.white : Colors.black).withValues(
+              alpha: 0.3,
+            ),
             fontSize: 9,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.0,
@@ -839,8 +952,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       ],
     );
   }
-
-
 
   Widget _buildDatePicker() {
     final theme = Theme.of(context);
@@ -871,7 +982,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white10
+                : Colors.black.withValues(alpha: 0.05),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -881,7 +996,9 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
                   ? 'dd/mm/yyyy'
                   : intl.DateFormat('dd/MM/yyyy').format(_date!),
               style: TextStyle(
-                color: _date == null ? (isDark ? Colors.white24 : Colors.black26) : (isDark ? Colors.white : Colors.black87),
+                color: _date == null
+                    ? (isDark ? Colors.white24 : Colors.black26)
+                    : (isDark ? Colors.white : Colors.black87),
                 fontSize: 14,
               ),
             ),
@@ -895,7 +1012,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
       ),
     );
   }
-
 
   void _showSearchPicker(
     String title,
@@ -929,7 +1045,11 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen> with HardwareScan
         decoration: BoxDecoration(
           color: theme.cardColor,
           border: Border(
-            top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+            top: BorderSide(
+              color: isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.05),
+            ),
           ),
         ),
         child: Column(
@@ -1042,10 +1162,17 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
             style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             decoration: InputDecoration(
               hintText: 'Search...',
-              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black38),
-              prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey : Colors.black38),
+              hintStyle: TextStyle(
+                color: isDark ? Colors.white24 : Colors.black38,
+              ),
+              prefixIcon: Icon(
+                Icons.search,
+                color: isDark ? Colors.grey : Colors.black38,
+              ),
               filled: true,
-              fillColor: isDark ? const Color(0xFF2C2C2E) : Colors.black.withValues(alpha: 0.03),
+              fillColor: isDark
+                  ? const Color(0xFF2C2C2E)
+                  : Colors.black.withValues(alpha: 0.03),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -1072,14 +1199,21 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                       if (item['unit'] != null) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: theme.primaryColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             item['unit']!,
-                            style: TextStyle(color: theme.primaryColor, fontSize: 10, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: theme.primaryColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -1087,7 +1221,10 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
                   ),
                   subtitle: Text(
                     item['name'] ?? '',
-                    style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 12),
+                    style: TextStyle(
+                      color: isDark ? Colors.grey : Colors.black54,
+                      fontSize: 12,
+                    ),
                   ),
                   onTap: () {
                     widget.onSelected(item['code']);
@@ -1102,5 +1239,3 @@ class _SearchPickerSheetState extends State<_SearchPickerSheet> {
     );
   }
 }
-
-

@@ -582,6 +582,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _showMultiplierPrompt(Map<String, dynamic> pendingScan) {
     final TextEditingController controller = TextEditingController();
+    String? errorMessage;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -590,45 +592,61 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         final isDark = theme.brightness == Brightness.dark;
         final orange = theme.primaryColor;
         
-        return AlertDialog(
-          backgroundColor: theme.colorScheme.surface,
-          title: Text('Multiplier Mode', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Enter the number of times to multiply this scan record:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                autofocus: true,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                decoration: InputDecoration(
-                  labelText: 'Quantity',
-                  labelStyle: TextStyle(color: orange),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black26)),
-                ),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              title: Text('Multiplier Mode', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Enter the number of times to multiply this scan record:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    onChanged: (val) {
+                      if (errorMessage != null) {
+                        setState(() {
+                          errorMessage = null;
+                        });
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Quantity',
+                      errorText: errorMessage,
+                      labelStyle: TextStyle(color: orange),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: orange)),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black26)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final int? count = int.tryParse(controller.text);
-                if (count != null && count > 0) {
-                  Navigator.pop(context);
-                  _applyMultiplier(pendingScan, count);
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: orange),
-              child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final int? count = int.tryParse(controller.text);
+                    if (count != null && count > 0) {
+                      Navigator.pop(context);
+                      _applyMultiplier(pendingScan, count);
+                    } else {
+                      setState(() {
+                        errorMessage = 'Please enter a valid number greater than 0';
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: orange),
+                  child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          }
         );
       },
     );
