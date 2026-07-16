@@ -79,7 +79,32 @@ class SalesOrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (hasBulkAvailable) ...[
+                        if (order.isRolledOver) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurpleAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.deepPurpleAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.next_plan_outlined, size: 10, color: isDark ? Colors.deepPurple[300] : Colors.deepPurple[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Rolled Over',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.deepPurple[300] : Colors.deepPurple[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (hasBulkAvailable) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

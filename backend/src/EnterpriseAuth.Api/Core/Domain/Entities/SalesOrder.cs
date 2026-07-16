@@ -75,6 +75,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("TargetLorry")]
         public string? TargetLorry { get; set; }
 
+        [Column("ExcludeFromEod")]
+        public bool ExcludeFromEod { get; set; }
+
         // Navigation
         public ICollection<SalesOrderLine> Lines { get; set; } = new List<SalesOrderLine>();
     }

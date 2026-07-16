@@ -237,6 +237,16 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("rollover-order")]
+    public async Task<IActionResult> RolloverOrder([FromBody] OrderRolloverDto dto)
+    {
+        if (dto == null || string.IsNullOrEmpty(dto.SoNumber))
+            return BadRequest("Order details are required.");
+
+        var result = await _logisticsService.RolloverOrderAsync(dto, "system");
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

@@ -425,6 +425,46 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               ),
             ],
           ),
+          if (node.label == 'Manufacturing') ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      final rolloverAccess = permissions.firstWhere(
+                        (p) => p.moduleId == 'manufacturing.rollover',
+                        orElse: () => const ModuleAccess(moduleId: 'manufacturing.rollover'),
+                      );
+                      final isRollover = rolloverAccess.canRead;
+                      return _buildSwitchTile(
+                        label: 'BULK Rollover',
+                        sublabel: 'Allow excess rollover',
+                        value: isRollover,
+                        activeColor: Theme.of(context).primaryColor,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          onUpdate('manufacturing.rollover', 'read', v);
+                          onUpdate('manufacturing.rollover', 'create', v);
+                          onUpdate('manufacturing.rollover', 'update', v);
+                          onUpdate('manufacturing.rollover', 'delete', v);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  color: isDark ? Colors.white12 : Colors.black12,
+                ),
+                const Expanded(
+                  child: SizedBox(),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

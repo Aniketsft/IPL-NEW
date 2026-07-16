@@ -24,6 +24,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string? CustomerCode { get; set; }
         public string? Salesman { get; set; }
         
+        public bool ExcludeFromEod { get; set; }
+        
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string CreatedBy { get; set; }
         

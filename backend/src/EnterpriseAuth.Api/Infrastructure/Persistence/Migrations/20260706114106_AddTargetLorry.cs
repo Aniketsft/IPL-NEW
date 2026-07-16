@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,41 +11,27 @@ namespace EnterpriseAuth.Api.Migrations.ScanProductionDb
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "DeviceId",
-                table: "StagingEod",
-                type: "nvarchar(255)",
-                maxLength: 255,
-                nullable: true);
+            migrationBuilder.Sql(
+                "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StagingEod' AND COLUMN_NAME = 'DeviceId') " +
+                "ALTER TABLE [StagingEod] ADD [DeviceId] nvarchar(255) NULL;");
 
-            migrationBuilder.AddColumn<string>(
-                name: "LotNumber",
-                table: "StagingEod",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
+            migrationBuilder.Sql(
+                "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StagingEod' AND COLUMN_NAME = 'LotNumber') " +
+                "ALTER TABLE [StagingEod] ADD [LotNumber] nvarchar(100) NULL;");
 
-            migrationBuilder.AddColumn<string>(
-                name: "TargetLorry",
-                table: "SalesOrders",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
+            migrationBuilder.Sql(
+                "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SalesOrders' AND COLUMN_NAME = 'TargetLorry') " +
+                "ALTER TABLE [SalesOrders] ADD [TargetLorry] nvarchar(100) NULL;");
 
-            migrationBuilder.AddColumn<string>(
-                name: "DeviceId",
-                table: "LabelAudits",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
+            migrationBuilder.Sql(
+                "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'LabelAudits' AND COLUMN_NAME = 'DeviceId') " +
+                "ALTER TABLE [LabelAudits] ADD [DeviceId] nvarchar(100) NULL;");
 
-            migrationBuilder.AddColumn<string>(
-                name: "DeviceId",
-                table: "AuditLogs",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
+            migrationBuilder.Sql(
+                "IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AuditLogs' AND COLUMN_NAME = 'DeviceId') " +
+                "ALTER TABLE [AuditLogs] ADD [DeviceId] nvarchar(100) NULL;");
 
+            /*
             migrationBuilder.CreateTable(
                 name: "EodProcessAudits",
                 columns: table => new
@@ -82,6 +68,7 @@ namespace EnterpriseAuth.Api.Migrations.ScanProductionDb
                 {
                     table.PrimaryKey("PK_X3SoapAudits", x => x.Id);
                 });
+            */
         }
 
         /// <inheritdoc />

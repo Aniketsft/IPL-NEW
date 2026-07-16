@@ -53,7 +53,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 ( "app", new[] { "home" } ),
                 ( "logistics", new[] { "receipt", "delivery", "transfer" } ),
-                ( "manufacturing", new[] { "all", "eod" } ),
+                ( "manufacturing", new[] { "all", "eod", "rollover" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
                 ( "administration", new[] { "user_management", "sync_logs" } ),
                 ( "settings", new[] { "general", "printer", "lot" } )

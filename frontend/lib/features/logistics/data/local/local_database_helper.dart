@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 52;
+  static const _databaseVersion = 54;
 
 
   static const tableScans = 'tbl_scans';
@@ -35,6 +35,7 @@ class LocalDatabaseHelper {
   static const tableOfflineAuditLogs = 'tbl_offline_audit_logs';
   static const tableX3SoapAudits = 'tbl_x3_soap_audits';
   static const tableEodProcessAudits = 'tbl_eod_process_audits';
+  static const tableOrderRollovers = 'tbl_order_rollovers';
 
   // tbl_work_orders columns
   static const colWoWorkOrder   = 'workOrder';
@@ -61,6 +62,7 @@ class LocalDatabaseHelper {
   static const columnLot = 'lot';
   static const columnEaQuantity = 'ea_quantity';
   static const columnBarcode = 'barcode';
+  static const columnExcludeFromEod = 'colExcludeFromEod';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -79,6 +81,15 @@ class LocalDatabaseHelper {
   static const colIsPreparedForShipment = 'is_prepared_for_shipment';
   static const colIsProcessed = 'is_processed';
   static const colTargetLorry = 'targetLorry';
+  static const colExcludeFromEod = 'colExcludeFromEod';
+  static const colIsRolledOver = 'isRolledOver';
+
+  // tbl_order_rollovers columns
+  static const colRolloverSoNum = 'soNumber';
+  static const colRolloverNewDate = 'newDeliveryDate';
+  static const colRolloverInitialDate = 'initialDeliveryDate';
+  static const colRolloverTimestamp = 'timestamp';
+  static const colRolloverIsSynced = 'isSynced';
 
   // tbl_sales_order_details columns
 
@@ -779,8 +790,46 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v52: $e");
       }
     }
+    if (oldVersion < 53) {
+      debugPrint('DB Upgrade: Adding FPP Rollover logic (v53)');
+      try {
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colExcludeFromEod INTEGER DEFAULT 0');
+        await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnExcludeFromEod INTEGER DEFAULT 0');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableOrderRollovers (
+            $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $colRolloverSoNum TEXT NOT NULL,
+            $colRolloverInitialDate TEXT NOT NULL,
+            $colRolloverNewDate TEXT NOT NULL,
+            $colRolloverTimestamp TEXT NOT NULL,
+            $colRolloverIsSynced INTEGER NOT NULL DEFAULT 0,
+            $colDeviceId TEXT
+          )
+        ''');
+        await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colIsRolledOver INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v53: $e");
+      }
+    }
+    if (oldVersion < 54) {
+      debugPrint('DB Upgrade: Ensuring isRolledOver exists (v54)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableOrders)');
+        if (!columns.any((c) => c['name'] == colIsRolledOver)) {
+          await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colIsRolledOver INTEGER DEFAULT 0');
+        }
+        if (!columns.any((c) => c['name'] == colExcludeFromEod)) {
+          await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colExcludeFromEod INTEGER DEFAULT 0');
+        }
+        var scanCols = await db.rawQuery('PRAGMA table_info($tableScans)');
+        if (!scanCols.any((c) => c['name'] == columnExcludeFromEod)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnExcludeFromEod INTEGER DEFAULT 0');
+        }
+      } catch (e) {
+        debugPrint("Migration error v54: $e");
+      }
+    }
   }
-
 
   Future _onCreate(Database db, int version) async {
     await db.execute('''
@@ -812,7 +861,8 @@ class LocalDatabaseHelper {
         $columnLot TEXT,
         $columnEaQuantity REAL DEFAULT 0,
         $columnBarcode TEXT,
-        $colDeviceId TEXT
+        $colDeviceId TEXT,
+        $columnExcludeFromEod INTEGER DEFAULT 0
       )
     ''');
 
@@ -836,7 +886,9 @@ class LocalDatabaseHelper {
         $colIsPreparedForShipment INTEGER DEFAULT 0,
         $colIsProcessed INTEGER DEFAULT 0,
         $colTargetLorry TEXT,
-        $colDeviceId TEXT
+        $colDeviceId TEXT,
+        $colExcludeFromEod INTEGER DEFAULT 0,
+        $colIsRolledOver INTEGER DEFAULT 0
       )
     ''');
 

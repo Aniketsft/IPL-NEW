@@ -1204,5 +1204,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<BomComponentDto>(
                 sql, new { ParentCodes = parentItemCodes.ToArray() });
         }
+
+        public async Task<bool> RolloverOrderAsync(string soNumber, DateTime newDate, string performedBy = "system")
+        {
+            var order = await _scanContext.SalesOrders.FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
+            if (order == null) return false;
+
+            order.DeliveryDate = newDate.Date;
+            await _scanContext.SaveChangesAsync();
+            return true;
+        }
     }
 }

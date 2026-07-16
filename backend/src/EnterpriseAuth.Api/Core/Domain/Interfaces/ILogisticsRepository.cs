@@ -36,5 +36,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<LabelAuditDto> LogLabelAuditAsync(LabelAuditDto auditDto);
         Task<IEnumerable<WorkOrderDto>> GetWorkOrdersAsync(string? searchQuery);
         Task<IEnumerable<BomComponentDto>> GetBomComponentsAsync(IEnumerable<string> parentItemCodes);
+        Task<bool> RolloverOrderAsync(string soNumber, DateTime newDate, string performedBy = "system");
     }
 }

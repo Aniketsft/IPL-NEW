@@ -665,6 +665,54 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         (d) => widget.isDeliveryMode ? d.isValidated : d.isPrepared,
       );
 
+  Future<void> _handleRollover() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: widget.order.date.add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (pickedDate != null) {
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: theme.colorScheme.surface,
+            title: Text('Confirm Rollover', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            content: Text('Are you sure you want to roll over ${widget.order.orderNumber} to ${pickedDate.toIso8601String().split('T').first}? This will exclude current scans from EOD.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm', style: TextStyle(color: Colors.orange))),
+            ],
+          );
+        }
+      );
+
+      if (confirmed == true) {
+        setState(() => _isLoading = true);
+        try {
+          await context.read<DeliveryRepository>().rolloverOrder(
+            widget.order.orderNumber,
+            pickedDate,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order rolled over successfully.')));
+            Navigator.pop(context, true); // Pop out to refresh lists
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to rollover: $e')));
+          }
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -862,10 +910,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
 
     return InkWell(
       onTap: () => setState(() => _isHeaderExpanded = !_isHeaderExpanded),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+      child: Container(
         width: double.infinity,
-        padding: EdgeInsets.all(_isHeaderExpanded ? 24 : 16),
         decoration: BoxDecoration(
           color: isDark
               ? theme.colorScheme.surfaceContainerHigh
@@ -882,77 +928,134 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            padding: EdgeInsets.all(_isHeaderExpanded ? 24 : 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.order.customerName,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
-                          fontSize: _isHeaderExpanded ? 22 : 18,
-                          letterSpacing: -0.5,
-                        ),
-                        maxLines: _isHeaderExpanded ? null : 1,
-                        overflow: _isHeaderExpanded ? null : TextOverflow.ellipsis,
-                      ),
-                      if (_isHeaderExpanded) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.order.customerCode,
-                          style: TextStyle(
-                            color: orange.withValues(alpha: 0.8),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.order.customerName,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: _isHeaderExpanded ? 22 : 18,
+                              letterSpacing: -0.5,
+                            ),
+                            maxLines: _isHeaderExpanded ? null : 1,
+                            overflow: _isHeaderExpanded
+                                ? null
+                                : TextOverflow.ellipsis,
                           ),
+                          if (_isHeaderExpanded) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.order.customerCode,
+                              style: TextStyle(
+                                color: orange.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _StatusBadge(
+                          isClosed: widget.order.isClosed,
+                          isPreparedForShipment:
+                              widget.order.isPreparedForShipment,
+                          isDeliveryMode: widget.isDeliveryMode,
+                          orange: orange,
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _isHeaderExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: orange.withValues(alpha: 0.5),
+                          size: 24,
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _StatusBadge(
-                      isClosed: widget.order.isClosed,
-                      isPreparedForShipment: widget.order.isPreparedForShipment,
-                      isDeliveryMode: widget.isDeliveryMode,
-                      orange: orange,
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      _isHeaderExpanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      color: orange.withValues(alpha: 0.5),
-                      size: 24,
                     ),
                   ],
                 ),
+                if (_isHeaderExpanded) ...[
+                  const SizedBox(height: 24),
+                  Wrap(
+                    spacing: 32,
+                    runSpacing: 16,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    children: [
+                      _buildCompactInfo(
+                        'PO NUMBER',
+                        widget.order.purchaseOrderNumber ?? 'N/A',
+                      ),
+                      _buildCompactInfo(
+                        'DELIVERY DATE',
+                        widget.order.deliveryDate,
+                      ),
+                      if (widget.order.orderNumber.startsWith('BLK-') &&
+                          widget.permissions.contains(
+                            'manufacturing.rollover.read',
+                          ))
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurpleAccent.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: Colors.deepPurpleAccent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: Colors.deepPurpleAccent.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          icon: const Icon(Icons.next_plan_outlined, size: 18),
+                          label: const Text(
+                            'ROLLOVER',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          onPressed: () {
+                            // Prevent row tap from triggering expansion toggle
+                            _handleRollover();
+                          },
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
-            if (_isHeaderExpanded) ...[
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  _buildCompactInfo(
-                    'PO NUMBER',
-                    widget.order.purchaseOrderNumber ?? 'N/A',
-                  ),
-                  const SizedBox(width: 32),
-                  _buildCompactInfo('DELIVERY DATE', widget.order.deliveryDate),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

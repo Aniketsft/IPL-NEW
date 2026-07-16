@@ -178,18 +178,6 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
       return;
     }
 
-    // Prevent dummy lines: Ensure EVERY product has at least one scan
-    for (var prod in _selectedProducts) {
-      final scans = prod['scans'] as List? ?? [];
-      if (scans.isEmpty) {
-        AppUI.showWarningSnackBar(
-          context: context,
-          message: 'Product ${prod['name']} has no scans. Please scan or remove it.',
-        );
-        return;
-      }
-    }
-
     final amount = _totalWeight;
     if (amount <= 0) {
       AppUI.showWarningSnackBar(
@@ -217,7 +205,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
     final entry = {
       'type': _mode == 'cuts'
           ? 'Cuts'
-          : (_mode == 'bulks' ? 'Bulks' : 'Frozen'),
+          : (_mode == 'fpp' ? 'FPP' : (_mode == 'bulks' ? 'Bulks' : 'Frozen')),
       'products': _selectedProducts,
       'customerCode': customerCode,
       'customerName': customerName,
@@ -338,6 +326,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
         children: [
           _buildToggleButton('bulks', 'Bulks', orange),
           _buildToggleButton('cuts', 'Cuts', orange),
+          _buildToggleButton('fpp', 'FPP', orange),
         ],
       ),
     );
@@ -422,6 +411,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
       final code = it['code'] ?? '';
       if (_mode == 'cuts') return code.startsWith('CUTS-');
       if (_mode == 'bulks') return code.startsWith('BLK-');
+      if (_mode == 'fpp') return code.startsWith('FPP-') || code.startsWith('BLK-');
       return true;
     }).toList();
 
@@ -625,7 +615,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Icon(Icons.calendar_month, color: displayColor, size: 18),
         ],
       ),

@@ -603,20 +603,41 @@ class DeliveryRepository implements ILogisticsRepository {
           final String? summaryLot = firstScan != null ? (firstScan['lot']?.toString() ?? firstScan['lotNumber']?.toString()) : null;
           final String? summaryLocation = firstScan != null ? (firstScan['location']?.toString() ?? firstScan['locationCode']?.toString()) : null;
 
-          // Insert or Update detail line
-          await db.insert(LocalDatabaseHelper.tableDetails, {
-            LocalDatabaseHelper.colDetSoNum: entryNo,
-            LocalDatabaseHelper.colDetItemCode: productCode,
-            LocalDatabaseHelper.colDetDescription: productName,
-            LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
-            LocalDatabaseHelper.colDetQuantity: orderedQty,
-            LocalDatabaseHelper.colDetScanned: orderedQty,
-            LocalDatabaseHelper.colDetUnit: productUnit,
-            LocalDatabaseHelper.colDetLot: summaryLot,
-            LocalDatabaseHelper.colDetLocation: summaryLocation,
-            LocalDatabaseHelper.colDetCreatedAt: DateTime.now().toIso8601String(),
-            LocalDatabaseHelper.columnIsSynced: 0,
-          }, conflictAlgorithm: sqflite.ConflictAlgorithm.replace);
+          // Check if detail line already exists
+          final existingDetails = await db.query(
+            LocalDatabaseHelper.tableDetails,
+            where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+            whereArgs: [entryNo, productCode],
+          );
+
+          if (existingDetails.isNotEmpty) {
+            // Update existing detail line by adding orderedQty to colDetQuantity
+            final existingQuantity = (existingDetails.first[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
+            await db.update(
+              LocalDatabaseHelper.tableDetails,
+              {
+                LocalDatabaseHelper.colDetQuantity: existingQuantity + orderedQty,
+                LocalDatabaseHelper.columnIsSynced: 0,
+              },
+              where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+              whereArgs: [entryNo, productCode],
+            );
+          } else {
+            // Insert new detail line with colDetScanned set to 0.0 to prevent double-counting
+            await db.insert(LocalDatabaseHelper.tableDetails, {
+              LocalDatabaseHelper.colDetSoNum: entryNo,
+              LocalDatabaseHelper.colDetItemCode: productCode,
+              LocalDatabaseHelper.colDetDescription: productName,
+              LocalDatabaseHelper.colDetBarcodeType: 'Variable Weight',
+              LocalDatabaseHelper.colDetQuantity: orderedQty,
+              LocalDatabaseHelper.colDetScanned: 0.0,
+              LocalDatabaseHelper.colDetUnit: productUnit,
+              LocalDatabaseHelper.colDetLot: summaryLot,
+              LocalDatabaseHelper.colDetLocation: summaryLocation,
+              LocalDatabaseHelper.colDetCreatedAt: DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.columnIsSynced: 0,
+            });
+          }
 
           // Insert scans
           for (final scan in scans) {
@@ -1242,6 +1263,7 @@ class DeliveryRepository implements ILogisticsRepository {
       isEditable: true,
       isPreparedForShipment: row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
       isProcessed: row[LocalDatabaseHelper.colIsProcessed] == 1,
+      isRolledOver: row[LocalDatabaseHelper.colIsRolledOver] == 1,
     );
   }
 
@@ -1946,11 +1968,40 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
-
   Future<void> _saveGlobalSettingsFromSync(Map<String, String> map) async {
     final db = LocalDatabaseHelper.instance;
     for (final entry in map.entries) {
       await db.updateGlobalSetting(entry.key, entry.value, isSynced: true);
+    }
+  }
+
+  @override
+  Future<void> rolloverOrder(String soNumber, DateTime newDeliveryDate) async {
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(newDeliveryDate);
+      final response = await _dio.post(
+        'Logistics/rollover-order',
+        data: {
+          'soNumber': soNumber,
+          'userSelectedDate': dateStr,
+        },
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Optimistically update local database
+        final db = await LocalDatabaseHelper.instance.database;
+        await db.update(
+          LocalDatabaseHelper.tableOrders,
+          {
+            LocalDatabaseHelper.colDeliveryDate: dateStr,
+            'isRolledOver': 1,
+          },
+          where: '${LocalDatabaseHelper.colOrderNum} = ?',
+          whereArgs: [soNumber],
+        );
+      }
+    } catch (e) {
+      throw 'Failed to rollover order: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 }

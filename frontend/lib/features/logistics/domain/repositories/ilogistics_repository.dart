@@ -84,5 +84,6 @@ abstract class ILogisticsRepository {
   Future<Map<String, dynamic>> processEndOfDay();
   Future<void> completeProductionEod(String workOrder, List<Map<String, dynamic>> items);
   Future<List<Map<String, dynamic>>> getProductionSummaryFromServer(DateTime date);
+  Future<void> rolloverOrder(String soNumber, DateTime newDeliveryDate);
 }
 

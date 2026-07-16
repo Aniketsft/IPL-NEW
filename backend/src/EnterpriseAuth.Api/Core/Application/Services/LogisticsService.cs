@@ -421,4 +421,17 @@ public class LogisticsService : ILogisticsService
             return Result<IEnumerable<WorkOrderDto>>.Failure($"Failed to fetch work orders: {ex.Message}");
         }
     }
+
+    public async Task<Result<bool>> RolloverOrderAsync(OrderRolloverDto dto, string performedBy = "system")
+    {
+        try
+        {
+            var result = await _logisticsRepository.RolloverOrderAsync(dto.SoNumber, dto.UserSelectedDate, performedBy);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to rollover order: {ex.Message}");
+        }
+    }
 }

@@ -59,6 +59,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("IsArchived")]
         public bool IsArchived { get; set; }
 
+        [Column("ExcludeFromEod")]
+        public bool ExcludeFromEod { get; set; }
+
         // Navigation
         [ForeignKey("SalesOrderLineId")]
         public SalesOrderLine OrderLine { get; set; } = null!;
