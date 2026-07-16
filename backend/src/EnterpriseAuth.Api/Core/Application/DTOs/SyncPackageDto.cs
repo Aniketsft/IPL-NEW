@@ -104,6 +104,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string SoNumber { get; set; } = string.Empty;
         public int Status { get; set; }
+        public bool? ExcludeFromEod { get; set; }
     }
 
     public class EodProcessAuditDto

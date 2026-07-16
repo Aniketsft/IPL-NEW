@@ -154,7 +154,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Where(t => t.CreatedAt >= targetDate 
                          && t.CreatedAt < nextDate 
                          && !t.IsDeleted
-                         && (t.ItemStatus == "A" || t.ItemStatus == null))
+                         && (t.ItemStatus == "A" || t.ItemStatus == null)
+                         && !t.ExcludeFromEod
+                         && !t.OrderLine.Order.ExcludeFromEod)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -210,7 +212,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // 1. Find the SalesOrder Id for the workOrder
             var orderId = await _scanContext.SalesOrders
-                .Where(o => o.SourceOrderId == workOrder)
+                .Where(o => o.SourceOrderId == workOrder && !o.ExcludeFromEod)
                 .Select(o => o.Id)
                 .FirstOrDefaultAsync();
 
@@ -234,7 +236,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
-                WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL)
+                WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL) AND t.ExcludeFromEod = 0
                 GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
 
             var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });
@@ -1211,8 +1213,35 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             if (order == null) return false;
 
             order.DeliveryDate = newDate.Date;
+            order.ExcludeFromEod = true;
             await _scanContext.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<bool> UpdateEodExclusionAsync(string entityType, string entityId, bool excludeFromEod)
+        {
+            if (entityType.Equals("SalesOrder", StringComparison.OrdinalIgnoreCase))
+            {
+                var order = await _scanContext.SalesOrders.FirstOrDefaultAsync(o => o.SourceOrderId == entityId);
+                if (order != null)
+                {
+                    order.ExcludeFromEod = excludeFromEod;
+                    await _scanContext.SaveChangesAsync();
+                    return true;
+                }
+            }
+            else if (entityType.Equals("ScanLine", StringComparison.OrdinalIgnoreCase))
+            {
+                var scan = await _scanContext.ProductionScanTransactions.FirstOrDefaultAsync(s => s.SyncId == entityId);
+                if (scan != null)
+                {
+                    scan.ExcludeFromEod = excludeFromEod;
+                    await _scanContext.SaveChangesAsync();
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

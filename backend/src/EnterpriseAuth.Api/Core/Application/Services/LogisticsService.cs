@@ -434,4 +434,26 @@ public class LogisticsService : ILogisticsService
             return Result<bool>.Failure($"Failed to rollover order: {ex.Message}");
         }
     }
+
+    public async Task<Result<bool>> UpdateEodExclusionAsync(UpdateEodExclusionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.EntityId) || string.IsNullOrWhiteSpace(request.EntityType))
+        {
+            return Result<bool>.Failure("Invalid request parameters.");
+        }
+
+        try
+        {
+            var success = await _logisticsRepository.UpdateEodExclusionAsync(request.EntityType, request.EntityId, request.ExcludeFromEod);
+            
+            if (success)
+                return Result<bool>.Success(true);
+
+            return Result<bool>.Failure($"Failed to update EOD exclusion for {request.EntityType} with ID {request.EntityId}.");
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Error updating EOD exclusion: {ex.Message}");
+        }
+    }
 }

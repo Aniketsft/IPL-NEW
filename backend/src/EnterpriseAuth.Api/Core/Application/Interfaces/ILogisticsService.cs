@@ -36,5 +36,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<LabelAuditDto>> LogLabelAuditAsync(LabelAuditDto auditDto);
         Task<Result<IEnumerable<WorkOrderDto>>> GetWorkOrdersAsync(string? searchQuery);
         Task<Result<bool>> RolloverOrderAsync(OrderRolloverDto dto, string performedBy = "system");
+        Task<Result<bool>> UpdateEodExclusionAsync(UpdateEodExclusionRequest request);
     }
 }

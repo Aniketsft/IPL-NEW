@@ -247,6 +247,13 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("update-eod-exclusion")]
+    public async Task<IActionResult> UpdateEodExclusion([FromBody] UpdateEodExclusionRequest request)
+    {
+        var result = await _logisticsService.UpdateEodExclusionAsync(request);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

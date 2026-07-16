@@ -36,5 +36,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Barcode { get; set; }
 
         public string? DeviceId { get; set; }
+        
+        public bool ExcludeFromEod { get; set; }
     }
 }

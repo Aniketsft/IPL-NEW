@@ -1349,8 +1349,21 @@ class LocalDatabaseHelper {
     // status = 2 is "Closed"
     return await db.query(
       tableOrders,
-      columns: [colOrderNum, colStatus],
-      where: '$columnIsSynced = 0 AND $colStatus = 2',
+      columns: [colOrderNum, colStatus, colExcludeFromEod],
+      where: '$columnIsSynced = 0 AND ($colStatus = 2 OR $colExcludeFromEod = 1)',
+    );
+  }
+
+  Future<void> updateExcludeFromEod(String soNumber, bool exclude) async {
+    final db = await instance.database;
+    await db.update(
+      tableOrders,
+      {
+        colExcludeFromEod: exclude ? 1 : 0,
+        columnIsSynced: 0,
+      },
+      where: '$colOrderNum = ?',
+      whereArgs: [soNumber],
     );
   }
 

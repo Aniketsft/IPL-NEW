@@ -27,7 +27,8 @@ import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart';
 import 'package:enterprise_auth_mobile/features/settings/data/models/company.dart';
-import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart' as settings_site;
+import 'package:enterprise_auth_mobile/features/settings/data/models/site.dart'
+    as settings_site;
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 class DeliveryRepository implements ILogisticsRepository {
@@ -60,11 +61,17 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
-          manufacturedQuantity: (map['reconciledManufactured'] as num?)?.toDouble() ?? (map['reconciledProduced'] as num).toDouble(),
-          eaScannedQuantity: (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
+          manufacturedQuantity:
+              (map['reconciledManufactured'] as num?)?.toDouble() ??
+              (map['reconciledProduced'] as num).toDouble(),
+          eaScannedQuantity:
+              (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
-          unit: map['masterUnit'] as String? ?? map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
+          unit:
+              map['masterUnit'] as String? ??
+              map[LocalDatabaseHelper.colDetUnit] as String? ??
+              'KG',
           headerIsClosed: map['headerStatus'] == 2,
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
           customerName: map['customerName'] as String?,
@@ -72,8 +79,8 @@ class DeliveryRepository implements ILogisticsRepository {
           lot: (map['latestLot'] as String?)?.isNotEmpty == true
               ? map['latestLot'] as String?
               : map[LocalDatabaseHelper.colDetLot] as String?,
-          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true 
-              ? map['salesmanName'] as String? 
+          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true
+              ? map['salesmanName'] as String?
               : map['rep0'] as String?,
           salesMan2: map['rep1'] as String?,
         );
@@ -98,19 +105,28 @@ class DeliveryRepository implements ILogisticsRepository {
         filters.add('ord.${LocalDatabaseHelper.colSite} = "$siteCode"');
       }
       if (customerCode != null && customerCode.isNotEmpty) {
-        filters.add('ord.${LocalDatabaseHelper.colCustomerCode} = "$customerCode"');
+        filters.add(
+          'ord.${LocalDatabaseHelper.colCustomerCode} = "$customerCode"',
+        );
       }
       if (salesRepCode != null && salesRepCode.isNotEmpty) {
-        filters.add('(ord.${LocalDatabaseHelper.colRep0} = "$salesRepCode" OR ord.${LocalDatabaseHelper.colRep1} = "$salesRepCode")');
+        filters.add(
+          '(ord.${LocalDatabaseHelper.colRep0} = "$salesRepCode" OR ord.${LocalDatabaseHelper.colRep1} = "$salesRepCode")',
+        );
       }
       if (date != null) {
         final dateStr = DateFormat('yyyy-MM-dd').format(date);
-        filters.add('ord.${LocalDatabaseHelper.colDeliveryDate} LIKE "$dateStr%"');
+        filters.add(
+          'ord.${LocalDatabaseHelper.colDeliveryDate} LIKE "$dateStr%"',
+        );
       }
 
-      String filterClause = filters.isNotEmpty ? 'WHERE ${filters.join(' AND ')}' : '';
+      String filterClause = filters.isNotEmpty
+          ? 'WHERE ${filters.join(' AND ')}'
+          : '';
 
-      final query = '''
+      final query =
+          '''
         SELECT 
           det.*,
           COALESCE(det.${LocalDatabaseHelper.colDetCustomerName}, ord.${LocalDatabaseHelper.colCustomerName}) as customerName,
@@ -150,15 +166,17 @@ class DeliveryRepository implements ILogisticsRepository {
           quantity: (map[LocalDatabaseHelper.colDetQuantity] as num).toDouble(),
           remaining: (map['reconciledRemaining'] as num).toDouble(),
           scannedQuantity: (map['reconciledProduced'] as num).toDouble(),
-          manufacturedQuantity: (map['reconciledManufactured'] as num).toDouble(),
-          eaScannedQuantity: (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
+          manufacturedQuantity: (map['reconciledManufactured'] as num)
+              .toDouble(),
+          eaScannedQuantity:
+              (map['reconciledEaQuantity'] as num?)?.toDouble() ?? 0.0,
           isPrepared: map[LocalDatabaseHelper.colDetIsPrepared] == 1,
           isValidated: map[LocalDatabaseHelper.colDetIsValidated] == 1,
           unit: map[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
-          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true 
-              ? map['salesmanName'] as String? 
+          salesMan1: (map['salesmanName'] as String?)?.isNotEmpty == true
+              ? map['salesmanName'] as String?
               : map['rep0'] as String?,
           salesMan2: map['rep1'] as String?,
         );
@@ -169,7 +187,10 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<SalesOrder>> fetchSalesOrders({DateTime? date, String? siteCode}) async {
+  Future<List<SalesOrder>> fetchSalesOrders({
+    DateTime? date,
+    String? siteCode,
+  }) async {
     try {
       final queryParams = <String, dynamic>{};
       if (date != null) {
@@ -195,7 +216,9 @@ class DeliveryRepository implements ILogisticsRepository {
           date: DateTime.tryParse(dto.deliveryDate) ?? DateTime.now(),
           purchaseOrderNumber: dto.poNo,
           salesManCode1: dto.rep0 ?? '',
-          salesManCode2: (dto.salesman != null && dto.salesman!.isNotEmpty) ? '' : (dto.rep1 ?? ''),
+          salesManCode2: (dto.salesman != null && dto.salesman!.isNotEmpty)
+              ? ''
+              : (dto.rep1 ?? ''),
           salesmanName: dto.salesman,
           deliveryNo: null, // Placeholder for delivery specific logic
           deliveryFrom: null,
@@ -238,7 +261,8 @@ class DeliveryRepository implements ILogisticsRepository {
       }
 
       if (status == 'open') {
-        whereClause += ' AND (${LocalDatabaseHelper.colStatus} IS NULL OR ${LocalDatabaseHelper.colStatus} != ?)';
+        whereClause +=
+            ' AND (${LocalDatabaseHelper.colStatus} IS NULL OR ${LocalDatabaseHelper.colStatus} != ?)';
         whereArgs.add(2);
       } else if (status == 'closed') {
         whereClause += ' AND ${LocalDatabaseHelper.colStatus} = ?';
@@ -262,7 +286,8 @@ class DeliveryRepository implements ILogisticsRepository {
       }
 
       if (rep1 != null && rep1.isNotEmpty) {
-        whereClause += ' AND (TRIM(${LocalDatabaseHelper.colRep1}) = ? OR ${LocalDatabaseHelper.colSalesman} = ?)';
+        whereClause +=
+            ' AND (TRIM(${LocalDatabaseHelper.colRep1}) = ? OR ${LocalDatabaseHelper.colSalesman} = ?)';
         whereArgs.add(rep1);
         whereArgs.add(rep1);
       }
@@ -278,8 +303,9 @@ class DeliveryRepository implements ILogisticsRepository {
       // Use rawQuery to support LEFT JOIN for salesman name
       final String orderTable = LocalDatabaseHelper.tableOrders;
       final String repTable = LocalDatabaseHelper.tableReps;
-      
-      String sql = '''
+
+      String sql =
+          '''
         SELECT o.*, r.${LocalDatabaseHelper.colName} AS salesmanName
         FROM $orderTable o
         LEFT JOIN $repTable r ON o.${LocalDatabaseHelper.colRep1} = r.${LocalDatabaseHelper.colCode}
@@ -299,30 +325,30 @@ class DeliveryRepository implements ILogisticsRepository {
 
   /// SCAN-TO-LOAD MANIFEST LOGIC
   /// ----------------------------------------
-  
+
   Future<void> addDeliveryScan(List<String> soNumbers, String rawData) async {
     final db = await LocalDatabaseHelper.instance.database;
-    
+
     for (var so in soNumbers) {
       so = so.trim();
       if (so.isEmpty) continue;
-      
+
       final res = await db.query(
-        LocalDatabaseHelper.tableOrders, 
-        where: '${LocalDatabaseHelper.colOrderNum} = ?', 
-        whereArgs: [so]
+        LocalDatabaseHelper.tableOrders,
+        where: '${LocalDatabaseHelper.colOrderNum} = ?',
+        whereArgs: [so],
       );
-      
+
       if (res.isEmpty) {
         throw 'Order $so not found on this device. Sync required.';
       }
-      
+
       final status = res.first[LocalDatabaseHelper.colStatus] as int?;
       if (status != 2) {
         throw 'Order $so is still open in production and cannot be dispatched.';
       }
     }
-    
+
     // If all are valid, push to SQLite table
     await LocalDatabaseHelper.instance.insertDeliveryScan(rawData, soNumbers);
   }
@@ -335,16 +361,19 @@ class DeliveryRepository implements ILogisticsRepository {
     await LocalDatabaseHelper.instance.clearDeliveryScans();
   }
 
-  Future<List<SalesOrder>> fetchSalesOrderHeadersByNumbers(List<String> soNumbers) async {
+  Future<List<SalesOrder>> fetchSalesOrderHeadersByNumbers(
+    List<String> soNumbers,
+  ) async {
     if (soNumbers.isEmpty) return [];
     try {
       final db = await LocalDatabaseHelper.instance.database;
       final String orderTable = LocalDatabaseHelper.tableOrders;
       final String repTable = LocalDatabaseHelper.tableReps;
-      
+
       final placeholders = List.filled(soNumbers.length, '?').join(',');
-      
-      String sql = '''
+
+      String sql =
+          '''
         SELECT o.*, r.${LocalDatabaseHelper.colName} AS salesmanName
         FROM $orderTable o
         LEFT JOIN $repTable r ON o.${LocalDatabaseHelper.colRep1} = r.${LocalDatabaseHelper.colCode}
@@ -365,9 +394,8 @@ class DeliveryRepository implements ILogisticsRepository {
     try {
       // 1. Update local DB FIRST (Offline-First)
       await LocalDatabaseHelper.instance.updateOrderStatus(soNumber, 2);
-      
-      // Removed immediate background push attempt to enforce strict offline-first sync architecture.
 
+      // Removed immediate background push attempt to enforce strict offline-first sync architecture.
     } catch (e) {
       throw 'Failed to close order locally: ${ApiErrorHandler.getErrorMessage(e)}';
     }
@@ -381,10 +409,14 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.tableSites,
         orderBy: LocalDatabaseHelper.colName,
       );
-      return maps.map((m) => Site(
-        code: (m[LocalDatabaseHelper.colCode] ?? '').toString(),
-        name: (m[LocalDatabaseHelper.colName] ?? '').toString(),
-      )).toList();
+      return maps
+          .map(
+            (m) => Site(
+              code: (m[LocalDatabaseHelper.colCode] ?? '').toString(),
+              name: (m[LocalDatabaseHelper.colName] ?? '').toString(),
+            ),
+          )
+          .toList();
     } catch (e) {
       throw 'Failed to fetch sites from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
@@ -437,14 +469,18 @@ class DeliveryRepository implements ILogisticsRepository {
     try {
       final sites = await LocalDatabaseHelper.instance.getSites();
       if (sites.isNotEmpty) {
-        return sites.map((s) => s[LocalDatabaseHelper.colCode] as String).toList();
+        return sites
+            .map((s) => s[LocalDatabaseHelper.colCode] as String)
+            .toList();
       }
 
       // Fallback to API if local is empty (e.g., first run)
       final response = await _dio.get('Logistics/production-sites');
       return (response.data as List).map((s) => s.toString()).toList();
     } catch (e) {
-      debugPrint('Production Sites: Local fetch failed, falling back to basic list. Error: $e');
+      debugPrint(
+        'Production Sites: Local fetch failed, falling back to basic list. Error: $e',
+      );
       return ['IPL', 'INTERNAL']; // Safe defaults for Innodis
     }
   }
@@ -452,7 +488,10 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<List<String>> getLots(String itemCode, String siteCode) async {
     try {
-      final lots = await LocalDatabaseHelper.instance.getLotsForItemAndSite(itemCode, siteCode);
+      final lots = await LocalDatabaseHelper.instance.getLotsForItemAndSite(
+        itemCode,
+        siteCode,
+      );
       if (lots.isNotEmpty) return lots;
 
       // Fallback to API
@@ -496,11 +535,15 @@ class DeliveryRepository implements ILogisticsRepository {
     try {
       final db = await LocalDatabaseHelper.instance.database;
       final rows = await db.query(LocalDatabaseHelper.tableProducts);
-      return rows.map((r) => {
-        'code': r[LocalDatabaseHelper.colProdCode]?.toString() ?? '',
-        'name': r[LocalDatabaseHelper.colProdDesc]?.toString() ?? '',
-        'unit': r[LocalDatabaseHelper.colProdStu]?.toString() ?? 'KG',
-      }).toList();
+      return rows
+          .map(
+            (r) => {
+              'code': r[LocalDatabaseHelper.colProdCode]?.toString() ?? '',
+              'name': r[LocalDatabaseHelper.colProdDesc]?.toString() ?? '',
+              'unit': r[LocalDatabaseHelper.colProdStu]?.toString() ?? 'KG',
+            },
+          )
+          .toList();
     } catch (e) {
       throw 'Failed to fetch products from local DB: ${ApiErrorHandler.getErrorMessage(e)}';
     }
@@ -514,10 +557,15 @@ class DeliveryRepository implements ILogisticsRepository {
         where: "${LocalDatabaseHelper.colOrderNum} LIKE 'CB-%'",
         orderBy: '${LocalDatabaseHelper.colOrderNum} DESC',
       );
-      return rows.map((r) => {
-        'code': r[LocalDatabaseHelper.colOrderNum]?.toString() ?? '',
-        'name': '${r[LocalDatabaseHelper.colCustomerName] ?? ''} (${r[LocalDatabaseHelper.colOrderDate]?.toString().substring(0, 10) ?? ''})',
-      }).toList();
+      return rows
+          .map(
+            (r) => {
+              'code': r[LocalDatabaseHelper.colOrderNum]?.toString() ?? '',
+              'name':
+                  '${r[LocalDatabaseHelper.colCustomerName] ?? ''} (${r[LocalDatabaseHelper.colOrderDate]?.toString().substring(0, 10) ?? ''})',
+            },
+          )
+          .toList();
     } catch (e) {
       throw 'Failed to fetch existing Cut/Bulk SOs: ${ApiErrorHandler.getErrorMessage(e)}';
     }
@@ -561,8 +609,8 @@ class DeliveryRepository implements ILogisticsRepository {
         entryNo =
             '$prefix$dateStr-${(existingCount + 1).toString().padLeft(4, '0')}';
 
-        final String formattedDate = entry['date'] != null 
-            ? DateFormat('yyyy-MM-dd').format(DateTime.parse(entry['date'])) 
+        final String formattedDate = entry['date'] != null
+            ? DateFormat('yyyy-MM-dd').format(DateTime.parse(entry['date']))
             : DateFormat('yyyy-MM-dd').format(today);
 
         // Insert header for new SO
@@ -589,37 +637,58 @@ class DeliveryRepository implements ILogisticsRepository {
           final productCode = product['code'];
           final productName = product['name'];
           final scans = product['scans'] as List? ?? [];
-          final totalWeight = scans.fold(0.0, (sum, s) => sum + (s['weight'] as num).toDouble());
-          
+          final totalWeight = scans.fold(
+            0.0,
+            (sum, s) => sum + (s['weight'] as num).toDouble(),
+          );
+
           // Fix: For EA/PCS items, the ordered quantity should be the piece count, not weight.
-          final String productUnit = (product['unit'] ?? 'KG').toString().toUpperCase();
+          final String productUnit = (product['unit'] ?? 'KG')
+              .toString()
+              .toUpperCase();
           final bool isUnitBased = productUnit == 'EA' || productUnit == 'PCS';
-          final double totalPieces = scans.fold(0.0, (sum, s) => sum + (s['scannedQty'] as num).toDouble());
-          
+          final double totalPieces = scans.fold(
+            0.0,
+            (sum, s) => sum + (s['scannedQty'] as num).toDouble(),
+          );
+
           final double orderedQty = isUnitBased ? totalPieces : totalWeight;
 
           // Extract lot and location from first scan for the detail line
           final firstScan = scans.isNotEmpty ? scans.first : null;
-          final String? summaryLot = firstScan != null ? (firstScan['lot']?.toString() ?? firstScan['lotNumber']?.toString()) : null;
-          final String? summaryLocation = firstScan != null ? (firstScan['location']?.toString() ?? firstScan['locationCode']?.toString()) : null;
+          final String? summaryLot = firstScan != null
+              ? (firstScan['lot']?.toString() ??
+                    firstScan['lotNumber']?.toString())
+              : null;
+          final String? summaryLocation = firstScan != null
+              ? (firstScan['location']?.toString() ??
+                    firstScan['locationCode']?.toString())
+              : null;
 
           // Check if detail line already exists
           final existingDetails = await db.query(
             LocalDatabaseHelper.tableDetails,
-            where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+            where:
+                '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
             whereArgs: [entryNo, productCode],
           );
 
           if (existingDetails.isNotEmpty) {
             // Update existing detail line by adding orderedQty to colDetQuantity
-            final existingQuantity = (existingDetails.first[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
+            final existingQuantity =
+                (existingDetails.first[LocalDatabaseHelper.colDetQuantity]
+                        as num?)
+                    ?.toDouble() ??
+                0.0;
             await db.update(
               LocalDatabaseHelper.tableDetails,
               {
-                LocalDatabaseHelper.colDetQuantity: existingQuantity + orderedQty,
+                LocalDatabaseHelper.colDetQuantity:
+                    existingQuantity + orderedQty,
                 LocalDatabaseHelper.columnIsSynced: 0,
               },
-              where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+              where:
+                  '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
               whereArgs: [entryNo, productCode],
             );
           } else {
@@ -634,7 +703,8 @@ class DeliveryRepository implements ILogisticsRepository {
               LocalDatabaseHelper.colDetUnit: productUnit,
               LocalDatabaseHelper.colDetLot: summaryLot,
               LocalDatabaseHelper.colDetLocation: summaryLocation,
-              LocalDatabaseHelper.colDetCreatedAt: DateTime.now().toIso8601String(),
+              LocalDatabaseHelper.colDetCreatedAt: DateTime.now()
+                  .toIso8601String(),
               LocalDatabaseHelper.columnIsSynced: 0,
             });
           }
@@ -644,23 +714,35 @@ class DeliveryRepository implements ILogisticsRepository {
             await db.insert(LocalDatabaseHelper.tableScans, {
               LocalDatabaseHelper.columnSoNumber: entryNo,
               LocalDatabaseHelper.columnProductCode: productCode,
-              LocalDatabaseHelper.columnQuantity: scan['scannedQty'] ?? scan['weight'],
+              LocalDatabaseHelper.columnQuantity:
+                  scan['scannedQty'] ?? scan['weight'],
               LocalDatabaseHelper.columnManufacturedQuantity: scan['weight'],
-              LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
+              LocalDatabaseHelper.columnEaQuantity:
+                  (scan['unit'] == 'EA' || scan['unit'] == 'PCS')
+                  ? (scan['scannedQty'] ?? 0.0)
+                  : 0.0,
               LocalDatabaseHelper.columnTimestamp:
                   scan['timestamp'] ?? DateTime.now().toIso8601String(),
-              LocalDatabaseHelper.columnSyncId: scan['syncId'] ?? const Uuid().v4(),
+              LocalDatabaseHelper.columnSyncId:
+                  scan['syncId'] ?? const Uuid().v4(),
               LocalDatabaseHelper.columnIsSynced: 0,
               LocalDatabaseHelper.columnItemStatus: 'A',
-              LocalDatabaseHelper.columnSite: scan['site']?.toString() ?? scan['siteId']?.toString() ?? 'IPL',
-              LocalDatabaseHelper.columnLocationCode: scan['location']?.toString() ?? scan['locationCode']?.toString(),
+              LocalDatabaseHelper.columnSite:
+                  scan['site']?.toString() ??
+                  scan['siteId']?.toString() ??
+                  'IPL',
+              LocalDatabaseHelper.columnLocationCode:
+                  scan['location']?.toString() ??
+                  scan['locationCode']?.toString(),
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
               LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
             });
           }
         }
       } else {
-        throw StateError("A valid product is strictly required to create a Cut/Bulk entry.");
+        throw StateError(
+          "A valid product is strictly required to create a Cut/Bulk entry.",
+        );
       }
 
       // Mark order as unsynced if it was previously synced (adding new detail)
@@ -677,7 +759,9 @@ class DeliveryRepository implements ILogisticsRepository {
       // Cut/Bulk entries are pushed exclusively through the Sync/push pipeline
       // during manual sync. This prevents the dual-write race condition
       // that caused manufactured quantities to double when online.
-      debugPrint("Offline-First: Cut/Bulk entry $entryNo saved locally. Will sync via Sync/push.");
+      debugPrint(
+        "Offline-First: Cut/Bulk entry $entryNo saved locally. Will sync via Sync/push.",
+      );
 
       try {
         await LocalDatabaseHelper.instance.insertOfflineAuditLog(
@@ -687,7 +771,8 @@ class DeliveryRepository implements ILogisticsRepository {
             'entryNo': entryNo,
             'customerCode': entry['customerCode'],
             'customerName': entry['customerName'],
-            'type': entry['type'] ?? (entryNo.contains('CUT') ? 'Cuts' : 'Bulks'),
+            'type':
+                entry['type'] ?? (entryNo.contains('CUT') ? 'Cuts' : 'Bulks'),
             'productCount': products?.length ?? 1,
             'timestamp': DateTime.now().toIso8601String(),
           }),
@@ -707,7 +792,9 @@ class DeliveryRepository implements ILogisticsRepository {
   @override
   Future<void> synchronize({String? siteCode}) async {
     if (_isSyncing) {
-      debugPrint("Sync: Operation already in progress. Skipping redundant request.");
+      debugPrint(
+        "Sync: Operation already in progress. Skipping redundant request.",
+      );
       return;
     }
     _isSyncing = true;
@@ -723,18 +810,32 @@ class DeliveryRepository implements ILogisticsRepository {
           .getUnsyncedInternalOrders();
       final unsyncedLabels = await LocalDatabaseHelper.instance
           .getUnsyncedLabelAudits();
-      final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
-      final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
-      final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
-      final unsyncedStagingEod = await LocalDatabaseHelper.instance.getUnsyncedStagingEod();
+      final unsyncedSettingsRows = await LocalDatabaseHelper.instance
+          .getUnsyncedGlobalSettings();
+      final unsyncedStatuses = await LocalDatabaseHelper.instance
+          .getUnsyncedPreparationStatuses();
+      final unsyncedShipments = await LocalDatabaseHelper.instance
+          .getUnsyncedShipmentPreparation();
+      final unsyncedStagingEod = await LocalDatabaseHelper.instance
+          .getUnsyncedStagingEod();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedStagingEod.isNotEmpty) {
+      if (unsyncedScans.isNotEmpty ||
+          unsyncedOrders.isNotEmpty ||
+          unsyncedLabels.isNotEmpty ||
+          unsyncedSettingsRows.isNotEmpty ||
+          unsyncedStatuses.isNotEmpty ||
+          unsyncedShipments.isNotEmpty ||
+          unsyncedStagingEod.isNotEmpty) {
         // Transform settings rows into authoritative author payload structure
-        final settingsPayload = unsyncedSettingsRows.map((row) => {
-          'settingKey': row[LocalDatabaseHelper.colSettingKey],
-          'settingValue': row[LocalDatabaseHelper.colSettingValue],
-          'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
-        }).toList();
+        final settingsPayload = unsyncedSettingsRows
+            .map(
+              (row) => {
+                'settingKey': row[LocalDatabaseHelper.colSettingKey],
+                'settingValue': row[LocalDatabaseHelper.colSettingValue],
+                'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
+              },
+            )
+            .toList();
 
         final payload = {
           'scans': unsyncedScans
@@ -752,80 +853,122 @@ class DeliveryRepository implements ILogisticsRepository {
                 },
               )
               .toList(),
-          'shipmentPreparationUpdates': (await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation()).map((o) => {
-            'soNumber': o[LocalDatabaseHelper.colOrderNum],
-            'isPreparedForShipment': o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
-          }).toList(),
-          'orderStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures()).map((o) => {
-            'soNumber': o[LocalDatabaseHelper.colOrderNum],
-            'status': o[LocalDatabaseHelper.colStatus],
-          }).toList(),
+          'shipmentPreparationUpdates':
+              (await LocalDatabaseHelper.instance
+                      .getUnsyncedShipmentPreparation())
+                  .map(
+                    (o) => {
+                      'soNumber': o[LocalDatabaseHelper.colOrderNum],
+                      'isPreparedForShipment':
+                          o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
+                    },
+                  )
+                  .toList(),
+          'orderStatusUpdates':
+              (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures())
+                  .map(
+                    (o) => {
+                      'soNumber': o[LocalDatabaseHelper.colOrderNum],
+                      'status': o[LocalDatabaseHelper.colStatus],
+                    },
+                  )
+                  .toList(),
           'cutBulkEntries': (await Future.wait(
             unsyncedOrders.map((o) async {
               final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
-              final details = await LocalDatabaseHelper.instance.getReconciledDetails(soNum);
-              
-              return details.map((d) => {
-                'entryNumber': soNum,
-                'type': soNum.toUpperCase().contains('CUT') ? 'Cuts' : 'Bulks',
-                'customerCode': o[LocalDatabaseHelper.colCustomerCode],
-                'customerName': o[LocalDatabaseHelper.colCustomerName],
-                'date': o[LocalDatabaseHelper.colOrderDate],
-                'poNumber': o[LocalDatabaseHelper.colPoNum],
-                'salesman1Code': o[LocalDatabaseHelper.colRep0],
-                'salesman2Code': o[LocalDatabaseHelper.colRep1],
-                'amountKg': (d['reconciledManufactured'] as num).toDouble(),
-                'itemCode': d[LocalDatabaseHelper.colDetItemCode]?.toString(),
-                'productName': d[LocalDatabaseHelper.colDetDescription]?.toString(),
-              }).toList();
+              final details = await LocalDatabaseHelper.instance
+                  .getReconciledDetails(soNum);
+
+              return details
+                  .map(
+                    (d) => {
+                      'entryNumber': soNum,
+                      'type': soNum.toUpperCase().contains('CUT')
+                          ? 'Cuts'
+                          : 'Bulks',
+                      'customerCode': o[LocalDatabaseHelper.colCustomerCode],
+                      'customerName': o[LocalDatabaseHelper.colCustomerName],
+                      'date': o[LocalDatabaseHelper.colOrderDate],
+                      'poNumber': o[LocalDatabaseHelper.colPoNum],
+                      'salesman1Code': o[LocalDatabaseHelper.colRep0],
+                      'salesman2Code': o[LocalDatabaseHelper.colRep1],
+                      'amountKg': (d['reconciledManufactured'] as num)
+                          .toDouble(),
+                      'itemCode': d[LocalDatabaseHelper.colDetItemCode]
+                          ?.toString(),
+                      'productName': d[LocalDatabaseHelper.colDetDescription]
+                          ?.toString(),
+                    },
+                  )
+                  .toList();
             }),
           )).expand((x) => x).toList(),
-          'preparationStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses()).map((u) => {
-            'soNumber': u[LocalDatabaseHelper.colDetSoNum],
-            'itemCode': u[LocalDatabaseHelper.colDetItemCode],
-            'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
-            'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
-          }).toList(),
-          'labelAudits': unsyncedLabels.map((l) => {
-            'labelId': l[LocalDatabaseHelper.colLabelId],
-            'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
-            'labelType': l[LocalDatabaseHelper.colLabelType],
-            'productCode': l[LocalDatabaseHelper.colProductCode],
-            'customerName': l[LocalDatabaseHelper.colCustomerName],
-            'totalWeight': l[LocalDatabaseHelper.columnQuantity],
-            'manifestJson': l[LocalDatabaseHelper.colManifestJson],
-            'printedBy': l[LocalDatabaseHelper.colPrintedBy],
-            'createdAt': l[LocalDatabaseHelper.colCreatedAt],
-            'isOfflineCreated': true,
-          }).toList(),
+          'preparationStatusUpdates':
+              (await LocalDatabaseHelper.instance
+                      .getUnsyncedPreparationStatuses())
+                  .map(
+                    (u) => {
+                      'soNumber': u[LocalDatabaseHelper.colDetSoNum],
+                      'itemCode': u[LocalDatabaseHelper.colDetItemCode],
+                      'isPrepared':
+                          u[LocalDatabaseHelper.colDetIsPrepared] == 1,
+                      'isValidated':
+                          u[LocalDatabaseHelper.colDetIsValidated] == 1,
+                    },
+                  )
+                  .toList(),
+          'labelAudits': unsyncedLabels
+              .map(
+                (l) => {
+                  'labelId': l[LocalDatabaseHelper.colLabelId],
+                  'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
+                  'labelType': l[LocalDatabaseHelper.colLabelType],
+                  'productCode': l[LocalDatabaseHelper.colProductCode],
+                  'customerName': l[LocalDatabaseHelper.colCustomerName],
+                  'totalWeight': l[LocalDatabaseHelper.columnQuantity],
+                  'manifestJson': l[LocalDatabaseHelper.colManifestJson],
+                  'printedBy': l[LocalDatabaseHelper.colPrintedBy],
+                  'createdAt': l[LocalDatabaseHelper.colCreatedAt],
+                  'isOfflineCreated': true,
+                },
+              )
+              .toList(),
           'deviceId': DeviceInfoService.instance.deviceInfo,
           'globalSettingsUpdates': settingsPayload,
-          'stagingEodEntries': unsyncedStagingEod.map((e) => {
-            'id': e['id'],
-            'workOrderNumber': e['soNumber'],
-            'productCode': e['productCode'],
-            'totalManufacturedQuantity': e['manufactured_quantity'],
-            'dateOfManufacturing': e['timestamp'],
-            'unit': e['unit'],
-            'location': e['location'],
-            'itemStatus': e['itemStatus'],
-            'expiryDate': e['expiryDate'],
-            'location2': e['location2'],
-            'location3': e['location3'],
-            'eaQuantity': e['ea_quantity'] ?? 0.0,
-            'createdAt': e['createdAt'],
-            'lotNumber': e['lot'],
-          }).toList(),
+          'stagingEodEntries': unsyncedStagingEod
+              .map(
+                (e) => {
+                  'id': e['id'],
+                  'workOrderNumber': e['soNumber'],
+                  'productCode': e['productCode'],
+                  'totalManufacturedQuantity': e['manufactured_quantity'],
+                  'dateOfManufacturing': e['timestamp'],
+                  'unit': e['unit'],
+                  'location': e['location'],
+                  'itemStatus': e['itemStatus'],
+                  'expiryDate': e['expiryDate'],
+                  'location2': e['location2'],
+                  'location3': e['location3'],
+                  'eaQuantity': e['ea_quantity'] ?? 0.0,
+                  'createdAt': e['createdAt'],
+                  'lotNumber': e['lot'],
+                },
+              )
+              .toList(),
         };
 
         // Note: Refined sync payload construction
-        debugPrint("Sync: Pushing ${unsyncedScans.length} scans and ${unsyncedOrders.length} Cut/Bulk entries to API.");
-        
+        debugPrint(
+          "Sync: Pushing ${unsyncedScans.length} scans and ${unsyncedOrders.length} Cut/Bulk entries to API.",
+        );
+
         try {
           await _dio.post('Sync/push', data: payload);
         } on DioException catch (e) {
           final fullUrl = '${_dio.options.baseUrl}${e.requestOptions.path}';
-          debugPrint("Sync: Push failed to $fullUrl. Error: ${e.error ?? e.message}");
+          debugPrint(
+            "Sync: Push failed to $fullUrl. Error: ${e.error ?? e.message}",
+          );
           rethrow;
         }
 
@@ -841,13 +984,19 @@ class DeliveryRepository implements ILogisticsRepository {
           await LocalDatabaseHelper.instance.markOrdersAsSynced(soNums);
         }
         if (unsyncedLabels.isNotEmpty) {
-          final labelIds = unsyncedLabels.map((l) => l[LocalDatabaseHelper.colLabelId] as String).toList();
+          final labelIds = unsyncedLabels
+              .map((l) => l[LocalDatabaseHelper.colLabelId] as String)
+              .toList();
           await LocalDatabaseHelper.instance.markLabelAuditsSynced(labelIds);
-          debugPrint("Sync: Pushed and marked ${labelIds.length} label audits as synced.");
+          debugPrint(
+            "Sync: Pushed and marked ${labelIds.length} label audits as synced.",
+          );
         }
 
         if (unsyncedSettingsRows.isNotEmpty) {
-          final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+          final keys = unsyncedSettingsRows
+              .map((s) => s[LocalDatabaseHelper.colSettingKey] as String)
+              .toList();
           await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
           debugPrint("Sync: ${keys.length} global settings marked as synced.");
         }
@@ -855,7 +1004,9 @@ class DeliveryRepository implements ILogisticsRepository {
         if (unsyncedStagingEod.isNotEmpty) {
           final ids = unsyncedStagingEod.map((e) => e['id'] as String).toList();
           await LocalDatabaseHelper.instance.markStagingEodAsSynced(ids);
-          debugPrint("Sync: Pushed and marked ${ids.length} EOD entries as synced.");
+          debugPrint(
+            "Sync: Pushed and marked ${ids.length} EOD entries as synced.",
+          );
         }
 
         // Preparation statuses (Item level) and Shipment statuses (Order level)
@@ -894,7 +1045,9 @@ class DeliveryRepository implements ILogisticsRepository {
 
       // 2.1 Handle Synchronized Global Settings
       if (rawData['globalSettingsMap'] != null) {
-        await _saveGlobalSettingsFromSync(Map<String, String>.from(rawData['globalSettingsMap']));
+        await _saveGlobalSettingsFromSync(
+          Map<String, String>.from(rawData['globalSettingsMap']),
+        );
       }
 
       await LocalDatabaseHelper.instance.refreshLogisticsData(
@@ -906,23 +1059,32 @@ class DeliveryRepository implements ILogisticsRepository {
         products: products,
         sites: sites,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
-        eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
+        eodProcessAudits:
+            processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
       // 3. Mark preparation status updates as synced AFTER refresh
       // This combined with the "Dirty-Aware" refresh prevents stale server data overwrites.
-      final updates = (await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses());
+      final updates = (await LocalDatabaseHelper.instance
+          .getUnsyncedPreparationStatuses());
       if (updates.isNotEmpty) {
         await LocalDatabaseHelper.instance.markDetailsAsSynced(updates);
-        debugPrint("Sync: ${updates.length} preparation status updates marked as synced after refresh.");
+        debugPrint(
+          "Sync: ${updates.length} preparation status updates marked as synced after refresh.",
+        );
       }
 
-      final shipmentUpdates = (await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation());
+      final shipmentUpdates = (await LocalDatabaseHelper.instance
+          .getUnsyncedShipmentPreparation());
       if (shipmentUpdates.isNotEmpty) {
-        await LocalDatabaseHelper.instance.markOrderPreparationAsSynced(shipmentUpdates.map((o) => {
-          'soNumber': o[LocalDatabaseHelper.colOrderNum],
-        }).toList());
-        debugPrint("Sync: ${shipmentUpdates.length} shipment preparation updates marked as synced after refresh.");
+        await LocalDatabaseHelper.instance.markOrderPreparationAsSynced(
+          shipmentUpdates
+              .map((o) => {'soNumber': o[LocalDatabaseHelper.colOrderNum]})
+              .toList(),
+        );
+        debugPrint(
+          "Sync: ${shipmentUpdates.length} shipment preparation updates marked as synced after refresh.",
+        );
       }
 
       // REFLECTION SYSTEM: Mark all synced scans as reflected now that we have a fresh mirror
@@ -936,7 +1098,9 @@ class DeliveryRepository implements ILogisticsRepository {
       if (syncedScans.isNotEmpty) {
         final ids = syncedScans.map((s) => s['id'] as int).toList();
         await LocalDatabaseHelper.instance.marksReflected(ids);
-        debugPrint('Reflection System: Marked ${ids.length} scans as reflected.');
+        debugPrint(
+          'Reflection System: Marked ${ids.length} scans as reflected.',
+        );
       }
 
       final duration = stopwatch.elapsedMilliseconds;
@@ -959,14 +1123,18 @@ class DeliveryRepository implements ILogisticsRepository {
     } finally {
       _isSyncing = false;
       stopwatch.stop();
-      debugPrint("Sync: Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts");
+      debugPrint(
+        "Sync: Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts",
+      );
     }
   }
 
   @override
   Stream<SyncProgress> synchronizeWithProgress({String? siteCode}) async* {
     if (_isSyncing) {
-      debugPrint("Sync (Progress): Operation already in progress. Skipping redundant request.");
+      debugPrint(
+        "Sync (Progress): Operation already in progress. Skipping redundant request.",
+      );
       yield SyncProgress.error("Synchronization already in progress.");
       return;
     }
@@ -990,132 +1158,206 @@ class DeliveryRepository implements ILogisticsRepository {
       }
 
       yield SyncProgress(status: 'Pushing local changes...', progress: 0.1);
-      final unsyncedScans = await LocalDatabaseHelper.instance.getUnsyncedScans();
-      final unsyncedOrders = await LocalDatabaseHelper.instance.getUnsyncedInternalOrders();
-      final unsyncedStatuses = await LocalDatabaseHelper.instance.getUnsyncedPreparationStatuses();
-      final unsyncedShipments = await LocalDatabaseHelper.instance.getUnsyncedShipmentPreparation();
-      final unsyncedLabels = await LocalDatabaseHelper.instance.getUnsyncedLabelAudits();
-      final unsyncedSettingsRows = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
-      final unsyncedStagingEod = await LocalDatabaseHelper.instance.getUnsyncedStagingEod();
-      final unsyncedAudits = await LocalDatabaseHelper.instance.getUnsyncedOfflineAudits();
-      final unsyncedEodProcessAudits = await LocalDatabaseHelper.instance.getUnsyncedEodProcessAudits();
+      final unsyncedScans = await LocalDatabaseHelper.instance
+          .getUnsyncedScans();
+      final unsyncedOrders = await LocalDatabaseHelper.instance
+          .getUnsyncedInternalOrders();
+      final unsyncedStatuses = await LocalDatabaseHelper.instance
+          .getUnsyncedPreparationStatuses();
+      final unsyncedShipments = await LocalDatabaseHelper.instance
+          .getUnsyncedShipmentPreparation();
+      final unsyncedLabels = await LocalDatabaseHelper.instance
+          .getUnsyncedLabelAudits();
+      final unsyncedSettingsRows = await LocalDatabaseHelper.instance
+          .getUnsyncedGlobalSettings();
+      final unsyncedStagingEod = await LocalDatabaseHelper.instance
+          .getUnsyncedStagingEod();
+      final unsyncedAudits = await LocalDatabaseHelper.instance
+          .getUnsyncedOfflineAudits();
+      final unsyncedEodProcessAudits = await LocalDatabaseHelper.instance
+          .getUnsyncedEodProcessAudits();
 
-      if (unsyncedScans.isNotEmpty || unsyncedOrders.isNotEmpty || unsyncedStatuses.isNotEmpty || unsyncedShipments.isNotEmpty || unsyncedLabels.isNotEmpty || unsyncedSettingsRows.isNotEmpty || unsyncedStagingEod.isNotEmpty || unsyncedAudits.isNotEmpty || unsyncedEodProcessAudits.isNotEmpty) {
-        final settingsPayload = unsyncedSettingsRows.map((row) => {
-          'settingKey': row[LocalDatabaseHelper.colSettingKey],
-          'settingValue': row[LocalDatabaseHelper.colSettingValue],
-          'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
-        }).toList();
+      if (unsyncedScans.isNotEmpty ||
+          unsyncedOrders.isNotEmpty ||
+          unsyncedStatuses.isNotEmpty ||
+          unsyncedShipments.isNotEmpty ||
+          unsyncedLabels.isNotEmpty ||
+          unsyncedSettingsRows.isNotEmpty ||
+          unsyncedStagingEod.isNotEmpty ||
+          unsyncedAudits.isNotEmpty ||
+          unsyncedEodProcessAudits.isNotEmpty) {
+        final settingsPayload = unsyncedSettingsRows
+            .map(
+              (row) => {
+                'settingKey': row[LocalDatabaseHelper.colSettingKey],
+                'settingValue': row[LocalDatabaseHelper.colSettingValue],
+                'updatedBy': row[LocalDatabaseHelper.colSettingUpdatedBy],
+              },
+            )
+            .toList();
 
         final payload = {
-          'scans': unsyncedScans.map((s) => {
-            'soNumber': s['soNumber'],
-            'itemCode': s['productCode'],
-            'scanAmountKg': s['manufactured_quantity'] ?? s['quantity'],
-            'eaQuantity': s['ea_quantity'] ?? 0.0,
-            'itemStatus': s['itemStatus'] ?? 'Q',
-            'location': s['location'],
-            'lot': s['lot'],
-            'barcode': s['barcode'],
-            'createdAt': s['timestamp'],
-            'syncId': s['sync_id'],
-            'deviceId': s['deviceId'],
-          }).toList(),
-          'cutBulkEntries': (await Future.wait(unsyncedOrders.map((o) async {
-            final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
-            final details = await LocalDatabaseHelper.instance.getReconciledDetails(soNum);
-            double amount = details.isNotEmpty ? (details.first['reconciledProduced'] as num).toDouble() : 0;
-            return {
-              'entryNumber': soNum,
-              'type': soNum.toUpperCase().contains('CUT') ? 'Cuts' : 'Bulks',
-              'customerCode': o[LocalDatabaseHelper.colCustomerCode],
-              'customerName': o[LocalDatabaseHelper.colCustomerName],
-              'date': o[LocalDatabaseHelper.colOrderDate],
-              'poNumber': o[LocalDatabaseHelper.colPoNum],
-              'salesman1Code': o[LocalDatabaseHelper.colRep0],
-              'salesman2Code': o[LocalDatabaseHelper.colRep1],
-              'amountKg': amount,
-              'deviceId': o['deviceId'],
-            };
-          }))),
-          'labelAudits': unsyncedLabels.map((l) => {
-            'labelId': l[LocalDatabaseHelper.colLabelId],
-            'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
-            'labelType': l[LocalDatabaseHelper.colLabelType],
-            'productCode': l[LocalDatabaseHelper.colProductCode],
-            'customerName': l[LocalDatabaseHelper.colCustomerName],
-            'totalWeight': l[LocalDatabaseHelper.columnQuantity] ?? 0.0,
-            'manifestJson': l[LocalDatabaseHelper.colManifestJson],
-            'printedBy': l[LocalDatabaseHelper.colPrintedBy],
-            'createdAt': l[LocalDatabaseHelper.colCreatedAt],
-            'deviceId': l['deviceId'],
-          }).toList(),
+          'scans': unsyncedScans
+              .map(
+                (s) => {
+                  'soNumber': s['soNumber'],
+                  'itemCode': s['productCode'],
+                  'scanAmountKg': s['manufactured_quantity'] ?? s['quantity'],
+                  'eaQuantity': s['ea_quantity'] ?? 0.0,
+                  'itemStatus': s['itemStatus'] ?? 'Q',
+                  'location': s['location'],
+                  'lot': s['lot'],
+                  'barcode': s['barcode'],
+                  'createdAt': s['timestamp'],
+                  'syncId': s['sync_id'],
+                  'deviceId': s['deviceId'],
+                  'excludeFromEod':
+                      s[LocalDatabaseHelper.columnExcludeFromEod] == 1,
+                },
+              )
+              .toList(),
+          'cutBulkEntries': (await Future.wait(
+            unsyncedOrders.map((o) async {
+              final soNum = o[LocalDatabaseHelper.colOrderNum] as String;
+              final details = await LocalDatabaseHelper.instance
+                  .getReconciledDetails(soNum);
+              double amount = details.isNotEmpty
+                  ? (details.first['reconciledProduced'] as num).toDouble()
+                  : 0;
+              return {
+                'entryNumber': soNum,
+                'type': soNum.toUpperCase().contains('CUT') ? 'Cuts' : 'Bulks',
+                'customerCode': o[LocalDatabaseHelper.colCustomerCode],
+                'customerName': o[LocalDatabaseHelper.colCustomerName],
+                'date': o[LocalDatabaseHelper.colOrderDate],
+                'poNumber': o[LocalDatabaseHelper.colPoNum],
+                'salesman1Code': o[LocalDatabaseHelper.colRep0],
+                'salesman2Code': o[LocalDatabaseHelper.colRep1],
+                'amountKg': amount,
+                'deviceId': o['deviceId'],
+              };
+            }),
+          )),
+          'labelAudits': unsyncedLabels
+              .map(
+                (l) => {
+                  'labelId': l[LocalDatabaseHelper.colLabelId],
+                  'referenceNumber': l[LocalDatabaseHelper.colReferenceNumber],
+                  'labelType': l[LocalDatabaseHelper.colLabelType],
+                  'productCode': l[LocalDatabaseHelper.colProductCode],
+                  'customerName': l[LocalDatabaseHelper.colCustomerName],
+                  'totalWeight': l[LocalDatabaseHelper.columnQuantity] ?? 0.0,
+                  'manifestJson': l[LocalDatabaseHelper.colManifestJson],
+                  'printedBy': l[LocalDatabaseHelper.colPrintedBy],
+                  'createdAt': l[LocalDatabaseHelper.colCreatedAt],
+                  'deviceId': l['deviceId'],
+                },
+              )
+              .toList(),
           'globalSettingsUpdates': settingsPayload,
-          'preparationStatusUpdates': unsyncedStatuses.map((u) => {
-            'soNumber': u[LocalDatabaseHelper.colDetSoNum],
-            'itemCode': u[LocalDatabaseHelper.colDetItemCode],
-            'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
-            'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
-            'deviceId': u['deviceId'],
-          }).toList(),
-          'shipmentPreparationUpdates': unsyncedShipments.map((o) => {
-            'soNumber': o[LocalDatabaseHelper.colOrderNum],
-            'isPreparedForShipment': o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
-          }).toList(),
-          'orderStatusUpdates': (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures()).map((o) => {
-            'soNumber': o[LocalDatabaseHelper.colOrderNum],
-            'status': o[LocalDatabaseHelper.colStatus],
-          }).toList(),
+          'preparationStatusUpdates': unsyncedStatuses
+              .map(
+                (u) => {
+                  'soNumber': u[LocalDatabaseHelper.colDetSoNum],
+                  'itemCode': u[LocalDatabaseHelper.colDetItemCode],
+                  'isPrepared': u[LocalDatabaseHelper.colDetIsPrepared] == 1,
+                  'isValidated': u[LocalDatabaseHelper.colDetIsValidated] == 1,
+                  'deviceId': u['deviceId'],
+                },
+              )
+              .toList(),
+          'shipmentPreparationUpdates': unsyncedShipments
+              .map(
+                (o) => {
+                  'soNumber': o[LocalDatabaseHelper.colOrderNum],
+                  'isPreparedForShipment':
+                      o[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
+                },
+              )
+              .toList(),
+          'orderStatusUpdates':
+              (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures())
+                  .map(
+                    (o) => {
+                      'soNumber': o[LocalDatabaseHelper.colOrderNum],
+                      'status': o[LocalDatabaseHelper.colStatus],
+                      'excludeFromEod':
+                          o[LocalDatabaseHelper.colExcludeFromEod] == 1,
+                    },
+                  )
+                  .toList(),
           'deviceId': DeviceInfoService.instance.deviceInfo,
-          'stagingEodEntries': unsyncedStagingEod.map((e) => {
-            'id': e['id'],
-            'workOrderNumber': e['soNumber'],
-            'productCode': e['productCode'],
-            'totalManufacturedQuantity': e['manufactured_quantity'],
-            'dateOfManufacturing': e['timestamp'],
-            'unit': e['unit'],
-            'location': e['location'],
-            'itemStatus': e['itemStatus'],
-            'expiryDate': e['expiryDate'],
-            'location2': e['location2'],
-            'location3': e['location3'],
-            'eaQuantity': e['ea_quantity'] ?? 0.0,
-            'createdAt': e['createdAt'],
-            'lotNumber': e['lot'],
-            'deviceId': e['deviceId'],
-          }).toList(),
-          'offlineAudits': unsyncedAudits.map((a) => {
-            'entity': a['entity'],
-            'action': a['action'],
-            'payload': a['payload'],
-            'timestamp': a['timestamp'],
-            'deviceId': a['deviceId'],
-          }).toList(),
-          'eodProcessAudits': unsyncedEodProcessAudits.map((e) => {
-            'id': e['id'],
-            'eodDate': e['eodDate'],
-            'workOrderNumber': e['workOrderNumber'],
-            'triggeredBy': e['triggeredBy'],
-            'deviceId': e['deviceId'],
-            'createdAt': e['timestamp'],
-            'isDeactivated': e['isDeactivated'] == 1,
-          }).toList(),
+          'stagingEodEntries': unsyncedStagingEod
+              .map(
+                (e) => {
+                  'id': e['id'],
+                  'workOrderNumber': e['soNumber'],
+                  'productCode': e['productCode'],
+                  'totalManufacturedQuantity': e['manufactured_quantity'],
+                  'dateOfManufacturing': e['timestamp'],
+                  'unit': e['unit'],
+                  'location': e['location'],
+                  'itemStatus': e['itemStatus'],
+                  'expiryDate': e['expiryDate'],
+                  'location2': e['location2'],
+                  'location3': e['location3'],
+                  'eaQuantity': e['ea_quantity'] ?? 0.0,
+                  'createdAt': e['createdAt'],
+                  'lotNumber': e['lot'],
+                  'deviceId': e['deviceId'],
+                },
+              )
+              .toList(),
+          'offlineAudits': unsyncedAudits
+              .map(
+                (a) => {
+                  'entity': a['entity'],
+                  'action': a['action'],
+                  'payload': a['payload'],
+                  'timestamp': a['timestamp'],
+                  'deviceId': a['deviceId'],
+                },
+              )
+              .toList(),
+          'eodProcessAudits': unsyncedEodProcessAudits
+              .map(
+                (e) => {
+                  'id': e['id'],
+                  'eodDate': e['eodDate'],
+                  'workOrderNumber': e['workOrderNumber'],
+                  'triggeredBy': e['triggeredBy'],
+                  'deviceId': e['deviceId'],
+                  'createdAt': e['timestamp'],
+                  'isDeactivated': e['isDeactivated'] == 1,
+                },
+              )
+              .toList(),
         };
 
         await _dio.post('Sync/push', data: payload);
-        
+
         if (unsyncedScans.isNotEmpty) {
-          await LocalDatabaseHelper.instance.markAsSynced(unsyncedScans.map((s) => s['id'] as int).toList());
+          await LocalDatabaseHelper.instance.markAsSynced(
+            unsyncedScans.map((s) => s['id'] as int).toList(),
+          );
         }
         if (unsyncedOrders.isNotEmpty) {
-          await LocalDatabaseHelper.instance.markOrdersAsSynced(unsyncedOrders.map((o) => o[LocalDatabaseHelper.colOrderNum] as String).toList());
+          await LocalDatabaseHelper.instance.markOrdersAsSynced(
+            unsyncedOrders
+                .map((o) => o[LocalDatabaseHelper.colOrderNum] as String)
+                .toList(),
+          );
         }
         if (unsyncedLabels.isNotEmpty) {
-          final labelIds = unsyncedLabels.map((l) => l[LocalDatabaseHelper.colLabelId] as String).toList();
+          final labelIds = unsyncedLabels
+              .map((l) => l[LocalDatabaseHelper.colLabelId] as String)
+              .toList();
           await LocalDatabaseHelper.instance.markLabelAuditsSynced(labelIds);
         }
         if (unsyncedSettingsRows.isNotEmpty) {
-          final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+          final keys = unsyncedSettingsRows
+              .map((s) => s[LocalDatabaseHelper.colSettingKey] as String)
+              .toList();
           await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
         }
 
@@ -1130,13 +1372,15 @@ class DeliveryRepository implements ILogisticsRepository {
         }
 
         if (unsyncedEodProcessAudits.isNotEmpty) {
-          final ids = unsyncedEodProcessAudits.map((e) => e['id'] as String).toList();
+          final ids = unsyncedEodProcessAudits
+              .map((e) => e['id'] as String)
+              .toList();
           await LocalDatabaseHelper.instance.markEodProcessAuditsSynced(ids);
         }
       }
 
       yield SyncProgress(status: 'Fetching updates...', progress: 0.3);
-      
+
       // 2. Refresh Mirror Data (Incremental)
       final prefs = await SharedPreferences.getInstance();
       final lastSync = prefs.getString('last_sync_timestamp');
@@ -1148,14 +1392,23 @@ class DeliveryRepository implements ILogisticsRepository {
           if (lastSync != null) 'since': lastSync,
         },
       );
-      
+
       final rawData = response.data;
       final serverTimestamp = rawData['timestamp'] as String?;
 
       yield SyncProgress(status: 'Processing data...', progress: 0.6);
       final processedData = await compute(_parseAndSanitizeData, rawData);
 
-      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots'];
+      final tables = [
+        'orders',
+        'details',
+        'customers',
+        'reps',
+        'locations',
+        'products',
+        'sites',
+        'lots',
+      ];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
         final data = processedData[table] as List<Map<String, dynamic>>? ?? [];
@@ -1175,27 +1428,40 @@ class DeliveryRepository implements ILogisticsRepository {
         products: processedData['products'] as List<Map<String, dynamic>>,
         sites: processedData['sites'] as List<Map<String, dynamic>>,
         lots: processedData['lots'] as List<Map<String, dynamic>>,
-        eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
+        eodProcessAudits:
+            processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
       // 3. Mark preparation status updates as synced AFTER refresh
       // We re-fetch from DB to get the current list of what was dirty BEFORE refresh (and preserved)
       if (unsyncedSettingsRows.isNotEmpty) {
-        final keys = unsyncedSettingsRows.map((s) => s[LocalDatabaseHelper.colSettingKey] as String).toList();
+        final keys = unsyncedSettingsRows
+            .map((s) => s[LocalDatabaseHelper.colSettingKey] as String)
+            .toList();
         await LocalDatabaseHelper.instance.markSettingsAsSynced(keys);
-        debugPrint("Sync (Progress): ${keys.length} global settings marked as synced.");
+        debugPrint(
+          "Sync (Progress): ${keys.length} global settings marked as synced.",
+        );
       }
 
       if (unsyncedStatuses.isNotEmpty) {
-        await LocalDatabaseHelper.instance.markDetailsAsSynced(unsyncedStatuses);
-        debugPrint("Sync (Progress): ${unsyncedStatuses.length} preparation status updates marked as synced after refresh.");
+        await LocalDatabaseHelper.instance.markDetailsAsSynced(
+          unsyncedStatuses,
+        );
+        debugPrint(
+          "Sync (Progress): ${unsyncedStatuses.length} preparation status updates marked as synced after refresh.",
+        );
       }
 
       if (unsyncedShipments.isNotEmpty) {
-        await LocalDatabaseHelper.instance.markOrderPreparationAsSynced(unsyncedShipments.map((o) => {
-          'soNumber': o[LocalDatabaseHelper.colOrderNum],
-        }).toList());
-        debugPrint("Sync (Progress): ${unsyncedShipments.length} shipment preparation updates marked as synced after refresh.");
+        await LocalDatabaseHelper.instance.markOrderPreparationAsSynced(
+          unsyncedShipments
+              .map((o) => {'soNumber': o[LocalDatabaseHelper.colOrderNum]})
+              .toList(),
+        );
+        debugPrint(
+          "Sync (Progress): ${unsyncedShipments.length} shipment preparation updates marked as synced after refresh.",
+        );
       }
 
       // Save new timestamp
@@ -1207,13 +1473,16 @@ class DeliveryRepository implements ILogisticsRepository {
       final syncedScans = await LocalDatabaseHelper.instance.database.then(
         (db) => db.query(
           LocalDatabaseHelper.tableScans,
-          where: '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
+          where:
+              '${LocalDatabaseHelper.columnIsSynced} = 1 AND ${LocalDatabaseHelper.columnIsReflected} = 0',
         ),
       );
       if (syncedScans.isNotEmpty) {
         final Map<String, dynamic> firstRow = syncedScans.first;
         if (firstRow.containsKey('id')) {
-           await LocalDatabaseHelper.instance.marksReflected(syncedScans.map((s) => s['id'] as int).toList());
+          await LocalDatabaseHelper.instance.marksReflected(
+            syncedScans.map((s) => s['id'] as int).toList(),
+          );
         }
       }
 
@@ -1235,7 +1504,9 @@ class DeliveryRepository implements ILogisticsRepository {
     } finally {
       _isSyncing = false;
       stopwatch.stop();
-      debugPrint("Sync (Progress): Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts");
+      debugPrint(
+        "Sync (Progress): Finished in ${stopwatch.elapsed.inSeconds}s. Updated: $counts",
+      );
     }
   }
 
@@ -1253,7 +1524,9 @@ class DeliveryRepository implements ILogisticsRepository {
           DateTime.now(),
       purchaseOrderNumber: row[LocalDatabaseHelper.colPoNum],
       salesManCode1: row[LocalDatabaseHelper.colRep0] ?? '',
-      salesManCode2: (row[LocalDatabaseHelper.colSalesman] != null && (row[LocalDatabaseHelper.colSalesman] as String).isNotEmpty)
+      salesManCode2:
+          (row[LocalDatabaseHelper.colSalesman] != null &&
+              (row[LocalDatabaseHelper.colSalesman] as String).isNotEmpty)
           ? '' // If we have the unified name, don't use the code separately to avoid doubling
           : (row[LocalDatabaseHelper.colRep1] ?? ''),
       salesmanName: row[LocalDatabaseHelper.colSalesman] ?? row['salesmanName'],
@@ -1261,18 +1534,23 @@ class DeliveryRepository implements ILogisticsRepository {
       source: row[LocalDatabaseHelper.colSource],
       isClosed: row[LocalDatabaseHelper.colStatus] == 2,
       isEditable: true,
-      isPreparedForShipment: row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
+      isPreparedForShipment:
+          row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
       isProcessed: row[LocalDatabaseHelper.colIsProcessed] == 1,
       isRolledOver: row[LocalDatabaseHelper.colIsRolledOver] == 1,
     );
   }
 
   SalesOrderDetail _mapLocalDetailToEntity(Map<String, dynamic> row) {
-    final qty = (row[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
-    final manufactured = (row[LocalDatabaseHelper.colDetScanned] as num?)?.toDouble() ?? 0.0;
-    final eaScanned = (row[LocalDatabaseHelper.colDetEaScanned] as num?)?.toDouble() ?? 0.0;
+    final qty =
+        (row[LocalDatabaseHelper.colDetQuantity] as num?)?.toDouble() ?? 0.0;
+    final manufactured =
+        (row[LocalDatabaseHelper.colDetScanned] as num?)?.toDouble() ?? 0.0;
+    final eaScanned =
+        (row[LocalDatabaseHelper.colDetEaScanned] as num?)?.toDouble() ?? 0.0;
     final remaining =
-        (row['reconciledRemaining'] as num?)?.toDouble() ?? (qty - manufactured);
+        (row['reconciledRemaining'] as num?)?.toDouble() ??
+        (qty - manufactured);
 
     return SalesOrderDetail(
       soNumber: row[LocalDatabaseHelper.colDetSoNum] ?? '',
@@ -1305,7 +1583,10 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<void> syncScans(List<Map<String, dynamic>> scans, {String? siteCode}) async {
+  Future<void> syncScans(
+    List<Map<String, dynamic>> scans, {
+    String? siteCode,
+  }) async {
     try {
       final payload = scans
           .map(
@@ -1313,7 +1594,8 @@ class DeliveryRepository implements ILogisticsRepository {
               'soNumber': s['soNumber'],
               'itemCode': s['itemCode'] ?? s['productCode'],
               'quantity': s['quantity'],
-              'manufacturedQuantity': s['manufactured_quantity'] ?? s['quantity'],
+              'manufacturedQuantity':
+                  s['manufactured_quantity'] ?? s['quantity'],
               'eaQuantity': s['ea_quantity'] ?? 0.0,
               'scanTimestamp': s['timestamp'],
               'site': siteCode ?? s['site'],
@@ -1341,9 +1623,12 @@ class DeliveryRepository implements ILogisticsRepository {
       final localRow = {
         LocalDatabaseHelper.columnSoNumber: scan['soNumber'] ?? '',
         LocalDatabaseHelper.columnProductCode: scan['itemCode'] ?? '',
-        LocalDatabaseHelper.columnQuantity: (scan['scanAmountKg'] ?? 0.0).toDouble(),
-        LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['scanAmountKg'] ?? 0.0).toDouble(),
-        LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0).toDouble(),
+        LocalDatabaseHelper.columnQuantity: (scan['scanAmountKg'] ?? 0.0)
+            .toDouble(),
+        LocalDatabaseHelper.columnManufacturedQuantity:
+            (scan['manufacturedQty'] ?? scan['scanAmountKg'] ?? 0.0).toDouble(),
+        LocalDatabaseHelper.columnEaQuantity: (scan['scannedQty'] ?? 0.0)
+            .toDouble(),
         LocalDatabaseHelper.columnTimestamp: DateTime.now().toIso8601String(),
         LocalDatabaseHelper.columnItemStatus: scan['itemStatus'] ?? 'Q',
         LocalDatabaseHelper.columnLocationCode: scan['location'] ?? '',
@@ -1352,47 +1637,49 @@ class DeliveryRepository implements ILogisticsRepository {
       };
       // 2. Persist to Local DB IMMEDIATELY (offline-first)
       final id = await LocalDatabaseHelper.instance.insertScan(localRow);
-      debugPrint("Offline-First: Scan saved locally with ID $id. Will sync via Sync/push.");
+      debugPrint(
+        "Offline-First: Scan saved locally with ID $id. Will sync via Sync/push.",
+      );
     } catch (e) {
       debugPrint("CRITICAL: Local persistence failed for scan: $e");
       throw 'Failed to save scan: ${ApiErrorHandler.getErrorMessage(e)}';
     }
   }
 
-  Future<List<Map<String, dynamic>>> getProductionScans(String soNumber, String itemCode) async {
+  Future<List<Map<String, dynamic>>> getProductionScans(
+    String soNumber,
+    String itemCode,
+  ) async {
     List<Map<String, dynamic>> remoteScans = [];
     try {
       final response = await _dio.get(
         'Logistics/production-scans/$soNumber/$itemCode',
       );
       final data = response.data as List;
-      remoteScans = data.map((json) => Map<String, dynamic>.from(json as Map)).toList();
+      remoteScans = data
+          .map((json) => Map<String, dynamic>.from(json as Map))
+          .toList();
     } catch (e) {
       debugPrint('getProductionScans: Failed to fetch history from API: $e');
     }
 
-
-
     try {
-      final localScans = await LocalDatabaseHelper.instance.getLocalProductionScans(soNumber, itemCode);
-      
+      final localScans = await LocalDatabaseHelper.instance
+          .getLocalProductionScans(soNumber, itemCode);
+
       final Map<String, Map<String, dynamic>> merged = {};
-      
+
       for (var scan in remoteScans) {
         final syncId = scan['syncId']?.toString();
         final barcode = scan['barcode']?.toString();
-        
-
 
         final key = syncId ?? barcode;
         if (key != null) merged[key] = scan;
       }
-      
+
       for (var scan in localScans) {
         final syncId = scan[LocalDatabaseHelper.columnSyncId]?.toString();
         final barcode = scan[LocalDatabaseHelper.columnBarcode]?.toString();
-
-
 
         final key = syncId ?? barcode;
         if (key != null) {
@@ -1400,7 +1687,9 @@ class DeliveryRepository implements ILogisticsRepository {
             'barcode': scan[LocalDatabaseHelper.columnBarcode],
             'syncId': scan[LocalDatabaseHelper.columnSyncId],
             'itemCode': scan[LocalDatabaseHelper.columnProductCode],
-            'scanAmountKg': scan[LocalDatabaseHelper.columnManufacturedQuantity] ?? scan[LocalDatabaseHelper.columnQuantity],
+            'scanAmountKg':
+                scan[LocalDatabaseHelper.columnManufacturedQuantity] ??
+                scan[LocalDatabaseHelper.columnQuantity],
             'eaQuantity': scan[LocalDatabaseHelper.columnEaQuantity],
             'createdAt': scan[LocalDatabaseHelper.columnTimestamp],
             'itemStatus': scan[LocalDatabaseHelper.columnItemStatus],
@@ -1409,11 +1698,15 @@ class DeliveryRepository implements ILogisticsRepository {
           };
         }
       }
-      
+
       final mergedList = merged.values.toList();
       mergedList.sort((a, b) {
-        final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final aTime =
+            DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return bTime.compareTo(aTime); // Descending
       });
       return mergedList;
@@ -1425,38 +1718,52 @@ class DeliveryRepository implements ILogisticsRepository {
 
   /// Saves each scan individually to the local queue in a batch.
   /// Scans are strictly persisted offline so they can be pushed natively via the manual Sync button.
-  Future<void> saveProductionScansBatch(List<Map<String, dynamic>> scans) async {
+  Future<void> saveProductionScansBatch(
+    List<Map<String, dynamic>> scans,
+  ) async {
     for (final scan in scans) {
       try {
         final localRow = {
           LocalDatabaseHelper.columnSoNumber: scan['soNumber']?.toString(),
-          LocalDatabaseHelper.columnProductCode: scan['productCode']?.toString(),
-          LocalDatabaseHelper.columnQuantity: (scan['scannedQty'] ?? scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnProductCode: scan['productCode']
+              ?.toString(),
+          LocalDatabaseHelper.columnQuantity:
+              (scan['scannedQty'] ??
+              scan['manufacturedQty'] ??
+              scan['weight'] ??
+              0.0),
           LocalDatabaseHelper.columnTimestamp: scan['timestamp'],
           LocalDatabaseHelper.columnItemStatus: scan['status'] ?? 'A',
-          LocalDatabaseHelper.columnLocationCode: scan['locationCode']?.toString(),
+          LocalDatabaseHelper.columnLocationCode: scan['locationCode']
+              ?.toString(),
           LocalDatabaseHelper.columnSite: scan['siteId']?.toString(),
           LocalDatabaseHelper.columnIsSynced: 0,
           LocalDatabaseHelper.columnIsReflected: 0,
           LocalDatabaseHelper.columnSyncId: scan['syncId']?.toString(),
-          LocalDatabaseHelper.columnManufacturedQuantity: (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
-          LocalDatabaseHelper.columnEaQuantity: (scan['unit'] == 'EA' || scan['unit'] == 'PCS') ? (scan['scannedQty'] ?? 0.0) : 0.0,
+          LocalDatabaseHelper.columnManufacturedQuantity:
+              (scan['manufacturedQty'] ?? scan['weight'] ?? 0.0),
+          LocalDatabaseHelper.columnEaQuantity:
+              (scan['unit'] == 'EA' || scan['unit'] == 'PCS')
+              ? (scan['scannedQty'] ?? 0.0)
+              : 0.0,
           LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
           LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
         };
         await LocalDatabaseHelper.instance.insertScan(localRow);
       } catch (e) {
-        debugPrint("CRITICAL: Local persistence failed for batch scan background cache: $e");
+        debugPrint(
+          "CRITICAL: Local persistence failed for batch scan background cache: $e",
+        );
       }
     }
   }
-
 
   Future<void> ensureSalesOrderDetailExists(SalesOrderDetail detail) async {
     final db = await LocalDatabaseHelper.instance.database;
     final results = await db.query(
       LocalDatabaseHelper.tableDetails,
-      where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+      where:
+          '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
       whereArgs: [detail.soNumber, detail.itemCode],
     );
 
@@ -1482,21 +1789,24 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<Map<String, String>>> getOpenInternalOrders() async {
     try {
       final db = await LocalDatabaseHelper.instance.database;
-      
+
       // Broader search: look for internal prefixes OR the explicit 'Internal' source tag
       final results = await db.query(
         LocalDatabaseHelper.tableOrders,
-        where: "(${LocalDatabaseHelper.colOrderNum} LIKE 'BLK-%' OR "
-               "${LocalDatabaseHelper.colOrderNum} LIKE 'CUTS-%' OR "
-               "${LocalDatabaseHelper.colSource} = 'Internal')",
+        where:
+            "(${LocalDatabaseHelper.colOrderNum} LIKE 'BLK-%' OR "
+            "${LocalDatabaseHelper.colOrderNum} LIKE 'CUTS-%' OR "
+            "${LocalDatabaseHelper.colSource} = 'Internal')",
         orderBy: "${LocalDatabaseHelper.colOrderDate} DESC",
       );
 
       debugPrint('DEBUG: Found ${results.length} internal orders in database');
 
       return results.map((row) {
-        final orderNum = row[LocalDatabaseHelper.colOrderNum]?.toString() ?? 'N/A';
-        final custName = row[LocalDatabaseHelper.colCustomerName]?.toString() ?? 'Internal';
+        final orderNum =
+            row[LocalDatabaseHelper.colOrderNum]?.toString() ?? 'N/A';
+        final custName =
+            row[LocalDatabaseHelper.colCustomerName]?.toString() ?? 'Internal';
         return {
           'code': orderNum,
           'name': '$orderNum ($custName)',
@@ -1552,11 +1862,16 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<LocationLookup>> getTargetLocations(String site, String itemCode) async {
+  Future<List<LocationLookup>> getTargetLocations(
+    String site,
+    String itemCode,
+  ) async {
     // 1. Read from SQLite first (already synced via refreshLogisticsData)
     final localLocations = await getLocationLookups(site);
     if (localLocations.isNotEmpty) {
-      debugPrint("Target locations loaded from SQLite cache (${localLocations.length} items)");
+      debugPrint(
+        "Target locations loaded from SQLite cache (${localLocations.length} items)",
+      );
       return localLocations;
     }
 
@@ -1572,14 +1887,18 @@ class DeliveryRepository implements ILogisticsRepository {
       );
 
       final data = response.data as List;
-      return data.map((e) => LocationLookup(
-        site: e['site'] as String?,
-        location: e['location'] as String?,
-        warehouse: e['warehouse'] as String?,
-        warehouseName: e['warehouseName'] as String?,
-        locationType: e['locationType'] as String?,
-        locationTypeName: e['locationTypeName'] as String?,
-      )).toList();
+      return data
+          .map(
+            (e) => LocationLookup(
+              site: e['site'] as String?,
+              location: e['location'] as String?,
+              warehouse: e['warehouse'] as String?,
+              warehouseName: e['warehouseName'] as String?,
+              locationType: e['locationType'] as String?,
+              locationTypeName: e['locationTypeName'] as String?,
+            ),
+          )
+          .toList();
     } catch (e) {
       debugPrint("Failed to fetch target locations from API: $e");
       return [];
@@ -1595,17 +1914,15 @@ class DeliveryRepository implements ILogisticsRepository {
   }) async {
     try {
       final db = await LocalDatabaseHelper.instance.database;
-      final column = isValidation 
-          ? LocalDatabaseHelper.colDetIsValidated 
+      final column = isValidation
+          ? LocalDatabaseHelper.colDetIsValidated
           : LocalDatabaseHelper.colDetIsPrepared;
-          
+
       await db.update(
         LocalDatabaseHelper.tableDetails,
-        {
-          column: isPrepared ? 1 : 0,
-          LocalDatabaseHelper.columnIsSynced: 0,
-        },
-        where: '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
+        {column: isPrepared ? 1 : 0, LocalDatabaseHelper.columnIsSynced: 0},
+        where:
+            '${LocalDatabaseHelper.colDetSoNum} = ? AND ${LocalDatabaseHelper.colDetItemCode} = ?',
         whereArgs: [soNumber, itemCode],
       );
     } catch (e) {
@@ -1675,10 +1992,14 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<List<Site>> getFilteredSites({required DateTime date}) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final maps = await LocalDatabaseHelper.instance.getFilteredSites(dateStr);
-    return maps.map((m) => Site(
-      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
-      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
-    )).toList();
+    return maps
+        .map(
+          (m) => Site(
+            code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+            name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -1688,11 +2009,19 @@ class DeliveryRepository implements ILogisticsRepository {
     String? poType,
   }) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final maps = await LocalDatabaseHelper.instance.getFilteredSalesReps(dateStr, siteCode, poType);
-    return maps.map((m) => SalesRep(
-      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
-      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
-    )).toList();
+    final maps = await LocalDatabaseHelper.instance.getFilteredSalesReps(
+      dateStr,
+      siteCode,
+      poType,
+    );
+    return maps
+        .map(
+          (m) => SalesRep(
+            code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+            name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -1709,14 +2038,21 @@ class DeliveryRepository implements ILogisticsRepository {
       salesmanCode,
       poType,
     );
-    return maps.map((m) => Customer(
-      code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
-      name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
-    )).toList();
+    return maps
+        .map(
+          (m) => Customer(
+            code: m[LocalDatabaseHelper.colCode]?.toString() ?? '',
+            name: m[LocalDatabaseHelper.colName]?.toString() ?? '',
+          ),
+        )
+        .toList();
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getExcessByDateAndItem(DateTime deliveryDate, String itemCode) async {
+  Future<List<Map<String, dynamic>>> getExcessByDateAndItem(
+    DateTime deliveryDate,
+    String itemCode,
+  ) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(deliveryDate);
     return await LocalDatabaseHelper.instance.getExcessPools(
       dateStr: dateStr,
@@ -1725,7 +2061,7 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-   Future<String> allocateExcess({
+  Future<String> allocateExcess({
     required String sourceBulkSoNumber,
     required String targetSoNumber,
     required String itemCode,
@@ -1736,11 +2072,11 @@ class DeliveryRepository implements ILogisticsRepository {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString('user_username') ?? 'system';
-    
+
     // 1. Save locally with the physical location and lot
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final syncId = const Uuid().v4();
-    
+
     // 1. Save positive scan for the target order
     final scanRecord = {
       LocalDatabaseHelper.columnSoNumber: targetSoNumber,
@@ -1799,24 +2135,28 @@ class DeliveryRepository implements ILogisticsRepository {
       final prefs = await SharedPreferences.getInstance();
       final username = prefs.getString('username') ?? 'unknown';
       final deviceId = DeviceInfoService.instance.deviceInfo;
-      
+
       auditData['deviceId'] = deviceId;
       auditData['printedBy'] = '$username on $deviceId';
       auditData['createdAt'] = DateTime.now().toIso8601String();
 
       // 2. OFFLINE QUEUE: Save locally with offline ID
       final todayStr = DateFormat('yyMMdd').format(DateTime.now());
-      
+
       // Get today's local audit count for sequence
       final db = await LocalDatabaseHelper.instance.database;
-      final count = sqflite.Sqflite.firstIntValue(await db.rawQuery(
-        "SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableLabelAudits} WHERE ${LocalDatabaseHelper.colCreatedAt} LIKE ?",
-        ["${DateTime.now().toIso8601String().substring(0, 10)}%"]
-      )) ?? 0;
+      final count =
+          sqflite.Sqflite.firstIntValue(
+            await db.rawQuery(
+              "SELECT COUNT(*) FROM ${LocalDatabaseHelper.tableLabelAudits} WHERE ${LocalDatabaseHelper.colCreatedAt} LIKE ?",
+              ["${DateTime.now().toIso8601String().substring(0, 10)}%"],
+            ),
+          ) ??
+          0;
 
       // Unique Offline ID: OFF-LBL-$todayStr-$username-${count + 1}
       final offlineId = "OFF-LBL-$todayStr-$username-${count + 1}";
-      
+
       await LocalDatabaseHelper.instance.insertLabelAudit({
         LocalDatabaseHelper.colLabelId: offlineId,
         LocalDatabaseHelper.colReferenceNumber: auditData['referenceNumber'],
@@ -1831,7 +2171,9 @@ class DeliveryRepository implements ILogisticsRepository {
         LocalDatabaseHelper.columnIsSynced: 0,
       });
 
-      debugPrint("Offline-Audit: Saved audit $offlineId locally for later sync.");
+      debugPrint(
+        "Offline-Audit: Saved audit $offlineId locally for later sync.",
+      );
       return offlineId;
     } catch (e) {
       debugPrint("CRITICAL: Failed to log label audit: $e");
@@ -1839,7 +2181,6 @@ class DeliveryRepository implements ILogisticsRepository {
       return "TMP-${DateTime.now().millisecondsSinceEpoch}";
     }
   }
-
 
   @override
   Future<Map<String, dynamic>> processEndOfDay() async {
@@ -1852,12 +2193,15 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<void> completeProductionEod(String workOrder, List<Map<String, dynamic>> items) async {
+  Future<void> completeProductionEod(
+    String workOrder,
+    List<Map<String, dynamic>> items,
+  ) async {
     try {
-      await _dio.post('Logistics/complete-eod', data: {
-        'workOrder': workOrder,
-        'items': items,
-      });
+      await _dio.post(
+        'Logistics/complete-eod',
+        data: {'workOrder': workOrder, 'items': items},
+      );
     } catch (e) {
       debugPrint('Failed to complete Production EOD via API: $e');
       throw 'Failed to complete Production EOD: ${ApiErrorHandler.getErrorMessage(e)}';
@@ -1865,7 +2209,9 @@ class DeliveryRepository implements ILogisticsRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getProductionSummaryFromServer(DateTime date) async {
+  Future<List<Map<String, dynamic>>> getProductionSummaryFromServer(
+    DateTime date,
+  ) async {
     try {
       final formatted = DateFormat('yyyy-MM-dd').format(date);
       final response = await _dio.get(
@@ -1874,7 +2220,9 @@ class DeliveryRepository implements ILogisticsRepository {
       );
 
       if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        return (response.data as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
       } else {
         throw 'Failed to fetch production summary (status: ${response.statusCode})';
       }
@@ -1890,7 +2238,8 @@ class DeliveryRepository implements ILogisticsRepository {
     final localData = await LocalDatabaseHelper.instance.getAllGlobalSettings();
     final Map<String, String> localMap = {
       for (var row in localData)
-        row[LocalDatabaseHelper.colSettingKey] as String: row[LocalDatabaseHelper.colSettingValue]?.toString() ?? ''
+        row[LocalDatabaseHelper.colSettingKey] as String:
+            row[LocalDatabaseHelper.colSettingValue]?.toString() ?? '',
     };
 
     final schema = localMap['X3Schema'] ?? 'INLDRYRUN';
@@ -1910,7 +2259,8 @@ class DeliveryRepository implements ILogisticsRepository {
       lastLotDate: localMap['LotNumberSetDate'],
       excessDefaultCustomer: localMap['ExcessDefaultCustomer'],
       excessDefaultSalesman: localMap['ExcessDefaultSalesman'],
-      tolerancePercentage: double.tryParse(localMap['TolerancePercentage'] ?? '0.0') ?? 0.0,
+      tolerancePercentage:
+          double.tryParse(localMap['TolerancePercentage'] ?? '0.0') ?? 0.0,
       selectedSchema: schema,
     );
   }
@@ -1918,7 +2268,7 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<void> updateAppSettings(AppSettings settings) async {
     try {
       final username = await _storageService.getUsername();
-      
+
       if (settings.excessDefaultCustomer != null) {
         await LocalDatabaseHelper.instance.updateGlobalSetting(
           'ExcessDefaultCustomer',
@@ -1981,12 +2331,9 @@ class DeliveryRepository implements ILogisticsRepository {
       final dateStr = DateFormat('yyyy-MM-dd').format(newDeliveryDate);
       final response = await _dio.post(
         'Logistics/rollover-order',
-        data: {
-          'soNumber': soNumber,
-          'userSelectedDate': dateStr,
-        },
+        data: {'soNumber': soNumber, 'userSelectedDate': dateStr},
       );
-      
+
       if (response.statusCode == 200 || response.statusCode == 204) {
         // Optimistically update local database
         final db = await LocalDatabaseHelper.instance.database;
@@ -1995,6 +2342,8 @@ class DeliveryRepository implements ILogisticsRepository {
           {
             LocalDatabaseHelper.colDeliveryDate: dateStr,
             'isRolledOver': 1,
+            LocalDatabaseHelper.colExcludeFromEod: 1,
+            LocalDatabaseHelper.columnIsSynced: 0,
           },
           where: '${LocalDatabaseHelper.colOrderNum} = ?',
           whereArgs: [soNumber],
@@ -2014,7 +2363,9 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
       .toList();
 
   final details = (data['details'] as List)
-      .map<Map<String, dynamic>>((j) => SalesOrderDetailDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>(
+        (j) => SalesOrderDetailDto.fromJson(j).toSqlMap(),
+      )
       .toList();
 
   final customers = (data['customers'] as List)
@@ -2026,7 +2377,9 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
       .toList();
 
   final locations = (data['locations'] as List)
-      .map<Map<String, dynamic>>((j) => LocationLookupDto.fromJson(j).toSqlMap())
+      .map<Map<String, dynamic>>(
+        (j) => LocationLookupDto.fromJson(j).toSqlMap(),
+      )
       .toList();
 
   final products = (data['products'] as List)
@@ -2042,15 +2395,18 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
       .toList();
 
   final eodProcessAudits = (data['eodProcessAudits'] as List? ?? [])
-      .map<Map<String, dynamic>>((j) => {
-        'id': j['id'],
-        'eodDate': j['eodDate'],
-        'workOrderNumber': j['workOrderNumber'],
-        'triggeredBy': j['triggeredBy'],
-        'deviceId': j['deviceId'],
-        'createdAt': j['createdAt'],
-        'isDeactivated': (j['isDeactivated'] == true || j['isDeactivated'] == 1) ? 1 : 0,
-      })
+      .map<Map<String, dynamic>>(
+        (j) => {
+          'id': j['id'],
+          'eodDate': j['eodDate'],
+          'workOrderNumber': j['workOrderNumber'],
+          'triggeredBy': j['triggeredBy'],
+          'deviceId': j['deviceId'],
+          'createdAt': j['createdAt'],
+          'isDeactivated':
+              (j['isDeactivated'] == true || j['isDeactivated'] == 1) ? 1 : 0,
+        },
+      )
       .toList();
 
   return {

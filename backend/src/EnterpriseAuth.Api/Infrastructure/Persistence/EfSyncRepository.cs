@@ -507,6 +507,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
                             DeviceId = scanDto.DeviceId ?? request.DeviceId,
+                            ExcludeFromEod = scanDto.ExcludeFromEod,
                             CreatedBy = performedBy,
                             CreatedAt = DateTime.UtcNow
                         };
@@ -766,6 +767,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 {
                     foreach (var update in request.OrderStatusUpdates)
                     {
+                        if (update.ExcludeFromEod.HasValue)
+                        {
+                            var order = await _scanContext.SalesOrders.FirstOrDefaultAsync(o => o.SourceOrderId == update.SoNumber);
+                            if (order != null)
+                            {
+                                order.ExcludeFromEod = update.ExcludeFromEod.Value;
+                            }
+                        }
+
                         if (update.Status == 2)
                         {
                             // Check if already closed

@@ -37,5 +37,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<WorkOrderDto>> GetWorkOrdersAsync(string? searchQuery);
         Task<IEnumerable<BomComponentDto>> GetBomComponentsAsync(IEnumerable<string> parentItemCodes);
         Task<bool> RolloverOrderAsync(string soNumber, DateTime newDate, string performedBy = "system");
+        Task<bool> UpdateEodExclusionAsync(string entityType, string entityId, bool excludeFromEod);
     }
 }
