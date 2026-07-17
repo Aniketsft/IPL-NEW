@@ -88,7 +88,8 @@ class SyncOverlay extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: Column(
+                      child: SingleChildScrollView(
+                        child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildAnimatedIcon(
@@ -160,6 +161,7 @@ class SyncOverlay extends StatelessWidget {
                             ),
                         ],
                       ),
+                    ),
                     ),
                   ),
                 ),

@@ -736,6 +736,8 @@ class DeliveryRepository implements ILogisticsRepository {
                   scan['locationCode']?.toString(),
               LocalDatabaseHelper.columnLot: scan['lot']?.toString(),
               LocalDatabaseHelper.columnBarcode: scan['barcode']?.toString(),
+              LocalDatabaseHelper.columnExcludeFromEod: 
+                  (scan['excludeFromEod'] == true || scan['excludeFromEod'] == 1) ? 1 : 0,
             });
           }
         }
@@ -2078,6 +2080,19 @@ class DeliveryRepository implements ILogisticsRepository {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final syncId = const Uuid().v4();
 
+    // Query local DB to check if source bulk pool is excluded from EOD
+    final db = await LocalDatabaseHelper.instance.database;
+    final sourceOrderResult = await db.query(
+      LocalDatabaseHelper.tableOrders,
+      columns: [LocalDatabaseHelper.colExcludeFromEod],
+      where: '${LocalDatabaseHelper.colOrderNum} = ?',
+      whereArgs: [sourceBulkSoNumber],
+    );
+    int excludeFromEod = 0;
+    if (sourceOrderResult.isNotEmpty) {
+      excludeFromEod = sourceOrderResult.first[LocalDatabaseHelper.colExcludeFromEod] as int? ?? 0;
+    }
+
     // 1. Save positive scan for the target order
     final scanRecord = {
       LocalDatabaseHelper.columnSoNumber: targetSoNumber,
@@ -2093,6 +2108,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
       LocalDatabaseHelper.columnSyncId: syncId,
+      LocalDatabaseHelper.columnExcludeFromEod: excludeFromEod,
     };
 
     // 2. Save negative reconciliation scan for the dummy bulk order
@@ -2110,6 +2126,7 @@ class DeliveryRepository implements ILogisticsRepository {
       LocalDatabaseHelper.columnIsSynced: 0,
       LocalDatabaseHelper.columnIsReflected: 0,
       LocalDatabaseHelper.columnSyncId: const Uuid().v4(),
+      LocalDatabaseHelper.columnExcludeFromEod: excludeFromEod,
     };
 
     await LocalDatabaseHelper.instance.insertScan(scanRecord);

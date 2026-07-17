@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 54;
+  static const _databaseVersion = 55;
 
 
   static const tableScans = 'tbl_scans';
@@ -62,7 +62,7 @@ class LocalDatabaseHelper {
   static const columnLot = 'lot';
   static const columnEaQuantity = 'ea_quantity';
   static const columnBarcode = 'barcode';
-  static const columnExcludeFromEod = 'colExcludeFromEod';
+  static const columnExcludeFromEod = 'exclude_from_eod';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -81,7 +81,7 @@ class LocalDatabaseHelper {
   static const colIsPreparedForShipment = 'is_prepared_for_shipment';
   static const colIsProcessed = 'is_processed';
   static const colTargetLorry = 'targetLorry';
-  static const colExcludeFromEod = 'colExcludeFromEod';
+  static const colExcludeFromEod = 'exclude_from_eod';
   static const colIsRolledOver = 'isRolledOver';
 
   // tbl_order_rollovers columns
@@ -829,6 +829,21 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v54: $e");
       }
     }
+    if (oldVersion < 55) {
+      debugPrint('DB Upgrade: Ensuring exclude_from_eod exists (v55)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableOrders)');
+        if (!columns.any((c) => c['name'] == colExcludeFromEod)) {
+          await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colExcludeFromEod INTEGER DEFAULT 0');
+        }
+        var scanCols = await db.rawQuery('PRAGMA table_info($tableScans)');
+        if (!scanCols.any((c) => c['name'] == columnExcludeFromEod)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnExcludeFromEod INTEGER DEFAULT 0');
+        }
+      } catch (e) {
+        debugPrint("Migration error v55: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1425,7 +1440,7 @@ class LocalDatabaseHelper {
 
       final dirtyOrders = await txn.query(
         tableOrders,
-        where: '$columnIsSynced = 0 AND $colIsPreparedForShipment = 1',
+        where: '$columnIsSynced = 0 OR $colIsRolledOver = 1',
       );
       final Map<String, Map<String, dynamic>> dirtyOrdersMap = {
         for (var o in dirtyOrders)
@@ -1455,11 +1470,22 @@ class LocalDatabaseHelper {
           final soNum = record[colOrderNum];
 
           if (dirtyOrdersMap.containsKey(soNum)) {
-            // MERGE: Preserve local dirty isPreparedForShipment, status and isSynced status
             final local = dirtyOrdersMap[soNum]!;
-            record[colIsPreparedForShipment] = local[colIsPreparedForShipment];
-            record[colStatus] = local[colStatus];
-            record[columnIsSynced] = 0;
+            final bool isLocalDirty = local[columnIsSynced] == 0;
+
+            if (isLocalDirty) {
+              // MERGE: Preserve local dirty isPreparedForShipment, status and isSynced status
+              record[colIsPreparedForShipment] = local[colIsPreparedForShipment];
+              record[colStatus] = local[colStatus];
+              record[columnIsSynced] = 0;
+            }
+            
+            // Always preserve rollover state regardless of dirty status
+            record[colIsRolledOver] = local[colIsRolledOver];
+            if (local[colIsRolledOver] == 1) {
+              record[colDeliveryDate] = local[colDeliveryDate];
+              record[colExcludeFromEod] = local[colExcludeFromEod];
+            }
           }
 
           batch.insert(

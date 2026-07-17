@@ -515,7 +515,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
                             DeviceId = scanDto.DeviceId ?? request.DeviceId,
-                            ExcludeFromEod = scanDto.ExcludeFromEod,
+                            ExcludeFromEod = scanDto.ExcludeFromEod || line.Order.ExcludeFromEod,
                             CreatedBy = performedBy,
                             CreatedAt = DateTime.UtcNow
                         };
@@ -590,6 +590,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                         if (sourceBulkSo != null)
                         {
+                            // Check if the source bulk order is excluded from EOD (rolled over)
+                            var sourceOrder = await _scanContext.SalesOrders
+                                .FirstOrDefaultAsync(o => o.SourceOrderId == sourceBulkSo);
+                                
+                            if (sourceOrder != null && sourceOrder.ExcludeFromEod)
+                            {
+                                transaction.ExcludeFromEod = true;
+                            }
+
                             if (excessTracker.TryGetValue((sourceBulkSo, scanDto.ItemCode), out var poolExcess))
                             {
                                 poolExcess.AllocatedQuantity += scanDto.ScanAmountKg;

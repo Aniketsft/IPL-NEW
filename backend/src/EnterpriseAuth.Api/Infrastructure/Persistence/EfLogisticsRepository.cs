@@ -990,6 +990,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (dto.AllocateAmountKg > excess.RemainingExcess)
                     throw new Exception($"Insufficient excess. Requested: {dto.AllocateAmountKg}, Available: {excess.RemainingExcess}");
 
+                // Fetch source order to get real-time rollover status
+                var sourceOrder = await _scanContext.SalesOrders
+                    .FirstOrDefaultAsync(o => o.SourceOrderId == dto.SourceBulkSoNumber);
+                bool isRolledOver = sourceOrder?.ExcludeFromEod ?? excess.ExcludeFromEod;
+
                 // 2. Deduct from excess pool
                 excess.AllocatedQuantity += dto.AllocateAmountKg;
                 excess.RemainingExcess -= dto.AllocateAmountKg;
@@ -1014,7 +1019,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ItemStatus = "A",
                     SyncId = Guid.NewGuid().ToString(),
                     CreatedBy = dto.AllocatedBy ?? "system",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    ExcludeFromEod = isRolledOver
                 };
                 _scanContext.ProductionScanTransactions.Add(scan);
 
