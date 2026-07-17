@@ -14,6 +14,7 @@ class SalesOrderDto {
   final String? salesman;
   final bool isPreparedForShipment;
   final bool isProcessed;
+  final bool excludeFromEod;
   final String? targetLorry;
 
   SalesOrderDto({
@@ -32,6 +33,7 @@ class SalesOrderDto {
     this.salesman,
     this.isPreparedForShipment = false,
     this.isProcessed = false,
+    this.excludeFromEod = false,
     this.targetLorry,
   });
 
@@ -59,6 +61,7 @@ class SalesOrderDto {
       salesman: json['salesman']?.toString(),
       isPreparedForShipment: json['isPreparedForShipment'] == true,
       isProcessed: json['isProcessed'] == true,
+      excludeFromEod: json['excludeFromEod'] == true,
       targetLorry: json['targetLorry']?.toString(),
     );
   }
@@ -81,6 +84,7 @@ class SalesOrderDto {
       'isSynced': 1, // Server-provided data is officially synced
       'is_prepared_for_shipment': isPreparedForShipment ? 1 : 0,
       'is_processed': isProcessed ? 1 : 0,
+      'exclude_from_eod': excludeFromEod ? 1 : 0,
       'targetLorry': targetLorry,
     };
   }

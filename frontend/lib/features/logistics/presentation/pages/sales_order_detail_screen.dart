@@ -667,10 +667,17 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
       );
 
   Future<void> _handleRollover() async {
+    final nextDay = widget.order.date.add(const Duration(days: 1));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // firstDate must be strictly after the current order's date, AND not in the past
+    DateTime calculatedFirstDate = nextDay.isBefore(today) ? today : nextDay;
+
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: widget.order.date.add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
+      initialDate: calculatedFirstDate,
+      firstDate: calculatedFirstDate,
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 

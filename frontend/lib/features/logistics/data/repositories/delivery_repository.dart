@@ -1538,6 +1538,7 @@ class DeliveryRepository implements ILogisticsRepository {
           row[LocalDatabaseHelper.colIsPreparedForShipment] == 1,
       isProcessed: row[LocalDatabaseHelper.colIsProcessed] == 1,
       isRolledOver: row[LocalDatabaseHelper.colIsRolledOver] == 1,
+      excludeFromEod: row[LocalDatabaseHelper.colExcludeFromEod] == 1,
     );
   }
 

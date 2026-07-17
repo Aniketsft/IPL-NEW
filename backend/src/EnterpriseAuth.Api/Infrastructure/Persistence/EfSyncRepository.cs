@@ -195,7 +195,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         Salesman = order.Salesman ?? "INTERNAL",
                         Status = order.Status,
                         Source = "Internal",
-                        IsProcessed = order.IsProcessed
+                        IsProcessed = order.IsProcessed,
+                        ExcludeFromEod = order.ExcludeFromEod
                     });
                 }
 
@@ -249,6 +250,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     .Select(o => o.SourceOrderId)
                     .ToListAsync();
                 
+                var excludedFromEodOrders = await _scanContext.SalesOrders
+                    .Where(o => allSoNumbers.Contains(o.SourceOrderId) && o.ExcludeFromEod)
+                    .Select(o => o.SourceOrderId)
+                    .ToListAsync();
+
                 foreach (var header in package.Orders)
                 {
                     if (closedSoNumbers.Contains(header.SohNum))
@@ -257,6 +263,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         header.IsPreparedForShipment = true;
                     if (processedOrders.Contains(header.SohNum))
                         header.IsProcessed = true;
+                    if (excludedFromEodOrders.Contains(header.SohNum))
+                        header.ExcludeFromEod = true;
                 }
             }
 

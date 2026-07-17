@@ -19,6 +19,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? TargetLorry { get; set; }
         public bool IsPreparedForShipment { get; set; }
         public bool IsProcessed { get; set; }
+        public bool ExcludeFromEod { get; set; }
         public string StatusLabel => Status == 2 ? "Closed" : "Open";
     }
 }
