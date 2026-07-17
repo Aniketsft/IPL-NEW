@@ -40,7 +40,7 @@ class SalesOrderCard extends StatelessWidget {
         ],
       ),
       child: InkWell(
-        onTap: () async {
+        onTap: (isDeliveryMode && !hasBulkAvailable) ? null : () async {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(

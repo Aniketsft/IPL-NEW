@@ -1113,6 +1113,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         itemStatus ||
         widget.order.isPreparedForShipment ||
         (!widget.isDeliveryMode && widget.order.isClosed);
+    final bool hasBulk = _excessPoolSummaries[item.itemCode] != null && 
+        _excessPoolSummaries[item.itemCode]! > 0 &&
+        !widget.order.orderNumber.startsWith('BLK-') &&
+        !widget.order.orderNumber.startsWith('CUTS-');
 
     return InkWell(
       onLongPress:
@@ -1121,7 +1125,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           ? null
           : () => _toggleItemPreparation(item),
       onTap: () async {
-        if (widget.isDeliveryMode) {
+        if (widget.isDeliveryMode && !hasBulk) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Long-press the item to validate shipment.'),

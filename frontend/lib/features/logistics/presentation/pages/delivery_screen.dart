@@ -37,6 +37,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
 
   List<SalesOrder> _orders = [];
   List<SalesOrder> _filteredOrders = [];
+  Set<String> _ordersWithBulkAvailable = {};
   bool _isLoading = false;
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
@@ -80,10 +81,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
       final repository = context.read<DeliveryRepository>();
       final soNumbers = await repository.getScannedDeliveryOrderNumbers();
       final results = await repository.fetchSalesOrderHeadersByNumbers(soNumbers);
+      final bulkOrders = await repository.getOrdersWithExcessAvailable();
 
       setState(() {
         _orders = results;
         _filteredOrders = results;
+        _ordersWithBulkAvailable = bulkOrders;
         _isLoading = false;
       });
     } catch (e) {
@@ -793,11 +796,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                     itemCount: _filteredOrders.length,
                     padding: const EdgeInsets.all(16),
                     itemBuilder: (context, index) {
+                      final order = _filteredOrders[index];
                       return SalesOrderCard(
-                        order: _filteredOrders[index],
+                        order: order,
                         onRefresh: _fetchOrders,
                         isDeliveryMode: true,
                         permissions: widget.permissions,
+                        hasBulkAvailable: _ordersWithBulkAvailable.contains(order.orderNumber),
                       );
                     },
                   ),
