@@ -79,7 +79,7 @@ class SalesOrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (order.isRolledOver) ...[
+                        if (order.isRolledOverActive) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

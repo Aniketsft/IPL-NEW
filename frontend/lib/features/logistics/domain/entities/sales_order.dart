@@ -141,6 +141,17 @@ class SalesOrder extends Equatable {
     );
   }
 
+  /// Evaluates whether the order should actively display the "Rolled Over" badge.
+  /// It uses the persistent [excludeFromEod] flag as the source of truth,
+  /// and ensures the badge automatically disappears once the target delivery date arrives.
+  bool get isRolledOverActive {
+    if (!excludeFromEod) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final delDate = DateTime(date.year, date.month, date.day);
+    return today.isBefore(delDate);
+  }
+
   @override
   List<Object?> get props => [
     id,
