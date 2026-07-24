@@ -63,6 +63,13 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   double _localManufacturedQty = 0.0;
   double _localEaScannedQty = 0.0;
 
+  bool get _canUpdate {
+    final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+    final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+    final bool isBulkContext = _selectedBulkPool != null;
+    return canUpdateAll || (canBulkAllocate && isBulkContext);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -76,7 +83,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   @override
   void onHardwareScan(String data) {
-    if (!widget.permissions.contains('manufacturing.all.update')) {
+    if (!_canUpdate) {
       AppUI.showErrorSnackBar(context: context, message: 'You do not have permission to scan items.');
       return;
     }
@@ -255,7 +262,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   Future<void> _saveBatch() async {
-    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    if (!_canUpdate) return;
     if (_scans.isEmpty || _isSaving) return;
     // Implementation of batch saving logic would go here...
   }
@@ -317,7 +324,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
 
   void _removeScan(int index) {
-    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    if (!_canUpdate) return;
     setState(() {
       _scans.removeAt(index);
     });
@@ -2139,7 +2146,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   void _showManualBarcodeDialog() {
-    if (!widget.permissions.contains('manufacturing.all.update')) {
+    if (!_canUpdate) {
       AppUI.showErrorSnackBar(context: context, message: 'You do not have permission to add manual scans.');
       return;
     }

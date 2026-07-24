@@ -48,19 +48,19 @@ class _ManufacturingScreenState extends State<ManufacturingScreen> {
               onTap: () => Navigator.pop(context),
             ),
           */
-          if (_hasAccess('manufacturing.all.read'))
+          if (_hasAccess('manufacturing.all.read') || _hasAccess('manufacturing.bulk_allocate.read'))
             _MenuItem(
               title: 'View sales order',
               icon: Icons.show_chart_rounded,
               targetScreen: ViewSalesOrderScreen(permissions: widget.permissions),
             ),
-          if (_hasAccess('manufacturing.all.read'))
+          if (_hasAccess('manufacturing.all.read') || _hasAccess('manufacturing.bulk_allocate.read'))
             _MenuItem(
               title: 'Manufacturing Tracking',
               icon: Icons.description_outlined,
               targetScreen: ProductionTrackingProductListScreen(permissions: widget.permissions),
             ),
-          if (_hasAccess('manufacturing.all.read'))
+          if (_hasAccess('manufacturing.all.read') || _hasAccess('manufacturing.bulk_allocate.read'))
             _MenuItem(
               title: 'End of Day',
               icon: Icons.event_busy_rounded,

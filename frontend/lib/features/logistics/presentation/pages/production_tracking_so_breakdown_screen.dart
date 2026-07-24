@@ -40,7 +40,16 @@ class _ProductionTrackingSoBreakdownScreenState
 
 
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
-    if (!widget.permissions.contains('manufacturing.all.update')) {
+    final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+    final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+    
+    final blocState = context.read<ManufacturingBloc>().state;
+    bool hasBulkBadge = false;
+    if (blocState is ProductionTrackingLoaded) {
+      hasBulkBadge = blocState.excessPools[item.itemCode] != null;
+    }
+
+    if (!canUpdateAll && !(canBulkAllocate && hasBulkBadge)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You do not have permission to update manufacturing tracking.')),
       );

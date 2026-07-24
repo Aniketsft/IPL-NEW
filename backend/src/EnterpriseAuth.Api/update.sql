@@ -451,5 +451,14 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM [Permissions] WHERE [Name] = 'manufacturing.bulk_allocate.read')
+BEGIN
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.bulk_allocate.read', 'Read access to bulk_allocate in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.bulk_allocate.create', 'Create access to bulk_allocate in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.bulk_allocate.update', 'Update access to bulk_allocate in manufacturing');
+    INSERT INTO [Permissions] ([Id], [Name], [Description]) VALUES (NEWID(), 'manufacturing.bulk_allocate.delete', 'Delete access to bulk_allocate in manufacturing');
+END
+GO
+
 COMMIT;
 GO

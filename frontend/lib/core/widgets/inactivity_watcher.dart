@@ -22,7 +22,7 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
   // 30 minutes timeout for inactivity
   static const Duration timeoutDuration = Duration(minutes: 30);
   // 5 minutes interval to refresh token if active
-  static const Duration refreshInterval = Duration(minutes: 30);
+  static const Duration refreshInterval = Duration(minutes: 5);
 
   @override
   void initState() {
@@ -51,15 +51,15 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
     if (authState is Authenticated) {
       await context.read<AuthRepository>().refreshToken();
 
-      // Enforce Offline TTL
-      final isValid = await context
-          .read<AuthRepository>()
-          .isOfflineSessionValid();
-      if (!isValid) {
-        if (mounted) {
-          context.read<AuthBloc>().add(LogoutRequested());
-        }
-      }
+      // // Enforce Offline TTL
+      // final isValid = await context
+      //     .read<AuthRepository>()
+      //     .isOfflineSessionValid();
+      // if (!isValid) {
+      //   if (mounted) {
+      //     context.read<AuthBloc>().add(LogoutRequested());
+      //   }
+      // }
     }
   }
 

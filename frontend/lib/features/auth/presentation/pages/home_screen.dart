@@ -301,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Icons.local_shipping_rounded,
           DeliveryScreen(permissions: widget.permissions),
         ),
-      if (_hasAccess('manufacturing.all.read'))
+      if (_hasAccess('manufacturing.all.read') || _hasAccess('manufacturing.bulk_allocate.read'))
         _buildMenuButton(
           context,
           'Manufacturing',

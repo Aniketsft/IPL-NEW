@@ -192,13 +192,33 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _toggleItemPreparation(SalesOrderDetail item) async {
-    if (!widget.permissions.contains('manufacturing.all.update')) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You do not have permission to perform this action.')),
-        );
+    final bool hasBulk = _excessPoolSummaries[item.itemCode] != null && 
+        _excessPoolSummaries[item.itemCode]! > 0 &&
+        !widget.order.orderNumber.startsWith('BLK-') &&
+        !widget.order.orderNumber.startsWith('CUTS-');
+    if (widget.isDeliveryMode) {
+      final bool canUpdateDelivery = widget.permissions.contains('logistics.delivery.update') || 
+                                     widget.permissions.contains('manufacturing.all.update');
+      if (!canUpdateDelivery) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to perform this action.')),
+          );
+        }
+        return;
       }
-      return;
+    } else {
+      final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+      final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+
+      if (!canUpdateAll && !(canBulkAllocate && hasBulk)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to perform this action.')),
+          );
+        }
+        return;
+      }
     }
 
     // If prepared for shipment, nothing can be modified
@@ -400,7 +420,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _bulkUpdateStatus() async {
-    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    if (widget.isDeliveryMode) {
+      final bool canUpdateDelivery = widget.permissions.contains('logistics.delivery.update') || 
+                                     widget.permissions.contains('manufacturing.all.update');
+      if (!canUpdateDelivery) return;
+    } else {
+      final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+      final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+      if (!canUpdateAll && !canBulkAllocate) return;
+    }
 
     if (_selectedItemCodes.isEmpty) return;
 
@@ -527,7 +555,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _prepareForShipment() async {
-    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    if (widget.isDeliveryMode) {
+      if (!widget.permissions.contains('logistics.delivery.update') && 
+          !widget.permissions.contains('manufacturing.all.update')) return;
+    } else {
+      if (!widget.permissions.contains('manufacturing.all.update')) return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -904,7 +937,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                     },
                   ),
           ),
-          if (widget.permissions.contains('manufacturing.all.update'))
+          if (widget.isDeliveryMode 
+              ? (widget.permissions.contains('logistics.delivery.update') || widget.permissions.contains('manufacturing.all.update'))
+              : widget.permissions.contains('manufacturing.all.update'))
             _buildFooter(),
         ],
       ),
@@ -1124,11 +1159,14 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
               (!widget.isDeliveryMode && widget.order.isClosed))
           ? null
           : () => _toggleItemPreparation(item),
-      onTap: () async {
-        if (widget.isDeliveryMode && !hasBulk) {
+      onTap: widget.isDeliveryMode ? null : () async {
+        if (!widget.isDeliveryMode && 
+            !widget.permissions.contains('manufacturing.all.update') && 
+            widget.permissions.contains('manufacturing.bulk_allocate.update') && 
+            !hasBulk) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Long-press the item to validate shipment.'),
+              content: Text('You only have access to bulk allocation items.'),
               duration: Duration(seconds: 2),
             ),
           );

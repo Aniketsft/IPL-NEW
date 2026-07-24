@@ -459,8 +459,29 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   color: isDark ? Colors.white12 : Colors.black12,
                 ),
-                const Expanded(
-                  child: SizedBox(),
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      final bulkAccess = permissions.firstWhere(
+                        (p) => p.moduleId == 'manufacturing.bulk_allocate',
+                        orElse: () => const ModuleAccess(moduleId: 'manufacturing.bulk_allocate'),
+                      );
+                      final isBulk = bulkAccess.canRead;
+                      return _buildSwitchTile(
+                        label: 'Bulk Allocation',
+                        sublabel: 'Allow bulk allocation',
+                        value: isBulk,
+                        activeColor: Theme.of(context).primaryColor,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          onUpdate('manufacturing.bulk_allocate', 'read', v);
+                          onUpdate('manufacturing.bulk_allocate', 'create', v);
+                          onUpdate('manufacturing.bulk_allocate', 'update', v);
+                          onUpdate('manufacturing.bulk_allocate', 'delete', v);
+                        },
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
