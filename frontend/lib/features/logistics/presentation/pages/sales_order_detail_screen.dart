@@ -580,7 +580,10 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         return;
       }
     } else {
-      if (!widget.permissions.contains('manufacturing.all.update')) {
+      final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+      final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+      
+      if (!canUpdateAll && !canBulkAllocate) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('You do not have permission to perform this action.')),
@@ -649,7 +652,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   }
 
   Future<void> _closeOrder() async {
-    if (!widget.permissions.contains('manufacturing.all.update')) return;
+    final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
+    final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
+    if (!canUpdateAll && !canBulkAllocate) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
