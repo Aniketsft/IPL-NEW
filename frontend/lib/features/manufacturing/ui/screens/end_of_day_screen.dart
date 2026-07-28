@@ -14,6 +14,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import '../../../../core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Model
 class WorkOrderHeader {
@@ -45,6 +46,7 @@ class ProductionTrackingItem {
   final double processedEaQuantity;
   final double unprocessedEaQuantity;
   final DateTime? createdAt;
+  final String workOrderNumber;
 
   const ProductionTrackingItem({
     required this.soNumber,
@@ -63,6 +65,7 @@ class ProductionTrackingItem {
     this.processedEaQuantity = 0.0,
     this.unprocessedEaQuantity = 0.0,
     this.createdAt,
+    this.workOrderNumber = '',
   });
 
   DateTime? get expiryDate => createdAt?.add(const Duration(days: 5));
@@ -87,6 +90,7 @@ class ProductionTrackingItem {
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'].toString())
             : null,
+        workOrderNumber: json['workOrderNumber'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -101,6 +105,11 @@ class ProductionTrackingItem {
         'location': location,
         'statusLabel': statusLabel,
         'eaQuantity': eaQuantity,
+        'processedQuantity': processedQuantity,
+        'unprocessedQuantity': unprocessedQuantity,
+        'processedEaQuantity': processedEaQuantity,
+        'unprocessedEaQuantity': unprocessedEaQuantity,
+        'workOrderNumber': workOrderNumber,
         'createdAt': createdAt?.toIso8601String(),
       };
 }
@@ -115,7 +124,7 @@ class EndOfDayScreen extends StatefulWidget {
 }
 
 class _EndOfDayScreenState extends State<EndOfDayScreen> {
-  WorkOrderHeader? _selectedWorkOrder;
+  String? _selectedWorkOrder;
   List<WorkOrderHeader> _workOrders = [];
   List<ProductionTrackingItem> _summaryItems = [];
   bool _isLoading = false;
@@ -125,6 +134,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   String _selectedSite = 'IPL';
   bool _isEodDone = false;
   bool _isSendingToX3 = false;
+  // Tracks whether the server has any unprocessed StagingEod rows (IsProcessed = 0)
+  // This drives the "Export to X3" button independently of local audit state.
+  bool _hasPendingEod = false;
 
   bool get _canUpdateEod {
     return widget.permissions.contains('manufacturing.eod.update') ||
@@ -139,9 +151,23 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
     super.initState();
     _fetchWorkOrders();
     _fetchProductionSummary(_selectedDate, _selectedSite);
+    _checkPendingEod();
   }
 
 
+
+  /// Queries the server for the count of unprocessed StagingEod rows.
+  /// Enables the Export to X3 button whenever count > 0.
+  Future<void> _checkPendingEod() async {
+    try {
+      final networkService = context.read<NetworkService>();
+      final response = await networkService.dio.get('Logistics/pending-eod-count');
+      final count = (response.data as Map<String, dynamic>?)?['pendingCount'] as int? ?? 0;
+      if (mounted) setState(() => _hasPendingEod = count > 0);
+    } catch (e) {
+      debugPrint('Could not check pending EOD count: $e');
+    }
+  }
 
   Future<void> _fetchWorkOrders() async {
     setState(() => _isLoading = true);
@@ -154,8 +180,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           .map((e) => WorkOrderHeader.fromJson(e as Map<String, dynamic>))
           .toList();
 
+      final prefs = await SharedPreferences.getInstance();
+      final savedWo = prefs.getString('eod_selected_wo');
+
       setState(() {
         _workOrders = items;
+        if (savedWo != null && items.any((w) => w.workOrder == savedWo)) {
+          _selectedWorkOrder = savedWo;
+        }
         _errorMessage = null;
       });
       
@@ -173,11 +205,18 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       final db = LocalDatabaseHelper.instance;
       final localData = await db.getAllWorkOrders();
       if (localData.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final savedWo = prefs.getString('eod_selected_wo');
+
         setState(() {
           _workOrders = localData.map((e) => WorkOrderHeader(
             workOrder: e['workOrder'] as String,
             date: e['date'] != null ? DateTime.tryParse(e['date'].toString()) : null,
           )).toList();
+          
+          if (savedWo != null && _workOrders.any((w) => w.workOrder == savedWo)) {
+            _selectedWorkOrder = savedWo;
+          }
           _errorMessage = null;
         });
       } else {
@@ -217,6 +256,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
           processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
           unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+          workOrderNumber: e['workOrderNumber'] as String? ?? '',
           createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
         )).toList();
         _errorMessage = null;
@@ -273,11 +313,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
     try {
       final db = LocalDatabaseHelper.instance;
       final timestamp = DateTime.now().toIso8601String();
+      final batchEodTransactionId = const Uuid().v4();
 
-      // Clean up any previous unsynced snapshots for this Work Order to prevent duplicates
-      await db.deleteUnsyncedStagingEodByWorkOrder(_selectedWorkOrder!.workOrder);
+      // Clean up any previous unsynced staging EOD table for this specific work order
+      await db.deleteUnsyncedStagingEodByWorkOrder(_selectedWorkOrder!);
 
-      // Insert staging EOD and local status
+      // Save each unprocessed item (with quantity > 0) to local StagingEod
       for (var item in _summaryItems) {
         if (item.unprocessedQuantity <= 0) continue; // Filter out zero-quantity items
         if (item.statusLabel != 'A') continue; // Only populate status A in stagingeod
@@ -285,9 +326,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         final mfgDate = item.createdAt ?? DateTime.now();
         final expiryDate = mfgDate.add(const Duration(days: 5));
         
-        await db.insertStagingEod({
+        await db.insertStagingEodWithScans({
           'id': const Uuid().v4(),
-          'soNumber': _selectedWorkOrder!.workOrder,
+          'soNumber': _selectedWorkOrder!,
           'productCode': item.itemCode,
           'manufactured_quantity': item.unprocessedQuantity,
           'timestamp': timestamp,
@@ -301,13 +342,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'location3': '',
           'ea_quantity': item.unprocessedEaQuantity,
           'lot': item.lotNumber,
-        });
+          'eodTransactionId': batchEodTransactionId,
+        }, batchEodTransactionId);
       }
 
-      await db.markEodCompleted(DateFormat('yyyy-MM-dd').format(_selectedDate), _selectedWorkOrder!.workOrder);
+      await db.markEodCompleted(DateFormat('yyyy-MM-dd').format(_selectedDate), _selectedWorkOrder!);
       await db.insertEodProcessAudit(
         eodDate: '${DateFormat('yyyy-MM-dd').format(_selectedDate)}_$timestamp',
-        workOrderNumber: _selectedWorkOrder!.workOrder,
+        workOrderNumber: _selectedWorkOrder!,
       );
 
       // Offline Audit Log
@@ -316,21 +358,23 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         action: 'COMPLETE',
         payload: jsonEncode({
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-          'workOrder': _selectedWorkOrder!.workOrder,
+          'workOrder': _selectedWorkOrder!,
           'itemCount': _summaryItems.where((i) => i.unprocessedQuantity > 0).length,
           'timestamp': timestamp,
         }),
       );
 
       // Trigger BOM Expansion on server (Online Only)
+      bool serverSuccess = false;
       try {
         await networkService.dio.post('Logistics/complete-eod', data: {
-          'workOrder': _selectedWorkOrder!.workOrder,
+          'workOrder': _selectedWorkOrder!,
           'items': _summaryItems
-              .where((e) => e.manufactured > 0) // Filter out zero-quantity items
+              .where((e) => e.unprocessedQuantity > 0 || e.unprocessedEaQuantity > 0) // Only send unprocessed items
               .map((e) => e.toJson())
               .toList(),
         });
+        serverSuccess = true;
         debugPrint('Server-side processing triggered successfully');
       } catch (e) {
         debugPrint('Server-side BOM expansion failed (offline or error): $e');
@@ -341,6 +385,13 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         _isEodDone = true;
         _errorMessage = null;
       });
+
+      // Immediately refresh the production summary so the UI shows updated
+      // processedQuantity / unprocessedQuantity values from the server.
+      if (serverSuccess && mounted) {
+        await _fetchProductionSummary(_selectedDate, _selectedSite);
+        await _checkPendingEod();
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -358,7 +409,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   Future<void> _printReport() async {
     try {
       await EodPdfGenerator.generateAndPrint(
-        workOrder: _selectedWorkOrder?.workOrder ?? 'N/A',
+        workOrder: _selectedWorkOrder ?? 'N/A',
         productionDate: _selectedDate,
         items: _summaryItems.where((item) => item.manufactured > 0).toList(),
       );
@@ -616,9 +667,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           )
         else
           IconButton(
-            tooltip: 'Export to Sage X3',
-            icon: Icon(Icons.send_and_archive, color: _canUpdateEod ? _amber : Colors.grey),
-            onPressed: (_isEodDone && _canUpdateEod) ? _processProductionEod : null,
+            tooltip: _hasPendingEod ? 'Export to Sage X3 (${_hasPendingEod ? "Pending" : "Up to date"})' : 'Export to Sage X3',
+            icon: Icon(
+              Icons.send_and_archive,
+              color: (_hasPendingEod && _canUpdateEod) ? _amber : Colors.grey,
+            ),
+            onPressed: (_hasPendingEod && _canUpdateEod && !_isSendingToX3) ? _processProductionEod : null,
           ),
       ],
       body: Column(
@@ -745,7 +799,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<WorkOrderHeader>(
+        child: DropdownButton<String>(
           value: _selectedWorkOrder,
           isExpanded: true,
           hint: Text(
@@ -756,8 +810,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           icon: const Icon(Icons.arrow_drop_down, color: _amber),
           itemHeight: 56.0,
           items: _workOrders.map((w) {
-            return DropdownMenuItem<WorkOrderHeader>(
-              value: w,
+            return DropdownMenuItem<String>(
+              value: w.workOrder,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -782,12 +836,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
               ),
             );
           }).toList(),
-          onChanged: (v) {
+          onChanged: (v) async {
+            if (v != null) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('eod_selected_wo', v);
+            }
             setState(() {
               _selectedWorkOrder = v;
             });
-            // Selected work order just stays in memory for the final save
-            // No need to fetch production data again, it's filtered by date now
           },
         ),
       ),
@@ -926,14 +982,36 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           Icon(Icons.label_outline, size: 14, color: isDark ? Colors.white38 : Colors.black38),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              'LOT: ${scan.lotNumber.isNotEmpty ? scan.lotNumber : "N/A"}',
-              style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'LOT: ${scan.lotNumber.isNotEmpty ? scan.lotNumber : "N/A"}',
+                  style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
+                ),
+                if (scan.workOrderNumber.isNotEmpty)
+                  Text(
+                    'WO: ${scan.workOrderNumber}',
+                    style: const TextStyle(fontSize: 10, color: _amber, fontWeight: FontWeight.bold),
+                  ),
+              ],
             ),
           ),
-          Text(
-            qtyDisplay,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                qtyDisplay,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
+              ),
+              Text(
+                scan.workOrderNumber.isNotEmpty ? 'Processed' : 'Unprocessed',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: scan.workOrderNumber.isNotEmpty ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -21,9 +21,9 @@ class EodPdfGenerator {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) => [
-          _buildHeader(workOrder, dateStr, printTime),
+          _buildHeader(dateStr, printTime),
           pw.SizedBox(height: 20),
-          _buildTable(filteredItems, productionDate),
+          _buildTable(filteredItems),
           pw.SizedBox(height: 20),
           _buildFooter(filteredItems),
         ],
@@ -37,7 +37,7 @@ class EodPdfGenerator {
     );
   }
 
-  static pw.Widget _buildHeader(String wo, String date, String time) {
+  static pw.Widget _buildHeader(String date, String time) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -75,11 +75,7 @@ class EodPdfGenerator {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(
-                    'Work Order: $wo',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                  ),
-                  pw.Text('Production Date: $date'),
+                  pw.Text('Production Date: $date', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                 ],
               ),
             ),
@@ -89,11 +85,9 @@ class EodPdfGenerator {
     );
   }
 
-  static pw.Widget _buildTable(
-    List<ProductionTrackingItem> items,
-    DateTime productionDate,
-  ) {
+  static pw.Widget _buildTable(List<ProductionTrackingItem> items) {
     final headers = [
+      'WO',
       'Code',
       'Description',
       'Processed',
@@ -104,50 +98,102 @@ class EodPdfGenerator {
       'Lot',
     ];
 
-    // Group items by itemCode for the PDF
-    final Map<String, List<ProductionTrackingItem>> grouped = {};
+    // Group items by itemCode for the PDF to find products spanning multiple WOs
+    final Map<String, List<ProductionTrackingItem>> groupedByCode = {};
     for (final item in items) {
-      grouped.putIfAbsent(item.itemCode, () => []).add(item);
+      groupedByCode.putIfAbsent(item.itemCode, () => []).add(item);
     }
 
-    final sortedKeys = grouped.keys.toList()..sort();
-    final tableData = sortedKeys.map((code) {
-      final productItems = grouped[code]!;
-      final first = productItems.first;
-      final totalQty = productItems.fold<double>(0, (sum, i) => sum + i.manufactured);
-      final totalEa = productItems.fold<double>(0, (sum, i) => sum + i.eaQuantity);
-      
-      final processedQty = productItems.fold<double>(0, (sum, i) => sum + i.processedQuantity);
-      final processedEa = productItems.fold<double>(0, (sum, i) => sum + i.processedEaQuantity);
-      
-      final unprocessedQty = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedQuantity);
-      final unprocessedEa = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedEaQuantity);
-      
-      final lot = first.lotNumber;
-      final location = first.location;
-      final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
+    final List<List<dynamic>> tableData = [];
 
-      String totalStr = totalQty.toStringAsFixed(2);
-      String procStr = processedQty.toStringAsFixed(2);
-      String unprocStr = unprocessedQty.toStringAsFixed(2);
+    final sortedCodes = groupedByCode.keys.toList()..sort();
+    for (final code in sortedCodes) {
+      final productItems = groupedByCode[code]!;
       
-      if (isEA) {
-        totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
-        procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
-        unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
+      // Group by WorkOrder for this specific product
+      final Map<String, List<ProductionTrackingItem>> groupedByWO = {};
+      for (final item in productItems) {
+        final woStr = item.workOrderNumber.isNotEmpty ? item.workOrderNumber : 'PENDING';
+        groupedByWO.putIfAbsent(woStr, () => []).add(item);
       }
 
-      return [
-        code,
-        first.description,
-        procStr,
-        unprocStr,
-        totalStr,
-        first.unit,
-        location,
-        lot,
-      ];
-    }).toList();
+      final sortedWOs = groupedByWO.keys.toList()..sort();
+      for (final wo in sortedWOs) {
+        final woItems = groupedByWO[wo]!;
+        final first = woItems.first;
+        final totalQty = woItems.fold<double>(0, (sum, i) => sum + i.manufactured);
+        final totalEa = woItems.fold<double>(0, (sum, i) => sum + i.eaQuantity);
+        
+        final processedQty = woItems.fold<double>(0, (sum, i) => sum + i.processedQuantity);
+        final processedEa = woItems.fold<double>(0, (sum, i) => sum + i.processedEaQuantity);
+        
+        final unprocessedQty = woItems.fold<double>(0, (sum, i) => sum + i.unprocessedQuantity);
+        final unprocessedEa = woItems.fold<double>(0, (sum, i) => sum + i.unprocessedEaQuantity);
+        
+        final lot = first.lotNumber;
+        final location = first.location;
+        final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
+
+        String totalStr = totalQty.toStringAsFixed(2);
+        String procStr = processedQty.toStringAsFixed(2);
+        String unprocStr = unprocessedQty.toStringAsFixed(2);
+        
+        if (isEA) {
+          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
+          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
+          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
+        }
+
+        tableData.add([
+          wo,
+          first.itemCode,
+          first.description,
+          procStr,
+          unprocStr,
+          totalStr,
+          first.unit,
+          location,
+          lot,
+        ]);
+      }
+
+      // If this product spans multiple WOs, add a Subtotal row
+      if (sortedWOs.length > 1) {
+        final first = productItems.first;
+        final totalQty = productItems.fold<double>(0, (sum, i) => sum + i.manufactured);
+        final totalEa = productItems.fold<double>(0, (sum, i) => sum + i.eaQuantity);
+        
+        final processedQty = productItems.fold<double>(0, (sum, i) => sum + i.processedQuantity);
+        final processedEa = productItems.fold<double>(0, (sum, i) => sum + i.processedEaQuantity);
+        
+        final unprocessedQty = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedQuantity);
+        final unprocessedEa = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedEaQuantity);
+        
+        final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
+
+        String totalStr = totalQty.toStringAsFixed(2);
+        String procStr = processedQty.toStringAsFixed(2);
+        String unprocStr = unprocessedQty.toStringAsFixed(2);
+        
+        if (isEA) {
+          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
+          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
+          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
+        }
+
+        tableData.add([
+          'TOTAL',
+          first.itemCode,
+          'Total for ${first.itemCode}',
+          procStr,
+          unprocStr,
+          totalStr,
+          first.unit,
+          'MULTIPLE',
+          'MULTIPLE',
+        ]);
+      }
+    }
 
     return pw.TableHelper.fromTextArray(
       headers: headers,
@@ -156,29 +202,43 @@ class EodPdfGenerator {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
+        fontSize: 8, // Decreased font size for headers
       ),
+      headerAlignments: {
+        0: pw.Alignment.center,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.center,
+        4: pw.Alignment.center,
+        5: pw.Alignment.center,
+        6: pw.Alignment.center,
+        7: pw.Alignment.center,
+        8: pw.Alignment.center,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.amber),
-      cellHeight: 25,
+      cellHeight: 20,
       cellStyle: const pw.TextStyle(fontSize: 8),
       columnWidths: {
-        0: const pw.FixedColumnWidth(40),
-        1: const pw.FlexColumnWidth(2),
-        2: const pw.FixedColumnWidth(70),
-        3: const pw.FixedColumnWidth(70),
-        4: const pw.FixedColumnWidth(70),
-        5: const pw.FixedColumnWidth(30),
-        6: const pw.FixedColumnWidth(50),
-        7: const pw.FixedColumnWidth(60),
+        0: const pw.FixedColumnWidth(60),
+        1: const pw.FixedColumnWidth(40),
+        2: const pw.FlexColumnWidth(2),
+        3: const pw.FixedColumnWidth(65),
+        4: const pw.FixedColumnWidth(65),
+        5: const pw.FixedColumnWidth(65),
+        6: const pw.FixedColumnWidth(30),
+        7: const pw.FixedColumnWidth(50),
+        8: const pw.FixedColumnWidth(60),
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerRight,
+        2: pw.Alignment.centerLeft,
         3: pw.Alignment.centerRight,
         4: pw.Alignment.centerRight,
-        5: pw.Alignment.center,
-        6: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerRight,
+        6: pw.Alignment.center,
         7: pw.Alignment.centerLeft,
+        8: pw.Alignment.centerLeft,
       },
     );
   }

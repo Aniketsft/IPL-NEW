@@ -175,32 +175,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            var workOrders = scans.Select(s => s.OrderLine.Order.SourceOrderId).Distinct().ToList();
-            var stagingRecords = await _scanContext.StagingEodRecords
-                .Where(e => workOrders.Contains(e.WorkOrderNumber) && e.CreatedAt >= targetDate && e.CreatedAt < nextDate)
-                .GroupBy(e => new { 
-                    e.WorkOrderNumber, 
-                    e.ProductCode, 
-                    LotNumber = e.LotNumber ?? "",
-                    Location = e.Location ?? "",
-                    ItemStatus = e.ItemStatus ?? "A",
-                    CreatedYear = e.CreatedAt.Year,
-                    CreatedMonth = e.CreatedAt.Month,
-                    CreatedDay = e.CreatedAt.Day
-                })
-                .Select(g => new {
-                    g.Key.WorkOrderNumber,
-                    g.Key.ProductCode,
-                    g.Key.LotNumber,
-                    g.Key.Location,
-                    g.Key.ItemStatus,
-                    g.Key.CreatedYear,
-                    g.Key.CreatedMonth,
-                    g.Key.CreatedDay,
-                    ProcessedKg = g.Sum(x => x.TotalManufacturedQuantity),
-                    ProcessedEa = g.Sum(x => x.EaQuantity)
-                })
-                .ToListAsync();
+            // Fetch mapping from EodTransactionId to WorkOrderNumber
+            var eodIds = scans
+                .Where(s => s.IsEodProcessed && s.EodTransactionId.HasValue)
+                .Select(s => s.EodTransactionId!.Value)
+                .Distinct()
+                .ToList();
+
+            var eodMapping = new Dictionary<Guid, string>();
+            if (eodIds.Any())
+            {
+                var mappings = await _scanContext.StagingEodRecords
+                    .Where(se => se.EodTransactionId.HasValue && eodIds.Contains(se.EodTransactionId.Value))
+                    .Select(se => new { Id = se.EodTransactionId!.Value, se.WorkOrderNumber })
+                    .ToListAsync();
+                    
+                eodMapping = mappings
+                    .GroupBy(x => x.Id)
+                    .ToDictionary(g => g.Key, g => g.First().WorkOrderNumber);
+            }
 
             return scans
                 .GroupBy(s => new
@@ -210,7 +203,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ItemStatus  = s.ItemStatus ?? "A",
                     CreatedYear = s.CreatedAt.Year,
                     CreatedMonth = s.CreatedAt.Month,
-                    CreatedDay = s.CreatedAt.Day
+                    CreatedDay = s.CreatedAt.Day,
+                    WorkOrder   = s.IsEodProcessed && s.EodTransactionId.HasValue && eodMapping.TryGetValue(s.EodTransactionId.Value, out var wo) ? wo : string.Empty
                 })
                 .Select(g =>
                 {
@@ -223,22 +217,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     var createdYear = g.Key.CreatedYear;
                     var createdMonth = g.Key.CreatedMonth;
                     var createdDay = g.Key.CreatedDay;
+                    var workOrder = g.Key.WorkOrder;
                     
-                    var staging = stagingRecords.FirstOrDefault(sr => 
-                        sr.WorkOrderNumber == soNumber && 
-                        sr.ProductCode == itemCode && 
-                        sr.LotNumber == lot &&
-                        sr.Location == location &&
-                        sr.ItemStatus == itemStatus &&
-                        sr.CreatedYear == createdYear &&
-                        sr.CreatedMonth == createdMonth &&
-                        sr.CreatedDay == createdDay);
-
-                    var processedKg = staging?.ProcessedKg ?? 0m;
-                    var processedEa = staging?.ProcessedEa ?? 0m;
-
                     var totalKg = g.Sum(s => s.ScanAmountKg);
                     var totalEa = g.Sum(s => s.EaQuantity ?? 0m);
+
+                    var processedKg = g.Where(s => s.IsEodProcessed).Sum(s => s.ScanAmountKg);
+                    var processedEa = g.Where(s => s.IsEodProcessed).Sum(s => s.EaQuantity ?? 0m);
 
                     var isEaUnit = units.TryGetValue(itemCode, out var un) && (un.Trim().Equals("EA", StringComparison.OrdinalIgnoreCase) || un.Trim().Equals("PCS", StringComparison.OrdinalIgnoreCase));
 
@@ -259,7 +244,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         StatusLabel  = g.Key.ItemStatus,
                         CreatedAt    = latest.CreatedAt,
                         Unit         = units.TryGetValue(itemCode, out var u) && !string.IsNullOrWhiteSpace(u) ? u : "KG",
-                        Site         = latest.OrderLine.Order.Site ?? "IPL"
+                        Site         = latest.OrderLine.Order.Site ?? "IPL",
+                        WorkOrderNumber = workOrder
                     };
                 });
         }
@@ -279,19 +265,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // 2. Query aggregated scans joined with ITMMASTER for conversion and locations
             string sql = $@"
-                WITH StagingSums AS (
-                    SELECT 
-                        WorkOrderNumber,
-                        ProductCode,
-                        ISNULL(LotNumber, '') AS LotNumber,
-                        ISNULL(Location, '') AS Location,
-                        ISNULL(ItemStatus, '') AS ItemStatus,
-                        SUM(TotalManufacturedQuantity) AS ProcessedKg,
-                        SUM(EaQuantity) AS ProcessedEa
-                    FROM StagingEod
-                    WHERE IsProcessed = 1 AND WorkOrderNumber = @WorkOrder
-                    GROUP BY WorkOrderNumber, ProductCode, ISNULL(LotNumber, ''), ISNULL(Location, ''), ISNULL(ItemStatus, '')
-                )
                 SELECT 
                     @WorkOrder      AS SoNumber,
                     t.ItemCode      AS ItemCode,
@@ -299,10 +272,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     l.OrderedQuantity AS Quantity,
                     CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN SUM(ISNULL(t.EaQuantity, 0)) ELSE SUM(t.ScanAmountKg) END AS Manufactured,
                     SUM(ISNULL(t.EaQuantity, 0)) AS EaQuantity,
-                    CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN ISNULL(MAX(s.ProcessedEa), 0) ELSE ISNULL(MAX(s.ProcessedKg), 0) END AS ProcessedQuantity,
-                    CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN SUM(ISNULL(t.EaQuantity, 0)) - ISNULL(MAX(s.ProcessedEa), 0) ELSE SUM(t.ScanAmountKg) - ISNULL(MAX(s.ProcessedKg), 0) END AS UnprocessedQuantity,
-                    ISNULL(MAX(s.ProcessedEa), 0) AS ProcessedEaQuantity,
-                    SUM(ISNULL(t.EaQuantity, 0)) - ISNULL(MAX(s.ProcessedEa), 0) AS UnprocessedEaQuantity,
+                    
+                    CASE WHEN i.STU_0 IN ('EA', 'PCS') 
+                         THEN SUM(CASE WHEN t.IsEodProcessed = 1 THEN ISNULL(t.EaQuantity, 0) ELSE 0 END) 
+                         ELSE SUM(CASE WHEN t.IsEodProcessed = 1 THEN t.ScanAmountKg ELSE 0 END) END AS ProcessedQuantity,
+                         
+                    CASE WHEN i.STU_0 IN ('EA', 'PCS') 
+                         THEN SUM(CASE WHEN t.IsEodProcessed = 0 OR t.IsEodProcessed IS NULL THEN ISNULL(t.EaQuantity, 0) ELSE 0 END) 
+                         ELSE SUM(CASE WHEN t.IsEodProcessed = 0 OR t.IsEodProcessed IS NULL THEN t.ScanAmountKg ELSE 0 END) END AS UnprocessedQuantity,
+                         
+                    SUM(CASE WHEN t.IsEodProcessed = 1 THEN ISNULL(t.EaQuantity, 0) ELSE 0 END) AS ProcessedEaQuantity,
+                    SUM(CASE WHEN t.IsEodProcessed = 0 OR t.IsEodProcessed IS NULL THEN ISNULL(t.EaQuantity, 0) ELSE 0 END) AS UnprocessedEaQuantity,
+                    
                     t.LotNumber     AS LotNumber,
                     i.STU_0         AS Unit,
                     MAX(t.CreatedAt) AS CreatedAt,
@@ -312,12 +293,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
-                LEFT JOIN StagingSums s ON 
-                    s.WorkOrderNumber = @WorkOrder 
-                    AND s.ProductCode = t.ItemCode 
-                    AND s.LotNumber = ISNULL(t.LotNumber, '')
-                    AND s.Location = ISNULL(t.Location, '')
-                    AND s.ItemStatus = ISNULL(t.ItemStatus, 'A')
                 WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL) AND t.ExcludeFromEod = 0
                 GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
 
@@ -329,41 +304,81 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             if (records == null || !records.Any()) return true;
 
-            var workOrderNumbers = records.Select(e => e.WorkOrderNumber).Distinct().ToList();
-            
-            // Fetch existing unprocessed records for these work orders
-            var existingRecords = await _scanContext.StagingEodRecords
-                .Where(e => workOrderNumbers.Contains(e.WorkOrderNumber) && !e.IsProcessed)
-                .ToListAsync();
+            using var transaction = await _scanContext.Database.BeginTransactionAsync();
 
-            var existingLookup = existingRecords
-                .ToDictionary(e => $"{e.WorkOrderNumber}|{e.ProductCode}|{e.LotNumber ?? ""}", StringComparer.OrdinalIgnoreCase);
-
-            foreach (var record in records)
+            try
             {
-                var key = $"{record.WorkOrderNumber}|{record.ProductCode}|{record.LotNumber ?? ""}";
-                if (existingLookup.TryGetValue(key, out var existing))
-                {
-                    // Update existing
-                    existing.TotalManufacturedQuantity = record.TotalManufacturedQuantity;
-                    existing.EaQuantity = record.EaQuantity;
-                    existing.DateOfManufacturing = record.DateOfManufacturing;
-                    existing.ExpiryDate = record.ExpiryDate;
-                    existing.Location = record.Location;
-                    existing.ItemStatus = record.ItemStatus;
-                    existing.Location2 = record.Location2;
-                    existing.Location3 = record.Location3;
-                    existing.LotNumber = record.LotNumber;
-                }
-                else
-                {
-                    // Insert new
-                    await _scanContext.StagingEodRecords.AddAsync(record);
-                    existingLookup[key] = record;
-                }
-            }
+                var workOrderNumbers = records.Select(e => e.WorkOrderNumber).Distinct().ToList();
+                
+                var existingRecords = await _scanContext.StagingEodRecords
+                    .Where(e => workOrderNumbers.Contains(e.WorkOrderNumber) && !e.IsProcessed)
+                    .ToListAsync();
 
-            return await _scanContext.SaveChangesAsync() > 0;
+                var existingLookup = existingRecords
+                    .ToDictionary(e => $"{e.WorkOrderNumber}|{e.ProductCode}|{e.LotNumber ?? ""}", StringComparer.OrdinalIgnoreCase);
+
+                foreach (var record in records)
+                {
+                    var key = $"{record.WorkOrderNumber}|{record.ProductCode}|{record.LotNumber ?? ""}";
+                    if (existingLookup.TryGetValue(key, out var existing))
+                    {
+                        existing.TotalManufacturedQuantity = record.TotalManufacturedQuantity;
+                        existing.EaQuantity = record.EaQuantity;
+                        existing.DateOfManufacturing = record.DateOfManufacturing;
+                        existing.ExpiryDate = record.ExpiryDate;
+                        existing.Location = record.Location;
+                        existing.ItemStatus = record.ItemStatus;
+                        existing.Location2 = record.Location2;
+                        existing.Location3 = record.Location3;
+                        existing.LotNumber = record.LotNumber;
+                        existing.EodTransactionId = record.EodTransactionId;
+                    }
+                    else
+                    {
+                        await _scanContext.StagingEodRecords.AddAsync(record);
+                        existingLookup[key] = record;
+                    }
+
+                    // Update corresponding unprocessed scans for this product on the same manufacturing date.
+                    // We intentionally match by ItemCode + Date NOT by WorkOrderNumber/SalesOrderNumber because:
+                    //   1. Scans are not universally linked to a sales order (some are free-standing).
+                    //   2. EOD is a date-boundary operation — "close out everything scanned today for this product."
+                    //   3. This mirrors the same filter used in GetProductionSummaryAsync(date).
+                    var normalizedLot = string.IsNullOrWhiteSpace(record.LotNumber) ? null : record.LotNumber.Trim();
+                    var mfgDateStart = record.DateOfManufacturing.Date;
+                    var mfgDateEnd   = mfgDateStart.AddDays(1);
+
+                    var matchingScans = await _scanContext.ProductionScanTransactions
+                        .Include(s => s.OrderLine)
+                        .Where(s => s.OrderLine.ItemCode == record.ProductCode
+                                 && s.CreatedAt >= mfgDateStart
+                                 && s.CreatedAt < mfgDateEnd
+                                 && !s.IsEodProcessed
+                                 && !s.IsDeleted
+                                 && !s.ExcludeFromEod
+                                 && (s.ItemStatus == "A" || s.ItemStatus == null)
+                                 && (normalizedLot == null || s.LotNumber == normalizedLot))
+                        .ToListAsync();
+
+                    foreach (var scan in matchingScans)
+                    {
+                        scan.EodTransactionId = record.EodTransactionId;
+                        scan.IsEodProcessed = true; // Mark as staged/processed
+                    }
+                }
+
+                // Always commit — SaveChanges returns total tracked changes.
+                // Even if StagingEod rows are "unchanged" (same values), the scan 
+                // updates must be committed. Rolling back on 0 would discard scan changes.
+                await _scanContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<IEnumerable<SalesOrderDetailDto>> GetSalesOrderDetailsAsync(string soNumber)
@@ -1330,6 +1345,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             return false;
+        }
+
+        public async Task<int> GetPendingStagingEodCountAsync()
+        {
+            return await _scanContext.StagingEodRecords
+                .CountAsync(e => !e.IsProcessed);
         }
     }
 }

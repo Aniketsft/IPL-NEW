@@ -51,5 +51,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [MaxLength(255)]
         public string? DeviceId { get; set; }
+
+        public Guid? EodTransactionId { get; set; }
     }
 }

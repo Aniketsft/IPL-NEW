@@ -116,11 +116,14 @@ public class LogisticsService : ILogisticsService
             var itemsList = dbItems != null && dbItems.Any() ? dbItems.ToList() : items.ToList();
 
             var records = new List<StagingEod>();
+            var transactionId = Guid.NewGuid();
 
             // ── 4a: Insert ALL scanned items with their real manufactured qty ───────
             // This preserves actual scan data regardless of BOM membership.
             foreach (var item in itemsList)
             {
+                if (item.UnprocessedQuantity <= 0 && item.UnprocessedEaQuantity <= 0) continue; // Skip already processed items
+
                 var header  = woHeaders.FirstOrDefault(h => h.Product == item.ItemCode);
                 var mfgDate = item.CreatedAt ?? now;
 
@@ -128,8 +131,8 @@ public class LogisticsService : ILogisticsService
                 {
                     WorkOrderNumber           = workOrder,
                     ProductCode               = item.ItemCode,
-                    TotalManufacturedQuantity = item.Manufactured,
-                    EaQuantity                = 0m,                  // informational only
+                    TotalManufacturedQuantity = item.UnprocessedQuantity,
+                    EaQuantity                = item.UnprocessedEaQuantity,
                     DateOfManufacturing       = mfgDate,
                     ExpiryDate                = mfgDate.AddDays(5),
                     Unit                      = string.IsNullOrEmpty(item.Unit) ? "KG" : item.Unit,
@@ -137,7 +140,8 @@ public class LogisticsService : ILogisticsService
                     ItemStatus                = item.StatusLabel ?? "A",
                     LotNumber                 = !string.IsNullOrEmpty(item.LotNumber) ? item.LotNumber : item.Lot,
                     Location2                 = header?.CCE_0 ?? "",
-                    Location3                 = header?.CCE_1 ?? ""
+                    Location3                 = header?.CCE_1 ?? "",
+                    EodTransactionId          = transactionId
                 });
             }
 
@@ -455,5 +459,10 @@ public class LogisticsService : ILogisticsService
         {
             return Result<bool>.Failure($"Error updating EOD exclusion: {ex.Message}");
         }
+    }
+
+    public async Task<int> GetPendingStagingEodCountAsync()
+    {
+        return await _logisticsRepository.GetPendingStagingEodCountAsync();
     }
 }

@@ -230,6 +230,13 @@ public class LogisticsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("pending-eod-count")]
+    public async Task<IActionResult> GetPendingEodCount()
+    {
+        var count = await _logisticsService.GetPendingStagingEodCountAsync();
+        return Ok(new { pendingCount = count });
+    }
+
     [HttpGet("work-orders")]
     public async Task<IActionResult> GetWorkOrders([FromQuery] string? query)
     {

@@ -9,11 +9,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "EodProcessAuditId",
-                table: "ProductionScanTransactions",
-                type: "uniqueidentifier",
-                nullable: true);
+            // migrationBuilder.AddColumn<Guid>(
+            //     name: "EodProcessAuditId",
+            //     table: "ProductionScanTransactions",
+            //     type: "uniqueidentifier",
+            //     nullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProductionScanTransactions_EodProcessAuditId",

@@ -73,5 +73,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public EodProcessAudit? EodProcessAudit { get; set; }
         [ForeignKey("SalesOrderLineId")]
         public SalesOrderLine OrderLine { get; set; } = null!;
+
+        public Guid? EodTransactionId { get; set; }
     }
 }

@@ -1215,6 +1215,8 @@ class DeliveryRepository implements ILogisticsRepository {
                   'deviceId': s['deviceId'],
                   'excludeFromEod':
                       s[LocalDatabaseHelper.columnExcludeFromEod] == 1,
+                  'eodTransactionId': s['eodTransactionId'],
+                  'isEodProcessed': s['isEodProcessed'] == 1,
                 },
               )
               .toList(),
@@ -1307,6 +1309,7 @@ class DeliveryRepository implements ILogisticsRepository {
                   'createdAt': e['createdAt'],
                   'lotNumber': e['lot'],
                   'deviceId': e['deviceId'],
+                  'eodTransactionId': e['eodTransactionId'],
                 },
               )
               .toList(),

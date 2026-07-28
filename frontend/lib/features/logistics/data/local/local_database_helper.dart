@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 55;
+  static const _databaseVersion = 57;
 
 
   static const tableScans = 'tbl_scans';
@@ -63,6 +63,8 @@ class LocalDatabaseHelper {
   static const columnEaQuantity = 'ea_quantity';
   static const columnBarcode = 'barcode';
   static const columnExcludeFromEod = 'exclude_from_eod';
+  static const columnEodTransactionId = 'eodTransactionId';
+  static const columnIsEodProcessed = 'isEodProcessed';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -844,6 +846,44 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v55: $e");
       }
     }
+    if (oldVersion < 56) {
+      debugPrint('DB Upgrade: Adding EOD Transactional linking to tbl_scans and tbl_staging_eod (v56)');
+      try {
+        var scanCols = await db.rawQuery('PRAGMA table_info($tableScans)');
+        if (!scanCols.any((c) => c['name'] == columnEodTransactionId)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnEodTransactionId TEXT');
+        }
+        if (!scanCols.any((c) => c['name'] == columnIsEodProcessed)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsEodProcessed INTEGER DEFAULT 0');
+        }
+
+        var stagingCols = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!stagingCols.any((c) => c['name'] == columnEodTransactionId)) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnEodTransactionId TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v56: $e");
+      }
+    }
+    if (oldVersion < 57) {
+      debugPrint('DB Upgrade: Ensuring EOD Transactional columns exist (v57)');
+      try {
+        var scanCols = await db.rawQuery('PRAGMA table_info($tableScans)');
+        if (!scanCols.any((c) => c['name'] == columnEodTransactionId)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnEodTransactionId TEXT');
+        }
+        if (!scanCols.any((c) => c['name'] == columnIsEodProcessed)) {
+          await db.execute('ALTER TABLE $tableScans ADD COLUMN $columnIsEodProcessed INTEGER DEFAULT 0');
+        }
+
+        var stagingCols = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!stagingCols.any((c) => c['name'] == columnEodTransactionId)) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $columnEodTransactionId TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v57: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -877,7 +917,9 @@ class LocalDatabaseHelper {
         $columnEaQuantity REAL DEFAULT 0,
         $columnBarcode TEXT,
         $colDeviceId TEXT,
-        $columnExcludeFromEod INTEGER DEFAULT 0
+        $columnExcludeFromEod INTEGER DEFAULT 0,
+        $columnEodTransactionId TEXT,
+        $columnIsEodProcessed INTEGER DEFAULT 0
       )
     ''');
 
@@ -1100,7 +1142,8 @@ class LocalDatabaseHelper {
         $columnEaQuantity REAL DEFAULT 0,
         $columnLot TEXT,
         $columnIsSynced INTEGER DEFAULT 0,
-        $colDeviceId TEXT
+        $colDeviceId TEXT,
+        $columnEodTransactionId TEXT
       )
     ''');
 
@@ -1189,6 +1232,27 @@ class LocalDatabaseHelper {
   Future<int> insertStagingEod(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert(tableStagingEod, row, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Inserts a StagingEod record and atomically updates all related unprocessed 
+  /// ProductionScanTransactions to link them with the same EodTransactionId and flag them as processed.
+  Future<void> insertStagingEodWithScans(Map<String, dynamic> row, String eodTransactionId) async {
+    Database db = await instance.database;
+    await db.transaction((txn) async {
+      // 1. Insert the staging EOD record
+      await txn.insert(tableStagingEod, row, conflictAlgorithm: ConflictAlgorithm.replace);
+
+      // 2. Update the related scans
+      await txn.update(
+        tableScans,
+        {
+          'isEodProcessed': 1,
+          'eodTransactionId': eodTransactionId
+        },
+        where: '$columnSoNumber = ? AND $columnProductCode = ? AND isEodProcessed = ? AND $columnExcludeFromEod = ?',
+        whereArgs: [row['soNumber'], row['productCode'], 0, 0],
+      );
+    });
   }
 
   Future<List<Map<String, dynamic>>> getUnsyncedStagingEod() async {
