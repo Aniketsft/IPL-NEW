@@ -1,0 +1,4057 @@
+{
+  "D:\\enterprise_auth_system\\.dart_tool\\dartpad\\web_plugin_registrant.dart": {
+    "mtime": 1776753206.5365508,
+    "ast_hash": "9678e6d434f9b90763985bd48e019c78",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\flutter_build\\a45217217b2f1009b8926b0726471731\\dart_build_result.json": {
+    "mtime": 1776753235.6698,
+    "ast_hash": "c68a3e0ddf44367c998a6c8df6a5ce05",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\flutter_build\\a45217217b2f1009b8926b0726471731\\native_assets.json": {
+    "mtime": 1776753235.7362938,
+    "ast_hash": "f3a664e105b4f792c6c7fe4e4d22c398",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\flutter_build\\a45217217b2f1009b8926b0726471731\\outputs.json": {
+    "mtime": 1776753936.936752,
+    "ast_hash": "2eb95741cb3b8e3dd2bbca7bc602b464",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\flutter_build\\dart_plugin_registrant.dart": {
+    "mtime": 1776753207.3095756,
+    "ast_hash": "5d498d20096ec50a97f7458db0a4358d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1776753365.8355806,
+    "ast_hash": "734e38fd6c9c54cb70466ea865407b79",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\hook.dependencies_hash_file.json": {
+    "mtime": 1776753235.099413,
+    "ast_hash": "18a05cb8494866ca527b3bd4bcc90fe5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\input.json": {
+    "mtime": 1776753365.3296146,
+    "ast_hash": "ea5bfe57cd6c2ba32bde0164f2d6a987",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\output.json": {
+    "mtime": 1776753365.743401,
+    "ast_hash": "40d19abee6a67136978bba2cde9b64de",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\package_config.json": {
+    "mtime": 1780984377.157,
+    "ast_hash": "e402728b447aea32967a5a63cf0c49c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\package_graph.json": {
+    "mtime": 1776753205.9370127,
+    "ast_hash": "078449fd1ca91f76cc54f0ce221badc7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\CheckRecords.csproj": {
+    "mtime": 1780988804.9044087,
+    "ast_hash": "ab17318f9006036d2fcd5b32282dc774",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\Program.cs": {
+    "mtime": 1780988804.918727,
+    "ast_hash": "b351253cf0a82fe8fb4459ce578c008f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\bin\\Debug\\net10.0\\CheckRecords.deps.json": {
+    "mtime": 1780988804.938457,
+    "ast_hash": "f9c38694f4a69bcc7d394ab58d360be7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\bin\\Debug\\net10.0\\CheckRecords.runtimeconfig.json": {
+    "mtime": 1780988805.1178162,
+    "ast_hash": "fac892e9b5d89d2db8c87684820b33b8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\CheckRecords.csproj.nuget.dgspec.json": {
+    "mtime": 1780988808.8077064,
+    "ast_hash": "55f041a7bebcf6e549d76365620f1817",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\Debug\\net10.0\\.NETCoreApp,Version=v10.0.AssemblyAttributes.cs": {
+    "mtime": 1780988808.851151,
+    "ast_hash": "8479efdf06e2d26e053d27ffa6964185",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\Debug\\net10.0\\CheckRecords.AssemblyInfo.cs": {
+    "mtime": 1784263875.1132476,
+    "ast_hash": "5e053fbfb1b097fadf24fefd5becb806",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\Debug\\net10.0\\CheckRecords.GlobalUsings.g.cs": {
+    "mtime": 1780988808.8962057,
+    "ast_hash": "9706b2dbf69f7db452e8b0d5baf54dcf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\Debug\\net10.0\\CheckRecords.sourcelink.json": {
+    "mtime": 1780988809.047427,
+    "ast_hash": "c79d87aea9ff9b3a8d89f51af2b45204",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\project.assets.json": {
+    "mtime": 1780988809.1470232,
+    "ast_hash": "fd468768947f05fa5e8d5c954c01915c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.vscode\\launch.json": {
+    "mtime": 1780988809.2291784,
+    "ast_hash": "006dac442797b093b06ca81879184a9b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.vscode\\settings.json": {
+    "mtime": 1780988809.2442186,
+    "ast_hash": "4aa85c6acde752675b31b354987521ce",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.vscode\\tasks.json": {
+    "mtime": 1780988809.2592664,
+    "ast_hash": "d4445bd9076ff55e9bb282a21d3acb82",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\bin\\cognilayer": {
+    "mtime": 1776853473.0836067,
+    "ast_hash": "370315e386091e7ed9a155d81577a839",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\diagnose.py": {
+    "mtime": 1776853473.108318,
+    "ast_hash": "23f2834064475749c0a3ed488d7c5621",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\generate_agents_md.py": {
+    "mtime": 1776853473.1399448,
+    "ast_hash": "d1407ff7b37e972f86b91dcf774808ed",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\on_file_change.py": {
+    "mtime": 1776853473.1409535,
+    "ast_hash": "cd1ad69200b0daed9210eba83e7d2caa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\on_pre_compact.py": {
+    "mtime": 1776853473.142462,
+    "ast_hash": "8c0d7bb90730025b6d837e28d55aa379",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\on_session_end.py": {
+    "mtime": 1776853473.1434708,
+    "ast_hash": "57bd65b9439f17ab5e8a41cd32368bbf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\on_session_start.py": {
+    "mtime": 1776853473.1434708,
+    "ast_hash": "d366448aefe209b7d0ceadad8b4275da",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\hooks\\register.py": {
+    "mtime": 1776853473.1449807,
+    "ast_hash": "34ba03ce1be67478e22a1354fb85b53b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\install.py": {
+    "mtime": 1776853473.1459892,
+    "ast_hash": "72f1c1471704a5e552adaf952998ae02",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\__init__.py": {
+    "mtime": 1776853473.147997,
+    "ast_hash": "d06d0cc1fac6907aeabc525d2342c732",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\agent_orchestration.py": {
+    "mtime": 1776853473.147997,
+    "ast_hash": "3a8180c28a36ac4fd5253f5324231a3b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\backfill_embeddings.py": {
+    "mtime": 1776853473.1505134,
+    "ast_hash": "fadc47b929d31f23d74b402586919d74",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\__init__.py": {
+    "mtime": 1776853473.151515,
+    "ast_hash": "ae67717df5be9efc98bf4573e207f9e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\indexer.py": {
+    "mtime": 1776853473.152515,
+    "ast_hash": "de043189754bb6e7db789953e5f980ae",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\parsers\\__init__.py": {
+    "mtime": 1776853473.1539211,
+    "ast_hash": "5dfb0f45e0d39d8dc332682137c42829",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\parsers\\base.py": {
+    "mtime": 1776853473.1548913,
+    "ast_hash": "1b984dab253621168a6e5490860429a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\parsers\\python_parser.py": {
+    "mtime": 1776853473.1553998,
+    "ast_hash": "d16e794516418b69771b4aeaa544bf21",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\parsers\\registry.py": {
+    "mtime": 1776853473.1564105,
+    "ast_hash": "3c0eaaac7399074d69ec7ffd2ab47f3e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\parsers\\typescript_parser.py": {
+    "mtime": 1776853473.1569183,
+    "ast_hash": "21485346d636349aa4686c011ed48c04",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\code\\resolver.py": {
+    "mtime": 1776853473.157931,
+    "ast_hash": "7f8f17d7db415287357c39feaa481913",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\db.py": {
+    "mtime": 1776853473.157931,
+    "ast_hash": "bef8a953e5f5f53ffcf02a138af7c071",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\embedder.py": {
+    "mtime": 1776853473.158929,
+    "ast_hash": "6b2250d6259c73ebb5099b3f0a62857f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\i18n.py": {
+    "mtime": 1776853473.1609273,
+    "ast_hash": "c440224bf3d8ec38ff96d9eab3140159",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\indexer\\__init__.py": {
+    "mtime": 1776853473.1624384,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\indexer\\chunker.py": {
+    "mtime": 1776853473.1629584,
+    "ast_hash": "8cdfaa5dbaf0f75b380072a52bb6c0e2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\indexer\\file_indexer.py": {
+    "mtime": 1776853473.1647508,
+    "ast_hash": "d188637e9db379994fbee2421922e44f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\init_db.py": {
+    "mtime": 1776853473.165274,
+    "ast_hash": "1b1721f58358a376bd35667d4d20036f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\memory_lifecycle.py": {
+    "mtime": 1776853473.1666625,
+    "ast_hash": "a849c2b9c7d12f63762e98dcdf3aa4c4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\register_codex.py": {
+    "mtime": 1776853473.1671686,
+    "ast_hash": "c1664b83576933f3e3f0e5626912646d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\search\\__init__.py": {
+    "mtime": 1776853473.1681783,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\search\\fts_search.py": {
+    "mtime": 1776853473.1691759,
+    "ast_hash": "cd62c74b2e49098a036277f00e22a5fc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\server.py": {
+    "mtime": 1776853473.17127,
+    "ast_hash": "1aaf18dbe87cfe3c3148c1c425fa3c30",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\__init__.py": {
+    "mtime": 1776853473.172817,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_context_brief.py": {
+    "mtime": 1776853473.17378,
+    "ast_hash": "edc4250e8c119baaf09c5bf0478ebe57",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_delegate_plan.py": {
+    "mtime": 1776853473.1747894,
+    "ast_hash": "b4e0869247ca6c4402a9e9d6f9c5d0d6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_event_write.py": {
+    "mtime": 1776853473.1757894,
+    "ast_hash": "a1898bb4055edfe4be9ea35dd1c28877",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_handoff_inbox.py": {
+    "mtime": 1776853473.17679,
+    "ast_hash": "dfa5387e3505a62e9ad9da5d1ffe83aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_handoff_resolve.py": {
+    "mtime": 1776853473.177792,
+    "ast_hash": "533c48b90180d1c764b0d846971af183",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_memory_promote.py": {
+    "mtime": 1776853473.178983,
+    "ast_hash": "df1b3e23e424e3a640fdf06183a31e83",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_memory_stage.py": {
+    "mtime": 1776853473.1799905,
+    "ast_hash": "3060a174cc09f2d4e48acdcce162e933",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_policy_read.py": {
+    "mtime": 1776853473.1809933,
+    "ast_hash": "e4b062bd7e9aaa1dee2c4b733beab8a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_research_wave_collect.py": {
+    "mtime": 1776853473.1824994,
+    "ast_hash": "2257dac92a4a6c6409b6b5697fbe6a5a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_research_wave_finalize.py": {
+    "mtime": 1776853473.1835072,
+    "ast_hash": "64e8d9d26661cf9f32b2562488e6c456",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_research_wave_start.py": {
+    "mtime": 1776853473.1835072,
+    "ast_hash": "bbad6045758ea5cb0cf8adee806d94fa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_review_run_start.py": {
+    "mtime": 1776853473.1845083,
+    "ast_hash": "2dbc2c430d2fd52368b692fb7fe38cc7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_run_digest.py": {
+    "mtime": 1776853473.1860166,
+    "ast_hash": "dea4f09104edb887ce7055ee9efd6d66",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_run_finish.py": {
+    "mtime": 1776853473.1868415,
+    "ast_hash": "7f9980e872e21758eda96ffd105f9dc0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_run_heartbeat.py": {
+    "mtime": 1776853473.1868415,
+    "ast_hash": "11e431030cc7fde8b31874f017a44052",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_run_list.py": {
+    "mtime": 1776853473.1883051,
+    "ast_hash": "6b86d365b7c916e645cca3bcbd4362df",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_run_start.py": {
+    "mtime": 1776853473.189312,
+    "ast_hash": "d30b94ad39306d55100db99a85062b27",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\agent_writer_run_start.py": {
+    "mtime": 1776853473.189312,
+    "ast_hash": "1b8bbd92d0e6807e4ab4bea5109cdfdd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\claim_scope.py": {
+    "mtime": 1776853473.1903198,
+    "ast_hash": "34e29ad298e0886fbaa811ea5a26549c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\code_context.py": {
+    "mtime": 1776853473.191319,
+    "ast_hash": "6d999b0e55469b4cd6e1d26c584db8c4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\code_helpers.py": {
+    "mtime": 1776853473.191319,
+    "ast_hash": "ccb4d653d33b82735b7998a1eb760825",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\code_impact.py": {
+    "mtime": 1776853473.1923192,
+    "ast_hash": "7519075c8e0eb6c216b7fc6e2e3b9a6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\code_index.py": {
+    "mtime": 1776853473.1923192,
+    "ast_hash": "00187a525823427c81d447fbcaa84f4e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\code_search.py": {
+    "mtime": 1776853473.1934855,
+    "ast_hash": "510aa718d819136ee48e5624fe17abeb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\consolidate.py": {
+    "mtime": 1776853473.1934855,
+    "ast_hash": "4d4225ab8e4d5d2f4cc6b95f40fd9f10",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\decision_log.py": {
+    "mtime": 1776853473.1934855,
+    "ast_hash": "a7dd9ba2f4e4d5166264a121b7909373",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\file_index.py": {
+    "mtime": 1776853473.1953664,
+    "ast_hash": "814a0bd8f444141f68be6f3ece0a954b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\file_search.py": {
+    "mtime": 1776853473.1953664,
+    "ast_hash": "a0446ddabaf5008b0cde4c04f0419f83",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\identity_set.py": {
+    "mtime": 1776853473.1963732,
+    "ast_hash": "5fdedcc59d00b44bbc9f61e8278247be",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\list_claims.py": {
+    "mtime": 1776853473.1963732,
+    "ast_hash": "51e0b69ec7fb5f6460c2c86ed4726ce8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\memory_chain.py": {
+    "mtime": 1776853473.1963732,
+    "ast_hash": "56e7d683d0a6eb62cb8b5e22aaf3e9e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\memory_delete.py": {
+    "mtime": 1776853473.197882,
+    "ast_hash": "62dca51c354faed71de84ac058400480",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\memory_link.py": {
+    "mtime": 1776853473.1988895,
+    "ast_hash": "ae88d9472f3c5e76c7a8a764086fd9b2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\memory_search.py": {
+    "mtime": 1776853473.1993942,
+    "ast_hash": "0b29e71bfa1970b56b5bf8799cd0d876",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\memory_write.py": {
+    "mtime": 1776853473.200401,
+    "ast_hash": "604145215505ed67e9c070468490de51",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\project_context.py": {
+    "mtime": 1776853473.200401,
+    "ast_hash": "22853a3f34c9d672b9ffd6dc840f7412",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\recommend_tech.py": {
+    "mtime": 1776853473.201402,
+    "ast_hash": "99002933be6ed9025592221ac9e84352",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\register_handoff.py": {
+    "mtime": 1776853473.2020073,
+    "ast_hash": "b7f766a10bfa659d9bec7de7031f1a43",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\release_scope.py": {
+    "mtime": 1776853473.202526,
+    "ast_hash": "8af5ddbe6fce40f2c284567779e33d53",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\session_bridge.py": {
+    "mtime": 1776853473.202526,
+    "ast_hash": "c373572dd9485f732341044dc95e110d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\session_init.py": {
+    "mtime": 1776853473.2035344,
+    "ast_hash": "cc995a0c09c4d31165e7628636564731",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\tools\\verify_identity.py": {
+    "mtime": 1776853473.2035344,
+    "ast_hash": "aaf7c285b5d0ce6a8520db6b0d2a621f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\mcp-server\\utils.py": {
+    "mtime": 1776853473.204538,
+    "ast_hash": "38c5b9642d1c7bf3dcf0e44077f7345b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\onboard_helper.py": {
+    "mtime": 1776853473.204538,
+    "ast_hash": "be28df4fbb9f41a5c67c107b3e2ba815",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\__init__.py": {
+    "mtime": 1776853473.2064483,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\conftest.py": {
+    "mtime": 1776853473.2064483,
+    "ast_hash": "5cc97807b8acc30762265157dba73828",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_agent_orchestration.py": {
+    "mtime": 1776853473.2074592,
+    "ast_hash": "2521e16a638e3045764a89348fcf1c00",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_code_isolation.py": {
+    "mtime": 1776853473.2084603,
+    "ast_hash": "68385012a39a3a8a9dc0700209418076",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_code_parsers.py": {
+    "mtime": 1776853473.2094607,
+    "ast_hash": "049dc7ba75b6e088e7191c2df24ac067",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_code_tools.py": {
+    "mtime": 1776853473.2094607,
+    "ast_hash": "fe549dc5167581eec44a6a4eda8463c6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_codex_agents.py": {
+    "mtime": 1776853473.2104576,
+    "ast_hash": "cd8ec126117d9f4ac14e2d9987316721",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_db.py": {
+    "mtime": 1776853473.2114587,
+    "ast_hash": "9bf5cfb0d65bb4b7e623ff3e45c57a12",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_file_search.py": {
+    "mtime": 1776853473.2114587,
+    "ast_hash": "a54b2158d7276eb271ebb7f66fbe3e37",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_memory_delete.py": {
+    "mtime": 1776853473.2124577,
+    "ast_hash": "fab0faeb1c0b75502e803cbf804fcb64",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_memory_lifecycle.py": {
+    "mtime": 1776853473.2129626,
+    "ast_hash": "350389153864c47e1ac085a259909d51",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_memory_search.py": {
+    "mtime": 1776853473.2134838,
+    "ast_hash": "9ccd5ae3834e7a774cd9ed5e92538666",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_memory_write.py": {
+    "mtime": 1776853473.2134838,
+    "ast_hash": "bb3f524175762da66b7ee86cec22e59b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_multi_cli.py": {
+    "mtime": 1776853473.2150033,
+    "ast_hash": "7904a890e06d9d6509a37975b628d47d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_register_codex.py": {
+    "mtime": 1776853473.2150033,
+    "ast_hash": "9144b6ef2233883e72821c14ef5f188b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_server.py": {
+    "mtime": 1776853473.2160125,
+    "ast_hash": "ea0e2bde170fa32f3f07e73495a1a4bf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_session_bridge.py": {
+    "mtime": 1776853473.2170107,
+    "ast_hash": "7eef8c7d4513534594a2d57ebf9ba9c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_session_routing.py": {
+    "mtime": 1776853473.2175179,
+    "ast_hash": "1f33b5d90e9b62e33b298c6f160d5ddc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_subagent.py": {
+    "mtime": 1776853473.2180364,
+    "ast_hash": "c71d6629df581236181d0894bfd8dffe",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tests\\test_verify_identity.py": {
+    "mtime": 1776853473.2194374,
+    "ast_hash": "7215d0eb1b45f3443877fe898662a2a2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\__init__.py": {
+    "mtime": 1776853473.2194374,
+    "ast_hash": "a38a640472e3a632114aae7df8ad15f7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\__main__.py": {
+    "mtime": 1776853473.2206771,
+    "ast_hash": "784b0a5c51f40353bd4815dd58e9b58f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\app.py": {
+    "mtime": 1776853473.2215667,
+    "ast_hash": "1e708ff1f2cdd636403e918705b1a851",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\data.py": {
+    "mtime": 1776853473.222077,
+    "ast_hash": "6051d47161612a7624b2efeb3e80183c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\demo.py": {
+    "mtime": 1776853473.2230873,
+    "ast_hash": "e1af47448cacc9221b1ba7527643bfd6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\__init__.py": {
+    "mtime": 1776853473.2230873,
+    "ast_hash": "66a585a66db9fe8cfdbf55334ae87c15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\clusters.py": {
+    "mtime": 1776853473.2245674,
+    "ast_hash": "74a1cc11e980069a85f3fd495cd6e544",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\code_graph.py": {
+    "mtime": 1776853473.225569,
+    "ast_hash": "46815d537d3ea2c232e3871216f5316c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\contradictions.py": {
+    "mtime": 1776853473.225569,
+    "ast_hash": "0a2b865ca39f0c546e9bed95f83463b3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\facts.py": {
+    "mtime": 1776853473.226965,
+    "ast_hash": "2b54b94376807c2795f47842b8cc87c1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\gaps.py": {
+    "mtime": 1776853473.2280157,
+    "ast_hash": "8e9f4ec31a5701342dec4ebef7f05954",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\heatmap.py": {
+    "mtime": 1776853473.2280157,
+    "ast_hash": "5fa79ce7c582d23c1f781f1be30209fb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\overview.py": {
+    "mtime": 1776853473.2290258,
+    "ast_hash": "487515760d4e582f7395636401266b2d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\screens\\timeline.py": {
+    "mtime": 1776853473.2290258,
+    "ast_hash": "d6c064e0fea6b41f5e67db599a9fec06",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\widgets\\__init__.py": {
+    "mtime": 1776853473.2313757,
+    "ast_hash": "c63772e2ee7ac58b8a8ce1e0418b9ef4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\widgets\\heat_cell.py": {
+    "mtime": 1776853473.2323756,
+    "ast_hash": "7cbcc97f3af6ee6d66ee32e0998c4cca",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\tui\\widgets\\stats_card.py": {
+    "mtime": 1776853473.2328837,
+    "ast_hash": "aa0bf49f9326e2ba7b1ff70b9dec719f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\bin\\cognilayer": {
+    "mtime": 1776853239.6635532,
+    "ast_hash": "370315e386091e7ed9a155d81577a839",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\diagnose.py": {
+    "mtime": 1776853239.6793098,
+    "ast_hash": "23f2834064475749c0a3ed488d7c5621",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\generate_agents_md.py": {
+    "mtime": 1776853239.6969118,
+    "ast_hash": "d1407ff7b37e972f86b91dcf774808ed",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\on_file_change.py": {
+    "mtime": 1776853239.6984174,
+    "ast_hash": "cd1ad69200b0daed9210eba83e7d2caa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\on_pre_compact.py": {
+    "mtime": 1776853239.699424,
+    "ast_hash": "8c0d7bb90730025b6d837e28d55aa379",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\on_session_end.py": {
+    "mtime": 1776853239.699424,
+    "ast_hash": "57bd65b9439f17ab5e8a41cd32368bbf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\on_session_start.py": {
+    "mtime": 1776853239.7009716,
+    "ast_hash": "d366448aefe209b7d0ceadad8b4275da",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\hooks\\register.py": {
+    "mtime": 1776853239.7014894,
+    "ast_hash": "34ba03ce1be67478e22a1354fb85b53b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\install.py": {
+    "mtime": 1776853239.7014894,
+    "ast_hash": "72f1c1471704a5e552adaf952998ae02",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\__init__.py": {
+    "mtime": 1776853239.7024963,
+    "ast_hash": "d06d0cc1fac6907aeabc525d2342c732",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\agent_orchestration.py": {
+    "mtime": 1776853239.7024963,
+    "ast_hash": "3a8180c28a36ac4fd5253f5324231a3b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\backfill_embeddings.py": {
+    "mtime": 1776853239.7040029,
+    "ast_hash": "fadc47b929d31f23d74b402586919d74",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\__init__.py": {
+    "mtime": 1776853239.7040029,
+    "ast_hash": "ae67717df5be9efc98bf4573e207f9e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\indexer.py": {
+    "mtime": 1776853239.7055578,
+    "ast_hash": "de043189754bb6e7db789953e5f980ae",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\parsers\\__init__.py": {
+    "mtime": 1776853239.7055578,
+    "ast_hash": "5dfb0f45e0d39d8dc332682137c42829",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\parsers\\base.py": {
+    "mtime": 1776853239.706566,
+    "ast_hash": "1b984dab253621168a6e5490860429a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\parsers\\python_parser.py": {
+    "mtime": 1776853239.706566,
+    "ast_hash": "d16e794516418b69771b4aeaa544bf21",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\parsers\\registry.py": {
+    "mtime": 1776853239.7075663,
+    "ast_hash": "3c0eaaac7399074d69ec7ffd2ab47f3e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\parsers\\typescript_parser.py": {
+    "mtime": 1776853239.7085657,
+    "ast_hash": "21485346d636349aa4686c011ed48c04",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\code\\resolver.py": {
+    "mtime": 1776853239.7085657,
+    "ast_hash": "7f8f17d7db415287357c39feaa481913",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\db.py": {
+    "mtime": 1776853239.7095642,
+    "ast_hash": "bef8a953e5f5f53ffcf02a138af7c071",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\embedder.py": {
+    "mtime": 1776853239.7095642,
+    "ast_hash": "6b2250d6259c73ebb5099b3f0a62857f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\i18n.py": {
+    "mtime": 1776853239.710588,
+    "ast_hash": "c440224bf3d8ec38ff96d9eab3140159",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\indexer\\__init__.py": {
+    "mtime": 1776853239.711565,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\indexer\\chunker.py": {
+    "mtime": 1776853239.7120736,
+    "ast_hash": "8cdfaa5dbaf0f75b380072a52bb6c0e2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\indexer\\file_indexer.py": {
+    "mtime": 1776853239.7125802,
+    "ast_hash": "d188637e9db379994fbee2421922e44f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\init_db.py": {
+    "mtime": 1776853239.7125802,
+    "ast_hash": "1b1721f58358a376bd35667d4d20036f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\memory_lifecycle.py": {
+    "mtime": 1776853239.713588,
+    "ast_hash": "a849c2b9c7d12f63762e98dcdf3aa4c4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\register_codex.py": {
+    "mtime": 1776853239.7145872,
+    "ast_hash": "c1664b83576933f3e3f0e5626912646d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\search\\__init__.py": {
+    "mtime": 1776853239.7150934,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\search\\fts_search.py": {
+    "mtime": 1776853239.7150934,
+    "ast_hash": "cd62c74b2e49098a036277f00e22a5fc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\server.py": {
+    "mtime": 1776853239.7150934,
+    "ast_hash": "1aaf18dbe87cfe3c3148c1c425fa3c30",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\__init__.py": {
+    "mtime": 1776853239.717173,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_context_brief.py": {
+    "mtime": 1776853239.7181802,
+    "ast_hash": "edc4250e8c119baaf09c5bf0478ebe57",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_delegate_plan.py": {
+    "mtime": 1776853239.7191813,
+    "ast_hash": "b4e0869247ca6c4402a9e9d6f9c5d0d6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_event_write.py": {
+    "mtime": 1776853239.7191813,
+    "ast_hash": "a1898bb4055edfe4be9ea35dd1c28877",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_handoff_inbox.py": {
+    "mtime": 1776853239.72018,
+    "ast_hash": "dfa5387e3505a62e9ad9da5d1ffe83aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_handoff_resolve.py": {
+    "mtime": 1776853239.72018,
+    "ast_hash": "533c48b90180d1c764b0d846971af183",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_memory_promote.py": {
+    "mtime": 1776853239.7217193,
+    "ast_hash": "df1b3e23e424e3a640fdf06183a31e83",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_memory_stage.py": {
+    "mtime": 1776853239.7227259,
+    "ast_hash": "3060a174cc09f2d4e48acdcce162e933",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_policy_read.py": {
+    "mtime": 1776853239.7227259,
+    "ast_hash": "e4b062bd7e9aaa1dee2c4b733beab8a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_research_wave_collect.py": {
+    "mtime": 1776853239.7237272,
+    "ast_hash": "2257dac92a4a6c6409b6b5697fbe6a5a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_research_wave_finalize.py": {
+    "mtime": 1776853239.7237272,
+    "ast_hash": "64e8d9d26661cf9f32b2562488e6c456",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_research_wave_start.py": {
+    "mtime": 1776853239.7247274,
+    "ast_hash": "bbad6045758ea5cb0cf8adee806d94fa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_review_run_start.py": {
+    "mtime": 1776853239.7257302,
+    "ast_hash": "2dbc2c430d2fd52368b692fb7fe38cc7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_run_digest.py": {
+    "mtime": 1776853239.7257302,
+    "ast_hash": "dea4f09104edb887ce7055ee9efd6d66",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_run_finish.py": {
+    "mtime": 1776853239.7267292,
+    "ast_hash": "7f9980e872e21758eda96ffd105f9dc0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_run_heartbeat.py": {
+    "mtime": 1776853239.7267292,
+    "ast_hash": "11e431030cc7fde8b31874f017a44052",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_run_list.py": {
+    "mtime": 1776853239.7277265,
+    "ast_hash": "6b86d365b7c916e645cca3bcbd4362df",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_run_start.py": {
+    "mtime": 1776853239.7287273,
+    "ast_hash": "d30b94ad39306d55100db99a85062b27",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\agent_writer_run_start.py": {
+    "mtime": 1776853239.7287273,
+    "ast_hash": "1b8bbd92d0e6807e4ab4bea5109cdfdd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\claim_scope.py": {
+    "mtime": 1776853239.7297244,
+    "ast_hash": "34e29ad298e0886fbaa811ea5a26549c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\code_context.py": {
+    "mtime": 1776853239.7307255,
+    "ast_hash": "6d999b0e55469b4cd6e1d26c584db8c4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\code_helpers.py": {
+    "mtime": 1776853239.7307255,
+    "ast_hash": "ccb4d653d33b82735b7998a1eb760825",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\code_impact.py": {
+    "mtime": 1776853239.7322316,
+    "ast_hash": "7519075c8e0eb6c216b7fc6e2e3b9a6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\code_index.py": {
+    "mtime": 1776853239.7322316,
+    "ast_hash": "00187a525823427c81d447fbcaa84f4e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\code_search.py": {
+    "mtime": 1776853239.7332404,
+    "ast_hash": "510aa718d819136ee48e5624fe17abeb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\consolidate.py": {
+    "mtime": 1776853239.7332404,
+    "ast_hash": "4d4225ab8e4d5d2f4cc6b95f40fd9f10",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\decision_log.py": {
+    "mtime": 1776853239.7347467,
+    "ast_hash": "a7dd9ba2f4e4d5166264a121b7909373",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\file_index.py": {
+    "mtime": 1776853239.7347467,
+    "ast_hash": "814a0bd8f444141f68be6f3ece0a954b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\file_search.py": {
+    "mtime": 1776853239.7357528,
+    "ast_hash": "a0446ddabaf5008b0cde4c04f0419f83",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\identity_set.py": {
+    "mtime": 1776853239.7367525,
+    "ast_hash": "5fdedcc59d00b44bbc9f61e8278247be",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\list_claims.py": {
+    "mtime": 1776853239.7367525,
+    "ast_hash": "51e0b69ec7fb5f6460c2c86ed4726ce8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\memory_chain.py": {
+    "mtime": 1776853239.7377534,
+    "ast_hash": "56e7d683d0a6eb62cb8b5e22aaf3e9e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\memory_delete.py": {
+    "mtime": 1776853239.7377534,
+    "ast_hash": "62dca51c354faed71de84ac058400480",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\memory_link.py": {
+    "mtime": 1776853239.738754,
+    "ast_hash": "ae88d9472f3c5e76c7a8a764086fd9b2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\memory_search.py": {
+    "mtime": 1776853239.738754,
+    "ast_hash": "0b29e71bfa1970b56b5bf8799cd0d876",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\memory_write.py": {
+    "mtime": 1776853239.7401385,
+    "ast_hash": "604145215505ed67e9c070468490de51",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\project_context.py": {
+    "mtime": 1776853239.7414832,
+    "ast_hash": "22853a3f34c9d672b9ffd6dc840f7412",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\recommend_tech.py": {
+    "mtime": 1776853239.7419894,
+    "ast_hash": "99002933be6ed9025592221ac9e84352",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\register_handoff.py": {
+    "mtime": 1776853239.7429996,
+    "ast_hash": "b7f766a10bfa659d9bec7de7031f1a43",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\release_scope.py": {
+    "mtime": 1776853239.7429996,
+    "ast_hash": "8af5ddbe6fce40f2c284567779e33d53",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\session_bridge.py": {
+    "mtime": 1776853239.7439978,
+    "ast_hash": "c373572dd9485f732341044dc95e110d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\session_init.py": {
+    "mtime": 1776853239.7439978,
+    "ast_hash": "cc995a0c09c4d31165e7628636564731",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\tools\\verify_identity.py": {
+    "mtime": 1776853239.7449992,
+    "ast_hash": "aaf7c285b5d0ce6a8520db6b0d2a621f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\mcp-server\\utils.py": {
+    "mtime": 1776853239.7449992,
+    "ast_hash": "38c5b9642d1c7bf3dcf0e44077f7345b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\onboard_helper.py": {
+    "mtime": 1776853239.7460237,
+    "ast_hash": "be28df4fbb9f41a5c67c107b3e2ba815",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\__init__.py": {
+    "mtime": 1776853239.7470243,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\conftest.py": {
+    "mtime": 1776853239.7477963,
+    "ast_hash": "5cc97807b8acc30762265157dba73828",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_agent_orchestration.py": {
+    "mtime": 1776853239.749218,
+    "ast_hash": "2521e16a638e3045764a89348fcf1c00",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_code_isolation.py": {
+    "mtime": 1776853239.7499871,
+    "ast_hash": "68385012a39a3a8a9dc0700209418076",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_code_parsers.py": {
+    "mtime": 1776853239.7499871,
+    "ast_hash": "049dc7ba75b6e088e7191c2df24ac067",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_code_tools.py": {
+    "mtime": 1776853239.7514975,
+    "ast_hash": "fe549dc5167581eec44a6a4eda8463c6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_codex_agents.py": {
+    "mtime": 1776853239.752509,
+    "ast_hash": "cd8ec126117d9f4ac14e2d9987316721",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_db.py": {
+    "mtime": 1776853239.752509,
+    "ast_hash": "9bf5cfb0d65bb4b7e623ff3e45c57a12",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_file_search.py": {
+    "mtime": 1776853239.7540188,
+    "ast_hash": "a54b2158d7276eb271ebb7f66fbe3e37",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_memory_delete.py": {
+    "mtime": 1776853239.7540188,
+    "ast_hash": "fab0faeb1c0b75502e803cbf804fcb64",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_memory_lifecycle.py": {
+    "mtime": 1776853239.755593,
+    "ast_hash": "350389153864c47e1ac085a259909d51",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_memory_search.py": {
+    "mtime": 1776853239.7566004,
+    "ast_hash": "9ccd5ae3834e7a774cd9ed5e92538666",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_memory_write.py": {
+    "mtime": 1776853239.7566004,
+    "ast_hash": "bb3f524175762da66b7ee86cec22e59b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_multi_cli.py": {
+    "mtime": 1776853239.7576003,
+    "ast_hash": "7904a890e06d9d6509a37975b628d47d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_register_codex.py": {
+    "mtime": 1776853239.7586014,
+    "ast_hash": "9144b6ef2233883e72821c14ef5f188b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_server.py": {
+    "mtime": 1776853239.7595994,
+    "ast_hash": "ea0e2bde170fa32f3f07e73495a1a4bf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_session_bridge.py": {
+    "mtime": 1776853239.7606018,
+    "ast_hash": "7eef8c7d4513534594a2d57ebf9ba9c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_session_routing.py": {
+    "mtime": 1776853239.7606018,
+    "ast_hash": "1f33b5d90e9b62e33b298c6f160d5ddc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_subagent.py": {
+    "mtime": 1776853239.7616,
+    "ast_hash": "c71d6629df581236181d0894bfd8dffe",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tests\\test_verify_identity.py": {
+    "mtime": 1776853239.7616,
+    "ast_hash": "7215d0eb1b45f3443877fe898662a2a2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\__init__.py": {
+    "mtime": 1776853239.7635176,
+    "ast_hash": "a38a640472e3a632114aae7df8ad15f7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\__main__.py": {
+    "mtime": 1776853239.7635176,
+    "ast_hash": "784b0a5c51f40353bd4815dd58e9b58f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\app.py": {
+    "mtime": 1776853239.765067,
+    "ast_hash": "1e708ff1f2cdd636403e918705b1a851",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\data.py": {
+    "mtime": 1776853239.765067,
+    "ast_hash": "6051d47161612a7624b2efeb3e80183c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\demo.py": {
+    "mtime": 1776853239.766574,
+    "ast_hash": "e1af47448cacc9221b1ba7527643bfd6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\__init__.py": {
+    "mtime": 1776853239.7675836,
+    "ast_hash": "66a585a66db9fe8cfdbf55334ae87c15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\clusters.py": {
+    "mtime": 1776853239.768581,
+    "ast_hash": "74a1cc11e980069a85f3fd495cd6e544",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\code_graph.py": {
+    "mtime": 1776853239.7695818,
+    "ast_hash": "46815d537d3ea2c232e3871216f5316c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\contradictions.py": {
+    "mtime": 1776853239.7695818,
+    "ast_hash": "0a2b865ca39f0c546e9bed95f83463b3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\facts.py": {
+    "mtime": 1776853239.7710536,
+    "ast_hash": "2b54b94376807c2795f47842b8cc87c1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\gaps.py": {
+    "mtime": 1776853239.7715633,
+    "ast_hash": "8e9f4ec31a5701342dec4ebef7f05954",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\heatmap.py": {
+    "mtime": 1776853239.7715633,
+    "ast_hash": "5fa79ce7c582d23c1f781f1be30209fb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\overview.py": {
+    "mtime": 1776853239.7725718,
+    "ast_hash": "487515760d4e582f7395636401266b2d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\screens\\timeline.py": {
+    "mtime": 1776853239.7735727,
+    "ast_hash": "d6c064e0fea6b41f5e67db599a9fec06",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\widgets\\__init__.py": {
+    "mtime": 1776853239.7763627,
+    "ast_hash": "c63772e2ee7ac58b8a8ce1e0418b9ef4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\widgets\\heat_cell.py": {
+    "mtime": 1776853239.7773707,
+    "ast_hash": "7cbcc97f3af6ee6d66ee32e0998c4cca",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\tui\\widgets\\stats_card.py": {
+    "mtime": 1776853239.778375,
+    "ast_hash": "aa0bf49f9326e2ba7b1ff70b9dec719f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CreateHipoDatabase.sql": {
+    "mtime": 1783402189.673153,
+    "ast_hash": "38960ec606eceb46f6b5043f9879bcf7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\Hipo\\.obsidian\\app.json": {
+    "mtime": 1780988809.2719798,
+    "ast_hash": "99914b932bd37a50b983c5e7c90ae93b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\Hipo\\.obsidian\\appearance.json": {
+    "mtime": 1780988809.2719798,
+    "ast_hash": "99914b932bd37a50b983c5e7c90ae93b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\Hipo\\.obsidian\\core-plugins.json": {
+    "mtime": 1780988809.2729802,
+    "ast_hash": "5281aaad2c47e82830f5d93c3386a615",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\Hipo\\.obsidian\\graph.json": {
+    "mtime": 1780988809.274487,
+    "ast_hash": "f5361698ee095ca10c6a75c03425d12d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\Hipo\\.obsidian\\workspace.json": {
+    "mtime": 1780988809.2880266,
+    "ast_hash": "56a56a7fa8b65c578a4789d55cdd5edd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\PatchBulkAllocate.ps1": {
+    "mtime": 1784874028.9215417,
+    "ast_hash": "e5695eb0d2fbb7894836369930a55293",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\android\\app\\src\\main\\java\\io\\flutter\\plugins\\GeneratedPluginRegistrant.java": {
+    "mtime": 1780988810.0768666,
+    "ast_hash": "d8e738032406bd09a997a5c43ca14e9d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\android\\gradlew": {
+    "mtime": 1780988810.1486948,
+    "ast_hash": "ab3b64d197bb9227a0da6e4cbe1ffd8a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\artifacts\\db_schema_check.sql": {
+    "mtime": 1780988810.2205508,
+    "ast_hash": "1e5ef8f1484dbbd81562302ef96fa536",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\UpdatePermissions\\Program.cs": {
+    "mtime": 1780988810.2936063,
+    "ast_hash": "7033fdb9bc033e32b120ab51bd5b4f87",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1784015295.7139804,
+    "ast_hash": "0ca9f4852c2fafb5e743c8c847891af8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1784015295.4912407,
+    "ast_hash": "14244a2e21b6d3133cb3f35f89cf076c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.6757934,
+    "ast_hash": "c257f74d704f9d4fdd2c1313d6fd7a72",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish\\appsettings.Development.json": {
+    "mtime": 1780988815.9684706,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish\\appsettings.json": {
+    "mtime": 1783402189.903757,
+    "ast_hash": "61640fa11514239905d055bdb8b41940",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish_output\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1780988812.2870274,
+    "ast_hash": "0ca9f4852c2fafb5e743c8c847891af8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish_output\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1780988812.4609597,
+    "ast_hash": "14244a2e21b6d3133cb3f35f89cf076c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish_output\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988812.461969,
+    "ast_hash": "c257f74d704f9d4fdd2c1313d6fd7a72",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish_output\\appsettings.Development.json": {
+    "mtime": 1780988812.6562908,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\publish_output\\appsettings.json": {
+    "mtime": 1780988812.6706977,
+    "ast_hash": "f19401bee27f778f5dc312b2d3d222eb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\Program.cs": {
+    "mtime": 1780988812.8889225,
+    "ast_hash": "6507dc37ec8df1bb420d2e96e18a717b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\bin\\Debug\\net10.0\\dbtest.deps.json": {
+    "mtime": 1780988813.177981,
+    "ast_hash": "9eb3aee2d86bc66bf57251b9b8a54122",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\bin\\Debug\\net10.0\\dbtest.runtimeconfig.json": {
+    "mtime": 1780988813.1848378,
+    "ast_hash": "fac892e9b5d89d2db8c87684820b33b8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj": {
+    "mtime": 1780988813.4193933,
+    "ast_hash": "a4b3d275a9b0dd03ad74dbb3a4aa9359",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\Debug\\net10.0\\.NETCoreApp,Version=v10.0.AssemblyAttributes.cs": {
+    "mtime": 1780988813.421925,
+    "ast_hash": "8479efdf06e2d26e053d27ffa6964185",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\Debug\\net10.0\\dbtest.AssemblyInfo.cs": {
+    "mtime": 1784263876.711757,
+    "ast_hash": "e7d893775e6d8d1f0a53b904cdcfc831",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\Debug\\net10.0\\dbtest.GlobalUsings.g.cs": {
+    "mtime": 1780988813.5185115,
+    "ast_hash": "9706b2dbf69f7db452e8b0d5baf54dcf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\dbtest.csproj.nuget.dgspec.json": {
+    "mtime": 1780988813.561022,
+    "ast_hash": "9c535396e80d689989fcec80918cb47c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\project.assets.json": {
+    "mtime": 1780988813.594535,
+    "ast_hash": "ccff81c887fe222bee961feea48b1e64",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\debug_sql.cs": {
+    "mtime": 1780988813.6126564,
+    "ast_hash": "3ede49db5acd63b58d25971a3a18cafc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\schema_check.cs": {
+    "mtime": 1780988813.6126564,
+    "ast_hash": "b65ec4859755d689a00cf242e9afa87c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\test_sql.cs": {
+    "mtime": 1780988813.6126564,
+    "ast_hash": "bf14b9c4fdabea318611eaa057b88073",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\AuthController.cs": {
+    "mtime": 1780988813.6398692,
+    "ast_hash": "34d78b288408df9143a5c9f839283409",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\LogisticsController.cs": {
+    "mtime": 1784197338.0356002,
+    "ast_hash": "617f07badf8373d0fbc72cd5d78f5b38",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\RolesController.cs": {
+    "mtime": 1780988813.7255712,
+    "ast_hash": "dd93b1629f34e37068fe63ca5c2d12e9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\SyncController.cs": {
+    "mtime": 1780988813.7441583,
+    "ast_hash": "9d90101e1bfc96c1c618126a331ab271",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\UserGroupsController.cs": {
+    "mtime": 1780988813.7694137,
+    "ast_hash": "2fcefcb43c8f473c1e641d8c079a4dd6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\UsersController.cs": {
+    "mtime": 1780988813.8054714,
+    "ast_hash": "0b517a254d7a37a3141858d3033775e6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\WeatherForecastController.cs": {
+    "mtime": 1780988813.8054714,
+    "ast_hash": "e85a1683e458dd3fe68d8645c6507491",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Common\\EodSettings.cs": {
+    "mtime": 1780988813.8236072,
+    "ast_hash": "28a49548f9071cb33f791a4229ca6f25",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Common\\Result.cs": {
+    "mtime": 1780988813.8246052,
+    "ast_hash": "81b6813b5247a1ec6609cd21fc6e8661",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Common\\SyncSettings.cs": {
+    "mtime": 1780988813.8246052,
+    "ast_hash": "844a8aa5b0ef4d28f62e1a8346652ed4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\AuthDto.cs": {
+    "mtime": 1780988813.8256066,
+    "ast_hash": "86b8b75ffa357b311c7c944d04fca118",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\BarcodeMappingDto.cs": {
+    "mtime": 1780988813.8266077,
+    "ast_hash": "818e010f07017a50aab118455af715bf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\BomComponentDto.cs": {
+    "mtime": 1780988813.8587723,
+    "ast_hash": "3b86eebd72c15586189891c88297e9e7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\BulkStatusUpdateDto.cs": {
+    "mtime": 1780988813.8779593,
+    "ast_hash": "80a1b50e7e5d17ca2d807969bb0ad23d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\CustomerLookupDto.cs": {
+    "mtime": 1780988813.8789613,
+    "ast_hash": "ed08f5704477ef95d703797ca5aff1e3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\CutBulkEntryDto.cs": {
+    "mtime": 1780988813.8994448,
+    "ast_hash": "3adc047c51a9b96bb117ae4aee0f01aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\DeviceSyncLogDto.cs": {
+    "mtime": 1780988813.9004567,
+    "ast_hash": "d4ec8341759d6787749d14a79eaad082",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\ExcessDto.cs": {
+    "mtime": 1780988813.9009666,
+    "ast_hash": "13b3e4d5c227345a3a9b14c28840f870",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\LocationLookupDto.cs": {
+    "mtime": 1780988813.9009666,
+    "ast_hash": "d2685b366450139308c0a125b32f4376",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\LotLookupDto.cs": {
+    "mtime": 1780988813.901979,
+    "ast_hash": "1a6d9e2a3207cfbdf323834aedab4549",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\OrderRolloverDto.cs": {
+    "mtime": 1784184315.6553586,
+    "ast_hash": "9f16a8e0cd345850a5a5aebe00967bce",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\ProductLookupDto.cs": {
+    "mtime": 1780988813.901979,
+    "ast_hash": "4bdb5e9d7139e2013fa368fb21da2dc4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\ProductionScanDto.cs": {
+    "mtime": 1784198524.8017669,
+    "ast_hash": "3b65cf1136352e42cacc9c154d4048f7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\ProductionTrackingDto.cs": {
+    "mtime": 1784878453.2203143,
+    "ast_hash": "a4215d8208056fee18503ae8b9c30d15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SalesOrderDetailDto.cs": {
+    "mtime": 1783327651.5760272,
+    "ast_hash": "70055001af9d0d8199e5114b15953e39",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SalesOrderHeaderDto.cs": {
+    "mtime": 1784264293.2851844,
+    "ast_hash": "0c53476e0431da6041b39471c946fa2d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SalesRepLookupDto.cs": {
+    "mtime": 1780988813.9577534,
+    "ast_hash": "cc8408a1894417a06e4703c24dc56774",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\ScanDto.cs": {
+    "mtime": 1780988813.9587638,
+    "ast_hash": "710a45eeb11ab427323bbb60e560ad98",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SiteLookupDto.cs": {
+    "mtime": 1780988813.9587638,
+    "ast_hash": "4fa479e0b7a23242107d8dfca4e70a96",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SyncPackageDto.cs": {
+    "mtime": 1784198537.6871023,
+    "ast_hash": "656da6128b090e7bf2e21277cd7d89e0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\UpdateEodExclusionRequest.cs": {
+    "mtime": 1784197256.687607,
+    "ast_hash": "f36365119cb5f08e7b07a3ba917aa603",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\UserDto.cs": {
+    "mtime": 1780988813.9933753,
+    "ast_hash": "0fcbad18d454c0d79e8fd098ff881409",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\UserManagementDtos.cs": {
+    "mtime": 1780988813.9943752,
+    "ast_hash": "ee5c4156d28470167d38aebe2dcd3d4a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\WorkOrderDto.cs": {
+    "mtime": 1780988814.0059016,
+    "ast_hash": "26ac03b9cb4413f104484b703c4311c7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\X3ImportResult.cs": {
+    "mtime": 1783402189.9082663,
+    "ast_hash": "812efade36fa97ef44c3f3558d47b5b5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Interfaces\\ILogisticsService.cs": {
+    "mtime": 1784197272.0612795,
+    "ast_hash": "162dab9931f708e7354f9936fbd870ce",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Interfaces\\ISageX3SoapService.cs": {
+    "mtime": 1783402189.9106016,
+    "ast_hash": "761ae9546969e3f132bcfec85f0c59c5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Interfaces\\IStagingService.cs": {
+    "mtime": 1780988814.1159587,
+    "ast_hash": "08d341230f415d70116646d43c30b0f1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Interfaces\\ITokenService.cs": {
+    "mtime": 1780988814.1174657,
+    "ast_hash": "2779dadca6804a2d45b464e5f3d4e5a2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Interfaces\\IX3SchemaProvider.cs": {
+    "mtime": 1780988814.12808,
+    "ast_hash": "3d6bf09073d50b7a1ac76bb6f7d88ff6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\AuthService.cs": {
+    "mtime": 1780988814.158235,
+    "ast_hash": "d95cf6856fa26cd5ecf7bc1d1e0163b2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\LogisticsService.cs": {
+    "mtime": 1784197321.6000671,
+    "ast_hash": "1e2c81bf2854838bc7100e9bfca45da8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\SageX3SoapService.cs": {
+    "mtime": 1783402189.911609,
+    "ast_hash": "80121a11fac59ca69282fc89da198eca",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\StagingService.cs": {
+    "mtime": 1783412417.8674054,
+    "ast_hash": "4bd09a6cc0d204abc06b8a8b31786a21",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\AuditLog.cs": {
+    "mtime": 1780988814.245396,
+    "ast_hash": "866c1ebb6f14498ebbfadddaa8ebf66d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\EodProcessAudit.cs": {
+    "mtime": 1780988814.2704988,
+    "ast_hash": "273503776f72c8129d495594e6adf12d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\Excess.cs": {
+    "mtime": 1784179878.3724365,
+    "ast_hash": "ab83279baf066a86126a7a38af125292",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\GlobalSetting.cs": {
+    "mtime": 1780988814.3106253,
+    "ast_hash": "92461452aad69adb6e2b86f19e9e2488",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\LabelAudit.cs": {
+    "mtime": 1780988814.3207257,
+    "ast_hash": "36c616971bc641a636dcf9f8d6723e19",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\OrderShipmentStatus.cs": {
+    "mtime": 1780988814.3394356,
+    "ast_hash": "4d36fe6c593c4f37f5608db72f1604d5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\OrderStatusHistory.cs": {
+    "mtime": 1780988814.3644743,
+    "ast_hash": "6165f0f12fe9118e60229c68b4eae751",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\Permission.cs": {
+    "mtime": 1780988814.377498,
+    "ast_hash": "3b19e4edf6b2afaeda85c06ad1dc3b8b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\ProductionLineState.cs": {
+    "mtime": 1780988814.3895364,
+    "ast_hash": "20ae8c979b5761a416f8b8f1068c4426",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\ProductionScanTransaction.cs": {
+    "mtime": 1784878429.388094,
+    "ast_hash": "5f5be457e57c39296a7478003153a0c1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\Role.cs": {
+    "mtime": 1780988814.3910446,
+    "ast_hash": "bed274a4211458c02503811b55f4363f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\SalesOrder.cs": {
+    "mtime": 1784179876.2713516,
+    "ast_hash": "64780549b096b3a1a95bf9823d5e4289",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\SalesOrderLine.cs": {
+    "mtime": 1780988814.4081166,
+    "ast_hash": "9e1374c2389e966af18642e3d0a69fb2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\Staging.cs": {
+    "mtime": 1780988814.4091313,
+    "ast_hash": "d8a8b26055d8fd6cf8f205fbfbcb2f34",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\StagingEod.cs": {
+    "mtime": 1780988814.4334593,
+    "ast_hash": "0113ee4eb6007435a44b4c2de972db46",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\User.cs": {
+    "mtime": 1780988814.4525216,
+    "ast_hash": "528659c1c64cdce8c4b702d796cbe328",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\UserGroup.cs": {
+    "mtime": 1780988814.4535308,
+    "ast_hash": "744401425f3dcba8502363c14acba2e1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\X3SoapAudit.cs": {
+    "mtime": 1780988814.4535308,
+    "ast_hash": "d6444b2520d599bdc3e1794f1f8e047e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\ILogisticsRepository.cs": {
+    "mtime": 1784197270.0220969,
+    "ast_hash": "b5b47c31e479bb8a6701b538601c0925",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\IPasswordHasher.cs": {
+    "mtime": 1780988814.4668455,
+    "ast_hash": "33cce7c80af82bd01173fb085b358adf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\IRoleRepository.cs": {
+    "mtime": 1780988814.4668455,
+    "ast_hash": "44b13bdf99d4d2b2587b919192ad48c7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\ISyncRepository.cs": {
+    "mtime": 1780988814.4678414,
+    "ast_hash": "76bfece9383c7cca74e0e6b0f33bcc9d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\IUserGroupRepository.cs": {
+    "mtime": 1780988814.4760537,
+    "ast_hash": "945e161b4f167a50434215efe6948881",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Interfaces\\IUserRepository.cs": {
+    "mtime": 1780988814.4770675,
+    "ast_hash": "a26238fba63032cde49a9b5317882d5c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\EnterpriseAuth.Api.csproj": {
+    "mtime": 1780988814.4790673,
+    "ast_hash": "c3b463436a6fa0abb34b35183241f8ff",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Features\\SchemaManagement\\HeaderX3SchemaProvider.cs": {
+    "mtime": 1783402189.9126081,
+    "ast_hash": "7424cd7a933a4f6949ca65b073b61391",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\ApplicationDbContext.cs": {
+    "mtime": 1780988814.486733,
+    "ast_hash": "608b005376633f269a040b39760986c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\DbInitializer.cs": {
+    "mtime": 1784879509.6714003,
+    "ast_hash": "e894ec8a4e44a1b654c1c5685bbf2a15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfLogisticsRepository.cs": {
+    "mtime": 1785132222.531572,
+    "ast_hash": "8beadde0cd8989023b988f7a8085c855",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfRoleRepository.cs": {
+    "mtime": 1780988814.5920517,
+    "ast_hash": "063b23b8b6983a44b5593ff20dfdaea6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfSyncRepository.cs": {
+    "mtime": 1785137592.744068,
+    "ast_hash": "5385cd24880117ec1cba4bea99d5afaa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfUserGroupRepository.cs": {
+    "mtime": 1780988814.6538374,
+    "ast_hash": "9b0244faffbaa4dd1a297fce2340f544",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfUserRepository.cs": {
+    "mtime": 1783402189.9346328,
+    "ast_hash": "81facaadc92156a4811e74b8bef96a83",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260415111437_AddExcessTable.Designer.cs": {
+    "mtime": 1780988814.7031813,
+    "ast_hash": "e1e18cc104dfcf2a7dc7096b4005d1e0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260415111437_AddExcessTable.cs": {
+    "mtime": 1780988814.741608,
+    "ast_hash": "8c0013b655a5799cb0a17012d57669fb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260416100752_AddLabelAuditsTable.Designer.cs": {
+    "mtime": 1780988814.7717707,
+    "ast_hash": "1e60ad93b914886b141189c3bd4b0014",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260416100752_AddLabelAuditsTable.cs": {
+    "mtime": 1780988814.8134525,
+    "ast_hash": "0087c16df4453d5eedcde8b424c5365b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417051748_AddGlobalSettingsTable.Designer.cs": {
+    "mtime": 1780988814.8255963,
+    "ast_hash": "09a75b55b456ac33ca459e9c6ba911b7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417051748_AddGlobalSettingsTable.cs": {
+    "mtime": 1780988814.8554752,
+    "ast_hash": "987a769af9f0b984e4d752199ba24934",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417063058_AddCustomerSalesmanToExcess.Designer.cs": {
+    "mtime": 1780988814.9348238,
+    "ast_hash": "c264e6ebd8bcd30aba395939fcab137d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417063058_AddCustomerSalesmanToExcess.cs": {
+    "mtime": 1780988814.9367943,
+    "ast_hash": "2bea2251262b1bde70e1bb786594015c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417104507_MakeGlobalSettingsAppendOnly.Designer.cs": {
+    "mtime": 1780988814.9738014,
+    "ast_hash": "942ef33449f6612fde2f50b1b825f51b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417104507_MakeGlobalSettingsAppendOnly.cs": {
+    "mtime": 1780988814.9852004,
+    "ast_hash": "45bc60c3ce5a063e35335e494bf15c09",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417111125_FixGlobalSettingsPK.Designer.cs": {
+    "mtime": 1780988815.016434,
+    "ast_hash": "5de709b25c013f907ef91eff63d2120d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417111125_FixGlobalSettingsPK.cs": {
+    "mtime": 1780988815.017956,
+    "ast_hash": "215babc90e0975ae680133ac33f82574",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417121759_RefactorAuditLogEntityIdToString.Designer.cs": {
+    "mtime": 1780988815.0395947,
+    "ast_hash": "2e1c44f45435fed6bc3ab737c2d5edee",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260417121759_RefactorAuditLogEntityIdToString.cs": {
+    "mtime": 1780988815.0411038,
+    "ast_hash": "eb95f888ade9d6931850f5283cb3f508",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260419093244_AddIsValidatedToProductionLineState.Designer.cs": {
+    "mtime": 1780988815.081017,
+    "ast_hash": "e12dbad6003fe98f0c2355eb7608b8ac",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260419093244_AddIsValidatedToProductionLineState.cs": {
+    "mtime": 1780988815.0934062,
+    "ast_hash": "18a405983125c941318604c4b71fe947",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420042522_AddStagingTable.Designer.cs": {
+    "mtime": 1780988815.1187952,
+    "ast_hash": "35891277c8357c0ff4b533f509d218f1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420042522_AddStagingTable.cs": {
+    "mtime": 1780988815.14681,
+    "ast_hash": "275bf330969d9fe0fe3869cc98f1bbe4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420054528_AddRecordTypeToStaging.Designer.cs": {
+    "mtime": 1780988815.1845613,
+    "ast_hash": "a3e5c861776d956d4042c668fdad8978",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420054528_AddRecordTypeToStaging.cs": {
+    "mtime": 1780988815.1974988,
+    "ast_hash": "85c8fb0a16e83609fee64d790fb0dba3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420064614_AddItemDescriptionToStaging.Designer.cs": {
+    "mtime": 1780988815.2478397,
+    "ast_hash": "304974c8cab629e419d099316c33c101",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260420064614_AddItemDescriptionToStaging.cs": {
+    "mtime": 1780988815.2793627,
+    "ast_hash": "fc62dda3e542871789d46060da3b0d0a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423044939_AddStagingEod.Designer.cs": {
+    "mtime": 1780988815.3612418,
+    "ast_hash": "8844d8e559c08538a1f46b57fbe3850d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423044939_AddStagingEod.cs": {
+    "mtime": 1780988815.3622534,
+    "ast_hash": "3f776f537e79319cac646ad71d355fea",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423070805_AddEodStatusTable.Designer.cs": {
+    "mtime": 1780988815.4390392,
+    "ast_hash": "db9191918e839c53e0b9f1ac2fb12b6a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423070805_AddEodStatusTable.cs": {
+    "mtime": 1780988815.4677675,
+    "ast_hash": "4a570d946421ca9c56fe3a143b2db575",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423075455_AddEodFlags.Designer.cs": {
+    "mtime": 1780988815.5292318,
+    "ast_hash": "db060cf9d3f33f56397efc451b12e5a9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260423075455_AddEodFlags.cs": {
+    "mtime": 1780988815.5506284,
+    "ast_hash": "d76e4a5eae7605573cb7d0154be67667",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260428062147_AddSalesmanSchema.Designer.cs": {
+    "mtime": 1780988815.5893974,
+    "ast_hash": "b72d2758d6bb74731d5a66c57dabd141",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260428062147_AddSalesmanSchema.cs": {
+    "mtime": 1780988815.6191893,
+    "ast_hash": "99ea5a8034225d4d03df3b9f74eb170d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260428063115_AddDeliveryRepCode.Designer.cs": {
+    "mtime": 1780988815.6740663,
+    "ast_hash": "7ec9a45286e49b2f04aa65cc5d24c95f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260428063115_AddDeliveryRepCode.cs": {
+    "mtime": 1780988815.7048142,
+    "ast_hash": "3353ff50f5472a9aa0e0871788d9acbb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260428072215_AddRep0Rep1ToSalesOrders.cs": {
+    "mtime": 1780988815.7197652,
+    "ast_hash": "e302bb9ea00bd34a246b879033c5a132",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260430043416_AddOptimizedEodIndexes.Designer.cs": {
+    "mtime": 1780988815.7531683,
+    "ast_hash": "25b9157ec62d96e2a87edc1c1f42877f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260430043416_AddOptimizedEodIndexes.cs": {
+    "mtime": 1780988815.776585,
+    "ast_hash": "937c294d5f383ce80cdd557e3ef44f14",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260430061219_AddEaQuantityToStagingEod.Designer.cs": {
+    "mtime": 1780988815.8083909,
+    "ast_hash": "82a1e6248b78a1ca3280d202a9cea2c1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260430061219_AddEaQuantityToStagingEod.cs": {
+    "mtime": 1780988815.809391,
+    "ast_hash": "106f4e898a3ee4b88df49e3ccd87bfd6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260608112230_AddLotNumberToStaging.cs": {
+    "mtime": 1780988815.8109002,
+    "ast_hash": "f6a73f96ab08effd1cc3391e15bad179",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260609051242_AddTokenVersion.Designer.cs": {
+    "mtime": 1780988815.8424354,
+    "ast_hash": "74f0cc67d1f553dba252a038a03c7d1f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260609051242_AddTokenVersion.cs": {
+    "mtime": 1780988815.844442,
+    "ast_hash": "34ac8ba8c790aff6fd7ec58a7a21b0bf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260706114106_AddTargetLorry.Designer.cs": {
+    "mtime": 1783402189.946902,
+    "ast_hash": "128a79d6db433d2b30c6f5eda1e4dbbd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260706114106_AddTargetLorry.cs": {
+    "mtime": 1784180173.5870848,
+    "ast_hash": "cb2d3e0208a4b777cef8ae85e040b36b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260716053302_AddExcludeFromEodToScanTransactions.Designer.cs": {
+    "mtime": 1784179982.2622347,
+    "ast_hash": "56f6ab964ea58a77c8fa475a9469c383",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260716053302_AddExcludeFromEodToScanTransactions.cs": {
+    "mtime": 1784179982.260227,
+    "ast_hash": "0c452b50df2553e68263566ed938c36c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\ApplicationDbContextModelSnapshot.cs": {
+    "mtime": 1783402189.9494176,
+    "ast_hash": "2582a28c930cd8853022bbca3285bd43",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\ScanProductionDbContextModelSnapshot.cs": {
+    "mtime": 1784179982.2757971,
+    "ast_hash": "ef9028ed6eafa6f801f28e88aa520884",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\ScanProductionDbContext.cs": {
+    "mtime": 1783402189.9629316,
+    "ast_hash": "6fe2a1deff0759b33c42c1d324a0f202",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Security\\BCryptPasswordHasher.cs": {
+    "mtime": 1780988815.916131,
+    "ast_hash": "28ebc692cee4c65b30ee92a4e595b442",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Security\\JwtTokenService.cs": {
+    "mtime": 1780988815.9309497,
+    "ast_hash": "8ac42fa34864d1d8a87e7e872ea8e4b9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Program.cs": {
+    "mtime": 1783402189.9639332,
+    "ast_hash": "cd8bdc960a856f548df664571118295f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Properties\\launchSettings.json": {
+    "mtime": 1780988815.964329,
+    "ast_hash": "4af443b59566b51c67899bd21097670d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\ReplaceErrors.cs": {
+    "mtime": 1783421816.945185,
+    "ast_hash": "1e81716c5e6ad0e5ec78c3d02048f64f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Scripts\\CreateMobileAppScansTable.sql": {
+    "mtime": 1780988815.9651005,
+    "ast_hash": "df5283e8aadd09830fbea01bc0b8bdc6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Scripts\\CreateStatusTable.sql": {
+    "mtime": 1780988815.9659503,
+    "ast_hash": "0158652defef97f3191f1d8354bb1703",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Scripts\\NormalizeScanProduction.sql": {
+    "mtime": 1780988815.9669597,
+    "ast_hash": "54d29bee44452eab417cf4b62d6abfb5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\WeatherForecast.cs": {
+    "mtime": 1780988815.9669597,
+    "ast_hash": "69b5e427cdb4456745c52f06746c9adb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\appsettings.Development.json": {
+    "mtime": 1780988815.9684706,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\appsettings.json": {
+    "mtime": 1780988815.9694777,
+    "ast_hash": "12f151d04e24b33d27a198abf3c50292",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net10.0\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json": {
+    "mtime": 1780988816.1755986,
+    "ast_hash": "6a002d69baf7b85bfe11c404487f1905",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net10.0\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json": {
+    "mtime": 1780988816.1871254,
+    "ast_hash": "4a59cbd5a00293f28ad2649fdda570f9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1784270617.5288527,
+    "ast_hash": "8e65ed9247f8c0c1975ee34c82caee33",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1784270617.615601,
+    "ast_hash": "9845964cb0e2d184bf6c1f981b6b5870",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.1780033,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net8.0\\appsettings.Development.json": {
+    "mtime": 1780988817.499163,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Debug\\net8.0\\appsettings.json": {
+    "mtime": 1780988817.499163,
+    "ast_hash": "12f151d04e24b33d27a198abf3c50292",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1784015295.4186082,
+    "ast_hash": "8e65ed9247f8c0c1975ee34c82caee33",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1784015295.4912407,
+    "ast_hash": "14244a2e21b6d3133cb3f35f89cf076c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.6737943,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\appsettings.Development.json": {
+    "mtime": 1780988818.6991248,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\appsettings.json": {
+    "mtime": 1780988818.6991248,
+    "ast_hash": "61640fa11514239905d055bdb8b41940",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\publish\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1783930444.0078998,
+    "ast_hash": "0ca9f4852c2fafb5e743c8c847891af8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\publish\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1783930443.872815,
+    "ast_hash": "14244a2e21b6d3133cb3f35f89cf076c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\publish\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.6757934,
+    "ast_hash": "c257f74d704f9d4fdd2c1313d6fd7a72",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\publish\\appsettings.Development.json": {
+    "mtime": 1780988819.6049712,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\bin\\Release\\net8.0\\publish\\appsettings.json": {
+    "mtime": 1780988819.6059701,
+    "ast_hash": "61640fa11514239905d055bdb8b41940",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\.NETCoreApp,Version=v10.0.AssemblyAttributes.cs": {
+    "mtime": 1780988819.9294057,
+    "ast_hash": "8479efdf06e2d26e053d27ffa6964185",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\EnterpriseAuth.Api.AssemblyInfo.cs": {
+    "mtime": 1780988819.9294057,
+    "ast_hash": "dfd62c99773d79772026681dea190e4f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\EnterpriseAuth.Api.GlobalUsings.g.cs": {
+    "mtime": 1780988819.9309864,
+    "ast_hash": "5b3fdaae7b59d230d7d136eab049a98a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\EnterpriseAuth.Api.MvcApplicationPartsAssemblyInfo.cs": {
+    "mtime": 1780988819.9319966,
+    "ast_hash": "78ebdea476ed39e962105ba794fb3dc3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\rpswa.dswa.cache.json": {
+    "mtime": 1780988819.957721,
+    "ast_hash": "377bc8b935aa4c69dec036c1c665fd26",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\.NETCoreApp,Version=v8.0.AssemblyAttributes.cs": {
+    "mtime": 1780988819.958732,
+    "ast_hash": "9b225453b5a8008eefb62f6c5c66ce15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\EnterpriseAuth.Api.AssemblyInfo.cs": {
+    "mtime": 1784879347.4432163,
+    "ast_hash": "61b7484961ce27168d414d17e351db39",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\EnterpriseAuth.Api.GlobalUsings.g.cs": {
+    "mtime": 1780988819.9782457,
+    "ast_hash": "5b3fdaae7b59d230d7d136eab049a98a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\EnterpriseAuth.Api.MvcApplicationPartsAssemblyInfo.cs": {
+    "mtime": 1784014739.7867262,
+    "ast_hash": "5463144521d470907c4bda32e1454692",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\EnterpriseAuth.Api.sourcelink.json": {
+    "mtime": 1784879347.4872992,
+    "ast_hash": "c138f00f57c967873f6e1801684735da",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\project.razor.json": {
+    "mtime": 1784266146.4075212,
+    "ast_hash": "086f31e3b6ed7cb3c71f461603a40419",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\rjsmcshtml.dswa.cache.json": {
+    "mtime": 1785137626.0957317,
+    "ast_hash": "fcf2bdbe78eb3d04abf64d5941c3aca0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\rjsmrazor.dswa.cache.json": {
+    "mtime": 1785137626.0922294,
+    "ast_hash": "21a09028f4a29b53bd3f5f5032a0e344",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\rpswa.dswa.cache.json": {
+    "mtime": 1784014739.3148558,
+    "ast_hash": "3a287f8222b06200be2e05d59a8c1ce2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\staticwebassets.build.endpoints.json": {
+    "mtime": 1780988820.1780033,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\staticwebassets.build.json": {
+    "mtime": 1780988820.1790037,
+    "ast_hash": "0ede437bd196c5992263e2fb0fc41df2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\EnterpriseAuth.Api.csproj.nuget.dgspec.json": {
+    "mtime": 1784014738.0266051,
+    "ast_hash": "ac4c293e9bfeb273a28b5be7837f6574",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\.NETCoreApp,Version=v8.0.AssemblyAttributes.cs": {
+    "mtime": 1780988820.2051132,
+    "ast_hash": "9b225453b5a8008eefb62f6c5c66ce15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.AssemblyInfo.cs": {
+    "mtime": 1784611489.6877427,
+    "ast_hash": "95ec93027ebc71b080a8f911a18c0a40",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.GlobalUsings.g.cs": {
+    "mtime": 1780988820.207111,
+    "ast_hash": "5b3fdaae7b59d230d7d136eab049a98a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.MvcApplicationPartsAssemblyInfo.cs": {
+    "mtime": 1784015292.4697113,
+    "ast_hash": "5463144521d470907c4bda32e1454692",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1784015295.7139804,
+    "ast_hash": "0ca9f4852c2fafb5e743c8c847891af8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.sourcelink.json": {
+    "mtime": 1784611489.7921693,
+    "ast_hash": "e2f1198fd362794bdaf7b74c11014083",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\rjsmcshtml.dswa.cache.json": {
+    "mtime": 1784611662.3591976,
+    "ast_hash": "212cffd6769ef818fbf9124f2ccb3329",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\rjsmrazor.dswa.cache.json": {
+    "mtime": 1784611662.3404424,
+    "ast_hash": "584f23e1779beeb30a16ece2791c1fec",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\rpswa.dswa.cache.json": {
+    "mtime": 1783930430.4045782,
+    "ast_hash": "3a287f8222b06200be2e05d59a8c1ce2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\staticwebassets.build.endpoints.json": {
+    "mtime": 1780988820.6737943,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\staticwebassets.build.json": {
+    "mtime": 1780988820.6737943,
+    "ast_hash": "0ede437bd196c5992263e2fb0fc41df2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\staticwebassets.publish.endpoints.json": {
+    "mtime": 1780988820.6757934,
+    "ast_hash": "c257f74d704f9d4fdd2c1313d6fd7a72",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\staticwebassets.publish.json": {
+    "mtime": 1780988820.6767938,
+    "ast_hash": "203e888e49cf90e3a2acafae33ce583a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\project.assets.json": {
+    "mtime": 1784014738.000162,
+    "ast_hash": "9675c9989f12877cde2479ca126e5547",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\total_update.sql": {
+    "mtime": 1784874010.649698,
+    "ast_hash": "436faa1ca80711f62757e3aa5c460989",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\update.sql": {
+    "mtime": 1784878401.8643625,
+    "ast_hash": "9e4ea04bb6c2da26fd67fceedcd31585",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\EnterpriseAuth.UnitTests.csproj": {
+    "mtime": 1780988820.8192704,
+    "ast_hash": "f698a77e14f3daae42554836ca468b78",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\ProductMappingTests.cs": {
+    "mtime": 1780988820.8192704,
+    "ast_hash": "6cab107267030354cff86f65589b7535",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\SyncCalculatedDataTests.cs": {
+    "mtime": 1780988820.8207784,
+    "ast_hash": "6a677a7979659974b9b55f606134b580",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\UnitTest1.cs": {
+    "mtime": 1780988820.8207784,
+    "ast_hash": "9083386f7dc314cd692f3f754619e902",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1780988820.8892803,
+    "ast_hash": "8e65ed9247f8c0c1975ee34c82caee33",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1780988820.917836,
+    "ast_hash": "9845964cb0e2d184bf6c1f981b6b5870",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.918343,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\EnterpriseAuth.UnitTests.deps.json": {
+    "mtime": 1780988820.9194732,
+    "ast_hash": "aec5f3ba44a1bf7962cf41d9c234bbb7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\EnterpriseAuth.UnitTests.runtimeconfig.json": {
+    "mtime": 1780988820.9220035,
+    "ast_hash": "5f3a2d98fc24aa854c5b9344a7a4d157",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\appsettings.Development.json": {
+    "mtime": 1780988821.5247653,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net10.0\\appsettings.json": {
+    "mtime": 1780988821.525769,
+    "ast_hash": "1883a5eaf4d17179c634ae29f7083f5b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1780988822.018085,
+    "ast_hash": "8e65ed9247f8c0c1975ee34c82caee33",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1780988822.1498172,
+    "ast_hash": "9845964cb0e2d184bf6c1f981b6b5870",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988822.1498172,
+    "ast_hash": "f44ca44dd881261586b84442f2201257",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\EnterpriseAuth.UnitTests.deps.json": {
+    "mtime": 1780988822.1508179,
+    "ast_hash": "2413aae1e5c8b39ae75837336100e3e6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\EnterpriseAuth.UnitTests.runtimeconfig.json": {
+    "mtime": 1780988822.1538293,
+    "ast_hash": "d66f76d1f7b96701b5900095dde9592e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\appsettings.Development.json": {
+    "mtime": 1780988822.8392532,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\bin\\Debug\\net8.0\\appsettings.json": {
+    "mtime": 1780988822.840252,
+    "ast_hash": "1883a5eaf4d17179c634ae29f7083f5b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net10.0\\.NETCoreApp,Version=v10.0.AssemblyAttributes.cs": {
+    "mtime": 1780988823.624097,
+    "ast_hash": "8479efdf06e2d26e053d27ffa6964185",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net10.0\\EnterpriseAuth.UnitTests.AssemblyInfo.cs": {
+    "mtime": 1780988823.6250968,
+    "ast_hash": "9584894aa9731a4ba8e125de2a5b76f9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net10.0\\EnterpriseAuth.UnitTests.GlobalUsings.g.cs": {
+    "mtime": 1780988823.628619,
+    "ast_hash": "535736b170e2841ba51152623818eddd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net10.0\\EnterpriseAuth.UnitTests.sourcelink.json": {
+    "mtime": 1780988823.6351361,
+    "ast_hash": "64b0b4b282868177aee2744cae363e84",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net8.0\\.NETCoreApp,Version=v8.0.AssemblyAttributes.cs": {
+    "mtime": 1780988823.638657,
+    "ast_hash": "9b225453b5a8008eefb62f6c5c66ce15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net8.0\\EnterpriseAuth.UnitTests.AssemblyInfo.cs": {
+    "mtime": 1784263880.287092,
+    "ast_hash": "654d749e4452e66651f293656058acdf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net8.0\\EnterpriseAuth.UnitTests.GlobalUsings.g.cs": {
+    "mtime": 1780988823.7256155,
+    "ast_hash": "535736b170e2841ba51152623818eddd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net8.0\\EnterpriseAuth.UnitTests.sourcelink.json": {
+    "mtime": 1784092427.4333801,
+    "ast_hash": "5e2eadd4eaa2b489f8cebcbf57755f7e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\EnterpriseAuth.UnitTests.csproj.nuget.dgspec.json": {
+    "mtime": 1784092409.6839192,
+    "ast_hash": "01fb1f149a56aa86aff1872890bbe260",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\project.assets.json": {
+    "mtime": 1784092409.6517181,
+    "ast_hash": "95d361b75ca2cd16e393da2304028931",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\cleanup.sql": {
+    "mtime": 1783402190.6032557,
+    "ast_hash": "1ec504ded3f7b2ecc8d48d210f4875ec",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\dartpad\\web_plugin_registrant.dart": {
+    "mtime": 1781005194.933722,
+    "ast_hash": "f1a3ed680902a68b9a145bf8c3c4c62a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\extension_discovery\\vs_code.json": {
+    "mtime": 1783486883.116177,
+    "ast_hash": "5182846a09445743f12af5cf14ef056a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\flutter_build\\90d87622cfd9f5cb58747ca8fe7adc9c\\dart_build_result.json": {
+    "mtime": 1784274342.5024588,
+    "ast_hash": "3d608713723b4452c7877fe40aadbe67",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\flutter_build\\90d87622cfd9f5cb58747ca8fe7adc9c\\native_assets.json": {
+    "mtime": 1784274342.5703766,
+    "ast_hash": "f3a664e105b4f792c6c7fe4e4d22c398",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\flutter_build\\90d87622cfd9f5cb58747ca8fe7adc9c\\outputs.json": {
+    "mtime": 1785133734.195366,
+    "ast_hash": "4f9886e8f37833c5d121b032cd6e3c09",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\flutter_build\\dart_plugin_registrant.dart": {
+    "mtime": 1781005196.1400437,
+    "ast_hash": "5fc7f03cf39c6e61ebb801b702ba383b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1784274342.4910226,
+    "ast_hash": "a99d13047f865242f041f66b4661d91a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\hook.dependencies_hash_file.json": {
+    "mtime": 1783402244.8944347,
+    "ast_hash": "ba2ec3336556c5f9412ef5141443f617",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\input.json": {
+    "mtime": 1784274341.9271193,
+    "ast_hash": "bd9c5a0ebbd16c86fc16799bd865e9c8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\output.json": {
+    "mtime": 1784274342.392402,
+    "ast_hash": "bb811246141c8f21bcb4d5d43707ccd7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1782989767.4992168,
+    "ast_hash": "5c71820e05a97fd6fbd23b17a8815d6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\hook.dependencies_hash_file.json": {
+    "mtime": 1781167178.8206503,
+    "ast_hash": "ba2ec3336556c5f9412ef5141443f617",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\input.json": {
+    "mtime": 1782989766.9172528,
+    "ast_hash": "a0d74158494bcd5f374c5e98a78f509d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\output.json": {
+    "mtime": 1782989767.444728,
+    "ast_hash": "1ac4c53f175b703dfb460257af1e05d1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1782990078.609998,
+    "ast_hash": "5c71820e05a97fd6fbd23b17a8815d6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\hook.dependencies_hash_file.json": {
+    "mtime": 1782990077.131595,
+    "ast_hash": "28d8669121301be01855f16fbe882d4d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\input.json": {
+    "mtime": 1782990077.1421418,
+    "ast_hash": "b721726a1236c42aeb8d6b0522a6e289",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\output.json": {
+    "mtime": 1782990078.276934,
+    "ast_hash": "9b9001ad78420d091dcb996a2334698d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1783401850.2974596,
+    "ast_hash": "5c71820e05a97fd6fbd23b17a8815d6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\hook.dependencies_hash_file.json": {
+    "mtime": 1782992007.954781,
+    "ast_hash": "28d8669121301be01855f16fbe882d4d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\input.json": {
+    "mtime": 1783401849.0367036,
+    "ast_hash": "50bf8743ecf3c6c864b9f08138695492",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\output.json": {
+    "mtime": 1783401850.247394,
+    "ast_hash": "287920b67e78156056e22672421f78a1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\dependencies.dependencies_hash_file.json": {
+    "mtime": 1782990088.5554466,
+    "ast_hash": "5c71820e05a97fd6fbd23b17a8815d6b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\hook.dependencies_hash_file.json": {
+    "mtime": 1782990086.565832,
+    "ast_hash": "28d8669121301be01855f16fbe882d4d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\input.json": {
+    "mtime": 1782990086.5678334,
+    "ast_hash": "f1d7cc0757b263422fed12708cf99bba",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\output.json": {
+    "mtime": 1782990088.5013993,
+    "ast_hash": "8048fc040358d50b121e616edc89e2e9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\package_config.json": {
+    "mtime": 1783402214.086,
+    "ast_hash": "8fe7379681309effcbbb3ee37488c8ee",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\package_graph.json": {
+    "mtime": 1783402207.798914,
+    "ast_hash": "74406e63d6c30ca937417a8598373131",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\Program.cs": {
+    "mtime": 1783422699.219797,
+    "ast_hash": "72bfb5c1319e2d76f65663c7cc3e43a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\app\\build.gradle.kts": {
+    "mtime": 1780988824.2251134,
+    "ast_hash": "9d263d75f9f397a9989e95fa5793c046",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\app\\src\\main\\java\\io\\flutter\\plugins\\GeneratedPluginRegistrant.java": {
+    "mtime": 1778135528.383045,
+    "ast_hash": "7d653a5273a5a17296b21d74c3a6591a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\app\\src\\main\\kotlin\\com\\enterprise\\auth\\enterprise_auth_mobile\\MainActivity.kt": {
+    "mtime": 1780988824.26631,
+    "ast_hash": "79feb3181acf05533f77d29d10b7e93d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\build.gradle.kts": {
+    "mtime": 1780988824.7410696,
+    "ast_hash": "803fe22651fbe96ed401eb0b66a492d1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\gradlew": {
+    "mtime": 1772439982.4342606,
+    "ast_hash": "7f1cd7eb3f75a1dc85cd37753972a6e2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\android\\settings.gradle.kts": {
+    "mtime": 1780988824.7420797,
+    "ast_hash": "f276a44edd917afd836899357fdae60e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\fix_repo.dart": {
+    "mtime": 1783420019.0871232,
+    "ast_hash": "95e9749dec08b33da3af42d2cf4fcd35",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\fix_repo.ps1": {
+    "mtime": 1783421828.6030235,
+    "ast_hash": "70face1396b2f58f2c5af4d60d5015e0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\fix_repo.py": {
+    "mtime": 1783420516.0021753,
+    "ast_hash": "908efb81c4cf2ecaebae4e7948df0479",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py": {
+    "mtime": 1781005194.4863875,
+    "ast_hash": "98fc75412162af387e2e3461e4e58094",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Flutter\\flutter_export_environment.sh": {
+    "mtime": 1781005194.497434,
+    "ast_hash": "ff6b25a788bd402726088951441119c8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\RunnerTests\\RunnerTests.swift": {
+    "mtime": 1780988825.4579513,
+    "ast_hash": "24e5d095048eb86c30423f4e04b6e57b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\AppDelegate.swift": {
+    "mtime": 1780988824.809656,
+    "ast_hash": "9e1de9c329a3fe4931876063de95132b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\Assets.xcassets\\AppIcon.appiconset\\Contents.json": {
+    "mtime": 1780988824.8111634,
+    "ast_hash": "31a08e429403e265cabfb31b3d65f049",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\Assets.xcassets\\LaunchImage.imageset\\Contents.json": {
+    "mtime": 1780988825.4308412,
+    "ast_hash": "b9e927ac17345f2d5f052fe68a3487f9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\GeneratedPluginRegistrant.h": {
+    "mtime": 1772436487.888174,
+    "ast_hash": "decb9041b5e91a07e66f4664e5dac408",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\GeneratedPluginRegistrant.m": {
+    "mtime": 1778135528.410055,
+    "ast_hash": "df948543a71b54e3755166faa102797e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\Runner-Bridging-Header.h": {
+    "mtime": 1780988825.455445,
+    "ast_hash": "7ad7b5cea096132de13ba526b2b9efbe",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\ios\\Runner\\SceneDelegate.swift": {
+    "mtime": 1780988825.4564435,
+    "ast_hash": "0c3e86af131f6a9e547c80b5ed058914",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\app_theme.dart": {
+    "mtime": 1780988825.4631152,
+    "ast_hash": "10c76e048f4a4a362d9c573f670c6ddf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\bloc\\app_sync\\app_sync_bloc.dart": {
+    "mtime": 1784094173.7417462,
+    "ast_hash": "d0f222d14af0d8c7b18186608785b89e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\bloc\\app_sync\\app_sync_event.dart": {
+    "mtime": 1784093814.4134195,
+    "ast_hash": "b8425b36e9b99e60df6041dd1be50703",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\bloc\\app_sync\\app_sync_state.dart": {
+    "mtime": 1784093812.368341,
+    "ast_hash": "235e96ae12149627e7732c526347e477",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\config\\api_config.dart": {
+    "mtime": 1784869256.8966691,
+    "ast_hash": "385c0328d1b9f09c751066a146021b59",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\error\\api_error_handler.dart": {
+    "mtime": 1783418967.326723,
+    "ast_hash": "b477888393899d7dc9de660c1d4d9b47",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\models\\printer_device.dart": {
+    "mtime": 1780988825.481352,
+    "ast_hash": "a3903fa1faf5d05ef523d52832c5a4c1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\network_service.dart": {
+    "mtime": 1783402190.6263068,
+    "ast_hash": "17ebcfb8675fd92bb20782a9e6e4b579",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\secure_storage_service.dart": {
+    "mtime": 1780988825.5029306,
+    "ast_hash": "f5d64c586cb99c30c99ac31846f4f1ff",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\device_info_service.dart": {
+    "mtime": 1780988825.5087543,
+    "ast_hash": "5e02a96ef995c884d610888b53f791f0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\printer_service.dart": {
+    "mtime": 1780988825.5584972,
+    "ast_hash": "e52cbecf6154fb28191ac8aad81f937b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\tcp_print_service.dart": {
+    "mtime": 1780988825.5584972,
+    "ast_hash": "5edef4ec8c9a7e21ce547173480fa69a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\theme_cubit.dart": {
+    "mtime": 1780988825.561016,
+    "ast_hash": "4b7d2a4ce640c505d530b717348a0fcd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\app_ui.dart": {
+    "mtime": 1783402190.6273062,
+    "ast_hash": "770a2f600cc1712144f3bcf89e72e675",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\audio\\audio_service.dart": {
+    "mtime": 1780988825.5620284,
+    "ast_hash": "cfb397223e5695c5227e127537f38e40",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\barcode_processor.dart": {
+    "mtime": 1780988825.5795612,
+    "ast_hash": "a9d474340d63f84b5c2f4ee2cbbf32d4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\barcode_scanner_widget.dart": {
+    "mtime": 1780988825.591001,
+    "ast_hash": "26b565717d60dea082745c707a72e3c6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\hardware_scanner_mixin.dart": {
+    "mtime": 1780988825.6085746,
+    "ast_hash": "83e5ac890756d5c9f2d644e3536c5207",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\hardware_scanner_service.dart": {
+    "mtime": 1780988825.629735,
+    "ast_hash": "12990202b304f317f372b642919088d4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\offline_barcode_processor.dart": {
+    "mtime": 1780988825.6613767,
+    "ast_hash": "0c9c40c44d9e734912ad0ac8ed6c1045",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\product_scan_floating_screen.dart": {
+    "mtime": 1784098908.0205777,
+    "ast_hash": "93b23a20a27392b0662237184ba8021c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\production_tracking_scanner.dart": {
+    "mtime": 1780988825.724044,
+    "ast_hash": "2c858cb6124482f7e05d8a614287f551",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\scan_item_card.dart": {
+    "mtime": 1780988825.725044,
+    "ast_hash": "0c039cb296bf29a27811d5b371f9333b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\zpl_generator.dart": {
+    "mtime": 1780988825.7446282,
+    "ast_hash": "d00edd59beffcfa821fe80b8b480c137",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\widgets\\filter_input_widgets.dart": {
+    "mtime": 1780988825.780238,
+    "ast_hash": "dd2c39084b8cccfb7607ee8636c2ef3b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\widgets\\inactivity_watcher.dart": {
+    "mtime": 1784870128.357389,
+    "ast_hash": "b20fc0295980d89a2072066c91574fbb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\widgets\\industrial_module_layout.dart": {
+    "mtime": 1783402190.8097324,
+    "ast_hash": "e07f343ea1762ba97418678346b62014",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\widgets\\standard_filter.dart": {
+    "mtime": 1780988826.0092099,
+    "ast_hash": "da600e1d4efbf81f54169e91d35b147c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\data\\models\\user_management.dart": {
+    "mtime": 1780988826.0347683,
+    "ast_hash": "1aff8743d02bbd59acfb79df082f6be1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\data\\repositories\\user_management_repository.dart": {
+    "mtime": 1783424482.9457633,
+    "ast_hash": "017560c74cea513cdfbbc1ccf22f33a2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\data\\repositories\\user_management_repository_mock.dart": {
+    "mtime": 1780988826.0754383,
+    "ast_hash": "4c0c5a515f466e924e1a30ddc8d8d039",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\ui\\screens\\sync_logs_screen.dart": {
+    "mtime": 1780988826.085975,
+    "ast_hash": "16fe57bc7a02acb3c15c5eca4fb90156",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\ui\\screens\\user_management_screen.dart": {
+    "mtime": 1784872520.3790627,
+    "ast_hash": "f3bb75affb92ed2f461b224fd97d18b9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\data\\models\\user_dto.dart": {
+    "mtime": 1780988826.1394143,
+    "ast_hash": "09f3f061a171ea3dade4ebf82d2da233",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\data\\repositories\\auth_repository.dart": {
+    "mtime": 1783419434.5927112,
+    "ast_hash": "a3f3f3e1ebdbfee66b7f238541c7ac00",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\domain\\entities\\user.dart": {
+    "mtime": 1780988826.15546,
+    "ast_hash": "265fb8c6fc27fea047de7baa25adcb01",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\domain\\repositories\\iauth_repository.dart": {
+    "mtime": 1780988826.1574621,
+    "ast_hash": "4fbfcda7b197c91d0465e36ea0f31e7c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\domain\\usecases\\login_use_case.dart": {
+    "mtime": 1780988826.1584618,
+    "ast_hash": "0bc1a4f92364e891aff9816ec47c2648",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\domain\\usecases\\register_use_case.dart": {
+    "mtime": 1780988826.1594594,
+    "ast_hash": "498fec74dac7d10738fa43ef0b199833",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\bloc\\auth_bloc.dart": {
+    "mtime": 1780988826.1819189,
+    "ast_hash": "3139abf67625caf6bef260ce0183068e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\bloc\\auth_event.dart": {
+    "mtime": 1780988826.1829185,
+    "ast_hash": "5cce54556a6dda361e9ef541b28cadc5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\bloc\\auth_state.dart": {
+    "mtime": 1780988826.1839285,
+    "ast_hash": "83338fb3a2465303d288a633ebf64e6a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\pages\\home_screen.dart": {
+    "mtime": 1784874314.1672058,
+    "ast_hash": "9578aef3c38f67680f7501eaffa243d6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\pages\\login_screen.dart": {
+    "mtime": 1780988826.1934564,
+    "ast_hash": "50a296e69cc2b67bc32cc49ba89aed2b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\inventory\\ui\\screens\\picking_screen.dart": {
+    "mtime": 1780988826.195456,
+    "ast_hash": "902f293efc938d76e16078cd1f0b90af",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\inventory\\ui\\screens\\qr_label_screen.dart": {
+    "mtime": 1783402190.9013512,
+    "ast_hash": "f9be8361857662399f27767f207e0864",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\inventory\\ui\\screens\\stock_control_screen.dart": {
+    "mtime": 1780988826.2331598,
+    "ast_hash": "89da20a076a457a9ca3975cd84b3cb37",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\local\\local_database_helper.dart": {
+    "mtime": 1785132235.585176,
+    "ast_hash": "d1d133456fb068afc26b3d32ca1cb37d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\location_lookup_dto.dart": {
+    "mtime": 1780988826.258265,
+    "ast_hash": "ec010b7cd1a0b95e1a8ee8f694decfa6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\lookup_dto.dart": {
+    "mtime": 1780988826.2592666,
+    "ast_hash": "a5c1029dcd087a6c9ed73b730504dd73",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\lot_dto.dart": {
+    "mtime": 1780988826.2592666,
+    "ast_hash": "88fab9dee9eed826c8bdceb4fda79951",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\product_master_dto.dart": {
+    "mtime": 1780988826.2607756,
+    "ast_hash": "42b19c5c7af57b2d3d19271e26663ebc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\sales_order_detail_dto.dart": {
+    "mtime": 1780988826.275378,
+    "ast_hash": "0cebfa49f6dbbe05c756c0361407fa8d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\sales_order_dto.dart": {
+    "mtime": 1784264351.2706606,
+    "ast_hash": "89250452e57fe8f96bfae213e07f9f35",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\repositories\\delivery_repository.dart": {
+    "mtime": 1784273733.5848067,
+    "ast_hash": "065e05e4750199bd082af33588d1381f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\repositories\\local_repository.dart": {
+    "mtime": 1780988826.3396237,
+    "ast_hash": "ae325daa61055f84ff237a866f82296d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\sync\\sync_manager.dart": {
+    "mtime": 1783424461.9938703,
+    "ast_hash": "590048d74f4629e51ea7d51eddb3cedf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\customer.dart": {
+    "mtime": 1780988826.3421445,
+    "ast_hash": "00ea258b32501cc587ea314d8ae08c20",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\location_lookup.dart": {
+    "mtime": 1780988826.3431444,
+    "ast_hash": "380c6bf7ee8a89c08956601f588646b3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\production_scan.dart": {
+    "mtime": 1780988826.3431444,
+    "ast_hash": "0791a64bca74552f56dead5a1826c0d9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\sales_order.dart": {
+    "mtime": 1784274863.4115756,
+    "ast_hash": "ff22cad339d99666bda148faa5dd9dca",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\sales_order_detail.dart": {
+    "mtime": 1780988826.3783731,
+    "ast_hash": "c4b1f035894fd72f6fe462b1a60eb74c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\sales_rep.dart": {
+    "mtime": 1780988826.379377,
+    "ast_hash": "c9b16725d5035e75a838b0cf014534dc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\site.dart": {
+    "mtime": 1780988826.4014833,
+    "ast_hash": "fef420ac6ab38e2432b04b0a73488318",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\entities\\sync_progress.dart": {
+    "mtime": 1780988826.4024818,
+    "ast_hash": "514b67446153179376b8bea273aeca15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\repositories\\ilogistics_repository.dart": {
+    "mtime": 1784181443.999274,
+    "ast_hash": "ef9493b2add0c437af218d8fe2a93180",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_customers_use_case.dart": {
+    "mtime": 1780988826.429403,
+    "ast_hash": "e90464d7f9e5caed1c3ae473496bccb0",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_production_tracking_use_case.dart": {
+    "mtime": 1780988826.4309158,
+    "ast_hash": "c5f93e425ec37587341a053cff39b062",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_sales_order_details_use_case.dart": {
+    "mtime": 1780988826.4309158,
+    "ast_hash": "c42dc281ca4d9845e5fc75c0d5e3c748",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_sales_order_headers_use_case.dart": {
+    "mtime": 1780988826.4319305,
+    "ast_hash": "3e38528e213c39ad9c896b8ea5e898d9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_sales_reps_use_case.dart": {
+    "mtime": 1780988826.4334526,
+    "ast_hash": "06c5343613509f3868eb707c1bfd2861",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_sites_use_case.dart": {
+    "mtime": 1780988826.4344506,
+    "ast_hash": "c570124b47ec7a78276f8d655b95dc77",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\set_preparation_status_use_case.dart": {
+    "mtime": 1780988826.434957,
+    "ast_hash": "612d7a27073f7b5675a5e4a5fa5a9345",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\sync_scans_use_case.dart": {
+    "mtime": 1780988826.434957,
+    "ast_hash": "a5754caf6ddefe5f2679e31941158e9f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\synchronize_logistics_use_case.dart": {
+    "mtime": 1780988826.4359708,
+    "ast_hash": "c2783fe2ae2c8d46249a11fef1252626",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\order_bloc.dart": {
+    "mtime": 1780988826.4710996,
+    "ast_hash": "4c7459b11ec62b79c8ea536ae3384243",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\order_event.dart": {
+    "mtime": 1780988826.4710996,
+    "ast_hash": "46f734bd76f0ae155ef827f34cf9166c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\order_state.dart": {
+    "mtime": 1780988826.4721127,
+    "ast_hash": "6a6c6a02ce287883166d5540eeb12109",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sync_bloc.dart": {
+    "mtime": 1784094018.5417979,
+    "ast_hash": "83c3bb47dd0cb269e5c110d6c0fbccf3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sync_event.dart": {
+    "mtime": 1780988826.5157802,
+    "ast_hash": "c1871e78a4cfec85343b3c8129acca97",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sync_state.dart": {
+    "mtime": 1780988826.5167806,
+    "ast_hash": "a1840b028181568cc092b81f2869c8ea",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\delivery_screen.dart": {
+    "mtime": 1784276412.1741693,
+    "ast_hash": "ae0d507074b1b06e79ffac38c1d157a3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\new_cuts_bulk_screen.dart": {
+    "mtime": 1784181370.7892666,
+    "ast_hash": "16cb02be0886613765d02846cb1a0d08",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\product_scan_detail_screen.dart": {
+    "mtime": 1781677399.6668513,
+    "ast_hash": "8008a082add7a5a4aff7d30c80cd38ee",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\production_tracking_list_screen.dart": {
+    "mtime": 1784093872.4680693,
+    "ast_hash": "a154b365805f8e631a46707ffb7225f7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\production_tracking_product_list_screen.dart": {
+    "mtime": 1780988826.6526468,
+    "ast_hash": "fb04401f89a6a97d7c13ddba30111f3e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\production_tracking_screen.dart": {
+    "mtime": 1784875494.3371348,
+    "ast_hash": "05842853bc444d7efd464a91fde6af88",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\production_tracking_so_breakdown_screen.dart": {
+    "mtime": 1784875502.7587168,
+    "ast_hash": "be1e48c8b8715d7ce1d023479a5c1b32",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\receipt_screen.dart": {
+    "mtime": 1780988826.7319548,
+    "ast_hash": "5577640309e7ebd7d508e78a8297ab46",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_order_detail_screen.dart": {
+    "mtime": 1784879074.6470728,
+    "ast_hash": "d5c749d5603c312cb61112ddff870e70",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sync_history_screen.dart": {
+    "mtime": 1780988826.7968016,
+    "ast_hash": "8fe743fad519684199f1f8772b3c6d6f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\transfer_screen.dart": {
+    "mtime": 1780988826.8123803,
+    "ast_hash": "53f2928d34879f66d2f7869051da217a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\view_sales_order_screen.dart": {
+    "mtime": 1784095649.8464065,
+    "ast_hash": "6a6aaf7ab445c311266b0d15d5cbe65f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\label_printing_handler.dart": {
+    "mtime": 1780988826.8808444,
+    "ast_hash": "e42efa161ccc5e1e60f20e3fcd424977",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\label_qr_generator.dart": {
+    "mtime": 1780988826.892384,
+    "ast_hash": "5e964326209e5cd22e3b67088bf8a477",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\sales_order_card.dart": {
+    "mtime": 1784875474.6752126,
+    "ast_hash": "7f778003c378fc9f3c21e980aa9e0071",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\scan_item_card.dart": {
+    "mtime": 1780988826.9550169,
+    "ast_hash": "0bc1a945a7b68f6aba6d2f5550266e7c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\sync_overlay.dart": {
+    "mtime": 1784270969.4594922,
+    "ast_hash": "bf9ae612ccdfd6259ef4af3bf71400c9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\widgets\\sync_status_header.dart": {
+    "mtime": 1784093842.6228075,
+    "ast_hash": "a3dd14245e7c56e0990e1b139fc65bc1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\bloc\\manufacturing_bloc.dart": {
+    "mtime": 1784094377.1904838,
+    "ast_hash": "a5f75a06cee91b0501f3a9516eacedbc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\bloc\\manufacturing_event.dart": {
+    "mtime": 1780988827.0847282,
+    "ast_hash": "3a4d3d0f86c7edec0e8102f30c9fda57",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\bloc\\manufacturing_state.dart": {
+    "mtime": 1780988827.1053348,
+    "ast_hash": "34dc304bee001d3432180a6e022162ce",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\logic\\eod_pdf_generator.dart": {
+    "mtime": 1784878763.6473978,
+    "ast_hash": "59942e6d937fb749a18c03ff8cf579e7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\ui\\screens\\end_of_day_screen.dart": {
+    "mtime": 1785132250.4442067,
+    "ast_hash": "77141e0e5b97305b5be5de1106b6bc58",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\manufacturing\\ui\\screens\\manufacturing_screen.dart": {
+    "mtime": 1784876291.472607,
+    "ast_hash": "c8be5bc5dfd9e70ef4ac2d13ce678956",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\other\\ui\\screens\\other_modules_screen.dart": {
+    "mtime": 1780988827.3155656,
+    "ast_hash": "481b507c10ff63c2f57aa993c76e8d34",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\data\\models\\app_settings.dart": {
+    "mtime": 1780988827.3442228,
+    "ast_hash": "863065b599a41b3dbaeda98eae65ad35",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\data\\models\\company.dart": {
+    "mtime": 1780988827.3462217,
+    "ast_hash": "ea06068acbaca442e9b550829b318919",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\data\\models\\site.dart": {
+    "mtime": 1780988827.3472247,
+    "ast_hash": "d7c5cf94c214d28ad0675be5e59d9a40",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\data\\repositories\\settings_repository_mock.dart": {
+    "mtime": 1780988827.348222,
+    "ast_hash": "a8706d4c241cc72d6f7ba7210b419cd3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\ui\\screens\\printer_settings_screen.dart": {
+    "mtime": 1780988827.3813777,
+    "ast_hash": "3a42d8b5523f249d75eed8dcaea4b91c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\ui\\screens\\settings_modules_screen.dart": {
+    "mtime": 1783402191.3613548,
+    "ast_hash": "779f5f3faf4a73e4593a803a557d2a15",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\main.dart": {
+    "mtime": 1784109364.649516,
+    "ast_hash": "b6b52b9fc3f0a11a21d4c99a1b68d451",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\flutter\\generated_plugin_registrant.cc": {
+    "mtime": 1780988861.7990892,
+    "ast_hash": "805fe8fb55611712631fe943f062c3d5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\flutter\\generated_plugin_registrant.h": {
+    "mtime": 1780988861.7950907,
+    "ast_hash": "d295462c9da9f7fef22dc86c34492318",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\runner\\main.cc": {
+    "mtime": 1780988827.4339197,
+    "ast_hash": "539395bcd63dba20afed0838d136189f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\runner\\my_application.cc": {
+    "mtime": 1780988827.4339197,
+    "ast_hash": "0e2002b0b9c48d0efe5dd8956e0fff6f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\runner\\my_application.h": {
+    "mtime": 1780988827.4354274,
+    "ast_hash": "ffa1a7c0a2ad45a2c14a921596516ff8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\Flutter\\GeneratedPluginRegistrant.swift": {
+    "mtime": 1780988861.8860178,
+    "ast_hash": "bd96cf5091525ee121f29afd6787de9a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\Flutter\\ephemeral\\flutter_export_environment.sh": {
+    "mtime": 1781005194.5059595,
+    "ast_hash": "cf8e9af05c4b635c033ecca20ff96728",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\RunnerTests\\RunnerTests.swift": {
+    "mtime": 1780988827.4950714,
+    "ast_hash": "8059f5d27a19c556eeafb49b3f9b7bdd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\Runner\\AppDelegate.swift": {
+    "mtime": 1780988827.4580376,
+    "ast_hash": "4b52e0b89ebfef9baf45b04548c463d6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\Runner\\Assets.xcassets\\AppIcon.appiconset\\Contents.json": {
+    "mtime": 1780988827.4590518,
+    "ast_hash": "1d48e925145d4b573a3b5d7960a1c585",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\macos\\Runner\\MainFlutterWindow.swift": {
+    "mtime": 1780988827.4940712,
+    "ast_hash": "93c22dae2d93f3dc1402e121901f582b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\replace.dart": {
+    "mtime": 1783422478.4370968,
+    "ast_hash": "2dc929e1d506877aff514f14d88a4663",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\test\\features\\logistics\\data\\models\\product_master_dto_test.dart": {
+    "mtime": 1780988827.5009613,
+    "ast_hash": "9a225629fb2fc94376c91310df4724d7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\test\\features\\logistics\\data\\models\\sales_order_detail_dto_test.dart": {
+    "mtime": 1780988827.5019734,
+    "ast_hash": "40edc7d909981600f0354d7b835ae45d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\test\\widget_test.dart": {
+    "mtime": 1780988827.5019734,
+    "ast_hash": "9d124209aa44c4432738e9e0510168e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\test_uuid.dart": {
+    "mtime": 1783504468.5563867,
+    "ast_hash": "ed2fa160a3a91ccd97f76ca3c8feb1d4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\web\\manifest.json": {
+    "mtime": 1780988827.5160348,
+    "ast_hash": "436ac4742315465af8390c051f1555c4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\flutter\\generated_plugin_registrant.cc": {
+    "mtime": 1780988861.8146746,
+    "ast_hash": "1be8cce4cbe62fcdbaadc87253354f5d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\flutter\\generated_plugin_registrant.h": {
+    "mtime": 1780988861.810651,
+    "ast_hash": "0ea33875f9f8e118f9c2ded03e2e2835",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\flutter_window.cpp": {
+    "mtime": 1780988827.523568,
+    "ast_hash": "2f463f9b7da67a2d692a012f9ea85e0c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\flutter_window.h": {
+    "mtime": 1780988827.5245702,
+    "ast_hash": "7defcc89d4a26d56e801241d624d48fb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\main.cpp": {
+    "mtime": 1780988827.5245702,
+    "ast_hash": "66a13c969523c9ebdc65c153afe9472a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\resource.h": {
+    "mtime": 1780988827.5255673,
+    "ast_hash": "1ade5dd15e613479a15e8832ed276f2b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\utils.cpp": {
+    "mtime": 1780988827.5285678,
+    "ast_hash": "432461b09d862a2f8dadf380ff0e34e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\utils.h": {
+    "mtime": 1780988827.5310726,
+    "ast_hash": "fd81e143f5614eb6fd75efe539002853",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\win32_window.cpp": {
+    "mtime": 1780988827.5310726,
+    "ast_hash": "571eb8234dbc2661be03aa5f2a4d2fca",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\win32_window.h": {
+    "mtime": 1780988827.5320828,
+    "ast_hash": "7569387d58711ab975940f4df3b4bcda",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\install.ps1": {
+    "mtime": 1780988827.573275,
+    "ast_hash": "d8f2caa5c55e660f97fcbe5f64900b6c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py": {
+    "mtime": 1780988827.6249874,
+    "ast_hash": "ed758dbf4b0fad2e6044162437b33b8c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\ios\\Flutter\\flutter_export_environment.sh": {
+    "mtime": 1780988827.6516159,
+    "ast_hash": "067083dee2305b42c6760fdfbdc9cd0b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\ios\\Runner\\GeneratedPluginRegistrant.h": {
+    "mtime": 1780988827.6631482,
+    "ast_hash": "7787dac1253b086419914066e8fe09c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\ios\\Runner\\GeneratedPluginRegistrant.m": {
+    "mtime": 1780988827.669684,
+    "ast_hash": "349d33ef4b139d5cb8c9900d3d073b3c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\err.json": {
+    "mtime": 1772604088.4952338,
+    "ast_hash": "448a0d9d75b0c94776b3c2c91619d864",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\temp_details.json": {
+    "mtime": 1772984280.2478728,
+    "ast_hash": "f552bd68c9209690f109809476091546",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\temp_details_real.json": {
+    "mtime": 1772985237.5533314,
+    "ast_hash": "156d625ff103da4fedede47203b8ca10",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\temp_headers.json": {
+    "mtime": 1772978877.551308,
+    "ast_hash": "2aefc07f9b84d39db16fae0e7294c856",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\macos\\Flutter\\ephemeral\\flutter_export_environment.sh": {
+    "mtime": 1780988827.6722047,
+    "ast_hash": "9d899ab019c077092eb6cc939c39b5cb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\publish\\EnterpriseAuth.Api.deps.json": {
+    "mtime": 1783930444.0078998,
+    "ast_hash": "0ca9f4852c2fafb5e743c8c847891af8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\publish\\EnterpriseAuth.Api.runtimeconfig.json": {
+    "mtime": 1783930443.872815,
+    "ast_hash": "14244a2e21b6d3133cb3f35f89cf076c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\publish\\EnterpriseAuth.Api.staticwebassets.endpoints.json": {
+    "mtime": 1780988820.6757934,
+    "ast_hash": "c257f74d704f9d4fdd2c1313d6fd7a72",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\publish\\appsettings.Development.json": {
+    "mtime": 1780988828.4273417,
+    "ast_hash": "804b473502a4c415cf75db61c56c32aa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\publish\\appsettings.json": {
+    "mtime": 1780988828.429341,
+    "ast_hash": "61640fa11514239905d055bdb8b41940",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\rename_communities.py": {
+    "mtime": 1780988828.60066,
+    "ast_hash": "9ff4ccc779d658e97b2c2493768f4135",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\scratch\\check_columns.cs": {
+    "mtime": 1780988828.737913,
+    "ast_hash": "eb23ce4461a441e90c9cc9aeafbf5cb5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\scratch_find_components.py": {
+    "mtime": 1780988828.7399135,
+    "ast_hash": "ac6e31d47167e241cba65d43d16727a1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\scripts\\check_salesman_data.dart": {
+    "mtime": 1780988828.7409148,
+    "ast_hash": "e8f97f025c2a3a66bfadc0919c0eceba",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\test_sql_conn.ps1": {
+    "mtime": 1780988828.7454476,
+    "ast_hash": "166544e84d464ba9f078fd422290b21d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\stderr.txt": {
+    "mtime": 1776753365.3336148,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\stdout.txt": {
+    "mtime": 1776753365.3376143,
+    "ast_hash": "4d040bd4738a358310963512fd683091",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\obj\\Debug\\net10.0\\CheckRecords.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988809.0062144,
+    "ast_hash": "2deccca2a975758cc2c0a27e5c629381",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\CogniLayer\\config.yaml": {
+    "mtime": 1776853473.1077495,
+    "ast_hash": "9116fa71bd22f025c95e01e332178070",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\CogniLayer\\config.yaml": {
+    "mtime": 1776853239.6783082,
+    "ast_hash": "9116fa71bd22f025c95e01e332178070",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\Debug\\net10.0\\dbtest.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988813.5384672,
+    "ast_hash": "0a9168567ee49b42562af07ab6f5eca7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\be_debug.txt": {
+    "mtime": 1780988815.9694777,
+    "ast_hash": "9b2069301392caac817f266ebe183554",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\be_run.txt": {
+    "mtime": 1780988815.9710045,
+    "ast_hash": "149f038ea3f0410078bc506329b2daf2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_errors.txt": {
+    "mtime": 1780988819.9193573,
+    "ast_hash": "4d808dffa64ba97c6ebdb7bbfdc4bbfe",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_errors_2.txt": {
+    "mtime": 1780988819.9193573,
+    "ast_hash": "d8fcc5532dce1abb76e90ae9e1a54a3c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_errors_2_utf8.txt": {
+    "mtime": 1780988819.9208677,
+    "ast_hash": "0c99153c60a2c36cf81a953fa841449e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_errors_utf8.txt": {
+    "mtime": 1780988819.92188,
+    "ast_hash": "87a01eae4d92674f4d958a91db02079a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_errors_v2.txt": {
+    "mtime": 1780988819.9228768,
+    "ast_hash": "2c3ff180ee834edec5200b45bb07bacc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_out.txt": {
+    "mtime": 1780988819.9238863,
+    "ast_hash": "f58bf88f1f34471d78c1c221fd9860b9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_out2.txt": {
+    "mtime": 1780988819.925885,
+    "ast_hash": "cee0383e6b0a086fa436c4bd55e86eb4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_out_utf8.txt": {
+    "mtime": 1780988819.927895,
+    "ast_hash": "f310e805abfd7393d46fa23b2d83c1a9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\build_output.txt": {
+    "mtime": 1780988819.927895,
+    "ast_hash": "88d34a98e266f0cff93281e628328b67",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net10.0\\EnterpriseAuth.Api.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988819.9561968,
+    "ast_hash": "4998e1748835946127fd30bf358cc264",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Debug\\net8.0\\EnterpriseAuth.Api.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988819.9993038,
+    "ast_hash": "c763e0335d923022df56f298a7ac6631",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\EnterpriseAuth.Api.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988820.2634022,
+    "ast_hash": "0c443078026098703c35834ef4fa4e27",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.27f17e1fe2.txt": {
+    "mtime": 1784611662.8615196,
+    "ast_hash": "19d461f399386ba5ee6a4153fc308db1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.308c9fd618.txt": {
+    "mtime": 1780988820.4159658,
+    "ast_hash": "d69ad2f15c6539472e9d3699abd725ff",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.51ce382b93.txt": {
+    "mtime": 1780988820.424565,
+    "ast_hash": "cb27cbbae4ff9a5bfa3210423e33d171",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.5ce4775511.txt": {
+    "mtime": 1780988820.55708,
+    "ast_hash": "e82c88fc3a63089052b002a6a0d16732",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.ae7f7cd7a1.txt": {
+    "mtime": 1783930888.6741588,
+    "ast_hash": "7328709a726c3afaeb15f0c796a7e04c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.f5ecda6b67.txt": {
+    "mtime": 1780988820.586734,
+    "ast_hash": "2a72ea2c5a3d34685eff17f30d229193",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.fac1466753.txt": {
+    "mtime": 1783930444.0205178,
+    "ast_hash": "a94ccbd94bb3d4aec46644eb0fd61f5b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\obj\\Release\\net8.0\\PublishOutputs.ff52b12904.txt": {
+    "mtime": 1780988820.6339345,
+    "ast_hash": "4791844c8fe65cf0e9e2198562981e99",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\run_err.txt": {
+    "mtime": 1780988820.736051,
+    "ast_hash": "eb0624728fd19ea6c9b9e6e28a0cc8e7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\run_err2.txt": {
+    "mtime": 1780988820.7380617,
+    "ast_hash": "c2c1a962f7d2809dae6862ba1a1335e2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\run_err3.txt": {
+    "mtime": 1780988820.7380617,
+    "ast_hash": "81261e6fc75c30b6f5279d9ceadb053f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\run_log.txt": {
+    "mtime": 1780988820.7395685,
+    "ast_hash": "8830e9dc221703df4269e2710d73029c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\schema_dump.txt": {
+    "mtime": 1780988820.7395685,
+    "ast_hash": "7c21f53b791ec01339ce3b1b5b265f39",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\schema_probe.txt": {
+    "mtime": 1780988820.7405782,
+    "ast_hash": "015409f1c6db5850860bdb4bf5bc7c8b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\startup_crash.txt": {
+    "mtime": 1780988820.741087,
+    "ast_hash": "eef81a2877495a566860913050b8b9d3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\startup_crash_utf8.txt": {
+    "mtime": 1780988820.7420979,
+    "ast_hash": "efa1e626f662a38d315b936c3418e6d8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net10.0\\EnterpriseAuth.UnitTests.csproj.FileListAbsolute.txt": {
+    "mtime": 1780988823.633127,
+    "ast_hash": "67ca4d56a6ee659aa9f5c634e45610ad",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\obj\\Debug\\net8.0\\EnterpriseAuth.UnitTests.csproj.FileListAbsolute.txt": {
+    "mtime": 1784092433.40421,
+    "ast_hash": "d4c8460afafca29a74b4ab8bd70281d4",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\db_report.html": {
+    "mtime": 1780988824.2005143,
+    "ast_hash": "e86ab8b2b23e011eabf70c3bec2d0ca9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\stderr.txt": {
+    "mtime": 1784274341.930637,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\59af25730b\\stdout.txt": {
+    "mtime": 1784274341.9343052,
+    "ast_hash": "07eb5c352e64f250ff021b57844e317c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\stderr.txt": {
+    "mtime": 1782989766.9300144,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\8e04c28b44\\stdout.txt": {
+    "mtime": 1782989766.9300144,
+    "ast_hash": "d7baf2e5f8d5ee2ea14119487d2ba5ae",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\stderr.txt": {
+    "mtime": 1782990077.1506639,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\stdout.txt": {
+    "mtime": 1782990077.1542025,
+    "ast_hash": "5ed30ac787ea77b8bacc50d5b2b4adc5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\stderr.txt": {
+    "mtime": 1783401849.038581,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\59af25730b\\stdout.txt": {
+    "mtime": 1783401849.04114,
+    "ast_hash": "5726dbeddba29df6cb6b8177ff9ecd41",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\stderr.txt": {
+    "mtime": 1782990086.571343,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\hooks_runner\\sqlite3\\cbfd79f975\\stdout.txt": {
+    "mtime": 1782990086.5723565,
+    "ast_hash": "7c21f2283b5ed66b90456f3eebcb7d5b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\.dart_tool\\native_assets.yaml": {
+    "mtime": 1782989767.5107682,
+    "ast_hash": "d16e8e28b58a5a2ee8c3e6dd424de1d7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\analysis_options.yaml": {
+    "mtime": 1780988824.20404,
+    "ast_hash": "9e65f4b9beebb674c0dc252f70a5c177",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\analyze.txt": {
+    "mtime": 1780988824.2205896,
+    "ast_hash": "d300f4a0bdabe745d84c6d8e997b4da6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\analyze_output.txt": {
+    "mtime": 1780988824.223099,
+    "ast_hash": "8af6efc6d95a8b35e089cd4b7108cfac",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\devtools_options.yaml": {
+    "mtime": 1780988824.777037,
+    "ast_hash": "1b16e156b9f8b9f43ca52a78a6f72e80",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\core\\utils\\barcode_scanner\\product_scan_bottom_sheet.dart-test.txt": {
+    "mtime": 1780988825.662378,
+    "ast_hash": "a7046f180004a9ae62cbc9df1a5d5151",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\repositories\\.dart_tool\\native_assets.yaml": {
+    "mtime": 1774378260.063617,
+    "ast_hash": "d16e8e28b58a5a2ee8c3e6dd424de1d7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\CMakeLists.txt": {
+    "mtime": 1780988827.4127216,
+    "ast_hash": "12e0101ce740ce81d27f9e1203b0c531",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\flutter\\CMakeLists.txt": {
+    "mtime": 1780988827.4137332,
+    "ast_hash": "2195470ce31675d31db5a37590d011f6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\linux\\runner\\CMakeLists.txt": {
+    "mtime": 1780988827.4329216,
+    "ast_hash": "30cc1614b16214b66c014af09ba699eb",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\pubspec.yaml": {
+    "mtime": 1783402191.3732321,
+    "ast_hash": "3a92128965becf25dfd1265df95d9903",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\web\\index.html": {
+    "mtime": 1780988827.5160348,
+    "ast_hash": "7b737244be9063ffcf315e8d1a35c836",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\CMakeLists.txt": {
+    "mtime": 1780988827.5180376,
+    "ast_hash": "f5c4d317d04bbc01fbc2466449454bb2",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\flutter\\CMakeLists.txt": {
+    "mtime": 1780988827.5180376,
+    "ast_hash": "bbf66fed5180bd9ae8198b8d7c4a0001",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\windows\\runner\\CMakeLists.txt": {
+    "mtime": 1780988827.521557,
+    "ast_hash": "028602ab9754bffe716659ada7590d29",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\inspection_results.txt": {
+    "mtime": 1780988827.5330808,
+    "ast_hash": "7d010340068c0c4e51c2cb0c04bf52a6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\inspection_results_utf8.txt": {
+    "mtime": 1780988827.5712614,
+    "ast_hash": "65b13914590c7f503d3a8fe1c2d6d02c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analysis.txt": {
+    "mtime": 1773370730.1149514,
+    "ast_hash": "9d3b212bfe148a37764aae55f04fed25",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analysis_output.txt": {
+    "mtime": 1773654554.5336885,
+    "ast_hash": "2506dd03c6afc67d0da902bba853e7c9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze.txt": {
+    "mtime": 1774598645.5784848,
+    "ast_hash": "c07a48fbb67027ff64f175c5b38ee6d9",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_logistics.txt": {
+    "mtime": 1773817209.4831977,
+    "ast_hash": "d12b1dbe33610112572a28c73b3131fa",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_logistics_utf8.txt": {
+    "mtime": 1773817268.794703,
+    "ast_hash": "44762a3e32970a520aacf2939198f7d8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_out.txt": {
+    "mtime": 1774374108.3992577,
+    "ast_hash": "d34c4607bf5649fa2bdfe799ba70b5f6",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_output.txt": {
+    "mtime": 1774859782.392174,
+    "ast_hash": "83c7e51d291e74ea300cc840e4275665",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_output_utf8.txt": {
+    "mtime": 1774337417.5477347,
+    "ast_hash": "cd9baba59462f79aee6c5720b7506b70",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\analyze_results.txt": {
+    "mtime": 1773042591.5824802,
+    "ast_hash": "a08afa25cb8024e3fb0f4a3859a59a98",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\backend_error_body.txt": {
+    "mtime": 1772708995.9562545,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\backend_log.txt": {
+    "mtime": 1775196861.7217,
+    "ast_hash": "6e60fbc89c58202946ae18153a25e914",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build.txt": {
+    "mtime": 1772446990.269271,
+    "ast_hash": "316c9e69587a824026ef8bb259d3ef0e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_check.txt": {
+    "mtime": 1773119969.388847,
+    "ast_hash": "64041fabd417f8491eb0feae8e5d060b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_diag.txt": {
+    "mtime": 1773316938.846725,
+    "ast_hash": "2591ed81d163932f797ba07de84b897d",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_errors.txt": {
+    "mtime": 1774418596.5681355,
+    "ast_hash": "cf168531282463d493cad5db811374bc",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_errors_2.txt": {
+    "mtime": 1773119346.0366788,
+    "ast_hash": "3339b20799525e9c4824a5376d32cf4a",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_errors_final.txt": {
+    "mtime": 1773038662.635622,
+    "ast_hash": "04c7f7940530ff7718f81b8a6981e2c8",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_errors_fixed.txt": {
+    "mtime": 1773119284.6784701,
+    "ast_hash": "f057a61252280b97ea76b26ce507ab41",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_errors_utf8.txt": {
+    "mtime": 1773319085.0584137,
+    "ast_hash": "3d6ae2f5eb98574d545e01ada8cec903",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_out.txt": {
+    "mtime": 1772773975.9475188,
+    "ast_hash": "154db7ffd34964018d630be13a04e625",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\build_output.txt": {
+    "mtime": 1774859119.1363356,
+    "ast_hash": "23ae3e11754588869a36db899615a556",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\error.txt": {
+    "mtime": 1772603698.2532594,
+    "ast_hash": "1a1da40d7919de6f511a2135d62b8f5b",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\errors.txt": {
+    "mtime": 1773035971.4088638,
+    "ast_hash": "2404a3f42c52183882dc0be4604876b1",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\errors_full.txt": {
+    "mtime": 1773119504.978626,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\exception.html": {
+    "mtime": 1772604028.77829,
+    "ast_hash": "834d93d6b3eb801fced6f060c687f459",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\final_analysis.txt": {
+    "mtime": 1772703991.5751345,
+    "ast_hash": "d444731a25ed069bcf56d160d2bd693f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\full_build_output.txt": {
+    "mtime": 1773036059.7575946,
+    "ast_hash": "2a46034897fa51a36705db3bda37a3b7",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\ip.txt": {
+    "mtime": 1773209965.374888,
+    "ast_hash": "fb95b216ad12bd1ad5cdf5b3358eff40",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\lints-utf8.txt": {
+    "mtime": 1774859496.9854896,
+    "ast_hash": "d837f4eb520dd5630b7e8fb399897f65",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\lints.txt": {
+    "mtime": 1774859475.5157628,
+    "ast_hash": "163f09495bd67b40c8fd4a126b21aea3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\output.txt": {
+    "mtime": 1774860993.1741853,
+    "ast_hash": "380bb554a104b33a849aa58ca9dbc8cf",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\simplified_api_response.txt": {
+    "mtime": 1772709336.4575417,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\test_output_utf8.txt": {
+    "mtime": 1773319133.474445,
+    "ast_hash": "5d331d4b6981ee3a820c83b420bd02c3",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\logs\\verification_analysis.txt": {
+    "mtime": 1772703821.7059026,
+    "ast_hash": "d444731a25ed069bcf56d160d2bd693f",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\sample_data.txt": {
+    "mtime": 1780988828.60066,
+    "ast_hash": "d5102427369a5017b1cad6579d363730",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\tmp_end_of_day.txt": {
+    "mtime": 1780988828.747447,
+    "ast_hash": "122fe16f67a100d6b0b1e6261bfeb11c",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\assets\\audio\\Scan Confirm.mp3": {
+    "mtime": 1780988824.7445984,
+    "ast_hash": "d4eac69f833becd4374afab581bb46dd",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\assets\\audio\\Scan Reject.mp3": {
+    "mtime": 1780988824.7455988,
+    "ast_hash": "d700c1540f535bcd7573658f07ace0e5",
+    "semantic_hash": ""
+  }
+}

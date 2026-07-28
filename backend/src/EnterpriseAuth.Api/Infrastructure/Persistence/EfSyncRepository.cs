@@ -1303,6 +1303,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             };
                             _scanContext.EodProcessAudits.Add(newAudit);
                             existingAuditsMap[dto.EodDate] = newAudit;
+
+                            // Mark existing unprocessed scans for this Work Order as processed and link to this EOD process
+                            string sql = @"UPDATE ProductionScanTransactions 
+                                           SET IsEodProcessed = 1, EodProcessAuditId = {1}
+                                           WHERE IsEodProcessed = 0 AND SalesOrderLineId IN (
+                                               SELECT Id FROM SalesOrderLines WHERE SalesOrderId IN (
+                                                   SELECT Id FROM SalesOrders WHERE SourceOrderId = {0}
+                                               )
+                                           )";
+                            await _scanContext.Database.ExecuteSqlRawAsync(sql, dto.WorkOrderNumber, newAudit.Id);
                         }
                     }
 

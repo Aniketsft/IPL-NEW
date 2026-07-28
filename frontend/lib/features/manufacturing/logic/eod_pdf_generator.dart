@@ -96,11 +96,12 @@ class EodPdfGenerator {
     final headers = [
       'Code',
       'Description',
-      'Quantity',
+      'Processed',
+      'Unprocessed',
+      'Total',
       'Unit',
       'Location',
       'Lot',
-      'Expiry',
     ];
 
     // Group items by itemCode for the PDF
@@ -113,35 +114,38 @@ class EodPdfGenerator {
     final tableData = sortedKeys.map((code) {
       final productItems = grouped[code]!;
       final first = productItems.first;
-      final totalQty = productItems.fold<double>(
-        0,
-        (sum, i) => sum + i.manufactured,
-      );
-      final totalEa = productItems.fold<double>(
-        0,
-        (sum, i) => sum + i.eaQuantity,
-      );
+      final totalQty = productItems.fold<double>(0, (sum, i) => sum + i.manufactured);
+      final totalEa = productItems.fold<double>(0, (sum, i) => sum + i.eaQuantity);
+      
+      final processedQty = productItems.fold<double>(0, (sum, i) => sum + i.processedQuantity);
+      final processedEa = productItems.fold<double>(0, (sum, i) => sum + i.processedEaQuantity);
+      
+      final unprocessedQty = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedQuantity);
+      final unprocessedEa = productItems.fold<double>(0, (sum, i) => sum + i.unprocessedEaQuantity);
+      
       final lot = first.lotNumber;
       final location = first.location;
-      final isEA =
-          first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
+      final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
-      String qtyStr = totalQty.toStringAsFixed(2);
+      String totalStr = totalQty.toStringAsFixed(2);
+      String procStr = processedQty.toStringAsFixed(2);
+      String unprocStr = unprocessedQty.toStringAsFixed(2);
+      
       if (isEA) {
-        qtyStr =
-            '${totalQty.toStringAsFixed(2)} KG / ${totalEa.toStringAsFixed(2)} EA';
+        totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
+        procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
+        unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
       }
 
       return [
         code,
         first.description,
-        qtyStr,
+        procStr,
+        unprocStr,
+        totalStr,
         first.unit,
         location,
         lot,
-        first.expiryDate != null
-            ? DateFormat('dd/MM/yy').format(first.expiryDate!)
-            : 'N/A',
       ];
     }).toList();
 
@@ -157,22 +161,24 @@ class EodPdfGenerator {
       cellHeight: 25,
       cellStyle: const pw.TextStyle(fontSize: 8),
       columnWidths: {
-        0: const pw.FixedColumnWidth(50),
+        0: const pw.FixedColumnWidth(40),
         1: const pw.FlexColumnWidth(2),
-        2: const pw.FixedColumnWidth(120),
-        3: const pw.FixedColumnWidth(40),
-        4: const pw.FixedColumnWidth(50),
-        5: const pw.FixedColumnWidth(70),
-        6: const pw.FixedColumnWidth(60),
+        2: const pw.FixedColumnWidth(70),
+        3: const pw.FixedColumnWidth(70),
+        4: const pw.FixedColumnWidth(70),
+        5: const pw.FixedColumnWidth(30),
+        6: const pw.FixedColumnWidth(50),
+        7: const pw.FixedColumnWidth(60),
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
         2: pw.Alignment.centerRight,
-        3: pw.Alignment.center,
-        4: pw.Alignment.center,
-        5: pw.Alignment.centerLeft,
-        6: pw.Alignment.center,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.centerRight,
+        5: pw.Alignment.center,
+        6: pw.Alignment.centerLeft,
+        7: pw.Alignment.centerLeft,
       },
     );
   }

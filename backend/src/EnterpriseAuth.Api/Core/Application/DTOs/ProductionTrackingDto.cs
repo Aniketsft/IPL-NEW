@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 
 namespace EnterpriseAuth.Api.Core.Application.DTOs
 {
@@ -22,6 +23,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string LotNumber { get; set; } = string.Empty;
         public string Unit { get; set; } = string.Empty;
         public string Uom { get; set; } = string.Empty;
+        [JsonPropertyName("createdAt")]
         public DateTime? CreatedAt { get; set; }
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
@@ -31,5 +33,9 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? StatusLabel { get; set; }
         public decimal Conversion { get; set; } = 1;
         public decimal EaQuantity { get; set; }
+        public decimal ProcessedQuantity { get; set; }
+        public decimal UnprocessedQuantity { get; set; }
+        public decimal ProcessedEaQuantity { get; set; }
+        public decimal UnprocessedEaQuantity { get; set; }
     }
 }

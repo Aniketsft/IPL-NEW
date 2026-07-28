@@ -153,5 +153,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                       .HasDatabaseName("IX_StagingEod_IsProcessed_WorkOrder");
             });
         }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var entry in ChangeTracker.Entries<ProductionScanTransaction>())
+            {
+                if (entry.State == EntityState.Deleted || 
+                   (entry.State == EntityState.Modified && entry.Entity.IsDeleted && !entry.OriginalValues.GetValue<bool>("IsDeleted")))
+                {
+                    if (entry.Entity.IsEodProcessed || entry.Entity.EodProcessAuditId != null)
+                    {
+                        throw new System.InvalidOperationException("Cannot delete a scan that has already been processed in an End of Day run.");
+                    }
+                }
+            }
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
     }
 }

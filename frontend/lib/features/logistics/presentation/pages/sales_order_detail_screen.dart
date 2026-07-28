@@ -423,11 +423,25 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     if (widget.isDeliveryMode) {
       final bool canUpdateDelivery = widget.permissions.contains('logistics.delivery.update') || 
                                      widget.permissions.contains('manufacturing.all.update');
-      if (!canUpdateDelivery) return;
+      if (!canUpdateDelivery) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to validate shipments.')),
+          );
+        }
+        return;
+      }
     } else {
       final bool canUpdateAll = widget.permissions.contains('manufacturing.all.update');
       final bool canBulkAllocate = widget.permissions.contains('manufacturing.bulk_allocate.update');
-      if (!canUpdateAll && !canBulkAllocate) return;
+      if (!canUpdateAll && !canBulkAllocate) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to prepare production items.')),
+          );
+        }
+        return;
+      }
     }
 
     if (_selectedItemCodes.isEmpty) return;
@@ -557,9 +571,23 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   Future<void> _prepareForShipment() async {
     if (widget.isDeliveryMode) {
       if (!widget.permissions.contains('logistics.delivery.update') && 
-          !widget.permissions.contains('manufacturing.all.update')) return;
+          !widget.permissions.contains('manufacturing.all.update')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to prepare shipment.')),
+          );
+        }
+        return;
+      }
     } else {
-      if (!widget.permissions.contains('manufacturing.all.update')) return;
+      if (!widget.permissions.contains('manufacturing.all.update')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You do not have permission to perform this action.')),
+          );
+        }
+        return;
+      }
     }
 
     final confirmed = await showDialog<bool>(
@@ -1159,7 +1187,9 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
               (!widget.isDeliveryMode && widget.order.isClosed))
           ? null
           : () => _toggleItemPreparation(item),
-      onTap: widget.isDeliveryMode ? null : () async {
+      onTap: widget.isDeliveryMode ? () {
+        _toggleSelection(item.itemCode);
+      } : () async {
         if (!widget.isDeliveryMode && 
             !widget.permissions.contains('manufacturing.all.update') && 
             widget.permissions.contains('manufacturing.bulk_allocate.update') && 

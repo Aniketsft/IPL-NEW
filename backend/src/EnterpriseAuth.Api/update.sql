@@ -462,3 +462,14 @@ GO
 
 COMMIT;
 GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [ProductionScanTransactions] ADD [IsEodProcessed] bit NOT NULL DEFAULT CAST(0 AS bit);
+GO
+ALTER TABLE [ProductionScanTransactions] ADD [EodProcessAuditId] uniqueidentifier NULL;
+GO
+
+COMMIT;
+GO

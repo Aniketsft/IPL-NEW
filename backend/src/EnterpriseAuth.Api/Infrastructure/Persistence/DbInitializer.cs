@@ -46,6 +46,30 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Console.WriteLine("[DbInitializer] Table creation warning: " + ex.Message);
             }
 
+            // FORCE SCHEMA CREATION: Ensure IsEodProcessed column exists
+            try {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ProductionScanTransactions' AND COLUMN_NAME = 'IsEodProcessed')
+                    BEGIN
+                        ALTER TABLE [ProductionScanTransactions] ADD [IsEodProcessed] bit NOT NULL DEFAULT CAST(0 AS bit);
+                    END
+                ");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] IsEodProcessed column warning: " + ex.Message);
+            }
+
+            // FORCE SCHEMA CREATION: Ensure EodProcessAuditId column exists
+            try {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ProductionScanTransactions' AND COLUMN_NAME = 'EodProcessAuditId')
+                    BEGIN
+                        ALTER TABLE [ProductionScanTransactions] ADD [EodProcessAuditId] uniqueidentifier NULL;
+                    END
+                ");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] EodProcessAuditId column warning: " + ex.Message);
+            }
+
             // Seed Permissions (Hierarchical Tree Structure)
             // Format: Module -> SubModule(s) -> Child(ren)
             // The order here reflects the Home Screen priority requested.

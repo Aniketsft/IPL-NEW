@@ -62,7 +62,15 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("ExcludeFromEod")]
         public bool ExcludeFromEod { get; set; }
 
+        [Column("IsEodProcessed")]
+        public bool IsEodProcessed { get; set; }
+
+        [Column("EodProcessAuditId")]
+        public Guid? EodProcessAuditId { get; set; }
+
         // Navigation
+        [ForeignKey("EodProcessAuditId")]
+        public EodProcessAudit? EodProcessAudit { get; set; }
         [ForeignKey("SalesOrderLineId")]
         public SalesOrderLine OrderLine { get; set; } = null!;
     }

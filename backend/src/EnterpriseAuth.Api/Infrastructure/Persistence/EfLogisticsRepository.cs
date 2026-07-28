@@ -175,27 +175,86 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
+            var workOrders = scans.Select(s => s.OrderLine.Order.SourceOrderId).Distinct().ToList();
+            var stagingRecords = await _scanContext.StagingEodRecords
+                .Where(e => workOrders.Contains(e.WorkOrderNumber) && e.CreatedAt >= targetDate && e.CreatedAt < nextDate)
+                .GroupBy(e => new { 
+                    e.WorkOrderNumber, 
+                    e.ProductCode, 
+                    LotNumber = e.LotNumber ?? "",
+                    Location = e.Location ?? "",
+                    ItemStatus = e.ItemStatus ?? "A",
+                    CreatedYear = e.CreatedAt.Year,
+                    CreatedMonth = e.CreatedAt.Month,
+                    CreatedDay = e.CreatedAt.Day
+                })
+                .Select(g => new {
+                    g.Key.WorkOrderNumber,
+                    g.Key.ProductCode,
+                    g.Key.LotNumber,
+                    g.Key.Location,
+                    g.Key.ItemStatus,
+                    g.Key.CreatedYear,
+                    g.Key.CreatedMonth,
+                    g.Key.CreatedDay,
+                    ProcessedKg = g.Sum(x => x.TotalManufacturedQuantity),
+                    ProcessedEa = g.Sum(x => x.EaQuantity)
+                })
+                .ToListAsync();
+
             return scans
                 .GroupBy(s => new
                 {
                     ItemCode    = s.OrderLine.ItemCode,
                     LotNumber   = s.LotNumber ?? "",
                     ItemStatus  = s.ItemStatus ?? "A",
-                    CreatedDate = s.CreatedAt.Date
+                    CreatedYear = s.CreatedAt.Year,
+                    CreatedMonth = s.CreatedAt.Month,
+                    CreatedDay = s.CreatedAt.Day
                 })
                 .Select(g =>
                 {
                     var latest   = g.OrderByDescending(s => s.CreatedAt).First();
                     var itemCode = g.Key.ItemCode.Trim();
+                    var soNumber = latest.OrderLine.Order.SourceOrderId;
+                    var lot = g.Key.LotNumber;
+                    var location = latest.Location ?? "";
+                    var itemStatus = g.Key.ItemStatus;
+                    var createdYear = g.Key.CreatedYear;
+                    var createdMonth = g.Key.CreatedMonth;
+                    var createdDay = g.Key.CreatedDay;
+                    
+                    var staging = stagingRecords.FirstOrDefault(sr => 
+                        sr.WorkOrderNumber == soNumber && 
+                        sr.ProductCode == itemCode && 
+                        sr.LotNumber == lot &&
+                        sr.Location == location &&
+                        sr.ItemStatus == itemStatus &&
+                        sr.CreatedYear == createdYear &&
+                        sr.CreatedMonth == createdMonth &&
+                        sr.CreatedDay == createdDay);
+
+                    var processedKg = staging?.ProcessedKg ?? 0m;
+                    var processedEa = staging?.ProcessedEa ?? 0m;
+
+                    var totalKg = g.Sum(s => s.ScanAmountKg);
+                    var totalEa = g.Sum(s => s.EaQuantity ?? 0m);
+
+                    var isEaUnit = units.TryGetValue(itemCode, out var un) && (un.Trim().Equals("EA", StringComparison.OrdinalIgnoreCase) || un.Trim().Equals("PCS", StringComparison.OrdinalIgnoreCase));
+
                     return new ProductionTrackingDto
                     {
-                        SoNumber     = latest.OrderLine.Order.SourceOrderId,
+                        SoNumber     = soNumber,
                         ItemCode     = itemCode,
                         Description  = latest.OrderLine.Description,
                         Quantity     = latest.OrderLine.OrderedQuantity,
-                        Manufactured = (units.TryGetValue(itemCode, out var un) && (un.Trim().Equals("EA", StringComparison.OrdinalIgnoreCase) || un.Trim().Equals("PCS", StringComparison.OrdinalIgnoreCase))) ? g.Sum(s => s.EaQuantity ?? 0m) : g.Sum(s => s.ScanAmountKg),
-                        EaQuantity   = g.Sum(s => s.EaQuantity ?? 0m),
-                        LotNumber    = g.Key.LotNumber,
+                        Manufactured = isEaUnit ? totalEa : totalKg,
+                        EaQuantity   = totalEa,
+                        ProcessedQuantity = isEaUnit ? processedEa : processedKg,
+                        UnprocessedQuantity = isEaUnit ? (totalEa - processedEa) : (totalKg - processedKg),
+                        ProcessedEaQuantity = processedEa,
+                        UnprocessedEaQuantity = totalEa - processedEa,
+                        LotNumber    = lot,
                         Location     = latest.Location ?? "",
                         StatusLabel  = g.Key.ItemStatus,
                         CreatedAt    = latest.CreatedAt,
@@ -220,6 +279,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // 2. Query aggregated scans joined with ITMMASTER for conversion and locations
             string sql = $@"
+                WITH StagingSums AS (
+                    SELECT 
+                        WorkOrderNumber,
+                        ProductCode,
+                        ISNULL(LotNumber, '') AS LotNumber,
+                        ISNULL(Location, '') AS Location,
+                        ISNULL(ItemStatus, '') AS ItemStatus,
+                        SUM(TotalManufacturedQuantity) AS ProcessedKg,
+                        SUM(EaQuantity) AS ProcessedEa
+                    FROM StagingEod
+                    WHERE IsProcessed = 1 AND WorkOrderNumber = @WorkOrder
+                    GROUP BY WorkOrderNumber, ProductCode, ISNULL(LotNumber, ''), ISNULL(Location, ''), ISNULL(ItemStatus, '')
+                )
                 SELECT 
                     @WorkOrder      AS SoNumber,
                     t.ItemCode      AS ItemCode,
@@ -227,6 +299,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     l.OrderedQuantity AS Quantity,
                     CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN SUM(ISNULL(t.EaQuantity, 0)) ELSE SUM(t.ScanAmountKg) END AS Manufactured,
                     SUM(ISNULL(t.EaQuantity, 0)) AS EaQuantity,
+                    CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN ISNULL(MAX(s.ProcessedEa), 0) ELSE ISNULL(MAX(s.ProcessedKg), 0) END AS ProcessedQuantity,
+                    CASE WHEN i.STU_0 IN ('EA', 'PCS') THEN SUM(ISNULL(t.EaQuantity, 0)) - ISNULL(MAX(s.ProcessedEa), 0) ELSE SUM(t.ScanAmountKg) - ISNULL(MAX(s.ProcessedKg), 0) END AS UnprocessedQuantity,
+                    ISNULL(MAX(s.ProcessedEa), 0) AS ProcessedEaQuantity,
+                    SUM(ISNULL(t.EaQuantity, 0)) - ISNULL(MAX(s.ProcessedEa), 0) AS UnprocessedEaQuantity,
                     t.LotNumber     AS LotNumber,
                     i.STU_0         AS Unit,
                     MAX(t.CreatedAt) AS CreatedAt,
@@ -236,6 +312,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
+                LEFT JOIN StagingSums s ON 
+                    s.WorkOrderNumber = @WorkOrder 
+                    AND s.ProductCode = t.ItemCode 
+                    AND s.LotNumber = ISNULL(t.LotNumber, '')
+                    AND s.Location = ISNULL(t.Location, '')
+                    AND s.ItemStatus = ISNULL(t.ItemStatus, 'A')
                 WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL) AND t.ExcludeFromEod = 0
                 GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
 

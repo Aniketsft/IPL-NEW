@@ -40,6 +40,10 @@ class ProductionTrackingItem {
   final String location;
   final String statusLabel;
   final double eaQuantity;
+  final double processedQuantity;
+  final double unprocessedQuantity;
+  final double processedEaQuantity;
+  final double unprocessedEaQuantity;
   final DateTime? createdAt;
 
   const ProductionTrackingItem({
@@ -54,6 +58,10 @@ class ProductionTrackingItem {
     required this.location,
     required this.statusLabel,
     this.eaQuantity = 0.0,
+    this.processedQuantity = 0.0,
+    this.unprocessedQuantity = 0.0,
+    this.processedEaQuantity = 0.0,
+    this.unprocessedEaQuantity = 0.0,
     this.createdAt,
   });
 
@@ -72,6 +80,10 @@ class ProductionTrackingItem {
         location: json['location'] as String? ?? '',
         statusLabel: json['statusLabel'] as String? ?? 'A',
         eaQuantity: (json['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+        processedQuantity: (json['processedQuantity'] as num?)?.toDouble() ?? 0.0,
+        unprocessedQuantity: (json['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
+        processedEaQuantity: (json['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+        unprocessedEaQuantity: (json['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'].toString())
             : null,
@@ -201,6 +213,10 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           location: e['location'] as String? ?? 'IPLCH',
           statusLabel: e['statusLabel'] as String? ?? 'A',
           eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+          processedQuantity: (e['processedQuantity'] as num?)?.toDouble() ?? 0.0,
+          unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
+          processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+          unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
           createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
         )).toList();
         _errorMessage = null;
@@ -234,7 +250,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         backgroundColor: const Color(0xFF1E1E1E),
         title: const Text('Confirm End of Day', style: TextStyle(color: Colors.white)),
         content: Text(
-          'Are you sure you want to finalize the production for ${DateFormat('dd MMM yyyy').format(_selectedDate)}? This can only be done once.',
+          'Are you sure you want to finalize the new production scans for ${DateFormat('dd MMM yyyy').format(_selectedDate)}?',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -263,7 +279,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
       // Insert staging EOD and local status
       for (var item in _summaryItems) {
-        if (item.manufactured <= 0) continue; // Filter out zero-quantity items
+        if (item.unprocessedQuantity <= 0) continue; // Filter out zero-quantity items
         if (item.statusLabel != 'A') continue; // Only populate status A in stagingeod
 
         final mfgDate = item.createdAt ?? DateTime.now();
@@ -273,7 +289,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'id': const Uuid().v4(),
           'soNumber': _selectedWorkOrder!.workOrder,
           'productCode': item.itemCode,
-          'manufactured_quantity': item.manufactured,
+          'manufactured_quantity': item.unprocessedQuantity,
           'timestamp': timestamp,
           'unit': item.unit,
           'location': item.location,
@@ -283,14 +299,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'isSynced': 0,
           'location2': '',
           'location3': '',
-          'ea_quantity': item.eaQuantity,
+          'ea_quantity': item.unprocessedEaQuantity,
           'lot': item.lotNumber,
         });
       }
 
       await db.markEodCompleted(DateFormat('yyyy-MM-dd').format(_selectedDate), _selectedWorkOrder!.workOrder);
       await db.insertEodProcessAudit(
-        eodDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
+        eodDate: '${DateFormat('yyyy-MM-dd').format(_selectedDate)}_$timestamp',
         workOrderNumber: _selectedWorkOrder!.workOrder,
       );
 
@@ -301,7 +317,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         payload: jsonEncode({
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
           'workOrder': _selectedWorkOrder!.workOrder,
-          'itemCount': _summaryItems.where((i) => i.manufactured > 0).length,
+          'itemCount': _summaryItems.where((i) => i.unprocessedQuantity > 0).length,
+          'timestamp': timestamp,
         }),
       );
 
@@ -815,7 +832,11 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   Widget _buildProductCard(String itemCode, List<ProductionTrackingItem> items, bool isDark, ThemeData theme) {
     final first = items.first;
     final totalQty = items.fold<double>(0, (sum, item) => sum + item.manufactured);
+    final totalUnprocessedQty = items.fold<double>(0, (sum, item) => sum + item.unprocessedQuantity);
+    final totalProcessedQty = items.fold<double>(0, (sum, item) => sum + item.processedQuantity);
     final totalEa = items.fold<double>(0, (sum, item) => sum + item.eaQuantity);
+    final totalUnprocessedEa = items.fold<double>(0, (sum, item) => sum + item.unprocessedEaQuantity);
+    final totalProcessedEa = items.fold<double>(0, (sum, item) => sum + item.processedEaQuantity);
     final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
     return Card(
@@ -841,7 +862,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
             style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
           ),
           trailing: SizedBox(
-            width: 110,
+            width: 120,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center, 
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -850,14 +871,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                   fit: BoxFit.scaleDown,
                   child: Text(
                     isEA
-                        ? '${totalQty.toStringAsFixed(2)} KG / ${totalEa.toStringAsFixed(2)} EA'
-                        : '${totalQty.toStringAsFixed(2)} ${first.unit}',
+                        ? '${totalUnprocessedQty.toStringAsFixed(2)} KG / ${totalUnprocessedEa.toStringAsFixed(2)} EA (New)'
+                        : '${totalUnprocessedQty.toStringAsFixed(2)} ${first.unit} (New)',
                     style: const TextStyle(color: _amber, fontWeight: FontWeight.bold),
                   ),
                 ),
                 Text(
-                  '${items.length} Scans',
-                  style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10),
+                  'Processed: ${totalProcessedQty.toStringAsFixed(2)} ${first.unit}',
+                  style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 10),
                 ),
               ],
             ),
@@ -868,9 +889,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
               child: Column(
                 children: [
                   _row('DESCRIPTION', first.description, isDark),
+                  _row('UNPROCESSED (KG)', '${totalUnprocessedQty.toStringAsFixed(2)} KG', isDark),
+                  _row('PROCESSED (KG)', '${totalProcessedQty.toStringAsFixed(2)} KG', isDark),
                   _row('TOTAL (KG)', '${totalQty.toStringAsFixed(2)} KG', isDark),
-                  if (isEA)
+                  if (isEA) ...[
+                    _row('UNPROCESSED (EA)', '${totalUnprocessedEa.toStringAsFixed(2)} EA', isDark),
+                    _row('PROCESSED (EA)', '${totalProcessedEa.toStringAsFixed(2)} EA', isDark),
                     _row('TOTAL (EA)', '${totalEa.toStringAsFixed(2)} EA', isDark),
+                  ],
                   _row('LOCATION', first.location, isDark),
                   _row('LOT NUMBER', first.lotNumber, isDark),
                   _row('STATUS', first.statusLabel, isDark),
@@ -914,13 +940,15 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
     );
   }
 
+  bool get _hasUnprocessedItems => _summaryItems.any((item) => item.unprocessedQuantity > 0);
+
   Widget _actionButton() => ElevatedButton.icon(
-        onPressed: (_isSaving || _isEodDone || !_canUpdateEod) ? null : _completeEndOfDay,
+        onPressed: (_isSaving || !_hasUnprocessedItems || !_canUpdateEod) ? null : _completeEndOfDay,
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: Text(_isSaving ? 'COMPLETING...' : 'END OF DAY'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: (_isEodDone || !_canUpdateEod) ? Colors.grey : _amber,
-          foregroundColor: (_isEodDone || !_canUpdateEod) ? Colors.white70 : Colors.black,
+          backgroundColor: (!_hasUnprocessedItems || !_canUpdateEod) ? Colors.grey : _amber,
+          foregroundColor: (!_hasUnprocessedItems || !_canUpdateEod) ? Colors.white70 : Colors.black,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
