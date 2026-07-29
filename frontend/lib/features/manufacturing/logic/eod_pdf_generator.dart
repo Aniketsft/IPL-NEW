@@ -139,9 +139,9 @@ class EodPdfGenerator {
         String unprocStr = unprocessedQty.toStringAsFixed(2);
         
         if (isEA) {
-          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
-          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
-          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
+          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(2)} EA';
+          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(2)} EA';
+          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(2)} EA';
         }
 
         tableData.add([
@@ -176,9 +176,9 @@ class EodPdfGenerator {
         String unprocStr = unprocessedQty.toStringAsFixed(2);
         
         if (isEA) {
-          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(0)} EA';
-          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(0)} EA';
-          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(0)} EA';
+          totalStr = '${totalQty.toStringAsFixed(2)} / ${totalEa.toStringAsFixed(2)} EA';
+          procStr = '${processedQty.toStringAsFixed(2)} / ${processedEa.toStringAsFixed(2)} EA';
+          unprocStr = '${unprocessedQty.toStringAsFixed(2)} / ${unprocessedEa.toStringAsFixed(2)} EA';
         }
 
         tableData.add([
@@ -249,7 +249,6 @@ class EodPdfGenerator {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        pw.Divider(),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
@@ -258,13 +257,14 @@ class EodPdfGenerator {
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
             ),
             pw.Text(
-              totalQty.toStringAsFixed(2),
+              '${totalQty.toStringAsFixed(2)} KG',
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
             ),
-            pw.SizedBox(width: 50),
           ],
         ),
-        pw.SizedBox(height: 40),
+        pw.SizedBox(height: 10),
+        pw.Divider(),
+        pw.SizedBox(height: 30),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [_buildSigLine('Production Manager')],
