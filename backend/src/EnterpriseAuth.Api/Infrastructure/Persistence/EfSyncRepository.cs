@@ -515,7 +515,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             SyncId = scanDto.SyncId ?? Guid.NewGuid().ToString(),
                             ItemStatus = scanDto.ItemStatus,
                             DeviceId = scanDto.DeviceId ?? request.DeviceId,
-                            ExcludeFromEod = scanDto.ExcludeFromEod || line.Order.ExcludeFromEod,
+                            ExcludeFromEod = scanDto.ExcludeFromEod || line.Order.ExcludeFromEod || scanDto.Barcode == "MANUAL-DEDUCT" || scanDto.ScanAmountKg < 0,
                             CreatedBy = performedBy,
                             CreatedAt = DateTime.UtcNow
                         };

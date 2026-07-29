@@ -41,6 +41,7 @@ class ProductionTrackingItem {
   final String location;
   final String statusLabel;
   final double eaQuantity;
+  final double standardWeight;
   final double processedQuantity;
   final double unprocessedQuantity;
   final double processedEaQuantity;
@@ -59,7 +60,8 @@ class ProductionTrackingItem {
     required this.conversion,
     required this.location,
     required this.statusLabel,
-    this.eaQuantity = 0.0,
+    required this.eaQuantity,
+    this.standardWeight = 0.0,
     this.processedQuantity = 0.0,
     this.unprocessedQuantity = 0.0,
     this.processedEaQuantity = 0.0,
@@ -234,31 +236,45 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       final db = LocalDatabaseHelper.instance;
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
       
-      // Fetch from server directly as the single source of truth
       final data = await repository.getProductionSummaryFromServer(date);
       final isDone = await db.isEodProcessAudited(dateStr);
       
+      final List<ProductionTrackingItem> parsedItems = [];
+      for (final e in data) {
+         final code = e['itemCode'] as String? ?? '';
+         double stdWeight = 0.0;
+         if (code.isNotEmpty) {
+           final product = await db.getProductByCode(code);
+           if (product != null && product[LocalDatabaseHelper.colProdStandardWeight] != null) {
+              stdWeight = (product[LocalDatabaseHelper.colProdStandardWeight] as num).toDouble();
+           }
+         }
+         
+         parsedItems.add(ProductionTrackingItem(
+            soNumber: e['soNumber'] as String? ?? '',
+            itemCode: code,
+            description: e['description'] as String? ?? '',
+            quantity: (e['quantity'] as num?)?.toDouble() ?? 0.0,
+            manufactured: (e['manufactured'] as num?)?.toDouble() ?? 0.0,
+            lotNumber: e['lotNumber'] as String? ?? '',
+            unit: e['unit'] as String? ?? 'KG',
+            conversion: (e['conversion'] as num?)?.toDouble() ?? 1.0,
+            location: e['location'] as String? ?? 'IPLCH',
+            statusLabel: e['statusLabel'] as String? ?? 'A',
+            eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+            standardWeight: stdWeight,
+            processedQuantity: (e['processedQuantity'] as num?)?.toDouble() ?? 0.0,
+            unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
+            processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+            unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+            workOrderNumber: e['workOrderNumber'] as String? ?? '',
+            createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
+         ));
+      }
+      
       setState(() {
         _isEodDone = isDone;
-        _summaryItems = data.map((e) => ProductionTrackingItem(
-          soNumber: e['soNumber'] as String? ?? '',
-          itemCode: e['itemCode'] as String? ?? '',
-          description: e['description'] as String? ?? '',
-          quantity: (e['quantity'] as num?)?.toDouble() ?? 0.0,
-          manufactured: (e['manufactured'] as num?)?.toDouble() ?? 0.0,
-          lotNumber: e['lotNumber'] as String? ?? '',
-          unit: e['unit'] as String? ?? 'KG',
-          conversion: (e['conversion'] as num?)?.toDouble() ?? 1.0,
-          location: e['location'] as String? ?? 'IPLCH',
-          statusLabel: e['statusLabel'] as String? ?? 'A',
-          eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
-          processedQuantity: (e['processedQuantity'] as num?)?.toDouble() ?? 0.0,
-          unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
-          processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
-          unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
-          workOrderNumber: e['workOrderNumber'] as String? ?? '',
-          createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
-        )).toList();
+        _summaryItems = parsedItems;
         _errorMessage = null;
       });
     } catch (e) {
@@ -887,13 +903,14 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
   Widget _buildProductCard(String itemCode, List<ProductionTrackingItem> items, bool isDark, ThemeData theme) {
     final first = items.first;
-    final totalQty = items.fold<double>(0, (sum, item) => sum + item.manufactured);
-    final totalUnprocessedQty = items.fold<double>(0, (sum, item) => sum + item.unprocessedQuantity);
-    final totalProcessedQty = items.fold<double>(0, (sum, item) => sum + item.processedQuantity);
+    final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
+    
+    final totalQty = items.fold<double>(0, (sum, item) => sum + (isEA ? (item.eaQuantity * item.standardWeight) : item.manufactured));
+    final totalUnprocessedQty = items.fold<double>(0, (sum, item) => sum + (isEA ? (item.unprocessedEaQuantity * item.standardWeight) : item.unprocessedQuantity));
+    final totalProcessedQty = items.fold<double>(0, (sum, item) => sum + (isEA ? (item.processedEaQuantity * item.standardWeight) : item.processedQuantity));
     final totalEa = items.fold<double>(0, (sum, item) => sum + item.eaQuantity);
     final totalUnprocessedEa = items.fold<double>(0, (sum, item) => sum + item.unprocessedEaQuantity);
     final totalProcessedEa = items.fold<double>(0, (sum, item) => sum + item.processedEaQuantity);
-    final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -927,7 +944,9 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                   fit: BoxFit.scaleDown,
                   child: Text(
                     isEA
-                        ? '${totalUnprocessedQty.toStringAsFixed(2)} KG / ${totalUnprocessedEa.toStringAsFixed(2)} EA (New)'
+                        ? (totalUnprocessedQty > 0 
+                             ? '${totalUnprocessedQty.toStringAsFixed(2)} KG / ${totalUnprocessedEa.toStringAsFixed(2)} EA (New)'
+                             : '${totalUnprocessedEa.toStringAsFixed(2)} EA (New)')
                         : '${totalUnprocessedQty.toStringAsFixed(2)} ${first.unit} (New)',
                     style: const TextStyle(color: _amber, fontWeight: FontWeight.bold),
                   ),
@@ -971,9 +990,13 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
 
   Widget _buildScanRow(ProductionTrackingItem scan, bool isDark) {
     final isEA = scan.unit.toUpperCase() == 'EA' || scan.unit.toUpperCase() == 'PCS';
+    final weight = isEA ? (scan.eaQuantity * scan.standardWeight) : scan.manufactured;
+    
     final qtyDisplay = isEA 
-        ? '${scan.manufactured.toStringAsFixed(2)} KG / ${scan.eaQuantity.toStringAsFixed(2)} EA'
-        : '${scan.manufactured.toStringAsFixed(2)} ${scan.unit}';
+        ? (weight > 0
+            ? '${weight.toStringAsFixed(2)} KG / ${scan.eaQuantity.toStringAsFixed(2)} EA'
+            : '${scan.eaQuantity.toStringAsFixed(2)} EA')
+        : '${weight.toStringAsFixed(2)} ${scan.unit}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),

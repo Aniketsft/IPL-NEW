@@ -589,7 +589,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
   void _showMultiplierPrompt(Map<String, dynamic> pendingScan) {
     final TextEditingController controller = TextEditingController();
+    final FocusNode focusNode = FocusNode();
     String? errorMessage;
+
+    // Delay autofocus to let hardware scanner wedge finish typing into the void
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        controller.clear();
+        focusNode.requestFocus();
+      }
+    });
 
     showDialog(
       context: context,
@@ -611,8 +620,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   const SizedBox(height: 16),
                   TextField(
                     controller: controller,
+                    focusNode: focusNode,
                     keyboardType: TextInputType.number,
-                    autofocus: true,
+                    autofocus: false,
                     style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                     onChanged: (val) {
                       if (errorMessage != null) {
@@ -1146,6 +1156,22 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 const SizedBox(width: 12),
                 _bulkPoolBadge(availablePool),
               ],
+              if (widget.order.orderNumber.startsWith('BLK-') &&
+                  widget.permissions.contains('manufacturing.rollover.update')) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: _showDeductDialog,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.remove, color: Colors.red, size: 20),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 6),
@@ -1194,6 +1220,210 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         ],
       ),
     );
+  }
+
+  void _showDeductDialog() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final orange = theme.primaryColor;
+    
+    final TextEditingController amountController = TextEditingController();
+    String selectedTransferType = 'FPP';
+    String? errorMessage;
+    
+    // For Bulk Orders, the available pool is the total manufactured weight (KG) so far.
+    final double maxDeductible = widget.order.orderNumber.startsWith('BLK-') 
+        ? (_cumulativeWeight + _localManufacturedQty)
+        : totalAvailableExcess;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.cardColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.remove_circle_outline, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Deduct from Pool',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Available to deduct: ${widget.product.formatQuantity(maxDeductible)} KG',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      onChanged: (v) {
+                        if (errorMessage != null) {
+                          setDialogState(() => errorMessage = null);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Amount to Deduct (KG)',
+                        errorText: errorMessage,
+                        labelStyle: TextStyle(color: orange),
+                        filled: true,
+                        fillColor: theme.scaffoldBackgroundColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: orange),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Transfer Type',
+                      style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          dropdownColor: theme.cardColor,
+                          value: selectedTransferType,
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+                          items: ['FPP', 'FRS', 'FFD']
+                              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedTransferType = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final double? amount = double.tryParse(amountController.text);
+                    if (amount == null || amount <= 0) {
+                      setDialogState(() => errorMessage = 'Enter a valid positive amount.');
+                      return;
+                    }
+                    if (amount > maxDeductible) {
+                      setDialogState(() => errorMessage = 'Cannot deduct more than available ($maxDeductible).');
+                      return;
+                    }
+
+                    Navigator.pop(context);
+                    await _processDeduction(amount, selectedTransferType);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Deduct', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _processDeduction(double amount, String transferType) async {
+    final String timestampStr = DateTime.now().toIso8601String();
+    final String pseudoBarcode = 'DEDUCT-$transferType-${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Amount is in KG
+    final double quantityKG = -amount;
+    double quantityEA = 0.0;
+    
+    final dbHelper = LocalDatabaseHelper.instance;
+    final database = await dbHelper.database;
+    final productData = await database.query(
+      LocalDatabaseHelper.tableProducts,
+      where: "${LocalDatabaseHelper.colProdCode} = ?",
+      whereArgs: [widget.product.itemCode],
+      limit: 1,
+    );
+    
+    double standardWeight = 0.0;
+    if (productData.isNotEmpty) {
+      standardWeight = (productData.first[LocalDatabaseHelper.colProdStandardWeight] as num?)?.toDouble() ?? 0.0;
+    }
+    
+    if ((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') && standardWeight > 0) {
+      quantityEA = quantityKG / standardWeight;
+    }
+
+    final pending = {
+      'barcode': pseudoBarcode,
+      'originalBarcode': 'MANUAL-DEDUCT',
+      'productCode': widget.product.itemCode,
+      'scannedQty': quantityEA != 0.0 ? quantityEA : quantityKG,
+      'manufacturedQty': quantityKG,
+      'weight': quantityKG,
+      'unit': widget.product.unit,
+      'timestamp': timestampStr,
+      'syncId': const Uuid().v4(),
+      'isSaved': false,
+      'exclude_from_eod': 1,
+    };
+
+    setState(() {
+      _scans.insert(0, pending);
+      _isDirty = true;
+      if (widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') {
+        _localEaScannedQty += (quantityEA != 0.0 ? quantityEA : quantityKG);
+      } else {
+        _localManufacturedQty += quantityKG;
+      }
+    });
+
+    try {
+      final db = LocalDatabaseHelper.instance;
+      await db.insertOfflineAuditLog(
+        entity: 'ProductionScan',
+        action: 'DEDUCT',
+        payload: jsonEncode({
+          'barcode': pseudoBarcode,
+          'soNumber': widget.order.orderNumber,
+          'productCode': widget.product.itemCode,
+          'manufacturedQty': quantityKG,
+          'transferType': transferType,
+          'timestamp': timestampStr,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Failed to log deduction: $e');
+    }
   }
 
   Widget _infoChip(String label) {
