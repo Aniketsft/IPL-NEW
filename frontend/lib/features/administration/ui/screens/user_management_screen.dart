@@ -65,6 +65,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'End of Day', moduleId: 'manufacturing.eod'),
       PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
       PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
+      PermissionNode(label: 'Reports', moduleId: 'reports.dashboard'),
     ];
 
   @override

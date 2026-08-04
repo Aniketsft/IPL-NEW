@@ -38,5 +38,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal ProcessedEaQuantity { get; set; }
         public decimal UnprocessedEaQuantity { get; set; }
         public string WorkOrderNumber { get; set; } = string.Empty;
+        public bool IsFpp { get; set; } = false;
     }
 }

@@ -48,6 +48,7 @@ class ProductionTrackingItem {
   final double unprocessedEaQuantity;
   final DateTime? createdAt;
   final String workOrderNumber;
+  final bool isFpp;
 
   const ProductionTrackingItem({
     required this.soNumber,
@@ -68,6 +69,7 @@ class ProductionTrackingItem {
     this.unprocessedEaQuantity = 0.0,
     this.createdAt,
     this.workOrderNumber = '',
+    this.isFpp = false,
   });
 
   DateTime? get expiryDate => createdAt?.add(const Duration(days: 5));
@@ -93,6 +95,7 @@ class ProductionTrackingItem {
             ? DateTime.tryParse(json['createdAt'].toString())
             : null,
         workOrderNumber: json['workOrderNumber'] as String? ?? '',
+        isFpp: json['isFpp'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -113,6 +116,7 @@ class ProductionTrackingItem {
         'unprocessedEaQuantity': unprocessedEaQuantity,
         'workOrderNumber': workOrderNumber,
         'createdAt': createdAt?.toIso8601String(),
+        'isFpp': isFpp,
       };
 }
 
@@ -125,7 +129,7 @@ class EndOfDayScreen extends StatefulWidget {
   State<EndOfDayScreen> createState() => _EndOfDayScreenState();
 }
 
-class _EndOfDayScreenState extends State<EndOfDayScreen> {
+class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProviderStateMixin {
   String? _selectedWorkOrder;
   List<WorkOrderHeader> _workOrders = [];
   List<ProductionTrackingItem> _summaryItems = [];
@@ -139,6 +143,12 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   // Tracks whether the server has any unprocessed StagingEod rows (IsProcessed = 0)
   // This drives the "Export to X3" button independently of local audit state.
   bool _hasPendingEod = false;
+  late TabController _tabController;
+
+  List<ProductionTrackingItem> get _filteredSummaryItems {
+    final bool isFppTab = _tabController.index == 1;
+    return _summaryItems.where((item) => item.isFpp == isFppTab).toList();
+  }
 
   bool get _canUpdateEod {
     return widget.permissions.contains('manufacturing.eod.update') ||
@@ -151,12 +161,22 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {});
+    });
     _fetchWorkOrders();
     _fetchProductionSummary(_selectedDate, _selectedSite);
     _checkPendingEod();
   }
 
 
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   /// Queries the server for the count of unprocessed StagingEod rows.
   /// Enables the Export to X3 button whenever count > 0.
@@ -292,8 +312,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       return;
     }
 
-    if (_summaryItems.isEmpty) {
-      setState(() => _errorMessage = 'No products found to finalize');
+    if (_filteredSummaryItems.isEmpty) {
+      setState(() => _errorMessage = 'No products found to finalize on this tab');
       return;
     }
 
@@ -335,7 +355,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       await db.deleteUnsyncedStagingEodByWorkOrder(_selectedWorkOrder!);
 
       // Save each unprocessed item (with quantity > 0) to local StagingEod
-      for (var item in _summaryItems) {
+      for (var item in _filteredSummaryItems) {
         if (item.unprocessedQuantity <= 0) continue; // Filter out zero-quantity items
         if (item.statusLabel != 'A') continue; // Only populate status A in stagingeod
 
@@ -359,6 +379,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
           'ea_quantity': item.unprocessedEaQuantity,
           'lot': item.lotNumber,
           'eodTransactionId': batchEodTransactionId,
+          'is_fpp': item.isFpp ? 1 : 0,
         }, batchEodTransactionId);
       }
 
@@ -375,7 +396,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         payload: jsonEncode({
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
           'workOrder': _selectedWorkOrder!,
-          'itemCount': _summaryItems.where((i) => i.unprocessedQuantity > 0).length,
+          'itemCount': _filteredSummaryItems.where((i) => i.unprocessedQuantity > 0).length,
           'timestamp': timestamp,
         }),
       );
@@ -385,7 +406,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
       try {
         await networkService.dio.post('Logistics/complete-eod', data: {
           'workOrder': _selectedWorkOrder!,
-          'items': _summaryItems
+          'items': _filteredSummaryItems
               .where((e) => e.unprocessedQuantity > 0 || e.unprocessedEaQuantity > 0) // Only send unprocessed items
               .map((e) => e.toJson())
               .toList(),
@@ -695,6 +716,16 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
         children: [
           _dateFilter(isDark, theme),
           _workOrderFilter(isDark, theme),
+          TabBar(
+            controller: _tabController,
+            labelColor: _amber,
+            unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
+            indicatorColor: _amber,
+            tabs: const [
+              Tab(text: 'Cuts / Buks'),
+              Tab(text: 'FPP'),
+            ],
+          ),
           Expanded(
             child: _isLoading || _isSaving
                 ? const Center(
@@ -704,7 +735,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
                     ? Center(child: _errorCard())
                     : _buildProductList(isDark, theme),
           ),
-          if (_summaryItems.isNotEmpty && !_isLoading && !_isSaving)
+          if (_filteredSummaryItems.isNotEmpty && !_isLoading && !_isSaving)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
@@ -867,7 +898,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> {
   }
 
   Widget _buildProductList(bool isDark, ThemeData theme) {
-    final displayItems = _summaryItems.where((item) {
+    final displayItems = _filteredSummaryItems.where((item) {
       final isInternal = item.soNumber.startsWith('CUTS') ||
                          item.soNumber.startsWith('BLK');
       return item.manufactured > 0 || isInternal;

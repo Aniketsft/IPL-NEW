@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 57;
+  static const _databaseVersion = 58;
 
 
   static const tableScans = 'tbl_scans';
@@ -587,7 +587,11 @@ class LocalDatabaseHelper {
           location2 TEXT,
           location3 TEXT,
           createdAt TEXT,
-          $columnIsSynced INTEGER DEFAULT 0
+          $columnIsSynced INTEGER DEFAULT 0,
+          $columnEaQuantity REAL DEFAULT 0,
+          $columnLot TEXT,
+          $columnEodTransactionId TEXT,
+          is_fpp INTEGER DEFAULT 0
         )
       ''');
     }
@@ -884,6 +888,17 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v57: $e");
       }
     }
+    if (oldVersion < 58) {
+      debugPrint('DB Upgrade: Adding is_fpp to tbl_staging_eod (v58)');
+      try {
+        var stagingCols = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!stagingCols.any((c) => c['name'] == 'is_fpp')) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN is_fpp INTEGER DEFAULT 0');
+        }
+      } catch (e) {
+        debugPrint("Migration error v58: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1143,7 +1158,8 @@ class LocalDatabaseHelper {
         $columnLot TEXT,
         $columnIsSynced INTEGER DEFAULT 0,
         $colDeviceId TEXT,
-        $columnEodTransactionId TEXT
+        $columnEodTransactionId TEXT,
+        is_fpp INTEGER DEFAULT 0
       )
     ''');
 

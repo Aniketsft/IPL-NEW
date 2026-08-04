@@ -27,6 +27,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
 import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
+import 'package:enterprise_auth_mobile/features/reports/presentation/pages/reports_screen.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -322,6 +323,13 @@ class _HomeScreenState extends State<HomeScreen> {
           'Printer Settings',
           Icons.print_rounded,
           PrinterSettingsScreen(permissions: widget.permissions),
+        ),
+      if (_hasAccess('reports.dashboard.read'))
+        _buildMenuButton(
+          context,
+          'Reports',
+          Icons.bar_chart_rounded,
+          ReportsScreen(permissions: widget.permissions),
         ),
     ];
 

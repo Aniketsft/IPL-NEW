@@ -80,7 +80,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ( "manufacturing", new[] { "all", "eod", "rollover", "bulk_allocate" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
                 ( "administration", new[] { "user_management", "sync_logs" } ),
-                ( "settings", new[] { "general", "printer", "lot" } )
+                ( "settings", new[] { "general", "printer", "lot" } ),
+                ( "reports", new[] { "dashboard" } )
             };
             
             var actions = new[] { "Create", "Read", "Update", "Delete" };
@@ -987,6 +988,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         BEGIN
                             ALTER TABLE [dbo].[StagingEod] ADD [DeviceId] [nvarchar](255) NULL;
                             PRINT 'Added DeviceId column to existing StagingEod table';
+                        END
+
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StagingEod' AND COLUMN_NAME = 'IsFpp')
+                        BEGIN
+                            ALTER TABLE [dbo].[StagingEod] ADD [IsFpp] [bit] NOT NULL DEFAULT 0;
+                            PRINT 'Added IsFpp column to existing StagingEod table';
                         END
                     END
 

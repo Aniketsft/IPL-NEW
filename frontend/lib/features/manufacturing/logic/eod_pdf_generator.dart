@@ -11,7 +11,9 @@ class EodPdfGenerator {
     required DateTime productionDate,
     required List<ProductionTrackingItem> items,
   }) async {
-    final filteredItems = items;
+    final fppItems = items.where((i) => i.isFpp).toList();
+    final cutsItems = items.where((i) => !i.isFpp).toList();
+    
     final pdf = pw.Document();
     final dateStr = DateFormat('EEE, d MMM yyyy').format(productionDate);
     final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
@@ -23,9 +25,22 @@ class EodPdfGenerator {
         build: (pw.Context context) => [
           _buildHeader(dateStr, printTime),
           pw.SizedBox(height: 20),
-          _buildTable(filteredItems),
-          pw.SizedBox(height: 20),
-          _buildFooter(filteredItems),
+          
+          if (cutsItems.isNotEmpty) ...[
+            pw.Text('Cuts / Buks', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.amber)),
+            pw.SizedBox(height: 10),
+            _buildTable(cutsItems),
+            pw.SizedBox(height: 20),
+          ],
+          
+          if (fppItems.isNotEmpty) ...[
+            pw.Text('FPP Products', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.amber)),
+            pw.SizedBox(height: 10),
+            _buildTable(fppItems),
+            pw.SizedBox(height: 20),
+          ],
+          
+          _buildFooter(items),
         ],
       ),
     );

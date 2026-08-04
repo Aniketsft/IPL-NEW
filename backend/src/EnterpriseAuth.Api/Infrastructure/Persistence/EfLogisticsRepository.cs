@@ -162,16 +162,27 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             var itemCodes = scans.Select(s => s.OrderLine.ItemCode).Distinct().ToList();
             var units = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var fppMapping = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             if (itemCodes.Any())
             {
                 using IDbConnection db = new SqlConnection(_connectionString);
                 string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
-                var sql = $"SELECT ITMREF_0, STU_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
+                var sql = $"SELECT ITMREF_0, STU_0, SEAKEY_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
                 var mapping = await db.QueryAsync(sql, new { Codes = itemCodes });
                 foreach(var map in mapping)
                 {
-                    if (map.ITMREF_0 != null && map.STU_0 != null)
-                        units[((string)map.ITMREF_0).Trim()] = ((string)map.STU_0).Trim();
+                    if (map.ITMREF_0 != null)
+                    {
+                        var itmRef = ((string)map.ITMREF_0).Trim();
+                        if (map.STU_0 != null)
+                            units[itmRef] = ((string)map.STU_0).Trim();
+                            
+                        if (map.SEAKEY_0 != null)
+                        {
+                            var seakey = ((string)map.SEAKEY_0).Trim();
+                            fppMapping[itmRef] = seakey == "Nandos" || seakey == "TCHEF" || seakey == "SDCHEF";
+                        }
+                    }
                 }
             }
 
@@ -245,7 +256,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         CreatedAt    = latest.CreatedAt,
                         Unit         = units.TryGetValue(itemCode, out var u) && !string.IsNullOrWhiteSpace(u) ? u : "KG",
                         Site         = latest.OrderLine.Order.Site ?? "IPL",
-                        WorkOrderNumber = workOrder
+                        WorkOrderNumber = workOrder,
+                        IsFpp        = fppMapping.TryGetValue(itemCode, out var fpp) && fpp
                     };
                 });
         }
@@ -289,12 +301,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     MAX(t.CreatedAt) AS CreatedAt,
                     t.Location      AS Location,
                     t.ItemStatus    AS StatusLabel,
-                    i.PCUSTU_0      AS Conversion
+                    i.PCUSTU_0      AS Conversion,
+                    CAST(CASE WHEN i.SEAKEY_0 IN ('Nandos', 'TCHEF', 'SDCHEF') THEN 1 ELSE 0 END AS BIT) AS IsFpp
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
                 WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL) AND t.ExcludeFromEod = 0
-                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0";
+                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0, i.SEAKEY_0";
 
             var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });
             return results;
