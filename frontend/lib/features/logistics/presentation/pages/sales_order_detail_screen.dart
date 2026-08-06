@@ -848,12 +848,12 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           final theme = Theme.of(context);
           final isDark = theme.brightness == Brightness.dark;
           return AlertDialog(
-            backgroundColor: theme.colorScheme.surface,
-            title: Text('Confirm Rollover', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          backgroundColor: theme.colorScheme.surface,
+          title: Text('Confirm Carry Forward', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
             content: Text('Are you sure you want to roll over ${widget.order.orderNumber} to ${pickedDate.toIso8601String().split('T').first}? This will exclude current scans from EOD.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm', style: TextStyle(color: Colors.orange))),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('CARRY FORWARD', style: TextStyle(color: Colors.orange))),
             ],
           );
         }
@@ -1065,7 +1065,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           ),
           if (widget.isDeliveryMode 
               ? (widget.permissions.contains('logistics.delivery.update') || widget.permissions.contains('manufacturing.all.update'))
-              : widget.permissions.contains('manufacturing.all.update'))
+              : (widget.permissions.contains('manufacturing.all.update') || widget.permissions.contains('manufacturing.bulk_allocate.update')))
             _buildFooter(),
         ],
       ),
@@ -1208,7 +1208,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           ),
                           icon: const Icon(Icons.next_plan_outlined, size: 18),
                           label: const Text(
-                            'ROLLOVER',
+                            'CARRY FORWARD',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,

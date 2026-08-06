@@ -7,25 +7,6 @@ import 'secure_storage_service.dart';
 import 'config/api_config.dart';
 import 'services/device_info_service.dart';
 
-bool isTokenExpired(String token) {
-  try {
-    final parts = token.split('.');
-    if (parts.length != 3) return true;
-    final normalized = base64Url.normalize(parts[1]);
-    final payloadString = utf8.decode(base64Url.decode(normalized));
-    final payloadMap = jsonDecode(payloadString);
-    if (payloadMap is Map<String, dynamic> && payloadMap.containsKey('exp')) {
-      final exp = payloadMap['exp'];
-      final expInt = exp is int ? exp : int.tryParse(exp.toString()) ?? 0;
-      final currentSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      return currentSeconds >= expInt;
-    }
-  } catch (e) {
-    return true; 
-  }
-  return false;
-}
-
 class NetworkService {
   late final Dio dio;
   final SecureStorageService _storageService;
@@ -59,16 +40,6 @@ class NetworkService {
         onRequest: (options, handler) async {
           final token = await _storageService.getToken();
           if (token != null) {
-            if (isTokenExpired(token)) {
-              debugPrint('Global 401 Intercepted: Token expired locally.');
-              await _storageService.deleteAll();
-              onUnauthorized?.call();
-              return handler.reject(DioException(
-                requestOptions: options,
-                error: 'Token expired locally',
-                type: DioExceptionType.cancel,
-              ));
-            }
             options.headers['Authorization'] = 'Bearer $token';
           }
           

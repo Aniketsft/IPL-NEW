@@ -439,8 +439,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       );
                       final isRollover = rolloverAccess.canRead;
                       return _buildSwitchTile(
-                        label: 'BULK Rollover',
-                        sublabel: 'Allow excess rollover',
+                        label: 'BULK Carry Forward',
+                        sublabel: 'Allow excess carry forward',
                         value: isRollover,
                         activeColor: Theme.of(context).primaryColor,
                         isDark: isDark,
