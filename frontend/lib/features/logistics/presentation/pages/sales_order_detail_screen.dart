@@ -394,7 +394,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     });
   }
 
-  void _toggleSelectAll() {
+  Future<void> _toggleSelectAll() async {
     final filtered = _filteredDetails;
     // Only select items that aren't already locked
     final selectables = filtered
@@ -406,17 +406,110 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
               widget.order.isPreparedForShipment ||
               (!widget.isDeliveryMode && widget.order.isClosed));
         })
-        .map((e) => e.itemCode)
         .toList();
 
-    setState(() {
-      if (_selectedItemCodes.length >= selectables.length &&
-          selectables.every((code) => _selectedItemCodes.contains(code))) {
+    final selectableCodes = selectables.map((e) => e.itemCode).toList();
+
+    // If all selectables are already selected, just clear them
+    if (_selectedItemCodes.length >= selectableCodes.length &&
+        selectableCodes.every((code) => _selectedItemCodes.contains(code))) {
+      setState(() {
         _selectedItemCodes.clear();
-      } else {
-        _selectedItemCodes.addAll(selectables);
-      }
-    });
+      });
+      return;
+    }
+
+    if (selectableCodes.isEmpty) return;
+
+    // Show dialog
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final String? choice = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return SimpleDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          titlePadding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 12.0),
+          contentPadding: const EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 16.0),
+          title: Text(
+            'Selection Options',
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          children: <Widget>[
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context, 'all');
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Text(
+                  'Select All Products',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black87,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context, 'progress');
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Text(
+                  'Select Scanned Product',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black87,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            Divider(color: isDark ? Colors.white10 : Colors.black12, height: 1),
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context, 'cancel');
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (choice == 'all') {
+      setState(() {
+        _selectedItemCodes.addAll(selectableCodes);
+      });
+    } else if (choice == 'progress') {
+      final inProgressCodes = selectables
+          .where((item) => item.progress > 0)
+          .map((e) => e.itemCode)
+          .toList();
+          
+      setState(() {
+        _selectedItemCodes.addAll(inProgressCodes);
+      });
+    }
   }
 
   Future<void> _bulkUpdateStatus() async {
@@ -447,8 +540,8 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
     if (_selectedItemCodes.isEmpty) return;
 
     final String title = widget.isDeliveryMode
-        ? 'Bulk Validate'
-        : 'Bulk Prepare';
+        ? 'Validate All'
+        : 'Prepare All';
     final String content =
         'Are you sure you want to ${widget.isDeliveryMode ? 'validate' : 'prepare'} ${_selectedItemCodes.length} selected items?';
 
