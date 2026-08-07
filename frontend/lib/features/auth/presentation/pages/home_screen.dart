@@ -27,6 +27,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
 import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/core/bloc/app_sync/app_sync_state.dart';
+import 'package:enterprise_auth_mobile/core/bloc/unsynced_data/unsynced_data_cubit.dart';
 import 'package:enterprise_auth_mobile/features/reports/presentation/pages/reports_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -284,16 +285,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final appSyncState = context.watch<AppSyncBloc>().state;
+    final hasUnsyncedData = context.watch<UnsyncedDataCubit>().state;
     final lastSyncStr = appSyncState.lastSyncTime ?? 'Not Synced';
 
     final List<Widget> menuItems = [
       _buildMenuButton(
         context,
         'Data Sync',
-        Icons.sync_rounded,
+        hasUnsyncedData ? Icons.sync_problem_rounded : Icons.sync_rounded,
         null,
         onTapOverride: _triggerSync,
-        subtitle: 'Last: $lastSyncStr',
+        subtitle: hasUnsyncedData ? 'Pending Sync' : 'Last: $lastSyncStr',
+        isWarning: hasUnsyncedData,
       ),
       if (_hasAccess('logistics.delivery.read'))
         _buildMenuButton(
@@ -398,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget? screen, {
     VoidCallback? onTapOverride,
     String? subtitle,
+    bool isWarning = false,
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -424,7 +428,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: theme.primaryColor),
+            Icon(icon, size: 40, color: isWarning ? Colors.redAccent : theme.primaryColor),
             const SizedBox(height: 12),
             Text(
               title,
@@ -440,8 +444,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+                  color: isWarning 
+                      ? Colors.redAccent 
+                      : (isDark ? Colors.white.withValues(alpha: 0.5) : Colors.black45),
                   fontSize: 10,
+                  fontWeight: isWarning ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],

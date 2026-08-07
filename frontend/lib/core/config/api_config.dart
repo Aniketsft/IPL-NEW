@@ -6,7 +6,9 @@ class ApiConfig {
   /// Update this value to change the IP globally across the app.
   static const String serverIp = '192.168.100.156';
 
-  
+  /// Centralized configuration for user inactivity timeout.
+  /// The app will automatically log out the user after this duration of inactivity.
+  static const Duration inactivityTimeout = Duration(minutes: 30);
 
   //'192.168.100.13';
   // 192.168.1.78 sft

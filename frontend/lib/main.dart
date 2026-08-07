@@ -34,6 +34,8 @@ import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_service.dart';
 import 'package:enterprise_auth_mobile/core/widgets/inactivity_watcher.dart';
+import 'package:enterprise_auth_mobile/core/bloc/unsynced_data/unsynced_data_cubit.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -158,6 +160,12 @@ class MyApp extends StatelessWidget {
               synchronizeLogisticsUseCase:
                   context.read<SynchronizeLogisticsUseCase>(),
               appSyncBloc: context.read<AppSyncBloc>(),
+            ),
+          ),
+          BlocProvider(
+            create: (context) => UnsyncedDataCubit(
+              databaseHelper: LocalDatabaseHelper.instance,
+              syncBloc: context.read<SyncBloc>(),
             ),
           ),
           BlocProvider(create: (_) => ThemeCubit()),

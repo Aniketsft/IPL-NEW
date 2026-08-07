@@ -535,6 +535,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var state = new ProductionLineState { OrderLine = line };
                 _scanContext.ProductionLineStates.Add(state);
 
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName = "SalesOrder",
+                    EntityIdString = soNumber,
+                    ActionType = "CREATE_CUT_BULK_ORDER",
+                    Payload = System.Text.Json.JsonSerializer.Serialize(new { ItemCode = dto.ItemCode, Date = dto.Date }),
+                    PerformedBy = "system",
+                    PerformedAt = DateTime.UtcNow
+                });
+
                 await _scanContext.SaveChangesAsync();
             }
 
@@ -1330,11 +1340,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             order.DeliveryDate = newDate.Date;
             order.ExcludeFromEod = true;
+
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName = "SalesOrder",
+                EntityIdString = soNumber,
+                ActionType = "ROLLOVER",
+                Payload = System.Text.Json.JsonSerializer.Serialize(new { NewDeliveryDate = newDate.Date, ExcludeFromEod = true }),
+                PerformedBy = performedBy,
+                PerformedAt = DateTime.UtcNow
+            });
+
             await _scanContext.SaveChangesAsync();
             return true;
         }
 
-        public async Task<bool> UpdateEodExclusionAsync(string entityType, string entityId, bool excludeFromEod)
+        public async Task<bool> UpdateEodExclusionAsync(string entityType, string entityId, bool excludeFromEod, string performedBy = "system")
         {
             if (entityType.Equals("SalesOrder", StringComparison.OrdinalIgnoreCase))
             {
@@ -1342,6 +1363,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (order != null)
                 {
                     order.ExcludeFromEod = excludeFromEod;
+                    
+                    _scanContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "SalesOrder",
+                        EntityIdString = entityId,
+                        ActionType = "UPDATE_EOD_EXCLUSION",
+                        Payload = System.Text.Json.JsonSerializer.Serialize(new { ExcludeFromEod = excludeFromEod }),
+                        PerformedBy = performedBy,
+                        PerformedAt = DateTime.UtcNow
+                    });
+
                     await _scanContext.SaveChangesAsync();
                     return true;
                 }
@@ -1352,6 +1384,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 if (scan != null)
                 {
                     scan.ExcludeFromEod = excludeFromEod;
+
+                    _scanContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "ProductionScanTransaction",
+                        EntityIdString = entityId,
+                        ActionType = "UPDATE_EOD_EXCLUSION",
+                        Payload = System.Text.Json.JsonSerializer.Serialize(new { ExcludeFromEod = excludeFromEod }),
+                        PerformedBy = performedBy,
+                        PerformedAt = DateTime.UtcNow
+                    });
+
                     await _scanContext.SaveChangesAsync();
                     return true;
                 }

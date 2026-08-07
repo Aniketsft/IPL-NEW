@@ -5,6 +5,7 @@ import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'package:enterprise_auth_mobile/features/auth/data/repositories/auth_repository.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 
 class InactivityWatcher extends StatefulWidget {
   final Widget child;
@@ -19,8 +20,8 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
   Timer? _inactivityTimer;
   Timer? _refreshTimer;
 
-  // 30 minutes timeout for inactivity
-  static const Duration timeoutDuration = Duration(minutes: 30);
+  // Timeout for inactivity driven by ApiConfig
+  static const Duration timeoutDuration = ApiConfig.inactivityTimeout;
   // 5 minutes interval to refresh token if active
   static const Duration refreshInterval = Duration(minutes: 5);
 
@@ -50,16 +51,6 @@ class _InactivityWatcherState extends State<InactivityWatcher> {
     final authState = context.read<AuthBloc>().state;
     if (authState is Authenticated) {
       await context.read<AuthRepository>().refreshToken();
-
-      // // Enforce Offline TTL
-      // final isValid = await context
-      //     .read<AuthRepository>()
-      //     .isOfflineSessionValid();
-      // if (!isValid) {
-      //   if (mounted) {
-      //     context.read<AuthBloc>().add(LogoutRequested());
-      //   }
-      // }
     }
   }
 

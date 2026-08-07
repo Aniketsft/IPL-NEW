@@ -2379,4 +2379,35 @@ class LocalDatabaseHelper {
     }
     await batch.commit(noResult: true);
   }
+
+  /// Checks if there is any unsynced data across the main transactional tables.
+  Future<bool> hasUnsyncedData() async {
+    try {
+      final db = await instance.database;
+      
+      final tablesToCheck = {
+        tableScans: columnIsSynced,
+        tableOrders: columnIsSynced,
+        tableDetails: columnIsSynced,
+        tableOrderRollovers: colRolloverIsSynced,
+        tableGlobalSettings: colSettingIsSynced,
+      };
+
+      for (final entry in tablesToCheck.entries) {
+        try {
+          final res = await db.rawQuery('SELECT 1 FROM ${entry.key} WHERE ${entry.value} = 0 LIMIT 1');
+          if (res.isNotEmpty) {
+            return true;
+          }
+        } catch (e) {
+          // If a specific table or column doesn't exist, ignore and continue checking others
+          debugPrint('Error checking table ${entry.key}: $e');
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error checking unsynced data: $e');
+      return false;
+    }
+  }
 }
