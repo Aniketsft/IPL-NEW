@@ -1400,6 +1400,41 @@ class LocalDatabaseHelper {
     );
   }
 
+  // Get all sales orders and their details for a specific delivery date
+  Future<List<Map<String, dynamic>>> getSalesOrdersByDeliveryDate(
+    String deliveryDate,
+  ) async {
+    Database db = await instance.database;
+    return await db.rawQuery(
+      '''
+      SELECT 
+        det.*,
+        det.$colDetIsPrepared,
+        det.$colDetIsValidated,
+        prod.$colProdSau as masterUnit,
+        ord.$colStatus as headerStatus,
+        ord.$colStatusLabel as headerStatusLabel,
+        ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
+        COALESCE(det.$colDetCustomerName, ord.$colCustomerName) as customerName,
+        COALESCE(det.$colDetCustomerCode, ord.$colCustomerCode) as customerCode,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining
+      FROM $tableOrders ord
+      JOIN $tableDetails det ON ord.$colOrderNum = det.$colDetSoNum
+      LEFT JOIN $tableProducts prod ON det.$colDetItemCode = prod.$colProdCode
+      LEFT JOIN $tableScans scn 
+        ON det.$colDetSoNum = scn.$columnSoNumber 
+        AND det.$colDetItemCode = scn.$columnProductCode
+        AND scn.$columnIsReflected = 0
+      WHERE ord.$colDeliveryDate LIKE ? 
+      GROUP BY det.$colDetSoNum, det.$colDetItemCode
+      ORDER BY ord.$colOrderNum ASC
+      ''',
+      ['$deliveryDate%'],
+    );
+  }
+
   // --- INTERNAL ORDER SYNC HELPERS (Cut & Bulk) ---
 
   Future<List<Map<String, dynamic>>> getUnsyncedInternalOrders() async {
@@ -2393,20 +2428,26 @@ class LocalDatabaseHelper {
         tableGlobalSettings: colSettingIsSynced,
       };
 
+      // Fetch all existing tables to prevent SQLite native errors when querying non-existent tables
+      final tableResult = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
+      final existingTables = tableResult.map((row) => row['name'] as String).toSet();
+
       for (final entry in tablesToCheck.entries) {
+        if (!existingTables.contains(entry.key)) {
+          continue; // Safely skip this table if it hasn't been created yet
+        }
+        
         try {
           final res = await db.rawQuery('SELECT 1 FROM ${entry.key} WHERE ${entry.value} = 0 LIMIT 1');
           if (res.isNotEmpty) {
             return true;
           }
         } catch (e) {
-          // If a specific table or column doesn't exist, ignore and continue checking others
-          debugPrint('Error checking table ${entry.key}: $e');
+          // Ignore specific column errors if any
         }
       }
       return false;
     } catch (e) {
-      debugPrint('Error checking unsynced data: $e');
       return false;
     }
   }
