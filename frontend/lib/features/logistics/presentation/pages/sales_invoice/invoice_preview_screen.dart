@@ -3,7 +3,11 @@ import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
-class InvoicePreviewScreen extends StatelessWidget {
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+
+class InvoicePreviewScreen extends StatefulWidget {
   final String invoiceId;
   final Map<String, dynamic> customer;
   final double subtotal;
@@ -28,7 +32,61 @@ class InvoicePreviewScreen extends StatelessWidget {
   });
 
   @override
+  State<InvoicePreviewScreen> createState() => _InvoicePreviewScreenState();
+}
+
+class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
+  bool _isPrinting = false;
+
+  Future<void> _handlePrint() async {
+    setState(() => _isPrinting = true);
+    try {
+      final pdfService = SalesInvoicePdfService();
+      
+      await Printing.layoutPdf(
+        dynamicLayout: true,
+        onLayout: (PdfPageFormat format) async {
+          final pdfBytes = await pdfService.generateInvoicePdf(
+            pageFormat: format,
+            invoiceId: widget.invoiceId,
+            customer: widget.customer,
+            items: widget.items,
+            subtotal: widget.subtotal,
+            discountAmount: widget.discountAmount,
+            vatAmount: widget.vatAmount,
+            grandTotal: widget.grandTotal,
+            paymentMethod: widget.paymentMethod,
+            paymentStatus: widget.paymentStatus,
+          );
+          return pdfBytes;
+        },
+        name: 'Invoice_${widget.invoiceId}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to print: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final invoiceId = widget.invoiceId;
+    final customer = widget.customer;
+    final subtotal = widget.subtotal;
+    final discountAmount = widget.discountAmount;
+    final vatAmount = widget.vatAmount;
+    final grandTotal = widget.grandTotal;
+    final paymentMethod = widget.paymentMethod;
+    final paymentStatus = widget.paymentStatus;
+    final items = widget.items;
+
     final currencyFormat = NumberFormat.currency(
       locale: 'en_US',
       symbol: 'RS ',
@@ -40,15 +98,20 @@ class InvoicePreviewScreen extends StatelessWidget {
       title: 'Invoice Preview',
       showHome: false,
       extraActions: [
-        IconButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Printing via Bluetooth...')),
-            );
-          },
-          icon: Icon(Icons.print_rounded, color: Theme.of(context).primaryColor),
-          tooltip: 'Print',
-        ),
+        _isPrinting
+            ? const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : IconButton(
+                onPressed: _handlePrint,
+                icon: Icon(Icons.print_rounded, color: Theme.of(context).primaryColor),
+                tooltip: 'Print',
+              ),
       ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -366,13 +429,15 @@ class InvoicePreviewScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Printing...')));
-                },
-                icon: const Icon(Icons.print),
-                label: const Text('PRINT INVOICE'),
+                onPressed: _isPrinting ? null : _handlePrint,
+                icon: _isPrinting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.print),
+                label: Text(_isPrinting ? 'GENERATING PDF...' : 'PRINT INVOICE'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   backgroundColor: AppTheme.primaryAmber,
