@@ -14,6 +14,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/rec
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/transfer_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/select_transaction_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/sales_menu_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
@@ -243,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           'Sales',
           Icons.receipt_long_rounded,
-          SelectTransactionScreen(permissions: widget.permissions),
+          SalesMenuScreen(permissions: widget.permissions),
         ),
       if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(
