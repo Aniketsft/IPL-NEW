@@ -60,9 +60,15 @@ class PricingEngineService {
       
       print('MATCHED RULE: fld0=$fld0, matchKey1=$matchKey1, basePrice=${row['basePrice']}');
 
+      final String? validFrom = row['validFrom']?.toString();
+      final String? validTo = row['validTo']?.toString();
+      if (validFrom != null && validFrom.isNotEmpty && validFrom.compareTo(todayStr) > 0) continue;
+      if (validTo != null && validTo.isNotEmpty && validTo.compareTo(todayStr) < 0) continue;
+
       final int isQtyBased = row['isQtyBased'] as int? ?? 1;
       final double minQty = (row['minQty'] as num?)?.toDouble() ?? 0.0;
-      final double maxQty = (row['maxQty'] as num?)?.toDouble() ?? 999999.0;
+      final double rawMax = (row['maxQty'] as num?)?.toDouble() ?? 999999.0;
+      final double maxQty = rawMax <= 0 ? 999999.0 : rawMax;
 
       if (isQtyBased == 2) {
         if (qty < minQty || qty > maxQty) continue;
@@ -108,7 +114,7 @@ class PricingEngineService {
             focQuantity: focQty,
           );
         }
-      } else if (ruleType == 2) {
+      } else if (ruleType == 2 || ruleType == 9 || ruleType == 5) {
         // Price rule. Lowest price wins on tie. Since we order by priority ASC,
         // the first one we hit is highest priority for base price.
         if (bestPriceResult == null) {
