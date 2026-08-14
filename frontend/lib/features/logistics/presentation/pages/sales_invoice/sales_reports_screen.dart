@@ -23,6 +23,7 @@ class SalesReportsScreen extends StatefulWidget {
 class _SalesReportsScreenState extends State<SalesReportsScreen> {
   bool _isLoadingInvoice = false;
   bool _isLoadingStock = false;
+  bool _isLoadingEod = false;
 
   Future<void> _handleInvoiceSummary() async {
     final selectedDate = await showDatePicker(
@@ -189,6 +190,49 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
     }
   }
 
+  Future<void> _handleEodReport() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2050),
+    );
+
+    if (selectedDate == null) return;
+
+    setState(() => _isLoadingEod = true);
+
+    try {
+      final repo = TransactionHistoryRepository();
+      final eodData = await repo.getEodReportData(selectedDate);
+
+      final pdfService = SalesReportPdfService();
+      final pdfBytes = await pdfService.generateEodReportPdf(eodData);
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfPreviewScreen(
+              title: 'End of Day',
+              pdfBytes: pdfBytes,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingEod = false);
+      }
+    }
+  }
+
   Widget _buildReportTile({
     required String title,
     required IconData icon,
@@ -270,6 +314,12 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
             icon: Icons.inventory_2_rounded,
             isLoading: _isLoadingStock,
             onTap: _handleStockPreview,
+          ),
+          _buildReportTile(
+            title: 'End of Day',
+            icon: Icons.point_of_sale_rounded,
+            isLoading: _isLoadingEod,
+            onTap: _handleEodReport,
           ),
         ],
       ),
