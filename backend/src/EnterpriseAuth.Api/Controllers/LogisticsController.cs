@@ -261,6 +261,20 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("lorries")]
+    public async Task<IActionResult> GetLorries()
+    {
+        var result = await _logisticsService.GetLorriesAsync();
+        return ToActionResult(result);
+    }
+
+    [HttpPatch("update-target-lorry/{soNumber}")]
+    public async Task<IActionResult> UpdateTargetLorry(string soNumber, [FromBody] string lorryValue)
+    {
+        var result = await _logisticsService.UpdateTargetLorryAsync(soNumber, lorryValue);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         return result.IsSuccess

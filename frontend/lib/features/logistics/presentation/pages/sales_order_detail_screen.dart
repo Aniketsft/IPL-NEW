@@ -11,6 +11,7 @@ import '../widgets/label_printing_handler.dart';
 import 'production_tracking_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart';
+import '../../data/models/lorry_dto.dart';
 
 class SalesOrderDetailScreen extends StatefulWidget {
   final SalesOrder order;
@@ -40,10 +41,44 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
   bool _isHeaderExpanded = false;
   Map<String, double> _excessPoolSummaries = {};
 
+  List<LorryDto> _lorryOptions = [];
+  LorryDto? _selectedLorryDto;
+  bool _isLoadingLorries = false;
+
   @override
   void initState() {
     super.initState();
     _fetchDetails();
+    _loadLorries();
+  }
+
+  Future<void> _loadLorries() async {
+    if (!widget.isDeliveryMode) return;
+    setState(() => _isLoadingLorries = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final lorries = await repository.getLorries();
+      if (mounted) {
+        setState(() {
+          _lorryOptions = lorries;
+          
+          // Pre-populate based on targetLorry (which holds LANNUM_0) or soLorry (auto-resolved LANNUM_0)
+          final targetLanNum = widget.order.targetLorry ?? widget.order.soLorry;
+          if (targetLanNum != null && targetLanNum.isNotEmpty) {
+            final targetInt = int.tryParse(targetLanNum);
+            if (targetInt != null) {
+              _selectedLorryDto = _lorryOptions.where((l) => l.lanNum == targetInt).firstOrNull;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading lorries: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLorries = false);
+      }
+    }
   }
 
   @override
@@ -686,6 +721,15 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
       }
     }
 
+    if (widget.isDeliveryMode && _selectedLorryDto == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a Lorry before finalising the shipment.')),
+        );
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -1182,6 +1226,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                         'DELIVERY DATE',
                         widget.order.deliveryDate,
                       ),
+                      if (widget.isDeliveryMode) _buildLorryDropdown(),
                       if (widget.order.orderNumber.startsWith('BLK-') &&
                           widget.permissions.contains(
                             'manufacturing.rollover.read',
@@ -1227,6 +1272,118 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLorryDropdown() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    // Determine if the current selected lorry is auto-resolved
+    final isAuto = _selectedLorryDto != null &&
+        (widget.order.targetLorry == null || widget.order.targetLorry!.isEmpty) &&
+        (widget.order.soLorry != null && widget.order.soLorry!.isNotEmpty) &&
+        _selectedLorryDto!.lanNum.toString() == widget.order.soLorry;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.local_shipping_outlined,
+              size: 14,
+              color: isDark ? Colors.white.withValues(alpha: 0.35) : Colors.black38,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'LORRY',
+              style: TextStyle(
+                color: isDark ? Colors.white.withValues(alpha: 0.35) : Colors.black38,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 250),
+          child: _isLoadingLorries
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : DropdownButtonFormField<LorryDto>(
+                  isExpanded: true,
+                  value: _selectedLorryDto,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.arrow_drop_down, size: 20),
+                  dropdownColor: isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  items: _lorryOptions.map((lorry) {
+                    return DropdownMenuItem<LorryDto>(
+                      value: lorry,
+                      child: Text(
+                        '${lorry.lanNum} — ${lorry.lanMes}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: widget.order.isPreparedForShipment
+                      ? null
+                      : (LorryDto? newValue) async {
+                          if (newValue != null) {
+                            setState(() {
+                              _selectedLorryDto = newValue;
+                            });
+                            try {
+                              await context.read<DeliveryRepository>().updateTargetLorry(
+                                soNumber: widget.order.orderNumber,
+                                lorryLanNum: newValue.lanNum.toString(),
+                              );
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to save Lorry: $e')),
+                                );
+                              }
+                            }
+                          }
+                        },
+                  selectedItemBuilder: (BuildContext context) {
+                    return _lorryOptions.map<Widget>((LorryDto item) {
+                      final autoSuffix = (isAuto && item.lanNum == _selectedLorryDto?.lanNum) ? ' (auto)' : '';
+                      return Text(
+                        '${item.lanMes}$autoSuffix',
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    }).toList();
+                  },
+                ),
+        ),
+      ],
     );
   }
 

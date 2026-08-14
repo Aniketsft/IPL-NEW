@@ -38,6 +38,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<BomComponentDto>> GetBomComponentsAsync(IEnumerable<string> parentItemCodes);
         Task<bool> RolloverOrderAsync(string soNumber, DateTime newDate, string performedBy = "system");
         Task<bool> UpdateEodExclusionAsync(string entityType, string entityId, bool excludeFromEod, string performedBy = "system");
+        Task<IEnumerable<LorryDto>> GetLorriesAsync();
+        Task<bool> UpdateTargetLorryAsync(string soNumber, string lorryValue);
         Task<int> GetPendingStagingEodCountAsync();
     }
 }

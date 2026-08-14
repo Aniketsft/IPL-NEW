@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 58;
+  static const _databaseVersion = 59;
 
 
   static const tableScans = 'tbl_scans';
@@ -897,6 +897,17 @@ class LocalDatabaseHelper {
         }
       } catch (e) {
         debugPrint("Migration error v58: $e");
+      }
+    }
+    if (oldVersion < 59) {
+      debugPrint('DB Upgrade: Adding targetLorry to tbl_sales_orders (v59)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableOrders)');
+        if (!columns.any((c) => c['name'] == colTargetLorry)) {
+          await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colTargetLorry TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v59: $e");
       }
     }
   }

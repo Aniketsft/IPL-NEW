@@ -37,6 +37,8 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<Result<IEnumerable<WorkOrderDto>>> GetWorkOrdersAsync(string? searchQuery);
         Task<Result<bool>> RolloverOrderAsync(OrderRolloverDto dto, string performedBy = "system");
         Task<Result<bool>> UpdateEodExclusionAsync(UpdateEodExclusionRequest request);
+        Task<Result<IEnumerable<LorryDto>>> GetLorriesAsync();
+        Task<Result<bool>> UpdateTargetLorryAsync(string soNumber, string lorryValue);
         Task<int> GetPendingStagingEodCountAsync();
     }
 }

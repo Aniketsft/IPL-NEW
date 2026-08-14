@@ -139,6 +139,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Site = o.Site,
                 Status = o.Status,
                 Source = o.SourceSystem,
+                TargetLorry = o.TargetLorry,
                 IsPreparedForShipment = shipmentStatuses.Contains(o.SourceOrderId)
             });
         }
@@ -472,7 +473,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             using IDbConnection db = new SqlConnection(_connectionString);
             
-            const string sql = @"
+            var sql = $@"
                 INSERT INTO [{_syncSettings.AppDatabaseName}].[dbo].[MobileAppScans] 
                 (SoNumber, ItemCode, ScannedQuantity, ScannedAt, ScannedBy, DeviceId)
                 VALUES (@SoNumber, @ItemCode, @ScannedQuantity, @ScannedAt, @ScannedBy, @DeviceId)";
@@ -480,7 +481,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             int totalRows = 0;
             foreach (var scan in scans)
             {
-                totalRows += await db.ExecuteAsync(sql, scan);
+                totalRows += await db.ExecuteAsync(sql, new {
+                    SoNumber = scan.SoNumber,
+                    ItemCode = scan.ItemCode,
+                    ScannedQuantity = scan.Quantity,
+                    ScannedAt = scan.ScanTimestamp,
+                    ScannedBy = "system",
+                    DeviceId = "unknown"
+                });
             }
             return totalRows;
         }
@@ -1407,6 +1415,32 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             return await _scanContext.StagingEodRecords
                 .CountAsync(e => !e.IsProcessed);
+        }
+
+        public async Task<IEnumerable<LorryDto>> GetLorriesAsync()
+        {
+            var schema = _schemaProvider.GetSchemaName();
+            var sql = $@"
+                SELECT LANNUM_0 as LanNum, LANMES_0 as LanMes
+                FROM {_syncSettings.X3DatabaseName}.{schema}.APLSTD
+                WHERE LANCHP_0 = 409 AND LAN_0 = 'BRI'
+                ORDER BY LANNUM_0";
+
+            using var connection = new SqlConnection(_connectionString);
+            return await connection.QueryAsync<LorryDto>(sql);
+        }
+
+        public async Task<bool> UpdateTargetLorryAsync(string soNumber, string lorryValue)
+        {
+            var order = await _scanContext.SalesOrders
+                .FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
+            if (order != null)
+            {
+                order.TargetLorry = lorryValue;
+                await _scanContext.SaveChangesAsync();
+                return true;
+            }
+            return false;
         }
     }
 }

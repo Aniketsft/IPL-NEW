@@ -15,6 +15,7 @@ import '../models/location_lookup_dto.dart';
 import '../models/lookup_dto.dart';
 import '../models/lot_dto.dart';
 import '../models/product_master_dto.dart';
+import '../models/lorry_dto.dart';
 import '../../domain/entities/sync_progress.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/sales_rep.dart';
@@ -1178,9 +1179,12 @@ class DeliveryRepository implements ILogisticsRepository {
           .getUnsyncedOfflineAudits();
       final unsyncedEodProcessAudits = await LocalDatabaseHelper.instance
           .getUnsyncedEodProcessAudits();
+      final unsyncedOrderClosures = await LocalDatabaseHelper.instance
+          .getUnsyncedOrderClosures();
 
       if (unsyncedScans.isNotEmpty ||
           unsyncedOrders.isNotEmpty ||
+          unsyncedOrderClosures.isNotEmpty ||
           unsyncedStatuses.isNotEmpty ||
           unsyncedShipments.isNotEmpty ||
           unsyncedLabels.isNotEmpty ||
@@ -1279,17 +1283,16 @@ class DeliveryRepository implements ILogisticsRepository {
                 },
               )
               .toList(),
-          'orderStatusUpdates':
-              (await LocalDatabaseHelper.instance.getUnsyncedOrderClosures())
-                  .map(
-                    (o) => {
-                      'soNumber': o[LocalDatabaseHelper.colOrderNum],
-                      'status': o[LocalDatabaseHelper.colStatus],
-                      'excludeFromEod':
-                          o[LocalDatabaseHelper.colExcludeFromEod] == 1,
-                    },
-                  )
-                  .toList(),
+          'orderStatusUpdates': unsyncedOrderClosures
+              .map(
+                (o) => {
+                  'soNumber': o[LocalDatabaseHelper.colOrderNum],
+                  'status': o[LocalDatabaseHelper.colStatus],
+                  'excludeFromEod':
+                      o[LocalDatabaseHelper.colExcludeFromEod] == 1,
+                },
+              )
+              .toList(),
           'deviceId': DeviceInfoService.instance.deviceInfo,
           'stagingEodEntries': unsyncedStagingEod
               .map(
@@ -1469,6 +1472,17 @@ class DeliveryRepository implements ILogisticsRepository {
         );
       }
 
+      if (unsyncedOrderClosures.isNotEmpty) {
+        await LocalDatabaseHelper.instance.markOrdersAsSynced(
+          unsyncedOrderClosures
+              .map((o) => o[LocalDatabaseHelper.colOrderNum] as String)
+              .toList(),
+        );
+        debugPrint(
+          "Sync (Progress): ${unsyncedOrderClosures.length} order closure updates marked as synced after refresh.",
+        );
+      }
+
       // Save new timestamp
       if (serverTimestamp != null) {
         await prefs.setString('last_sync_timestamp', serverTimestamp);
@@ -1544,6 +1558,7 @@ class DeliveryRepository implements ILogisticsRepository {
       isProcessed: row[LocalDatabaseHelper.colIsProcessed] == 1,
       isRolledOver: row[LocalDatabaseHelper.colIsRolledOver] == 1,
       excludeFromEod: row[LocalDatabaseHelper.colExcludeFromEod] == 1,
+      targetLorry: row[LocalDatabaseHelper.colTargetLorry]?.toString(),
     );
   }
 
@@ -2142,6 +2157,29 @@ class DeliveryRepository implements ILogisticsRepository {
   Future<Map<String, double>> getExcessPoolSummaries(DateTime date) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     return await LocalDatabaseHelper.instance.getExcessPoolSummaries(dateStr);
+  }
+
+  Future<List<LorryDto>> getLorries() async {
+    final response = await _dio.get('Logistics/lorries');
+    return (response.data as List)
+        .map((e) => LorryDto.fromJson(e))
+        .toList();
+  }
+
+  Future<void> updateTargetLorry({
+    required String soNumber,
+    required String lorryLanNum, // LANNUM_0 e.g. "3", "5"
+  }) async {
+    // Update local DB with LANNUM_0
+    final db = await LocalDatabaseHelper.instance.database;
+    await db.update(
+      LocalDatabaseHelper.tableOrders,
+      {LocalDatabaseHelper.colTargetLorry: lorryLanNum},
+      where: '${LocalDatabaseHelper.colOrderNum} = ?',
+      whereArgs: [soNumber],
+    );
+    // Sync LANNUM_0 to server
+    await _dio.patch('Logistics/update-target-lorry/$soNumber', data: jsonEncode(lorryLanNum));
   }
 
   @override

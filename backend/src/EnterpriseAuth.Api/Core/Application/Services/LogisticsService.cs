@@ -465,4 +465,30 @@ public class LogisticsService : ILogisticsService
     {
         return await _logisticsRepository.GetPendingStagingEodCountAsync();
     }
+
+    public async Task<Result<IEnumerable<LorryDto>>> GetLorriesAsync()
+    {
+        try
+        {
+            var result = await _logisticsRepository.GetLorriesAsync();
+            return Result<IEnumerable<LorryDto>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<IEnumerable<LorryDto>>.Failure($"Failed to get lorries: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> UpdateTargetLorryAsync(string soNumber, string lorryValue)
+    {
+        try
+        {
+            var result = await _logisticsRepository.UpdateTargetLorryAsync(soNumber, lorryValue);
+            return Result<bool>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<bool>.Failure($"Failed to update target lorry: {ex.Message}");
+        }
+    }
 }

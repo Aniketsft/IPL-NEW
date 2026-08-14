@@ -84,7 +84,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ISNULL(CONCAT(LTRIM(RTRIM(sdh.REPNUM2_0)), ' - ', LTRIM(RTRIM(sdh.REP2_0))), LTRIM(RTRIM(f0.REP_0))) COLLATE DATABASE_DEFAULT as [Salesman],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source],
-                    LEFT(f3.LANMES_0, 2) COLLATE DATABASE_DEFAULT as [TargetLorry]
+                    CAST(f3.LANNUM_0 AS VARCHAR(10)) COLLATE DATABASE_DEFAULT as [TargetLorry]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f_orig WITH (NOLOCK) ON f_orig.SOHNUM_0 = sdh.ORIGINALSO_0
@@ -245,14 +245,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     .Select(s => s.SoNumber)
                     .ToListAsync();
 
-                var processedOrders = await _scanContext.SalesOrders
-                    .Where(o => allSoNumbers.Contains(o.SourceOrderId) && o.IsProcessed)
-                    .Select(o => o.SourceOrderId)
-                    .ToListAsync();
-                
-                var excludedFromEodOrders = await _scanContext.SalesOrders
-                    .Where(o => allSoNumbers.Contains(o.SourceOrderId) && o.ExcludeFromEod)
-                    .Select(o => o.SourceOrderId)
+                var localOrderDetails = await _scanContext.SalesOrders
+                    .Where(o => allSoNumbers.Contains(o.SourceOrderId))
+                    .Select(o => new { o.SourceOrderId, o.IsProcessed, o.ExcludeFromEod, o.TargetLorry })
                     .ToListAsync();
 
                 foreach (var header in package.Orders)
@@ -261,10 +256,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         header.Status = 2;
                     if (shipmentReady.Contains(header.SohNum))
                         header.IsPreparedForShipment = true;
-                    if (processedOrders.Contains(header.SohNum))
-                        header.IsProcessed = true;
-                    if (excludedFromEodOrders.Contains(header.SohNum))
-                        header.ExcludeFromEod = true;
+
+                    var localDetails = localOrderDetails.FirstOrDefault(o => o.SourceOrderId == header.SohNum);
+                    if (localDetails != null)
+                    {
+                        if (localDetails.IsProcessed)
+                            header.IsProcessed = true;
+                        if (localDetails.ExcludeFromEod)
+                            header.ExcludeFromEod = true;
+                        
+                        // Override TargetLorry with the local DB selection if one was made
+                        if (!string.IsNullOrEmpty(localDetails.TargetLorry))
+                            header.TargetLorry = localDetails.TargetLorry;
+                    }
                 }
             }
 

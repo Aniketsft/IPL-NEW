@@ -100,17 +100,20 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 : soNumber; // safety fallback if SO_NO is somehow null
             Console.WriteLine($"[Staging] SO resolved: mobile={soNumber} → X3 SOHNUM_0={x3SoNumber}");
 
-            // Mapping ZLOCFCY_0 logic: First 2 characters of Lorry trip code
-            string lorryCode = "IPL"; // Default
-            string? targetLorry = order.TargetLorry;
-            if (string.IsNullOrEmpty(targetLorry)) targetLorry = metadata.SO_LORRY;
-            if (string.IsNullOrEmpty(targetLorry)) targetLorry = metadata.ORI_SO_LORRY;
-            
+            // Mapping ZLOCFCY_0 logic: Stores LANNUM_0 without truncation
+            string lorryCode = string.Empty; // Default empty — X3 will use its own default
+            string? targetLorry = order.TargetLorry; // Now stores LANNUM_0
             if (!string.IsNullOrEmpty(targetLorry))
             {
-                lorryCode = targetLorry.Length >= 2 
-                    ? targetLorry.Substring(0, 2) 
-                    : targetLorry;
+                lorryCode = targetLorry;
+            }
+            else if (!string.IsNullOrEmpty(metadata.SO_LORRY))
+            {
+                lorryCode = metadata.SO_LORRY; // Fallback: LANNUM_0 from SORDER.DRN_0
+            }
+            else if (!string.IsNullOrEmpty(metadata.ORI_SO_LORRY))
+            {
+                lorryCode = metadata.ORI_SO_LORRY; // Fallback: LANNUM_0 from original SO
             }
 
             // A. Create Header Record (H) — ZVACITM_0 is null for the header row
@@ -250,8 +253,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         SDH.SOHNUM_0 AS SO_NO,
                         SOH.BPCORD_0 AS ZBPCORD_0,
                         SDH.SDHNUM_0 AS DELIVERY_NO,
-                        LEFT(TRP.LANMES_0, 2) AS SO_LORRY,
-                        LEFT(TRP3.LANMES_0, 2) AS ORI_SO_LORRY,
+                        CAST(TRP.LANNUM_0 AS NVARCHAR(20)) AS SO_LORRY,
+                        CAST(TRP3.LANNUM_0 AS NVARCHAR(20)) AS ORI_SO_LORRY,
                         SDH.ORIGINALSO_0 AS ORI_SO_NO
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS SDH
                     LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER SOH ON SDH.SOHNUM_0 = SOH.SOHNUM_0
