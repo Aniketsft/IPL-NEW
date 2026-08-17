@@ -56,6 +56,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("ZLOCFCY_0")]
         public string? ZLOCFCY_0 { get; set; }
 
+        [MaxLength(10)]
+        [Column("ZLORSHORT_0")]
+        public string? ZLORSHORT_0 { get; set; }
+
         [MaxLength(100)]
         [Column("ZLOC_0")]
         public string? ZLOC_0 { get; set; }

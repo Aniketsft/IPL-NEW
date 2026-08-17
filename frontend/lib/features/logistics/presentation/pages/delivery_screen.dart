@@ -726,14 +726,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
           onPressed: _canUpdate ? _processEndOfDay : null,
         ),
       ],
-      floatingActionButton: _canUpdate ? FloatingActionButton(
-        onPressed: _showManualEntryDialog,
-        backgroundColor: orange,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, size: 28),
-      ) : null,
+
       body: Column(
         children: [
           BlocBuilder<AppSyncBloc, AppSyncState>(
@@ -777,18 +770,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                         Text('No Items in Manifest', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         Text('Scan a Crate or Palette sequence to begin loading.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey[600], fontSize: 12)),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: _canUpdate ? _scanManifest : null,
-                          icon: const Icon(Icons.camera_alt),
-                          label: const Text('START SCANNING'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: orange,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          ),
-                        )
+                        // START SCANNING button removed for hardware scanner usage
                       ],
                     ),
                   )
@@ -808,46 +790,48 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                   ),
           ),
           
-          // Bottom Action Bar for active manifests
-          if (_filteredOrders.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _canUpdate ? _clearManifest : null,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('CLEAR QUEUE'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red[300],
-                        side: BorderSide(color: _canUpdate ? Colors.red[900]! : Colors.transparent),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _canUpdate ? _scanManifest : null,
-                      icon: const Icon(Icons.add_a_photo),
-                      label: const Text('SCAN NEXT'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: orange,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          // Persistent Bottom Action Bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
             ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: (_canUpdate && _filteredOrders.isNotEmpty) ? _clearManifest : null,
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    label: const Text('CLEAR QUEUE', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red[400],
+                      side: BorderSide(color: (_canUpdate && _filteredOrders.isNotEmpty) ? Colors.red[900]! : Colors.transparent),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _canUpdate ? _showManualEntryDialog : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: orange,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: isDark ? Colors.white12 : Colors.black12,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Icon(Icons.add, size: 24),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

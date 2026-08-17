@@ -101,7 +101,11 @@ class DeliveryRepository implements ILogisticsRepository {
     try {
       final db = await LocalDatabaseHelper.instance.database;
 
-      List<String> filters = [];
+      List<String> filters = [
+        'ord.${LocalDatabaseHelper.colOrderNum} NOT LIKE "BLK-%"',
+        'ord.${LocalDatabaseHelper.colOrderNum} NOT LIKE "CUTS-%"',
+        'ord.${LocalDatabaseHelper.colOrderNum} NOT LIKE "FPP-%"',
+      ];
       if (siteCode != null && siteCode.isNotEmpty) {
         filters.add('ord.${LocalDatabaseHelper.colSite} = "$siteCode"');
       }
@@ -1311,6 +1315,7 @@ class DeliveryRepository implements ILogisticsRepository {
                   'eaQuantity': e['ea_quantity'] ?? 0.0,
                   'createdAt': e['createdAt'],
                   'lotNumber': e['lot'],
+                  'lorryShortCode': e[LocalDatabaseHelper.colStagingLorryShort],
                   'deviceId': e['deviceId'],
                   'eodTransactionId': e['eodTransactionId'],
                 },

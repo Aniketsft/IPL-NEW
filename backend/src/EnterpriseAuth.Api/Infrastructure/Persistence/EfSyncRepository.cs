@@ -1042,6 +1042,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         existing.Location = dto.Location;
                         existing.ItemStatus = dto.ItemStatus;
                         existing.LotNumber = dto.LotNumber;             // ← fix: persist lot
+                        existing.LorryShortCode = dto.LorryShortCode;
                         existing.DeviceId = dto.DeviceId ?? request.DeviceId; // ← fix: persist device ID
                         existing.Unit = resolvedUnit;                   // ← fix: use ITMMASTER unit
                         if (!string.IsNullOrEmpty(cce.Cce0)) existing.Location2 = cce.Cce0;
@@ -1063,6 +1064,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ItemStatus = dto.ItemStatus,
                             ExpiryDate = dto.ExpiryDate,
                             LotNumber = dto.LotNumber,                 // ← fix: persist lot
+                            LorryShortCode = dto.LorryShortCode,
                             DeviceId = dto.DeviceId ?? request.DeviceId, // ← fix: persist device ID
                             Location2 = !string.IsNullOrEmpty(cce.Cce0) ? cce.Cce0 : (dto.Location2 ?? string.Empty),
                             Location3 = !string.IsNullOrEmpty(cce.Cce1) ? cce.Cce1 : (dto.Location3 ?? string.Empty),

@@ -116,6 +116,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 lorryCode = metadata.ORI_SO_LORRY; // Fallback: LANNUM_0 from original SO
             }
 
+            string? lorryShortCode = null;
+            if (!string.IsNullOrEmpty(lorryCode) && int.TryParse(lorryCode, out int lorryNum))
+            {
+                try
+                {
+                    using var connection = new SqlConnection(_x3ConnectionString);
+                    string sql = $"SELECT TOP 1 LEFT(LANMES_0, 2) FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.APLSTD WHERE LANCHP_0 = 409 AND LANNUM_0 = @lorryNum AND LAN_0 = 'BRI'";
+                    lorryShortCode = await connection.QueryFirstOrDefaultAsync<string>(sql, new { lorryNum });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Staging] Error fetching Lorry short code for {lorryCode}: {ex.Message}");
+                }
+            }
+
             // A. Create Header Record (H) — ZVACITM_0 is null for the header row
             stagingRecords.Add(new Staging
             {
@@ -130,6 +145,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ZDLVDAT_0 = order.DeliveryDate,
                 ZCFMFLG_0 = 2,
                 ZLOCFCY_0 = lorryCode,
+                ZLORSHORT_0 = lorryShortCode,
                 ZLOC_0 = scanLocations.Values.FirstOrDefault(),
                 ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP payload
                 ZSOPLIN_0 = 0,
@@ -188,6 +204,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             ZDLVDAT_0 = order.DeliveryDate,
                             ZCFMFLG_0 = 2,
                             ZLOCFCY_0 = lorryCode,
+                            ZLORSHORT_0 = lorryShortCode,
                             ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
                             ZSOHNUM_0 = x3SoNumber,
                             ZSOPLIN_0 = line.LineNumber,
@@ -219,6 +236,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         ZDLVDAT_0 = order.DeliveryDate,
                         ZCFMFLG_0 = 2,
                         ZLOCFCY_0 = lorryCode,
+                        ZLORSHORT_0 = lorryShortCode,
                         ZLOC_0 = scanLocations.ContainsKey(line.Id) ? scanLocations[line.Id] : null,
                         ZSOHNUM_0 = x3SoNumber,  // Original IPL SO (ORIGINALSO_0) — used in SOAP L;{ZSOHNUM_0};...
                         ZSOPLIN_0 = line.LineNumber,

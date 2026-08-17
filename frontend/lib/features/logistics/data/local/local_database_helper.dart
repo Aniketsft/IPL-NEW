@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 59;
+  static const _databaseVersion = 60;
 
 
   static const tableScans = 'tbl_scans';
@@ -65,6 +65,7 @@ class LocalDatabaseHelper {
   static const columnExcludeFromEod = 'exclude_from_eod';
   static const columnEodTransactionId = 'eodTransactionId';
   static const columnIsEodProcessed = 'isEodProcessed';
+  static const colStagingLorryShort = 'lorryShortCode';
 
   // tbl_sales_orders columns
   static const colOrderNum = 'sohNum';
@@ -910,6 +911,17 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v59: $e");
       }
     }
+    if (oldVersion < 60) {
+      debugPrint('DB Upgrade: Adding lorryShortCode to tbl_staging_eod (v60)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableStagingEod)');
+        if (!columns.any((c) => c['name'] == colStagingLorryShort)) {
+          await db.execute('ALTER TABLE $tableStagingEod ADD COLUMN $colStagingLorryShort TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v60: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1167,6 +1179,7 @@ class LocalDatabaseHelper {
         createdAt TEXT,
         $columnEaQuantity REAL DEFAULT 0,
         $columnLot TEXT,
+        $colStagingLorryShort TEXT,
         $columnIsSynced INTEGER DEFAULT 0,
         $colDeviceId TEXT,
         $columnEodTransactionId TEXT,
@@ -1487,11 +1500,10 @@ class LocalDatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getUnsyncedOrderClosures() async {
     final db = await instance.database;
-    // status = 2 is "Closed"
     return await db.query(
       tableOrders,
       columns: [colOrderNum, colStatus, colExcludeFromEod],
-      where: '$columnIsSynced = 0 AND ($colStatus = 2 OR $colExcludeFromEod = 1)',
+      where: '$columnIsSynced = 0',
     );
   }
 
@@ -1765,7 +1777,7 @@ class LocalDatabaseHelper {
     return await db.query(
       tableOrders,
       columns: [colOrderNum, colIsPreparedForShipment],
-      where: '$columnIsSynced = 0 AND $colIsPreparedForShipment = 1',
+      where: '$columnIsSynced = 0',
     );
   }
 

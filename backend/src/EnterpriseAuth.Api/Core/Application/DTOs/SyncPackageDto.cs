@@ -59,6 +59,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public decimal EaQuantity { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? LotNumber { get; set; }
+        public string? LorryShortCode { get; set; }
         public string? DeviceId { get; set; }
     }
 
