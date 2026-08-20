@@ -325,9 +325,49 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         title: const Text('Confirm End of Day', style: TextStyle(color: Colors.white)),
-        content: Text(
-          'Are you sure you want to finalize the new production scans for ${DateFormat('dd MMM yyyy').format(_selectedDate)}?',
-          style: const TextStyle(color: Colors.white70),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to finalize the new production scans for ${DateFormat('dd MMM yyyy').format(_selectedDate)}?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _amber.withValues(alpha: 0.12),
+                border: Border.all(color: _amber, width: 1.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Work Order',
+                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _selectedWorkOrder ?? '-',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'All unprocessed products on the current tab will be allocated to this work order.',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
         ),
         actions: [
           TextButton(
