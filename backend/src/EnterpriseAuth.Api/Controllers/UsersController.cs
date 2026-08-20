@@ -176,5 +176,26 @@ namespace EnterpriseAuth.Api.Controllers
             await _context.SaveChangesAsync();
             return Ok();
         }
+        [HttpPut("{id}/password")]
+        public async Task<IActionResult> UpdatePassword(Guid id, [FromBody] ChangePasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Password)) return BadRequest("Password cannot be empty.");
+
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null) return NotFound();
+
+            var passwordHash = _passwordHasher.HashPassword(request.Password, out string salt);
+            user.PasswordHash = passwordHash;
+            user.Salt = salt;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _userRepository.UpdateAsync(user);
+            return Ok();
+        }
+    }
+
+    public class ChangePasswordRequest
+    {
+        public string Password { get; set; } = string.Empty;
     }
 }

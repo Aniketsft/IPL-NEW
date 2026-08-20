@@ -153,6 +153,18 @@ class UserManagementRepository {
     }
   }
 
+  Future<void> changePassword(String userId, String newPassword) async {
+    try {
+      await _dio.put(
+        'Users/$userId/password',
+        data: {'password': newPassword},
+        options: Options(contentType: Headers.jsonContentType),
+      );
+    } catch (e) {
+      throw 'Failed to change password: ${ApiErrorHandler.getErrorMessage(e)}';
+    }
+  }
+
   Future<void> createRole(UserRole role) async {
     try {
       await _dio.post(
