@@ -2296,6 +2296,29 @@ class DeliveryRepository implements ILogisticsRepository {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getStagingReportByDate(
+    DateTime date,
+  ) async {
+    try {
+      final formatted = DateFormat('yyyy-MM-dd').format(date);
+      final response = await _dio.get(
+        'Logistics/staging-report',
+        queryParameters: {'date': formatted},
+      );
+
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } else {
+        throw 'Failed to fetch staging report (status: ${response.statusCode})';
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch staging report from server: $e');
+      throw 'Failed to fetch staging report: ${ApiErrorHandler.getErrorMessage(e)}';
+    }
+  }
+
   // --- APP SETTINGS REPOSITORY IMPLEMENTATION ---
 
   Future<AppSettings> getAppSettings() async {

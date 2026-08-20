@@ -15,11 +15,20 @@ public class LogisticsController : ControllerBase
 {
     private readonly ILogisticsService _logisticsService;
     private readonly ISageX3SoapService _x3SoapService;
+    private readonly IStagingService _stagingService;
 
-    public LogisticsController(ILogisticsService logisticsService, ISageX3SoapService x3SoapService)
+    public LogisticsController(ILogisticsService logisticsService, ISageX3SoapService x3SoapService, IStagingService stagingService)
     {
         _logisticsService = logisticsService;
         _x3SoapService = x3SoapService;
+        _stagingService = stagingService;
+    }
+
+    [HttpGet("staging-report")]
+    public async Task<IActionResult> GetStagingReport([FromQuery] DateTime date)
+    {
+        var result = await _stagingService.GetStagingReportByDateAsync(date);
+        return Ok(result);
     }
 
     [HttpGet("production-tracking")]

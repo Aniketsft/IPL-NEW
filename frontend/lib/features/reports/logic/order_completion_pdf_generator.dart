@@ -147,8 +147,11 @@ class OrderCompletionPdfGenerator {
     final headers = [
       'Code',
       'Description',
-      'Max Allowed Qty',
-      'Amount Scanned',
+      'Lot',
+      'Expiry',
+      'Location',
+      'Order Qty',
+      'Scanned Qty',
       'Prepared?',
     ];
 
@@ -157,9 +160,32 @@ class OrderCompletionPdfGenerator {
     for (final item in items) {
       final code = item['itemCode'] as String? ?? '';
       final desc = item['description'] as String? ?? '';
+      final lot = item['lot'] as String? ?? 'N/A';
+      
+      final detLocation = item['location'] as String?;
+      final scanLocation = item['scanLocation'] as String?;
+      String location = 'N/A';
+      if (detLocation != null && detLocation.trim().isNotEmpty && detLocation.toUpperCase() != 'NULL') {
+        location = detLocation;
+      } else if (scanLocation != null && scanLocation.trim().isNotEmpty && scanLocation.toUpperCase() != 'NULL') {
+        location = scanLocation;
+      }
+
+      String expiry = 'N/A';
+      final scanTimestamp = item['scanTimestamp'] as String?;
+      final createdAt = item['createdAt'] as String?;
+      final timeStr = (scanTimestamp != null && scanTimestamp.isNotEmpty) ? scanTimestamp : createdAt;
+      
+      if (timeStr != null && timeStr.isNotEmpty) {
+        final parsed = DateTime.tryParse(timeStr);
+        if (parsed != null) {
+          expiry = DateFormat('dd MMM yyyy').format(parsed.add(const Duration(days: 5)));
+        }
+      }
       
       final orderedQty = (item['quantity'] as num?)?.toDouble() ?? 0.0;
       final scannedQty = (item['reconciledProduced'] as num?)?.toDouble() ?? 0.0;
+      final unit = item['unit'] as String? ?? '';
       
       final headerStatus = item['headerStatusLabel'] as String? ?? '';
       final isClosed = headerStatus.toUpperCase() == 'CLOSED';
@@ -168,11 +194,13 @@ class OrderCompletionPdfGenerator {
       final isPreparedLine = isPreparedNum == 1 || isPreparedNum == '1' || isPreparedNum == true;
       
       final isPrepared = isClosed || isPreparedLine;
-      final unit = item['unit'] as String? ?? '';
 
       tableData.add([
         code,
         desc,
+        lot,
+        expiry,
+        location,
         '${orderedQty.toStringAsFixed(2)} $unit',
         '${scannedQty.toStringAsFixed(2)} $unit',
         isPrepared ? 'YES' : 'NO',
@@ -186,31 +214,40 @@ class OrderCompletionPdfGenerator {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
-        fontSize: 8,
+        fontSize: 7,
       ),
       headerAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerRight,
-        3: pw.Alignment.centerRight,
-        4: pw.Alignment.center,
+        2: pw.Alignment.centerLeft,
+        3: pw.Alignment.centerLeft,
+        4: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerRight,
+        6: pw.Alignment.centerRight,
+        7: pw.Alignment.center,
       },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.amber),
       cellHeight: 20,
-      cellStyle: const pw.TextStyle(fontSize: 8),
+      cellStyle: const pw.TextStyle(fontSize: 7),
       columnWidths: {
-        0: const pw.FixedColumnWidth(60),
-        1: const pw.FlexColumnWidth(3),
-        2: const pw.FixedColumnWidth(80),
-        3: const pw.FixedColumnWidth(80),
-        4: const pw.FixedColumnWidth(60),
+        0: const pw.FixedColumnWidth(40), // Code
+        1: const pw.FlexColumnWidth(3), // Description
+        2: const pw.FixedColumnWidth(45), // Lot
+        3: const pw.FixedColumnWidth(40), // Expiry
+        4: const pw.FixedColumnWidth(45), // Location
+        5: const pw.FixedColumnWidth(55), // Order Qty
+        6: const pw.FixedColumnWidth(55), // Scanned Qty
+        7: const pw.FixedColumnWidth(40), // Prepared?
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerRight,
-        3: pw.Alignment.centerRight,
-        4: pw.Alignment.center,
+        2: pw.Alignment.centerLeft,
+        3: pw.Alignment.centerLeft,
+        4: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerRight,
+        6: pw.Alignment.centerRight,
+        7: pw.Alignment.center,
       },
     );
   }

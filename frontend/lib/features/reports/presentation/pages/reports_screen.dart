@@ -7,6 +7,8 @@ import '../../../../features/logistics/data/repositories/delivery_repository.dar
 import '../../../../features/manufacturing/logic/eod_pdf_generator.dart';
 import '../../../../features/manufacturing/ui/screens/end_of_day_screen.dart'; // For ProductionTrackingItem
 import '../../logic/order_completion_pdf_generator.dart';
+import '../../logic/sales_delivery_pdf_generator.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/production_tracking_product_list_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
   final List<String> permissions;
@@ -151,7 +153,63 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return;
         }
 
+        final repository = context.read<DeliveryRepository>();
+
         await OrderCompletionPdfGenerator.generateAndPrint(
+          targetDate: picked,
+          orderDetails: orderDetails,
+        );
+
+      } catch (e) {
+        debugPrint('Report Error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to generate report: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _generateSalesDeliveryReport() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: Theme.of(context).primaryColor,
+              onPrimary: Colors.white,
+              surface: const Color(0xFF1E1E1E),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      setState(() => _isLoading = true);
+      try {
+        final repository = context.read<DeliveryRepository>();
+        final orderDetails = await repository.getStagingReportByDate(picked);
+
+        if (orderDetails.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No sales delivery records found for this date.')),
+            );
+          }
+          return;
+        }
+
+        await SalesDeliveryPdfGenerator.generateAndPrint(
           targetDate: picked,
           orderDetails: orderDetails,
         );
@@ -175,17 +233,39 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final isDark = theme.brightness == Brightness.dark;
     
     final List<Map<String, dynamic>> reportItems = [
+      if (widget.permissions.contains('manufacturing.all.read') || widget.permissions.contains('manufacturing.bulk_allocate.read'))
+        {
+          'title': 'Manufacturing Tracking',
+          'icon': Icons.description_outlined,
+          'subtitle': 'Track production products and batches',
+          'onTap': () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProductionTrackingProductListScreen(permissions: widget.permissions),
+            ),
+          ),
+          'isPdf': false,
+        },
       {
         'title': 'Daily Production Report',
         'icon': Icons.precision_manufacturing_rounded,
         'subtitle': 'View daily manufacturing totals',
         'onTap': _generateDailyProductionReport,
+        'isPdf': true,
       },
       {
         'title': 'Order Completion Report',
-        'icon': Icons.check_circle_outline_rounded,
-        'subtitle': 'View order completion status by delivery date',
+        'icon': Icons.receipt_long_rounded,
+        'subtitle': 'View sales orders by delivery date',
         'onTap': _generateOrderCompletionReport,
+        'isPdf': true,
+      },
+      {
+        'title': 'Sales Delivery Report',
+        'icon': Icons.local_shipping_outlined,
+        'subtitle': 'View shipment details by delivery date',
+        'onTap': _generateSalesDeliveryReport,
+        'isPdf': true,
       },
     ];
 
@@ -199,6 +279,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final report = reportItems[index];
+              final isPdf = report['isPdf'] as bool? ?? true;
+              
               return Card(
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 elevation: isDark ? 0 : 2,
@@ -240,9 +322,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                     ),
                   ),
-                  trailing: Icon(
+                  trailing: isPdf ? Icon(
                     Icons.picture_as_pdf_rounded,
                     size: 20,
+                    color: theme.primaryColor,
+                  ) : Icon(
+                    Icons.chevron_right_rounded,
+                    size: 24,
                     color: theme.primaryColor,
                   ),
                   onTap: report['onTap'] as VoidCallback,

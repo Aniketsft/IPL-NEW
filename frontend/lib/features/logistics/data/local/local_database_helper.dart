@@ -1441,16 +1441,17 @@ class LocalDatabaseHelper {
         ord.$colIsPreparedForShipment as headerIsPreparedForShipment,
         COALESCE(det.$colDetCustomerName, ord.$colCustomerName) as customerName,
         COALESCE(det.$colDetCustomerCode, ord.$colCustomerCode) as customerCode,
-        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
-        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
-        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
+        (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
+        (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
+        MAX(scn.$columnLocationCode) as scanLocation,
+        MAX(scn.$columnTimestamp) as scanTimestamp
       FROM $tableOrders ord
       JOIN $tableDetails det ON ord.$colOrderNum = det.$colDetSoNum
       LEFT JOIN $tableProducts prod ON det.$colDetItemCode = prod.$colProdCode
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode
-        AND scn.$columnIsReflected = 0
       WHERE ord.$colDeliveryDate LIKE ? 
       GROUP BY det.$colDetSoNum, det.$colDetItemCode
       ORDER BY ord.$colOrderNum ASC

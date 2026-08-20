@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
+using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using EnterpriseAuth.Api.Core.Application.Common;
@@ -259,6 +260,51 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
 
             return false;
+        }
+
+        public async Task<List<StagingReportDto>> GetStagingReportByDateAsync(DateTime deliveryDate)
+        {
+            // We want all "L" (line) records from Staging that match the given delivery date
+            var stagingQuery = _context.StagingRecords
+                .Where(s => s.ZDLVDAT_0 == deliveryDate.Date && s.ZREC_0 == "L");
+
+            // We need to pull the Salesman from SalesOrders,
+            // OrderedQty from SalesOrderLines, ProducedQty from ProductionLineStates
+            // ExpiryDate from StagingEod
+
+            var result = await (from s in stagingQuery
+                                join o in _context.SalesOrders on s.ZSOHNUM_0 equals o.SourceOrderId into orders
+                                from o in orders.DefaultIfEmpty()
+                                
+                                join ol in _context.SalesOrderLines on new { SoId = (o != null ? o.Id : Guid.Empty), ItemCode = s.ZITMREF_0 } equals new { SoId = ol.SalesOrderId, ItemCode = ol.ItemCode } into lines
+                                from ol in lines.DefaultIfEmpty()
+
+                                join pls in _context.ProductionLineStates on (ol != null ? ol.Id : Guid.Empty) equals pls.SalesOrderLineId into states
+                                from pls in states.DefaultIfEmpty()
+                                
+                                join eod in _context.StagingEodRecords on new { So = s.ZSOHNUM_0, Item = s.ZITMREF_0, Lot = s.LotNumber } equals new { So = eod.WorkOrderNumber, Item = eod.ProductCode, Lot = eod.LotNumber } into eods
+                                from eod in eods.DefaultIfEmpty()
+
+                                select new StagingReportDto
+                                {
+                                    SONumber = s.ZSOHNUM_0,
+                                    Salesman = o != null ? o.Salesman : null,
+                                    LorryNumber = s.ZLOCFCY_0,
+                                    LorryShortCode = s.ZLORSHORT_0,
+                                    CustomerCode = s.ZBPCORD_0,
+                                    CustomerName = o != null ? o.CustomerName : null,
+                                    ItemCode = s.ZITMREF_0,
+                                    Description = s.ZITMDES_0,
+                                    LotNumber = s.LotNumber,
+                                    Location = s.ZLOC_0,
+                                    DeliveredQty = s.ZQTY_0,
+                                    OrderedQty = ol != null ? (decimal)ol.OrderedQuantity : 0,
+                                    ProducedQty = pls != null ? pls.TotalManufacturedQty : 0,
+                                    DeliveryDate = s.ZDLVDAT_0,
+                                    ExpiryDate = eod != null ? eod.ExpiryDate : (s.CreatedAt.AddDays(5)) // Fallback if EOD record missing
+                                }).ToListAsync();
+
+            return result;
         }
 
         private async Task<X3MetadataDto?> GetX3MetadataAsync(string soNumber)
