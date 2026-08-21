@@ -1192,6 +1192,32 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (widget.order.isRolledOver) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurpleAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.deepPurpleAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.next_plan_outlined, size: 10, color: isDark ? Colors.deepPurple[300] : Colors.deepPurple[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Rolled Over',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.deepPurple[300] : Colors.deepPurple[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         _StatusBadge(
                           isClosed: widget.order.isClosed,
                           isPreparedForShipment:
@@ -1448,10 +1474,11 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
         if (!widget.isDeliveryMode && 
             !widget.permissions.contains('manufacturing.all.update') && 
             widget.permissions.contains('manufacturing.bulk_allocate.update') && 
-            !hasBulk) {
+            !hasBulk && 
+            !item.isFpp) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('You only have access to bulk allocation items.'),
+              content: Text('You only have access to bulk allocation and FPP items.'),
               duration: Duration(seconds: 2),
             ),
           );
@@ -1565,33 +1592,53 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (_excessPoolSummaries[item.itemCode] != null && 
-                            _excessPoolSummaries[item.itemCode]! > 0 &&
-                            !widget.order.orderNumber.startsWith('BLK-') &&
-                            !widget.order.orderNumber.startsWith('CUTS-')) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.inventory_2_outlined, size: 10, color: isDark ? Colors.blue[300] : Colors.blue[700]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Bulk',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? Colors.blue[300] : Colors.blue[700],
+                        if (hasBulk || item.isFpp) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (hasBulk)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.inventory_2_outlined, size: 10, color: isDark ? Colors.blue[300] : Colors.blue[700]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'BULK: ${item.formatQuantity(_excessPoolSummaries[item.itemCode] ?? 0)} ${item.unit}',
+                                        style: TextStyle(
+                                          color: isDark ? Colors.blue[300] : Colors.blue[700],
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              if (item.isFpp)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    'FPP',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.green[300] : Colors.green[700],
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                         const SizedBox(height: 8),

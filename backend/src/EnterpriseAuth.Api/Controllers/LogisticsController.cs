@@ -236,6 +236,13 @@ public class LogisticsController : ControllerBase
     public async Task<IActionResult> ProcessProductionEndOfDay()
     {
         var result = await _x3SoapService.ProcessProductionEodAsync();
+        // Audit: record the X3 export trigger with outcome
+        await _logisticsService.LogAuditAsync(
+            "EndOfDay",
+            "EXPORT_TO_X3",
+            "production-eod",
+            $"{{\"successCount\":{result?.SuccessCount ?? 0},\"failureCount\":{result?.FailureCount ?? 0},\"timestamp\":\"{DateTime.UtcNow:O}\"}}"
+        );
         return Ok(result);
     }
 
@@ -274,7 +281,7 @@ public class LogisticsController : ControllerBase
     public async Task<IActionResult> GetLorries()
     {
         var result = await _logisticsService.GetLorriesAsync();
-        return ToActionResult(result);
+        return Ok(result);
     }
 
     [HttpPatch("update-target-lorry/{soNumber}")]

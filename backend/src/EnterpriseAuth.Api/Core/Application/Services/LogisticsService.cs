@@ -466,17 +466,9 @@ public class LogisticsService : ILogisticsService
         return await _logisticsRepository.GetPendingStagingEodCountAsync();
     }
 
-    public async Task<Result<IEnumerable<LorryDto>>> GetLorriesAsync()
+    public async Task<IEnumerable<LorryDto>> GetLorriesAsync()
     {
-        try
-        {
-            var result = await _logisticsRepository.GetLorriesAsync();
-            return Result<IEnumerable<LorryDto>>.Success(result);
-        }
-        catch (Exception ex)
-        {
-            return Result<IEnumerable<LorryDto>>.Failure($"Failed to get lorries: {ex.Message}");
-        }
+        return await _logisticsRepository.GetLorriesAsync();
     }
 
     public async Task<Result<bool>> UpdateTargetLorryAsync(string soNumber, string lorryValue)
@@ -490,5 +482,12 @@ public class LogisticsService : ILogisticsService
         {
             return Result<bool>.Failure($"Failed to update target lorry: {ex.Message}");
         }
+    }
+
+    /// <summary>Writes a freeform audit entry through the repository.</summary>
+    public async Task LogAuditAsync(string entity, string action, string entityId, string payload)
+    {
+        try { await _logisticsRepository.WriteAuditAsync(entity, action, entityId, payload); }
+        catch { /* audit failures must never break the main flow */ }
     }
 }

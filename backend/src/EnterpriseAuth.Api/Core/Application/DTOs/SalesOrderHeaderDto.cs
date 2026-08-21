@@ -21,5 +21,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public bool IsProcessed { get; set; }
         public bool ExcludeFromEod { get; set; }
         public string StatusLabel => Status == 2 ? "Closed" : "Open";
+        public bool HasFppProducts { get; set; }
     }
 }

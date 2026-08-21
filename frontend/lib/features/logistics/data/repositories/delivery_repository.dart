@@ -75,6 +75,7 @@ class DeliveryRepository implements ILogisticsRepository {
               'KG',
           headerIsClosed: map['headerStatus'] == 2,
           headerIsPreparedForShipment: map['headerIsPreparedForShipment'] == 1,
+          isFpp: map[LocalDatabaseHelper.colDetIsFpp] == 1,
           customerName: map['customerName'] as String?,
           customerCode: map['customerCode'] as String?,
           lot: (map['latestLot'] as String?)?.isNotEmpty == true
@@ -1564,6 +1565,7 @@ class DeliveryRepository implements ILogisticsRepository {
       isRolledOver: row[LocalDatabaseHelper.colIsRolledOver] == 1,
       excludeFromEod: row[LocalDatabaseHelper.colExcludeFromEod] == 1,
       targetLorry: row[LocalDatabaseHelper.colTargetLorry]?.toString(),
+      hasFppProducts: row[LocalDatabaseHelper.colHasFppProducts] == 1,
     );
   }
 
@@ -1598,6 +1600,7 @@ class DeliveryRepository implements ILogisticsRepository {
       locationTypeName: row[LocalDatabaseHelper.colDetLocationTypeName],
       isPrepared: row[LocalDatabaseHelper.colDetIsPrepared] == 1,
       isValidated: row[LocalDatabaseHelper.colDetIsValidated] == 1,
+      isFpp: row[LocalDatabaseHelper.colDetIsFpp] == 1,
       unit: row[LocalDatabaseHelper.colDetUnit] as String? ?? 'KG',
     );
   }
@@ -2185,6 +2188,16 @@ class DeliveryRepository implements ILogisticsRepository {
     );
     // Sync LANNUM_0 to server
     await _dio.patch('Logistics/update-target-lorry/$soNumber', data: jsonEncode(lorryLanNum));
+    // Offline Audit Log — UPDATE_LORRY
+    await LocalDatabaseHelper.instance.insertOfflineAuditLog(
+      entity: 'SalesOrder',
+      action: 'UPDATE_LORRY',
+      payload: jsonEncode({
+        'soNumber': soNumber,
+        'lorryLanNum': lorryLanNum,
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
+    );
   }
 
   @override

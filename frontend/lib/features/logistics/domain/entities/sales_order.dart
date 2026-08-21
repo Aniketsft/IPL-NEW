@@ -39,6 +39,7 @@ class SalesOrder extends Equatable {
   final bool isProcessed;
   final bool isRolledOver;
   final bool excludeFromEod;
+  final bool hasFppProducts;
 
   const SalesOrder({
     required this.id,
@@ -67,6 +68,7 @@ class SalesOrder extends Equatable {
     this.isProcessed = false,
     this.isRolledOver = false,
     this.excludeFromEod = false,
+    this.hasFppProducts = false,
   });
 
   factory SalesOrder.fromDetail(SalesOrderDetail detail) {
@@ -90,6 +92,7 @@ class SalesOrder extends Equatable {
       isProcessed: false,
       isRolledOver: false,
       excludeFromEod: false,
+      hasFppProducts: false,
     );
   }
 
@@ -110,6 +113,7 @@ class SalesOrder extends Equatable {
     bool? isProcessed,
     bool? isRolledOver,
     bool? excludeFromEod,
+    bool? hasFppProducts,
   }) {
     return SalesOrder(
       id: id,
@@ -138,6 +142,7 @@ class SalesOrder extends Equatable {
       isProcessed: isProcessed ?? this.isProcessed,
       isRolledOver: isRolledOver ?? this.isRolledOver,
       excludeFromEod: excludeFromEod ?? this.excludeFromEod,
+      hasFppProducts: hasFppProducts ?? this.hasFppProducts,
     );
   }
 
@@ -180,5 +185,6 @@ class SalesOrder extends Equatable {
     isProcessed,
     isRolledOver,
     excludeFromEod,
+    hasFppProducts,
   ];
 }

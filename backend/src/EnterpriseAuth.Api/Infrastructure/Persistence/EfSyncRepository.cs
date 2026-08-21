@@ -84,7 +84,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ISNULL(CONCAT(LTRIM(RTRIM(sdh.REPNUM2_0)), ' - ', LTRIM(RTRIM(sdh.REP2_0))), LTRIM(RTRIM(f0.REP_0))) COLLATE DATABASE_DEFAULT as [Salesman],
                     f0.ORDSTA_0 as [Status],
                     'External' as [Source],
-                    CAST(f3.LANNUM_0 AS VARCHAR(10)) COLLATE DATABASE_DEFAULT as [TargetLorry]
+                    CAST(f3.LANNUM_0 AS VARCHAR(10)) COLLATE DATABASE_DEFAULT as [TargetLorry],
+                    CAST(
+                        CASE WHEN EXISTS (
+                            SELECT 1 
+                            FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERQ sq WITH (NOLOCK)
+                            JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK) 
+                                ON sq.ITMREF_0 = itm.ITMREF_0
+                            WHERE sq.SOHNUM_0 = f0.SOHNUM_0
+                              AND (itm.ZGROUP6_0 = 'FP006' OR itm.ZGROUP6_0 = 'FP007' OR itm.ZGROUP6_0 = 'FP008')
+                        ) THEN 1 ELSE 0 END AS BIT
+                    ) as [HasFppProducts]
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f_orig WITH (NOLOCK) ON f_orig.SOHNUM_0 = sdh.ORIGINALSO_0
@@ -115,7 +125,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     f2.SAU_0 as Unit,
                     f1.STOFCY_0 as Site,
                     COALESCE(NULLIF(m.ORISOCUST_0, ''), f0.BPCORD_0) as CustomerCode,
-                    COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) as CustomerName
+                    COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) as CustomerName,
+                    CAST(
+                        CASE WHEN f2.ZGROUP6_0 = 'FP006' OR f2.ZGROUP6_0 = 'FP007' OR f2.ZGROUP6_0 = 'FP008' THEN 1 ELSE 0 END AS BIT
+                    ) as IsFpp
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0

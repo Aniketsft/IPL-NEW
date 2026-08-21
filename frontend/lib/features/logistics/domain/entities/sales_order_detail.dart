@@ -25,6 +25,7 @@ class SalesOrderDetail {
   final double eaScannedQuantity;
   final bool isPrepared; // Manufacturing "Prepared"
   final bool isValidated; // Logistics "Validated for Shipment"
+  final bool isFpp; // Indicates if this specific product is FPP
   final String unit;
 
   // Header level statuses from JOIN
@@ -56,6 +57,7 @@ class SalesOrderDetail {
     this.eaScannedQuantity = 0.0,
     this.isPrepared = false,
     this.isValidated = false,
+    this.isFpp = false,
     this.unit = 'KG',
     this.headerIsClosed = false,
     this.headerIsPreparedForShipment = false,
@@ -109,6 +111,7 @@ class SalesOrderDetail {
     double? eaScannedQuantity,
     bool? isPrepared,
     bool? isValidated,
+    bool? isFpp,
     String? unit,
     bool? headerIsClosed,
     bool? headerIsPreparedForShipment,
@@ -138,6 +141,7 @@ class SalesOrderDetail {
       eaScannedQuantity: eaScannedQuantity ?? this.eaScannedQuantity,
       isPrepared: isPrepared ?? this.isPrepared,
       isValidated: isValidated ?? this.isValidated,
+      isFpp: isFpp ?? this.isFpp,
       unit: unit ?? this.unit,
       headerIsClosed: headerIsClosed ?? this.headerIsClosed,
       headerIsPreparedForShipment:

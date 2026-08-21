@@ -16,6 +16,7 @@ class SalesOrderDto {
   final bool isProcessed;
   final bool excludeFromEod;
   final String? targetLorry;
+  final bool hasFppProducts;
 
   SalesOrderDto({
     required this.soNumber,
@@ -35,6 +36,7 @@ class SalesOrderDto {
     this.isProcessed = false,
     this.excludeFromEod = false,
     this.targetLorry,
+    this.hasFppProducts = false,
   });
 
   static String _truncateDate(dynamic value) {
@@ -63,6 +65,7 @@ class SalesOrderDto {
       isProcessed: json['isProcessed'] == true,
       excludeFromEod: json['excludeFromEod'] == true,
       targetLorry: json['targetLorry']?.toString(),
+      hasFppProducts: json['hasFppProducts'] == true,
     );
   }
 
@@ -86,6 +89,7 @@ class SalesOrderDto {
       'is_processed': isProcessed ? 1 : 0,
       'exclude_from_eod': excludeFromEod ? 1 : 0,
       'targetLorry': targetLorry,
+      'hasFppProducts': hasFppProducts ? 1 : 0,
     };
   }
 }

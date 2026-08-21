@@ -41,5 +41,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<IEnumerable<LorryDto>> GetLorriesAsync();
         Task<bool> UpdateTargetLorryAsync(string soNumber, string lorryValue);
         Task<int> GetPendingStagingEodCountAsync();
+        Task WriteAuditAsync(string entityName, string actionType, string entityId, string payload);
     }
 }

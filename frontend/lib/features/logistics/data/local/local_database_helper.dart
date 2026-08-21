@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 60;
+  static const _databaseVersion = 63;
 
 
   static const tableScans = 'tbl_scans';
@@ -86,6 +86,7 @@ class LocalDatabaseHelper {
   static const colTargetLorry = 'targetLorry';
   static const colExcludeFromEod = 'exclude_from_eod';
   static const colIsRolledOver = 'isRolledOver';
+  static const colHasFppProducts = 'hasFppProducts';
 
   // tbl_order_rollovers columns
   static const colRolloverSoNum = 'soNumber';
@@ -111,6 +112,7 @@ class LocalDatabaseHelper {
   static const colDetLocationTypeName = 'locationTypeName';
   static const colDetIsPrepared = 'is_prepared';
   static const colDetIsValidated = 'is_validated';
+  static const colDetIsFpp = 'isFpp';
   static const colDetUnit = 'unit';
   static const colDetScanned = 'scanned';
   static const colDetCustomerCode = 'customerCode';
@@ -259,6 +261,15 @@ class LocalDatabaseHelper {
     }
 
     // Version 7: Add isSynced column to Orders (for Internal Cut/Bulk)
+    if (oldVersion < 63) {
+      debugPrint("DB Upgrade: Adding isFpp to tbl_sales_order_details (Version 63)");
+      try {
+        await db.execute('ALTER TABLE $tableDetails ADD COLUMN $colDetIsFpp INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v63: $e");
+      }
+    }
+
     if (oldVersion < 7) {
       debugPrint('DB Upgrade: Checking for isSynced in tbl_sales_orders (v7)');
       var tableInfo = await db.rawQuery('PRAGMA table_info($tableOrders)');
@@ -922,6 +933,17 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v60: $e");
       }
     }
+    if (oldVersion < 61) {
+      debugPrint('DB Upgrade: Adding hasFppProducts to tbl_sales_orders (v61)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableOrders)');
+        if (!columns.any((c) => c['name'] == colHasFppProducts)) {
+          await db.execute('ALTER TABLE $tableOrders ADD COLUMN $colHasFppProducts INTEGER DEFAULT 0');
+        }
+      } catch (e) {
+        debugPrint("Migration error v61: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -983,7 +1005,8 @@ class LocalDatabaseHelper {
         $colTargetLorry TEXT,
         $colDeviceId TEXT,
         $colExcludeFromEod INTEGER DEFAULT 0,
-        $colIsRolledOver INTEGER DEFAULT 0
+        $colIsRolledOver INTEGER DEFAULT 0,
+        $colHasFppProducts INTEGER DEFAULT 0
       )
     ''');
 
@@ -1010,6 +1033,7 @@ class LocalDatabaseHelper {
         $colDetCustomerCode TEXT,
         $colDetCustomerName TEXT,
         $colDetEaScanned REAL DEFAULT 0,
+        $colDetIsFpp INTEGER DEFAULT 0,
         $colDetCreatedAt TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1,
         $colDeviceId TEXT,

@@ -15,6 +15,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync
 import '../../../../core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 // Model
 class WorkOrderHeader {
@@ -289,6 +290,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
             unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
             workOrderNumber: e['workOrderNumber'] as String? ?? '',
             createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
+            isFpp: e['isFpp'] as bool? ?? false,
          ));
       }
       
@@ -391,8 +393,35 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
       final timestamp = DateTime.now().toIso8601String();
       final batchEodTransactionId = const Uuid().v4();
 
-      // Clean up any previous unsynced staging EOD table for this specific work order
-      await db.deleteUnsyncedStagingEodByWorkOrder(_selectedWorkOrder!);
+      // --- Phase 1: Resolve lorryShortCode from the WO's targetLorry (LANNUM_0) ---
+      // Read targetLorry fresh here so any lorry change made in the Shipment screen
+      // is always reflected at the moment the user confirms EOD.
+      String? lorryShortCode;
+      try {
+        final dbInstance = await db.database;
+        final orderRows = await dbInstance.query(
+          LocalDatabaseHelper.tableOrders,
+          columns: [LocalDatabaseHelper.colTargetLorry],
+          where: '${LocalDatabaseHelper.colOrderNum} = ?',
+          whereArgs: [_selectedWorkOrder!],
+          limit: 1,
+        );
+        final lanNumStr = orderRows.isNotEmpty
+            ? orderRows.first[LocalDatabaseHelper.colTargetLorry]?.toString()
+            : null;
+        if (lanNumStr != null && lanNumStr.isNotEmpty) {
+          // Fetch lorry list from server to resolve LANNUM_0 → LANMES_0 (short code)
+          final repository = context.read<DeliveryRepository>();
+          final lorries = await repository.getLorries();
+          final lanNumInt = int.tryParse(lanNumStr);
+          final matched = lorries.where((l) => l.lanNum == lanNumInt).firstOrNull;
+          lorryShortCode = matched?.lanMes;
+        }
+      } catch (e) {
+        debugPrint('[EOD] Could not resolve lorryShortCode: $e');
+        // Non-fatal — proceed without lorry code rather than blocking EOD
+      }
+      // ---------------------------------------------------------------------------
 
       // Save each unprocessed item (with quantity > 0) to local StagingEod
       for (var item in _filteredSummaryItems) {
@@ -420,6 +449,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
           'lot': item.lotNumber,
           'eodTransactionId': batchEodTransactionId,
           'is_fpp': item.isFpp ? 1 : 0,
+          'deviceId': DeviceInfoService.instance.deviceInfo,
+          LocalDatabaseHelper.colStagingLorryShort: lorryShortCode,
         }, batchEodTransactionId);
       }
 
@@ -429,14 +460,28 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
         workOrderNumber: _selectedWorkOrder!,
       );
 
-      // Offline Audit Log
+      // Offline Audit Log — EOD_COMPLETE
       await db.insertOfflineAuditLog(
         entity: 'EndOfDay',
-        action: 'COMPLETE',
+        action: 'EOD_COMPLETE',
         payload: jsonEncode({
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
           'workOrder': _selectedWorkOrder!,
+          'tab': _tabController.index == 1 ? 'FPP' : 'CutsBulk',
           'itemCount': _filteredSummaryItems.where((i) => i.unprocessedQuantity > 0).length,
+          'lorryShortCode': lorryShortCode,
+          'timestamp': timestamp,
+        }),
+      );
+
+      // Offline Audit Log — SELECT_WORK_ORDER
+      await db.insertOfflineAuditLog(
+        entity: 'EndOfDay',
+        action: 'SELECT_WORK_ORDER',
+        payload: jsonEncode({
+          'workOrder': _selectedWorkOrder!,
+          'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+          'tab': _tabController.index == 1 ? 'FPP' : 'CutsBulk',
           'timestamp': timestamp,
         }),
       );
@@ -579,6 +624,18 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
             message: 'successCount=${data['successCount'] ?? 0}, failureCount=${data['failureCount'] ?? 0}',
           );
           completer.complete(data);
+          // ✅ Offline Audit Log — EXPORT_TO_X3
+          await LocalDatabaseHelper.instance.insertOfflineAuditLog(
+            entity: 'EndOfDay',
+            action: 'EXPORT_TO_X3',
+            payload: jsonEncode({
+              'endpoint': 'Logistics/production-eod',
+              'status': 'Success',
+              'successCount': data['successCount'] ?? 0,
+              'failureCount': data['failureCount'] ?? 0,
+              'timestamp': DateTime.now().toIso8601String(),
+            }),
+          );
           return data;
         } on DioException catch (e) {
           final errorMsg = e.message ?? e.error?.toString() ?? 'DioException';

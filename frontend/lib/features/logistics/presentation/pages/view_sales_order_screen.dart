@@ -519,6 +519,7 @@ class _ViewSalesOrderScreenState extends State<ViewSalesOrderScreen> with Hardwa
                             order: order,
                             permissions: widget.permissions,
                             hasBulkAvailable: _ordersWithBulkAvailable.contains(order.orderNumber),
+                            hasFppAvailable: order.hasFppProducts,
                             onRefresh: _fetchOrders,
                           );
                         },

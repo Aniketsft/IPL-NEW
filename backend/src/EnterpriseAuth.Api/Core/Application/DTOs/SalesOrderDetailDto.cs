@@ -18,5 +18,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
         public string? Salesman { get; set; }
+        public bool IsFpp { get; set; }
     }
 }

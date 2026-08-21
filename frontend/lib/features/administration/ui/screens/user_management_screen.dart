@@ -469,8 +469,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       );
                       final isBulk = bulkAccess.canRead;
                       return _buildSwitchTile(
-                        label: 'Bulk Allocation',
-                        sublabel: 'Allow bulk allocation',
+                        label: 'Bulk / FPP Allocation',
+                        sublabel: 'Allow bulk and FPP allocation',
                         value: isBulk,
                         activeColor: Theme.of(context).primaryColor,
                         isDark: isDark,

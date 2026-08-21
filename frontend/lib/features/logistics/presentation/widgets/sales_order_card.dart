@@ -9,6 +9,7 @@ class SalesOrderCard extends StatelessWidget {
   final bool isDeliveryMode;
   final List<String> permissions;
   final bool hasBulkAvailable;
+  final bool hasFppAvailable;
 
   const SalesOrderCard({
     super.key,
@@ -17,6 +18,7 @@ class SalesOrderCard extends StatelessWidget {
     this.onRefresh,
     this.isDeliveryMode = false,
     this.hasBulkAvailable = false,
+    this.hasFppAvailable = false,
   });
 
   @override
@@ -43,7 +45,7 @@ class SalesOrderCard extends StatelessWidget {
         onTap: (!isDeliveryMode && 
                 !permissions.contains('manufacturing.all.update') && 
                 permissions.contains('manufacturing.bulk_allocate.read') && 
-                !hasBulkAvailable) 
+                !(hasBulkAvailable || hasFppAvailable)) 
             ? null 
             : () async {
           final result = await Navigator.push(
@@ -129,6 +131,32 @@ class SalesOrderCard extends StatelessWidget {
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     color: isDark ? Colors.blue[300] : Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (hasFppAvailable) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.indigoAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.indigoAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.category_outlined, size: 10, color: isDark ? Colors.indigo[300] : Colors.indigo[700]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'FPP',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.indigo[300] : Colors.indigo[700],
                                   ),
                                 ),
                               ],

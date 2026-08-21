@@ -125,6 +125,40 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Select(s => s.SoNumber)
                 .ToListAsync();
 
+            // Fetch FPP items
+            var orderLines = await _scanContext.SalesOrderLines
+                .Where(l => soNumbers.Contains(l.Order.SourceOrderId))
+                .Select(l => new { l.Order.SourceOrderId, l.ItemCode })
+                .Distinct()
+                .ToListAsync();
+
+            var itemCodes = orderLines.Select(l => l.ItemCode).Distinct().ToList();
+            var fppItemCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (itemCodes.Any())
+            {
+                using IDbConnection db = new SqlConnection(_connectionString);
+                string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
+                var sql = $"SELECT ITMREF_0, ZGROUP6_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
+                var mapping = await db.QueryAsync(sql, new { Codes = itemCodes });
+                foreach(var map in mapping)
+                {
+                    if (map.ITMREF_0 != null && map.ZGROUP6_0 != null)
+                    {
+                        var itmRef = ((string)map.ITMREF_0).Trim();
+                        var zgroup6 = ((string)map.ZGROUP6_0).Trim();
+                        if (zgroup6 == "FP006" || zgroup6 == "FP007" || zgroup6 == "FP008")
+                        {
+                            fppItemCodes.Add(itmRef);
+                        }
+                    }
+                }
+            }
+
+            var fppSoNumbers = new HashSet<string>(
+                orderLines.Where(l => fppItemCodes.Contains(l.ItemCode)).Select(l => l.SourceOrderId)
+            );
+
             return orders.Select(o => new SalesOrderHeaderDto
             {
                 SohNum = o.SourceOrderId,
@@ -140,7 +174,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Status = o.Status,
                 Source = o.SourceSystem,
                 TargetLorry = o.TargetLorry,
-                IsPreparedForShipment = shipmentStatuses.Contains(o.SourceOrderId)
+                IsPreparedForShipment = shipmentStatuses.Contains(o.SourceOrderId),
+                HasFppProducts = fppSoNumbers.Contains(o.SourceOrderId)
             });
         }
 
@@ -168,7 +203,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 using IDbConnection db = new SqlConnection(_connectionString);
                 string schema = $"{_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}";
-                var sql = $"SELECT ITMREF_0, STU_0, SEAKEY_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
+                var sql = $"SELECT ITMREF_0, STU_0, ZGROUP6_0 FROM {schema}.ITMMASTER WITH (NOLOCK) WHERE ITMREF_0 IN @Codes";
                 var mapping = await db.QueryAsync(sql, new { Codes = itemCodes });
                 foreach(var map in mapping)
                 {
@@ -178,10 +213,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         if (map.STU_0 != null)
                             units[itmRef] = ((string)map.STU_0).Trim();
                             
-                        if (map.SEAKEY_0 != null)
+                        if (map.ZGROUP6_0 != null)
                         {
-                            var seakey = ((string)map.SEAKEY_0).Trim();
-                            fppMapping[itmRef] = seakey == "Nandos" || seakey == "TCHEF" || seakey == "SDCHEF";
+                            var zgroup6 = ((string)map.ZGROUP6_0).Trim();
+                            fppMapping[itmRef] = zgroup6 == "FP006" || zgroup6 == "FP007" || zgroup6 == "FP008";
                         }
                     }
                 }
@@ -303,12 +338,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     t.Location      AS Location,
                     t.ItemStatus    AS StatusLabel,
                     i.PCUSTU_0      AS Conversion,
-                    CAST(CASE WHEN i.SEAKEY_0 IN ('Nandos', 'TCHEF', 'SDCHEF') THEN 1 ELSE 0 END AS BIT) AS IsFpp
+                    CAST(CASE WHEN i.ZGROUP6_0 IN ('FP006', 'FP007', 'FP008') THEN 1 ELSE 0 END AS BIT) AS IsFpp
                 FROM ProductionScanTransactions t
                 JOIN SalesOrderLines l ON t.SalesOrderLineId = l.Id
                 JOIN {schema}.ITMMASTER i ON l.ItemCode = i.ITMREF_0
                 WHERE l.SalesOrderId = @OrderId AND t.IsDeleted = 0 AND (t.ItemStatus = 'A' OR t.ItemStatus IS NULL) AND t.ExcludeFromEod = 0
-                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0, i.SEAKEY_0";
+                GROUP BY t.ItemCode, l.Description, l.OrderedQuantity, t.LotNumber, i.STU_0, t.Location, t.ItemStatus, i.PCUSTU_0, i.ZGROUP6_0";
 
             var results = await db.QueryAsync<ProductionTrackingDto>(sql, new { WorkOrder = workOrder, OrderId = orderId });
             return results;
@@ -386,6 +421,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 // updates must be committed. Rolling back on 0 would discard scan changes.
                 await _scanContext.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // Audit: record the EOD_COMPLETE event for full traceability
+                var workOrders = string.Join(", ", workOrderNumbers);
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName     = "EndOfDay",
+                    EntityIdString = workOrders,
+                    ActionType     = "EOD_COMPLETE",
+                    Payload        = $"{{\"workOrders\":\"{workOrders}\",\"recordCount\":{records.Count()}}}",
+                    PerformedAt    = DateTime.UtcNow,
+                });
+                await _scanContext.SaveChangesAsync();
+
                 return true;
             }
             catch
@@ -1436,11 +1484,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .FirstOrDefaultAsync(o => o.SourceOrderId == soNumber);
             if (order != null)
             {
+                var previousLorry = order.TargetLorry;
                 order.TargetLorry = lorryValue;
+
+                // Audit: record every lorry change with before/after values
+                _scanContext.AuditLogs.Add(new AuditLog
+                {
+                    EntityName     = "SalesOrder",
+                    EntityIdString = soNumber,
+                    ActionType     = "UPDATE_LORRY",
+                    Payload        = $"{{\"soNumber\":\"{soNumber}\",\"previousLorry\":\"{previousLorry}\",\"newLorry\":\"{lorryValue}\"}}",
+                    PerformedAt    = DateTime.UtcNow,
+                });
+
                 await _scanContext.SaveChangesAsync();
                 return true;
             }
             return false;
+        }
+
+        public async Task WriteAuditAsync(string entityName, string actionType, string entityId, string payload)
+        {
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName     = entityName,
+                EntityIdString = entityId,
+                ActionType     = actionType,
+                Payload        = payload,
+                PerformedAt    = DateTime.UtcNow,
+            });
+            await _scanContext.SaveChangesAsync();
         }
     }
 }

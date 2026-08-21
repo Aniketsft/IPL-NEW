@@ -785,6 +785,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> with HardwareScannerMix
                         isDeliveryMode: true,
                         permissions: widget.permissions,
                         hasBulkAvailable: _ordersWithBulkAvailable.contains(order.orderNumber),
+                        hasFppAvailable: order.hasFppProducts,
                       );
                     },
                   ),

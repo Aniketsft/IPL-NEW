@@ -1,16 +1,16 @@
-# Graph Report - enterprise_auth_system  (2026-08-03)
+# Graph Report - enterprise_auth_system  (2026-08-21)
 
 ## Corpus Check
-- 714 files · ~612,935 words
+- 722 files · ~618,761 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 16856 nodes · 23060 edges · 1280 communities (1158 shown, 122 thin omitted)
+- 16965 nodes · 23274 edges · 1258 communities (1146 shown, 112 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 237 edges (avg confidence: 0.51)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a0bebec3`
+- Built from commit: `5777bc59`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1202,15 +1202,6 @@
 - [[_COMMUNITY_Community 1220|Community 1220]]
 - [[_COMMUNITY_Community 1221|Community 1221]]
 - [[_COMMUNITY_Community 1222|Community 1222]]
-- [[_COMMUNITY_Community 1223|Community 1223]]
-- [[_COMMUNITY_Community 1224|Community 1224]]
-- [[_COMMUNITY_Community 1225|Community 1225]]
-- [[_COMMUNITY_Community 1226|Community 1226]]
-- [[_COMMUNITY_Community 1227|Community 1227]]
-- [[_COMMUNITY_Community 1228|Community 1228]]
-- [[_COMMUNITY_Community 1229|Community 1229]]
-- [[_COMMUNITY_Community 1230|Community 1230]]
-- [[_COMMUNITY_Community 1231|Community 1231]]
 - [[_COMMUNITY_Community 1232|Community 1232]]
 - [[_COMMUNITY_Community 1233|Community 1233]]
 - [[_COMMUNITY_Community 1234|Community 1234]]
@@ -1218,16 +1209,11 @@
 - [[_COMMUNITY_Community 1236|Community 1236]]
 - [[_COMMUNITY_Community 1237|Community 1237]]
 - [[_COMMUNITY_Community 1238|Community 1238]]
-- [[_COMMUNITY_Community 1239|Community 1239]]
-- [[_COMMUNITY_Community 1240|Community 1240]]
 - [[_COMMUNITY_Community 1241|Community 1241]]
 - [[_COMMUNITY_Community 1242|Community 1242]]
-- [[_COMMUNITY_Community 1243|Community 1243]]
 - [[_COMMUNITY_Community 1244|Community 1244]]
 - [[_COMMUNITY_Community 1245|Community 1245]]
-- [[_COMMUNITY_Community 1246|Community 1246]]
 - [[_COMMUNITY_Community 1247|Community 1247]]
-- [[_COMMUNITY_Community 1248|Community 1248]]
 - [[_COMMUNITY_Community 1249|Community 1249]]
 - [[_COMMUNITY_Community 1250|Community 1250]]
 - [[_COMMUNITY_Community 1251|Community 1251]]
@@ -1246,18 +1232,10 @@
 - [[_COMMUNITY_Community 1264|Community 1264]]
 - [[_COMMUNITY_Community 1265|Community 1265]]
 - [[_COMMUNITY_Community 1266|Community 1266]]
-- [[_COMMUNITY_Community 1267|Community 1267]]
 - [[_COMMUNITY_Community 1268|Community 1268]]
 - [[_COMMUNITY_Community 1269|Community 1269]]
 - [[_COMMUNITY_Community 1270|Community 1270]]
 - [[_COMMUNITY_Community 1271|Community 1271]]
-- [[_COMMUNITY_Community 1272|Community 1272]]
-- [[_COMMUNITY_Community 1273|Community 1273]]
-- [[_COMMUNITY_Community 1274|Community 1274]]
-- [[_COMMUNITY_Community 1275|Community 1275]]
-- [[_COMMUNITY_Community 1276|Community 1276]]
-- [[_COMMUNITY_Community 1277|Community 1277]]
-- [[_COMMUNITY_Community 1278|Community 1278]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `packagesToPrune` - 273 edges
@@ -1286,7 +1264,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (1280 total, 122 thin omitted)
+## Communities (1258 total, 112 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
@@ -1298,43 +1276,43 @@ Nodes (273): packagesToPrune, Microsoft.CSharp, Microsoft.VisualBasic, Microsoft
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (208): bulkUpdateItemStatus, clearDeliveryScans, clearTable, colCode, colCreatedAt, colCustomerCode, colCustomerName, colDeliveryDate (+200 more)
+Nodes (211): bulkUpdateItemStatus, clearDeliveryScans, clearTable, colCode, colCreatedAt, colCustomerCode, colCustomerName, colDeliveryDate (+203 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.03
-Nodes (130): agent_orchestration, CogniLayer v4 — Database schema creation and migration.  Run: python init_db.p, Rebuild FTS5 indexes from source tables., rebuild_fts(), agent_delegate_plan — deterministic heuristic for whether supervisor should dele, str, agent_event_write(), agent_event_write — durable event log for orchestrated agent runs. (+122 more)
+Cohesion: 0.02
+Nodes (156): agent_orchestration, Register CogniLayer in Claude Code settings.json., Add CogniLayer MCP server and hooks to settings.json., register(), bool, str, agent_delegate_plan(), agent_delegate_plan — deterministic heuristic for whether supervisor should dele (+148 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.13
-Nodes (21): AllocateExcessDto, Authorize, BulkStatusUpdateDto, CutBulkEntryDto, DateTime, HttpGet, HttpPost, IActionResult (+13 more)
+Cohesion: 0.14
+Nodes (17): AllocateExcessDto, CutBulkEntryDto, DateTime, HttpGet, IActionResult, ILogisticsService, ISageX3SoapService, IStagingService (+9 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.02
-Nodes (106): _fetchAppSettings, _fetchLocations, _fetchSites, ../../../../core/utils/barcode_scanner/barcode_processor.dart, ../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart, ../../data/repositories/delivery_repository.dart, DeliveryRepository, ../entities/sales_order.dart (+98 more)
+Nodes (143): bool get, ../../../../core/utils/barcode_scanner/barcode_processor.dart, ../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart, ../../data/models/lorry_dto.dart, ../../data/repositories/delivery_repository.dart, DeliveryRepository, ../../domain/entities/sales_order_detail.dart, ../entities/sales_order.dart (+135 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.06
-Nodes (30): copyWith, customerCode, customerName, date, deliveryDate, deliveryFrom, deliveryLorry, deliveryNo (+22 more)
+Cohesion: 0.02
+Nodes (112): AppSyncState, copyWith, copyWithClearSync, lastSyncTime, props, OrderBloc, customerCode, date (+104 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.15
-Nodes (13): automapper, AutoMapper, AutoMapper, AutoMapper, AutoMapper, AutoMapper, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer (+5 more)
+Cohesion: 0.05
+Nodes (47): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.Extensions.Caching.Memory, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Security.Cryptography.Pkcs, Microsoft.IdentityModel.Protocols.OpenIdConnect (+39 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.04
-Nodes (46): package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart, _addProduct, build, _buildBottomBar, _buildDatePicker, _buildDatePickerIcon, _buildDefaultsBanner, _buildDropdownTile (+38 more)
+Nodes (48): package:enterprise_auth_mobile/core/utils/barcode_scanner/product_scan_floating_screen.dart, _addProduct, build, _buildBottomBar, _buildDatePicker, _buildDatePickerIcon, _buildDefaultsBanner, _buildDropdownTile (+40 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.05
-Nodes (39): package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart, package:enterprise_auth_mobile/features/logistics/domain/entities/sync_progress.dart, allocateExcess, closeOrder, completeProductionEod, fetchSalesOrderHeaders, fetchSalesOrders, getCustomers (+31 more)
+Nodes (40): package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart, package:enterprise_auth_mobile/features/logistics/domain/entities/sync_progress.dart, allocateExcess, closeOrder, completeProductionEod, fetchSalesOrderHeaders, fetchSalesOrders, getCustomers (+32 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.04
-Nodes (55): ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder (+47 more)
+Cohesion: 0.05
+Nodes (56): ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder, ModelBuilder (+48 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.04
-Nodes (80): auth_event.dart, auth_state.dart, AuthBloc, _authTimer, close, _forgotPasswordUseCase, _loginUseCase, _onAppStarted (+72 more)
+Nodes (79): auth_event.dart, auth_state.dart, AuthBloc, _authTimer, close, _forgotPasswordUseCase, _loginUseCase, _onAppStarted (+71 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.16
@@ -1342,27 +1320,27 @@ Nodes (33): bool, int, _build_fact_brief(), build_session_state(), _contradictio
 
 ### Community 13 - "Community 13"
 Cohesion: 0.07
-Nodes (48): authorization, builder, common, configuration, CompleteEodRequest, EnterpriseAuth.Api.Controllers, EnterpriseAuth.Api.Controllers, EnterpriseAuth.Api.Controllers (+40 more)
+Nodes (48): authorization, builder, common, configuration, CompleteEodRequest, EnterpriseAuth.Api.Controllers, EnterpriseAuth.Api.Controllers, ChangePasswordRequest (+40 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.02
-Nodes (128): azure_identity, Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, dependencies (+120 more)
+Cohesion: 0.04
+Nodes (79): azure_identity, Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, dependencies, dependencies (+71 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.03
-Nodes (39): User, Program, CutBulkEntryDto, EnterpriseAuth.Api.Core.Application.DTOs, DeviceSyncLogDto, EnterpriseAuth.Api.Core.Application.DTOs, AllocateExcessDto, EnterpriseAuth.Api.Core.Application.DTOs (+31 more)
+Nodes (45): User, Program, CutBulkEntryDto, EnterpriseAuth.Api.Core.Application.DTOs, DeviceSyncLogDto, EnterpriseAuth.Api.Core.Application.DTOs, AllocateExcessDto, EnterpriseAuth.Api.Core.Application.DTOs (+37 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.03
-Nodes (88): AppSyncBloc, _getCustomersUseCase, _getProductionTrackingUseCase, _getSalesRepsUseCase, _getSitesUseCase, _onLoadFiltersRequested, _onLoadSalesOrderItemsRequested, SecureStorageService (+80 more)
+Cohesion: 0.04
+Nodes (69): _getCustomersUseCase, _getProductionTrackingUseCase, _getSalesRepsUseCase, _getSitesUseCase, _onLoadFiltersRequested, _onLoadSalesOrderItemsRequested, deleteAll, getSchema (+61 more)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.03
-Nodes (112): asyncio, call_tool(), get_version(), list_tools(), main(), CogniLayer MCP Server — V4 (knowledge layer + code intelligence + safety for AI, Read version from VERSION file., Quick test to verify all tools are registered. (+104 more)
+Nodes (113): call_tool(), get_version(), list_tools(), main(), CogniLayer MCP Server — V4 (knowledge layer + code intelligence + safety for AI, Read version from VERSION file., Quick test to verify all tools are registered., test_tools() (+105 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.02
-Nodes (96): dart:convert, Dio get, ../../domain/entities/sync_progress.dart, ../../domain/repositories/ilogistics_repository.dart, ../models/location_lookup_dto.dart, ../models/lookup_dto.dart, ../models/lot_dto.dart, ../models/product_master_dto.dart (+88 more)
+Nodes (101): dart:convert, Dio get, ../../domain/entities/sync_progress.dart, ../../domain/repositories/ilogistics_repository.dart, ../models/location_lookup_dto.dart, ../models/lookup_dto.dart, ../models/lorry_dto.dart, ../models/lot_dto.dart (+93 more)
 
 ### Community 19 - "Community 19"
 Cohesion: 0.10
@@ -1378,23 +1356,23 @@ Nodes (20): bool, clear_active_session_override(), _current_cwd(), get_active_se
 
 ### Community 22 - "Community 22"
 Cohesion: 0.05
-Nodes (74): files, files, files, files, files, files, files, files (+66 more)
+Nodes (78): System.Configuration.ConfigurationManager/9.0.11, files, files, files, files, files, files, files (+70 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.04
-Nodes (71): files, files, files, files, files, files, files, files (+63 more)
+Nodes (70): files, files, files, files, files, files, files, files (+62 more)
 
 ### Community 24 - "Community 24"
-Cohesion: 0.04
-Nodes (70): ../../../auth/presentation/bloc/auth_bloc.dart, ../../../auth/presentation/bloc/auth_state.dart, _appSyncBloc, close, ../bloc/sync_bloc.dart, _onSyncProgressUpdated, _progressSubscription, SyncBloc (+62 more)
+Cohesion: 0.05
+Nodes (65): ../../../auth/presentation/bloc/auth_bloc.dart, ../../../auth/presentation/bloc/auth_state.dart, _appSyncBloc, close, ../bloc/sync_bloc.dart, _onSyncProgressUpdated, _progressSubscription, SyncBloc (+57 more)
 
 ### Community 25 - "Community 25"
 Cohesion: 0.10
 Nodes (38): bool, Connection, int, str, get_clusters(), get_code_files_with_symbols(), get_code_stats(), get_code_symbol_kinds() (+30 more)
 
 ### Community 26 - "Community 26"
-Cohesion: 0.02
-Nodes (113): _appSyncBloc, _getProductionTracking, ManufacturingBloc, _onDashboardSearchChanged, _onLoadProductionTrackingRequested, _onManufacturingSchemaChanged, _onSiteFilterChanged, _onUpdateItemPreparationStatus (+105 more)
+Cohesion: 0.03
+Nodes (111): AppSyncBloc, HardwareScannerMixin, ProductScanFloatingScreen, _ProductScanFloatingScreenState, ProductionTrackingScanner, _ProductionTrackingScannerState, _appSyncBloc, _getProductionTracking (+103 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.18
@@ -1402,7 +1380,7 @@ Nodes (11): assemblyVersion, fileVersion, System.Windows.Extensions/6.0.0, lib/n
 
 ### Community 28 - "Community 28"
 Cohesion: 0.02
-Nodes (87): build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, AppTheme, _buildTheme (+79 more)
+Nodes (108): build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, ../../bloc/manufacturing_bloc.dart, ../../bloc/manufacturing_state.dart (+100 more)
 
 ### Community 29 - "Community 29"
 Cohesion: 0.03
@@ -1422,11 +1400,11 @@ Nodes (33): bool, int, _build_fact_brief(), build_session_state(), _contradictio
 
 ### Community 33 - "Community 33"
 Cohesion: 0.04
-Nodes (83): azure_core, dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, dependencies, dependencies (+75 more)
+Nodes (68): azure_core, dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, dependencies, Azure.Core (+60 more)
 
 ### Community 34 - "Community 34"
-Cohesion: 0.06
-Nodes (41): float, _check_context_and_save(), _get_context_percentage(), main(), CogniLayer PostToolUse hook — logs file changes + context monitoring.  Must be, Check context usage and save proactive bridge at thresholds.      Uses a state, Read context usage % from transcript JSONL. Fast: reads only last ~8KB.      R, Save proactive bridge when context is getting full. (+33 more)
+Cohesion: 0.08
+Nodes (31): _build_comprehensive_bridge(), _find_session(), _log(), main(), open_db(), CogniLayer PreCompact hook — saves comprehensive bridge before context compactio, Find CogniLayer session_id and project from claude_session_id., Build a comprehensive bridge from ALL session data.      This is the most comp (+23 more)
 
 ### Community 35 - "Community 35"
 Cohesion: 0.18
@@ -1434,7 +1412,7 @@ Nodes (11): locale, locale, locale, locale, locale, resources, lib/net8.0/cs/Mic
 
 ### Community 36 - "Community 36"
 Cohesion: 0.04
-Nodes (75): bool, bytes, embed_text(), embed_texts(), _get_model(), is_available(), CogniLayer embedder — generates vector embeddings using fastembed.  Lazy-loads, Unbuffered trace logging for debugging hangs. (+67 more)
+Nodes (64): _alias_name(), _best_match(), _best_module_match(), _module_match_score(), Reference resolver - links references to concrete symbols with confidence scorin, Pick best symbol match based on reference kind., Resolve unlinked references to symbols.      Matches code_references.to_name a, resolve_references() (+56 more)
 
 ### Community 37 - "Community 37"
 Cohesion: 0.07
@@ -1449,12 +1427,12 @@ Cohesion: 0.06
 Nodes (62): files, files, ref_analyzers_dotnet_roslyn3_11_cs_cs_microsoft_extensions_logging_generators_resources_dll, ref_analyzers_dotnet_roslyn3_11_cs_de_microsoft_extensions_logging_generators_resources_dll, ref_analyzers_dotnet_roslyn3_11_cs_es_microsoft_extensions_logging_generators_resources_dll, ref_analyzers_dotnet_roslyn3_11_cs_fr_microsoft_extensions_logging_generators_resources_dll, ref_analyzers_dotnet_roslyn3_11_cs_it_microsoft_extensions_logging_generators_resources_dll, ref_analyzers_dotnet_roslyn3_11_cs_ja_microsoft_extensions_logging_generators_resources_dll (+54 more)
 
 ### Community 40 - "Community 40"
-Cohesion: 0.07
-Nodes (28): AllocateExcessDto, ApplicationDbContext, BarcodeMappingDto, BomComponentDto, CustomerLookupDto, CutBulkEntryDto, DateTime, EodSettings (+20 more)
+Cohesion: 0.06
+Nodes (29): AllocateExcessDto, ApplicationDbContext, BarcodeMappingDto, BomComponentDto, CustomerLookupDto, CutBulkEntryDto, DateTime, EodSettings (+21 more)
 
 ### Community 41 - "Community 41"
-Cohesion: 0.50
-Nodes (5): bool, str, _compute_safety_hash(), identity_set(), Set Identity Card fields for current project.
+Cohesion: 0.09
+Nodes (25): bool, str, _compute_safety_hash(), identity_set(), identity_set — Set Project Identity Card fields., Set Identity Card fields for current project., str, _compute_safety_hash() (+17 more)
 
 ### Community 42 - "Community 42"
 Cohesion: 0.13
@@ -1466,15 +1444,15 @@ Nodes (30): MigrationBuilder, MigrationBuilder, MigrationBuilder, MigrationBuild
 
 ### Community 44 - "Community 44"
 Cohesion: 0.03
-Nodes (65): DateTime? get, NetworkService, package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_event.dart, package:enterprise_auth_mobile/features/manufacturing/logic/eod_pdf_generator.dart, _actionButton, _amber, build, _buildProductCard (+57 more)
+Nodes (64): DateTime? get, NetworkService, package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_event.dart, package:enterprise_auth_mobile/features/manufacturing/logic/eod_pdf_generator.dart, _actionButton, _amber, build, _buildProductCard (+56 more)
 
 ### Community 45 - "Community 45"
 Cohesion: 0.03
-Nodes (58): ../../data/models/user_management.dart, ../../data/repositories/user_management_repository.dart, _accessBadge, _allUsers, build, _buildActionFooter, _buildInputField, _buildManageUsersTab (+50 more)
+Nodes (59): ../../data/models/user_management.dart, ../../data/repositories/user_management_repository.dart, _accessBadge, _allUsers, build, _buildActionFooter, _buildInputField, _buildManageUsersTab (+51 more)
 
 ### Community 46 - "Community 46"
 Cohesion: 0.04
-Nodes (53): ../../app_theme.dart, barcode_processor.dart, barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode (+45 more)
+Nodes (55): ../../app_theme.dart, barcode_processor.dart, barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode (+47 more)
 
 ### Community 47 - "Community 47"
 Cohesion: 0.05
@@ -1482,43 +1460,43 @@ Nodes (24): App, ComposeResult, str, CogniLayerTUI, _get_version(), Refresh by r
 
 ### Community 48 - "Community 48"
 Cohesion: 0.09
-Nodes (26): AllocateExcessDto, BarcodeMappingDto, BulkStatusUpdateDto, CustomerLookupDto, CutBulkEntryDto, DateTime, EodSettings, ExcessDto (+18 more)
+Nodes (27): AllocateExcessDto, BarcodeMappingDto, BulkStatusUpdateDto, CustomerLookupDto, CutBulkEntryDto, DateTime, EodSettings, ExcessDto (+19 more)
 
 ### Community 49 - "Community 49"
-Cohesion: 0.04
-Nodes (51): ../../../../core/utils/app_ui.dart, new_cuts_bulk_screen.dart, package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart, package:enterprise_auth_mobile/core/widgets/standard_filter.dart, build, createState, _dateController, dispose (+43 more)
+Cohesion: 0.02
+Nodes (108): _handleHardwareScan, ../bloc/sync_state.dart, class, Color, ../../../../core/utils/app_ui.dart, ../../domain/entities/sales_order.dart, MaterialPageRoute, new_cuts_bulk_screen.dart (+100 more)
 
 ### Community 50 - "Community 50"
-Cohesion: 0.03
-Nodes (64): build, createState, details, _handleHardwareScan, _isProcessing, _lastScanTime, onHardwareScan, order (+56 more)
+Cohesion: 0.14
+Nodes (21): files, files, ref_lib_net10_0_system_identitymodel_tokens_jwt_dll, ref_lib_net10_0_system_identitymodel_tokens_jwt_xml, ref_lib_net461_system_identitymodel_tokens_jwt_dll, ref_lib_net461_system_identitymodel_tokens_jwt_xml, ref_lib_net462_system_identitymodel_tokens_jwt_dll, ref_lib_net462_system_identitymodel_tokens_jwt_xml (+13 more)
 
 ### Community 51 - "Community 51"
-Cohesion: 0.52
-Nodes (6): int, str, agent_research_wave_start(), _compose_research_tracks(), agent_research_wave_start — prepare a supervisor-owned research-only wave., _topic_slug()
+Cohesion: 0.14
+Nodes (15): dart:typed_data, _buildHeader, _buildSOHeader, _buildTable, generateAndPrint, OrderCompletionPdfGenerator, _buildHeader, _buildLorryHeader (+7 more)
 
 ### Community 52 - "Community 52"
 Cohesion: 0.08
 Nodes (34): CogniLayer TUI Dashboard — Main application., Tab 4: Clusters — Cluster tree view., Tab 8: Code Graph — Code intelligence browser., Tab 7: Contradictions — Contradiction review., Tab 2: Facts — Filterable fact browser., Tab 6: Gaps — Knowledge gaps viewer., Tab 1: Overview — Stats dashboard., Tab 5: Timeline — Session history. (+26 more)
 
 ### Community 53 - "Community 53"
-Cohesion: 0.04
-Nodes (57): System.Security.Permissions, assemblyVersion, fileVersion, System.Configuration.ConfigurationManager/6.0.1, lib/net6.0/System.Configuration.ConfigurationManager.dll, dependencies, runtime, System.Security.Permissions (+49 more)
+Cohesion: 0.06
+Nodes (36): System.Security.Permissions, assemblyVersion, fileVersion, System.Configuration.ConfigurationManager/6.0.1, lib/net6.0/System.Configuration.ConfigurationManager.dll, dependencies, runtime, System.Security.Permissions (+28 more)
 
 ### Community 54 - "Community 54"
-Cohesion: 0.10
-Nodes (23): AllocateExcessDto, BarcodeMappingDto, BulkStatusUpdateDto, CustomerLookupDto, CutBulkEntryDto, DateTime, ExcessDto, IEnumerable (+15 more)
+Cohesion: 0.09
+Nodes (24): AllocateExcessDto, BarcodeMappingDto, BulkStatusUpdateDto, CustomerLookupDto, CutBulkEntryDto, DateTime, ExcessDto, IEnumerable (+16 more)
 
 ### Community 55 - "Community 55"
 Cohesion: 0.08
-Nodes (21): AllocateExcessDto, BarcodeMappingDto, BomComponentDto, CustomerLookupDto, CutBulkEntryDto, DateTime, ExcessDto, IEnumerable (+13 more)
+Nodes (22): AllocateExcessDto, BarcodeMappingDto, BomComponentDto, CustomerLookupDto, CutBulkEntryDto, DateTime, ExcessDto, IEnumerable (+14 more)
 
 ### Community 56 - "Community 56"
-Cohesion: 0.09
-Nodes (28): OrderBloc, customerCode, date, LoadFiltersRequested, LoadSalesOrderItemsRequested, OrderEvent, props, salesRepCode (+20 more)
+Cohesion: 0.13
+Nodes (15): dependencies, Microsoft.Identity.Client, System.Security.Cryptography.ProtectedData, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
 
 ### Community 57 - "Community 57"
-Cohesion: 0.10
-Nodes (21): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, assemblyVersion (+13 more)
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 58 - "Community 58"
 Cohesion: 0.04
@@ -1533,8 +1511,8 @@ Cohesion: 0.07
 Nodes (27): assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+19 more)
 
 ### Community 62 - "Community 62"
-Cohesion: 0.05
-Nodes (39): locale, locale, locale, locale, locale, locale, locale, locale (+31 more)
+Cohesion: 0.04
+Nodes (53): locale, locale, locale, locale, locale, locale, locale, locale (+45 more)
 
 ### Community 63 - "Community 63"
 Cohesion: 0.05
@@ -1542,31 +1520,31 @@ Nodes (32): Any, audioplayers_darwin, cocoa, device_info_plus, flutter, Register
 
 ### Community 64 - "Community 64"
 Cohesion: 0.04
-Nodes (63): HardwareScannerMixin, ProductScanFloatingScreen, _ProductScanFloatingScreenState, ProductionTrackingScanner, _ProductionTrackingScannerState, ../../data/local/local_database_helper.dart, package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart, NewCutsBulkScreen (+55 more)
+Nodes (44): company.dart, double?, AppSettings, availableCompanies, availableSites, copyWith, dailyLotNumber, decimalOptions (+36 more)
 
 ### Community 65 - "Community 65"
-Cohesion: 0.04
-Nodes (43): ../local/local_database_helper.dart, fromJson, itemCode, lot, LotDto, siteCode, toSqlMap, barcode (+35 more)
+Cohesion: 0.07
+Nodes (27): barcodeType, customerCode, customerName, deliveryDate, description, eaQuantity, fromJson, isPrepared (+19 more)
 
 ### Community 66 - "Community 66"
-Cohesion: 0.05
-Nodes (42): locale, locale, locale, locale, locale, locale, locale, locale (+34 more)
+Cohesion: 0.04
+Nodes (46): locale, locale, locale, locale, locale, locale, locale, locale (+38 more)
 
 ### Community 67 - "Community 67"
-Cohesion: 0.08
-Nodes (29): Microsoft.Extensions.DependencyModel, Mono.TextTemplating, Microsoft.CodeAnalysis.CSharp.Workspaces, Mono.TextTemplating, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.Extensions.DependencyModel, Mono.TextTemplating, assemblyVersion (+21 more)
+Cohesion: 0.06
+Nodes (40): Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.Extensions.DependencyModel, Mono.TextTemplating, dependencies, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.Extensions.DependencyModel, Mono.TextTemplating, assemblyVersion (+32 more)
 
 ### Community 68 - "Community 68"
-Cohesion: 0.17
-Nodes (12): Microsoft.Data.SqlClient, microsoft_data_sqlclient, dependencies, runtime, Microsoft.Data.SqlClient, CheckRecords/1.0.0, CheckRecords.dll, dependencies (+4 more)
+Cohesion: 0.40
+Nodes (5): dependencies, runtime, Microsoft.Data.SqlClient, dbtest/1.0.0, dbtest.dll
 
 ### Community 69 - "Community 69"
 Cohesion: 0.06
 Nodes (30): dataannotations, EnterpriseAuth.Api.Core.Application.DTOs, ProductionScanDto, AuditLog, EnterpriseAuth.Api.Core.Domain.Entities, EnterpriseAuth.Api.Core.Domain.Entities, EodProcessAudit, EnterpriseAuth.Api.Core.Domain.Entities (+22 more)
 
 ### Community 70 - "Community 70"
-Cohesion: 0.08
-Nodes (27): System.Composition.TypedParts, System.Composition.TypedParts, System.Composition.AttributedModel, System.Composition.Hosting, System.Composition.Runtime, System.Composition.TypedParts, assemblyVersion, fileVersion (+19 more)
+Cohesion: 0.09
+Nodes (24): System.Composition.AttributedModel, System.Composition.Hosting, System.Composition.Runtime, System.Composition.TypedParts, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+16 more)
 
 ### Community 71 - "Community 71"
 Cohesion: 0.09
@@ -1585,20 +1563,20 @@ Cohesion: 0.07
 Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
 
 ### Community 75 - "Community 75"
-Cohesion: 0.06
-Nodes (42): dependencies, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Diagnostics.DiagnosticSource, System.Memory.Data, System.Numerics.Vectors (+34 more)
+Cohesion: 0.10
+Nodes (26): dependencies, dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Diagnostics.DiagnosticSource, System.Memory.Data, System.Numerics.Vectors (+18 more)
 
 ### Community 76 - "Community 76"
 Cohesion: 0.33
 Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.Data.SqlClient.Extensions.Abstractions/1.0.0, lib/netstandard2.0/Microsoft.Data.SqlClient.Extensions.Abstractions.dll
 
 ### Community 77 - "Community 77"
-Cohesion: 0.03
-Nodes (55): _escape_toml_string(), Register CogniLayer MCP server in Codex CLI config.toml., Escape special characters for TOML string value., Serialize a Python value to TOML format., Serialize a TOML key/section part, quoting paths and other non-bare keys., Write a dict to TOML file, preserving section structure., Add CogniLayer MCP server to ~/.codex/config.toml., register() (+47 more)
+Cohesion: 0.02
+Nodes (56): init_db(), CogniLayer v4 — Database schema creation and migration.  Run: python init_db.p, Add new V3 columns/tables to existing database (safe idempotent migration)., Rebuild FTS5 indexes from source tables., Create all tables and indexes., rebuild_fts(), upgrade_schema(), Tests for file_search tool edge cases. (+48 more)
 
 ### Community 78 - "Community 78"
-Cohesion: 0.08
-Nodes (29): Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, Microsoft.CodeAnalysis.Workspaces.Common, dependencies, dependencies, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, Microsoft.CodeAnalysis.Workspaces.Common (+21 more)
+Cohesion: 0.07
+Nodes (42): Humanizer.Core, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, Microsoft.CodeAnalysis.Workspaces.Common, System.Composition, dependencies, dependencies, dependencies (+34 more)
 
 ### Community 79 - "Community 79"
 Cohesion: 0.09
@@ -1609,16 +1587,16 @@ Cohesion: 0.09
 Nodes (37): bool, backup_database(), check_mcp_installed(), check_python_version(), check_pyyaml_installed(), check_textual_installed(), check_treesitter_installed(), copy_files() (+29 more)
 
 ### Community 81 - "Community 81"
-Cohesion: 0.11
-Nodes (17): config/api_config.dart, dio, false, isTokenExpired, NetworkService, onUnauthorized, _storageService, Dio (+9 more)
+Cohesion: 0.05
+Nodes (36): config/api_config.dart, dio, false, isTokenExpired, NetworkService, onUnauthorized, _storageService, Dio (+28 more)
 
 ### Community 82 - "Community 82"
-Cohesion: 0.08
-Nodes (26): Microsoft.IdentityModel.JsonWebTokens, assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, dependencies, runtime, Microsoft.IdentityModel.JsonWebTokens (+18 more)
+Cohesion: 0.05
+Nodes (41): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, dependencies, dependencies, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens (+33 more)
 
 ### Community 83 - "Community 83"
-Cohesion: 0.07
-Nodes (37): dependencies, Microsoft.Bcl.AsyncInterfaces, System.Memory.Data, Microsoft.Bcl.AsyncInterfaces, Microsoft.Extensions.Logging.Abstractions, System.Memory.Data, dependencies, Microsoft.Bcl.AsyncInterfaces (+29 more)
+Cohesion: 0.06
+Nodes (46): dependencies, Microsoft.Bcl.AsyncInterfaces, System.Memory.Data, Microsoft.Bcl.AsyncInterfaces, Microsoft.Extensions.Logging.Abstractions, System.Memory.Data, dependencies, Microsoft.Bcl.AsyncInterfaces (+38 more)
 
 ### Community 84 - "Community 84"
 Cohesion: 0.10
@@ -1633,12 +1611,12 @@ Cohesion: 0.06
 Nodes (34): ../../../../core/utils/audio/audio_service.dart, ../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart, displayName, fullInfo, location, LocationLookup, locationType, locationTypeName (+26 more)
 
 ### Community 87 - "Community 87"
-Cohesion: 0.09
-Nodes (30): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Options, Microsoft.Extensions.Primitives, Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Primitives, dependencies (+22 more)
+Cohesion: 0.07
+Nodes (42): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Options, Microsoft.Extensions.Primitives, Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions (+34 more)
 
 ### Community 88 - "Community 88"
-Cohesion: 0.06
-Nodes (33): build/_._, lib/netcoreapp3.1/_._, targets, net8.0, version, related, related, related (+25 more)
+Cohesion: 0.10
+Nodes (20): lib/netcoreapp3.1/_._, related, related, related, related, compile, runtime, type (+12 more)
 
 ### Community 89 - "Community 89"
 Cohesion: 0.10
@@ -1649,8 +1627,8 @@ Cohesion: 0.06
 Nodes (36): packagesToPrune, Microsoft.CSharp, Microsoft.VisualBasic, Microsoft.Win32.Primitives, Microsoft.Win32.Registry, runtime.any.System.Collections, runtime.any.System.Diagnostics.Tools, runtime.any.System.Diagnostics.Tracing (+28 more)
 
 ### Community 91 - "Community 91"
-Cohesion: 0.07
-Nodes (27): dispose, _initScanner, initState, onHardwareScan, _scannerService, _scannerSubscription, dispose, HardwareScannerService (+19 more)
+Cohesion: 0.04
+Nodes (52): dispose, _initScanner, initState, onHardwareScan, _scannerService, _scannerSubscription, dispose, HardwareScannerService (+44 more)
 
 ### Community 92 - "Community 92"
 Cohesion: 0.13
@@ -1661,20 +1639,20 @@ Cohesion: 0.06
 Nodes (34): active, bases:Create new base, canvas:Create new canvas, command-palette:Open command palette, daily-notes:Open today's daily note, graph:Open graph view, switcher:Open quick switcher, templates:Insert template (+26 more)
 
 ### Community 94 - "Community 94"
-Cohesion: 0.07
-Nodes (25): BarcodeModel, BarcodeProcessor, cleanBarcode, formatQuantity, invalid, isValid, isValidBarcode, itemCode (+17 more)
+Cohesion: 0.06
+Nodes (31): BarcodeModel, BarcodeProcessor, cleanBarcode, formatQuantity, invalid, isValid, isValidBarcode, itemCode (+23 more)
 
 ### Community 95 - "Community 95"
-Cohesion: 0.09
-Nodes (24): buildTransitive/net8.0/_._, lib/net9.0/_._, related, related, related, lib/net9.0/Microsoft.Extensions.Caching.Memory.dll, lib/net9.0/System.Security.Cryptography.ProtectedData.dll, Microsoft.Extensions.Caching.Memory/9.0.13 (+16 more)
+Cohesion: 0.06
+Nodes (34): buildTransitive/net8.0/_._, lib/net9.0/_._, related, related, related, related, lib/net9.0/Microsoft.Extensions.Caching.Memory.dll, lib/net9.0/Microsoft.Extensions.Primitives.dll (+26 more)
 
 ### Community 96 - "Community 96"
 Cohesion: 0.11
 Nodes (34): files, files, ref_analyzers_dotnet_roslyn4_4_cs_cs_microsoft_extensions_options_sourcegeneration_resources_dll, ref_analyzers_dotnet_roslyn4_4_cs_de_microsoft_extensions_options_sourcegeneration_resources_dll, ref_analyzers_dotnet_roslyn4_4_cs_es_microsoft_extensions_options_sourcegeneration_resources_dll, ref_analyzers_dotnet_roslyn4_4_cs_fr_microsoft_extensions_options_sourcegeneration_resources_dll, ref_analyzers_dotnet_roslyn4_4_cs_it_microsoft_extensions_options_sourcegeneration_resources_dll, ref_analyzers_dotnet_roslyn4_4_cs_ja_microsoft_extensions_options_sourcegeneration_resources_dll (+26 more)
 
 ### Community 97 - "Community 97"
-Cohesion: 0.12
-Nodes (15): package:enterprise_auth_mobile/features/auth/domain/entities/user.dart, package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart, forgotPassword, IAuthRepository, isOfflineSessionValid, login, logout, refreshToken (+7 more)
+Cohesion: 0.20
+Nodes (9): package:enterprise_auth_mobile/features/auth/domain/entities/user.dart, package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart, IAuthRepository, execute, LoginUseCase, repository, execute, RegisterUseCase (+1 more)
 
 ### Community 98 - "Community 98"
 Cohesion: 0.06
@@ -1689,8 +1667,8 @@ Cohesion: 0.09
 Nodes (17): Changed, ComposeResult, NodeSelected, CodeGraphScreen, Code intelligence browser with file/symbol tree and detail pane., str, Changed, ComposeResult (+9 more)
 
 ### Community 102 - "Community 102"
-Cohesion: 0.13
-Nodes (31): bool, _db_execute_with_retry(), _delete_file(), _delete_file_data(), _filter_changed_files(), _find_deleted_files(), index_project(), _load_indexed_files() (+23 more)
+Cohesion: 0.14
+Nodes (32): bool, _db_execute_with_retry(), _delete_file(), _delete_file_data(), _filter_changed_files(), _find_deleted_files(), index_project(), _load_indexed_files() (+24 more)
 
 ### Community 103 - "Community 103"
 Cohesion: 0.07
@@ -1705,12 +1683,12 @@ Cohesion: 0.06
 Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 106 - "Community 106"
-Cohesion: 0.07
-Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
+Cohesion: 0.06
+Nodes (33): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+25 more)
 
 ### Community 107 - "Community 107"
-Cohesion: 0.07
-Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
+Cohesion: 0.06
+Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 108 - "Community 108"
 Cohesion: 0.06
@@ -1721,8 +1699,8 @@ Cohesion: 0.06
 Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 110 - "Community 110"
-Cohesion: 0.13
-Nodes (16): Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Options, dependencies, microsoft_extensions_dependencyinjection, microsoft_extensions_options, Microsoft.Extensions.Options, Microsoft.Extensions.Options (+8 more)
+Cohesion: 0.10
+Nodes (21): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
 
 ### Community 111 - "Community 111"
 Cohesion: 0.06
@@ -1749,16 +1727,16 @@ Cohesion: 0.06
 Nodes (30): barcodeType, copyWith, customerCode, customerName, deliveryDate, description, eaScannedQuantity, formatQuantity (+22 more)
 
 ### Community 117 - "Community 117"
-Cohesion: 0.67
-Nodes (3): str, Load or save session bridge., session_bridge()
+Cohesion: 0.23
+Nodes (15): files, files, ref_buildtransitive_net461_microsoft_extensions_caching_memory_targets, ref_buildtransitive_netcoreapp2_0_microsoft_extensions_caching_memory_targets, ref_lib_net462_microsoft_extensions_caching_memory_dll, ref_lib_net462_microsoft_extensions_caching_memory_xml, ref_lib_net8_0_microsoft_extensions_caching_memory_dll, ref_lib_net8_0_microsoft_extensions_caching_memory_xml (+7 more)
 
 ### Community 118 - "Community 118"
 Cohesion: 0.10
 Nodes (12): bool, str, _is_not_found(), code_search must return only symbols from the active project., code_context must return only references within the active project., Check if result indicates the symbol was NOT found.      Handles Czech i18n me, Callers of process_data should only come from same project., code_impact BFS must never traverse into another project's graph. (+4 more)
 
 ### Community 119 - "Community 119"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client/4.80.0, lib/net8.0/Microsoft.Identity.Client.dll
+Cohesion: 0.15
+Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 120 - "Community 120"
 Cohesion: 0.07
@@ -1770,31 +1748,31 @@ Nodes (29): System.CodeDom, assemblyVersion, fileVersion, dependencies, runtime,
 
 ### Community 122 - "Community 122"
 Cohesion: 0.14
-Nodes (16): lib/net8.0/Microsoft.EntityFrameworkCore.Relational.dll, Microsoft.EntityFrameworkCore, Microsoft.Extensions.Configuration.Abstractions, related, compile, dependencies, runtime, type (+8 more)
+Nodes (16): Microsoft.EntityFrameworkCore, Microsoft.Extensions.Configuration.Abstractions, dependencies, Microsoft.EntityFrameworkCore, Microsoft.Extensions.Configuration.Abstractions, dependencies, microsoft_entityframeworkcore, microsoft_extensions_configuration_abstractions (+8 more)
 
 ### Community 123 - "Community 123"
-Cohesion: 0.16
-Nodes (22): bool, float, int, str, _apply_heat_decay(), _check_staleness(), _get_causal_chains(), _get_linked_facts() (+14 more)
+Cohesion: 0.13
+Nodes (25): int, str, file_search(), Search indexed project files (PRD, docs, configs) via FTS5., bool, float, int, str (+17 more)
 
 ### Community 124 - "Community 124"
-Cohesion: 0.07
-Nodes (28): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Primitives, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+20 more)
+Cohesion: 0.15
+Nodes (13): Microsoft.Extensions.Primitives, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 125 - "Community 125"
 Cohesion: 0.16
 Nodes (21): bool, bytes, float, int, str, _auto_link_fact(), _check_content_duplicate(), _check_secrets() (+13 more)
 
 ### Community 126 - "Community 126"
-Cohesion: 0.07
-Nodes (29): fallbackFolders, fallbackFolders, fallbackFolders, frameworks, restore, version, format, projects (+21 more)
+Cohesion: 0.12
+Nodes (16): restore, outputPath, packagesPath, projectName, projectPath, projectStyle, projectUniqueName, restoreAuditProperties (+8 more)
 
 ### Community 127 - "Community 127"
-Cohesion: 0.11
-Nodes (18): Npgsql, Npgsql, npgsql, Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion (+10 more)
+Cohesion: 0.13
+Nodes (15): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
 
 ### Community 128 - "Community 128"
-Cohesion: 0.19
-Nodes (17): @pragma, dart:io, _PluginRegistrant, register, _PluginRegistrant, register, package:flutter_secure_storage_windows/flutter_secure_storage_windows.dart, package:path_provider_android/path_provider_android.dart (+9 more)
+Cohesion: 0.11
+Nodes (23): @pragma, dart:io, _PluginRegistrant, register, _PluginRegistrant, register, content, file (+15 more)
 
 ### Community 129 - "Community 129"
 Cohesion: 0.07
@@ -1809,8 +1787,8 @@ Cohesion: 0.06
 Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 132 - "Community 132"
-Cohesion: 0.20
-Nodes (10): lib/net8.0/_._, related, related, compile, build, compile, runtime, type (+2 more)
+Cohesion: 0.12
+Nodes (17): build/net8.0/Microsoft.EntityFrameworkCore.Design.props, lib/net8.0/_._, related, related, related, build, compile, runtime (+9 more)
 
 ### Community 133 - "Community 133"
 Cohesion: 0.40
@@ -1818,15 +1796,15 @@ Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/
 
 ### Community 134 - "Community 134"
 Cohesion: 0.06
-Nodes (33): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+25 more)
+Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 135 - "Community 135"
 Cohesion: 0.06
 Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 136 - "Community 136"
-Cohesion: 0.07
-Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
+Cohesion: 0.06
+Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 137 - "Community 137"
 Cohesion: 0.07
@@ -1841,12 +1819,12 @@ Cohesion: 0.07
 Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
 
 ### Community 140 - "Community 140"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.07
+Nodes (27): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+19 more)
 
 ### Community 141 - "Community 141"
-Cohesion: 0.07
-Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
+Cohesion: 0.06
+Nodes (32): locale, locale, locale, locale, locale, locale, locale, assemblyVersion (+24 more)
 
 ### Community 142 - "Community 142"
 Cohesion: 0.06
@@ -1857,8 +1835,8 @@ Cohesion: 0.07
 Nodes (27): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+19 more)
 
 ### Community 144 - "Community 144"
-Cohesion: 0.07
-Nodes (27): locale, locale, locale, locale, locale, locale, locale, locale (+19 more)
+Cohesion: 0.06
+Nodes (33): locale, locale, locale, locale, locale, locale, locale, related (+25 more)
 
 ### Community 145 - "Community 145"
 Cohesion: 0.07
@@ -1877,16 +1855,16 @@ Cohesion: 0.10
 Nodes (19): ABC, bytes, BaseParser, ParseResult, Base parser ABC and data classes for code intelligence., Extract symbols and references from tree-sitter AST.          Subclasses imple, Get text content of a tree-sitter node., A code symbol (function, class, method, interface, etc.). (+11 more)
 
 ### Community 149 - "Community 149"
-Cohesion: 0.13
-Nodes (18): AppSyncBloc, _onLoadAppSyncTime, _onUpdateAppSyncTime, _syncKey, AppSyncEvent, lastSyncTime, LoadAppSyncTimeEvent, props (+10 more)
+Cohesion: 0.22
+Nodes (13): _escape_toml_string(), Register CogniLayer MCP server in Codex CLI config.toml., Escape special characters for TOML string value., Serialize a Python value to TOML format., Serialize a TOML key/section part, quoting paths and other non-bare keys., Write a dict to TOML file, preserving section structure., Add CogniLayer MCP server to ~/.codex/config.toml., register() (+5 more)
 
 ### Community 150 - "Community 150"
-Cohesion: 0.05
-Nodes (45): buildTransitive/net8.0/_._, lib/net9.0/_._, System.Security.Cryptography.ProtectedData, related, related, related, related, related (+37 more)
+Cohesion: 0.06
+Nodes (36): buildTransitive/net8.0/_._, lib/net9.0/_._, related, related, related, related, lib/net9.0/Microsoft.Extensions.Caching.Abstractions.dll, lib/net9.0/Microsoft.Extensions.Caching.Memory.dll (+28 more)
 
 ### Community 151 - "Community 151"
-Cohesion: 0.14
-Nodes (15): Microsoft.EntityFrameworkCore.Abstractions, Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
+Cohesion: 0.15
+Nodes (14): Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
 
 ### Community 152 - "Community 152"
 Cohesion: 0.26
@@ -1909,60 +1887,60 @@ Cohesion: 0.08
 Nodes (25): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, Jwt (+17 more)
 
 ### Community 157 - "Community 157"
-Cohesion: 0.27
-Nodes (11): Path, str, _auto_detect_identity(), _build_emergency_bridge(), _check_crash_recovery(), project_context(), project_context — Return Project DNA and current context.  Includes lazy crash, Auto-detect tech stack from project files (lazy — runs once per project). (+3 more)
+Cohesion: 0.13
+Nodes (23): Path, str, _auto_detect_identity(), _build_emergency_bridge(), _check_crash_recovery(), project_context(), project_context — Return Project DNA and current context.  Includes lazy crash, Auto-detect tech stack from project files (lazy — runs once per project). (+15 more)
 
 ### Community 158 - "Community 158"
 Cohesion: 0.10
 Nodes (12): bool, str, _is_not_found(), code_search must return only symbols from the active project., code_context must return only references within the active project., Check if result indicates the symbol was NOT found.      Handles Czech i18n me, Callers of process_data should only come from same project., code_impact BFS must never traverse into another project's graph. (+4 more)
 
 ### Community 159 - "Community 159"
-Cohesion: 0.03
-Nodes (59): ../../../../core/config/api_config.dart, ../../../core/secure_storage_service.dart, ../../../../core/widgets/industrial_module_layout.dart, dart:async, ../models/app_settings.dart, package:enterprise_auth_mobile/core/error/api_error_handler.dart, package:enterprise_auth_mobile/features/logistics/data/repositories/local_repository.dart, package:http/http.dart (+51 more)
+Cohesion: 0.05
+Nodes (43): AppSyncBloc, _onLoadAppSyncTime, _onUpdateAppSyncTime, _syncKey, AppSyncEvent, lastSyncTime, LoadAppSyncTimeEvent, props (+35 more)
 
 ### Community 160 - "Community 160"
-Cohesion: 0.11
-Nodes (17): packageFolders, C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages, C:\\Users\\Aniket\\.nuget\\packages\\, project, restore, version, projectFileDependencyGroups, net10.0 (+9 more)
+Cohesion: 0.13
+Nodes (15): project, restore, version, fallbackFolders, outputPath, packagesPath, projectName, projectPath (+7 more)
 
 ### Community 161 - "Community 161"
-Cohesion: 0.09
-Nodes (23): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+15 more)
+Cohesion: 0.08
+Nodes (26): runtime, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+18 more)
 
 ### Community 162 - "Community 162"
-Cohesion: 0.08
-Nodes (31): System.Composition.AttributedModel, System.Composition.Convention, System.Composition.Hosting, System.Composition.Runtime, System.Composition.TypedParts, System.Composition/6.0.0, dependencies, dependencies (+23 more)
+Cohesion: 0.09
+Nodes (24): System.Composition.AttributedModel, System.Composition.Convention, System.Composition.Hosting, System.Composition.Runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+16 more)
 
 ### Community 163 - "Community 163"
 Cohesion: 0.24
 Nodes (12): BaseParser, bytes, ParseResult, PythonParser, Handle decorated definitions — extract decorator refs then process the definitio, Handle `import X` statements., Handle `from X import Y` statements., Recursively walk AST nodes. (+4 more)
 
 ### Community 164 - "Community 164"
-Cohesion: 0.07
-Nodes (27): frameworks, restore, version, format, projects, C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\CheckRecords.csproj, restore, C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\.gemini\\antigravity\\brain\\ec2b8b19-06db-4123-b12a-06ca5cfd9457\\scratch\\CheckRecords\\CheckRecords.csproj (+19 more)
+Cohesion: 0.10
+Nodes (20): restore, originalTargetFrameworks, outputPath, packagesPath, projectName, projectPath, projectStyle, projectUniqueName (+12 more)
 
 ### Community 165 - "Community 165"
 Cohesion: 0.09
 Nodes (23): frameworks, version, frameworks, version, format, Microsoft.AspNetCore.App, Microsoft.NETCore.App, net8.0 (+15 more)
 
 ### Community 166 - "Community 166"
-Cohesion: 0.27
-Nodes (10): str, Tests for MCP server tool registration., Every visible tool should have a non-empty description., Every visible tool should have an input schema., _set_multi_agent_mode(), test_core_toolset_registered_when_multi_agent_off(), test_project_override_enables_safe_toolset_without_global_change(), test_safe_multi_agent_toolset_registered_when_enabled() (+2 more)
+Cohesion: 0.13
+Nodes (21): asyncio, str, Tests for MCP server tool registration., Every visible tool should have a non-empty description., Every visible tool should have an input schema., _set_multi_agent_mode(), test_core_toolset_registered_when_multi_agent_off(), test_project_override_enables_safe_toolset_without_global_change() (+13 more)
 
 ### Community 167 - "Community 167"
-Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
+Cohesion: 0.29
+Nodes (13): _alias_name(), _best_match(), _best_module_match(), _module_match_score(), Reference resolver - links references to concrete symbols with confidence scorin, Pick best symbol match based on reference kind., Resolve unlinked references to symbols.      Matches code_references.to_name a, resolve_references() (+5 more)
 
 ### Community 168 - "Community 168"
 Cohesion: 0.09
 Nodes (22): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, EodSettings (+14 more)
 
 ### Community 169 - "Community 169"
-Cohesion: 0.09
-Nodes (23): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+15 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
 ### Community 170 - "Community 170"
-Cohesion: 0.05
-Nodes (14): bool, str, _is_not_found(), project_with_code(), Integration tests for code intelligence MCP tools., Create a project with sample Python files and register it., Test that references get resolved to symbols., Relative imports should resolve to the symbol from the referenced module. (+6 more)
+Cohesion: 0.13
+Nodes (5): bool, str, _is_not_found(), TestCodeIndex, TestCodeSearch
 
 ### Community 171 - "Community 171"
 Cohesion: 0.23
@@ -1973,8 +1951,8 @@ Cohesion: 0.10
 Nodes (14): open_test_db(), Sessions table should have claude_session_id column., idx_sessions_claude_sid index should exist., upgrade_schema() should add claude_session_id to existing DB., cleanup should remove per-session files for sessions closed in DB., create_session() should INSERT claude_session_id., create_session() should work without claude_session_id (backward compat)., Crash recovery should skip sessions whose per-session file exists. (+6 more)
 
 ### Community 173 - "Community 173"
-Cohesion: 0.29
-Nodes (7): Microsoft.EntityFrameworkCore, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.Relational/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Relational.dll
+Cohesion: 0.10
+Nodes (20): Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
 
 ### Community 174 - "Community 174"
 Cohesion: 0.09
@@ -1989,8 +1967,8 @@ Cohesion: 0.09
 Nodes (21): AllowedHosts, DatabaseSource, Jwt, Audience, ExpiryMinutes, Issuer, Key, SlidingExpiration (+13 more)
 
 ### Community 177 - "Community 177"
-Cohesion: 0.10
-Nodes (21): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
+Cohesion: 0.13
+Nodes (15): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
 
 ### Community 178 - "Community 178"
 Cohesion: 0.13
@@ -1998,19 +1976,19 @@ Nodes (17): ApplicationDbContext, DeviceSyncLogDto, IEnumerable, ILogisticsRepos
 
 ### Community 179 - "Community 179"
 Cohesion: 0.14
-Nodes (14): Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Nodes (14): Microsoft.EntityFrameworkCore, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
 
 ### Community 180 - "Community 180"
-Cohesion: 0.13
-Nodes (16): dependencies, runtime, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, assemblyVersion, fileVersion (+8 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 181 - "Community 181"
 Cohesion: 0.10
 Nodes (21): Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
 
 ### Community 182 - "Community 182"
-Cohesion: 0.10
-Nodes (20): AppBarcodeScanner, _AppBarcodeScannerState, autoStart, build, createState, dispose, _handleScan, height (+12 more)
+Cohesion: 0.06
+Nodes (34): AppBarcodeScanner, _AppBarcodeScannerState, autoStart, build, createState, dispose, _handleScan, height (+26 more)
 
 ### Community 183 - "Community 183"
 Cohesion: 0.17
@@ -2029,44 +2007,44 @@ Cohesion: 0.20
 Nodes (9): compilationOptions, serviceable, sha512, type, libraries, dbtest/1.0.0, runtimeTarget, name (+1 more)
 
 ### Community 187 - "Community 187"
-Cohesion: 0.18
-Nodes (12): Humanizer.Core, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, System.Composition, assemblyVersion, fileVersion, dependencies, runtime (+4 more)
+Cohesion: 0.15
+Nodes (12): AppTheme, _buildTheme, darkBackground, darkSurface, darkTheme, lightBackground, lightSurface, lightTheme (+4 more)
 
 ### Community 188 - "Community 188"
 Cohesion: 0.09
 Nodes (21): AllowedHosts, DatabaseSource, Jwt, Audience, ExpiryMinutes, Issuer, Key, SlidingExpiration (+13 more)
 
 ### Community 189 - "Community 189"
-Cohesion: 0.14
-Nodes (14): Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Cohesion: 0.10
+Nodes (21): Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
 
 ### Community 190 - "Community 190"
-Cohesion: 0.11
-Nodes (19): Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Logging.Abstractions, Microsoft.IdentityModel.Logging, microsoft_extensions_logging_abstractions, Microsoft.Extensions.Logging.Abstractions, assemblyVersion, fileVersion, System.ClientModel/1.8.0 (+11 more)
+Cohesion: 0.07
+Nodes (29): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options, Microsoft.Extensions.Primitives, assemblyVersion, fileVersion, assemblyVersion (+21 more)
 
 ### Community 191 - "Community 191"
 Cohesion: 0.10
-Nodes (22): Microsoft.IdentityModel.Abstractions, microsoft_identitymodel_abstractions, Microsoft.IdentityModel.Abstractions, Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, dependencies, dependencies (+14 more)
+Nodes (21): Microsoft.IdentityModel.Abstractions, microsoft_identitymodel_abstractions, Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Logging/8.16.0 (+13 more)
 
 ### Community 192 - "Community 192"
-Cohesion: 0.10
-Nodes (21): Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
+Cohesion: 0.09
+Nodes (23): Npgsql, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+15 more)
 
 ### Community 193 - "Community 193"
 Cohesion: 0.10
 Nodes (19): net8.0, net8.0, Microsoft.NET.Sdk, AutoMapper (12.0.1), BCrypt.Net-Next (4.0.3), coverlet.collector (6.0.0), Dapper (2.1.66), Microsoft.AspNetCore.Authentication.JwtBearer (8.0.0) (+11 more)
 
 ### Community 194 - "Community 194"
-Cohesion: 0.13
-Nodes (17): lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll, related, compile, frameworkReferences, runtime, type, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll (+9 more)
+Cohesion: 0.10
+Nodes (21): lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll, Microsoft.IdentityModel.Protocols.OpenIdConnect, related, compile, dependencies, frameworkReferences, runtime, type (+13 more)
 
 ### Community 195 - "Community 195"
 Cohesion: 0.10
 Nodes (20): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, Logging (+12 more)
 
 ### Community 196 - "Community 196"
-Cohesion: 0.10
-Nodes (21): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+13 more)
+Cohesion: 0.09
+Nodes (22): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+14 more)
 
 ### Community 197 - "Community 197"
 Cohesion: 0.10
@@ -2113,24 +2091,24 @@ Cohesion: 0.10
 Nodes (20): centerStrength, close, collapse-color-groups, collapse-display, collapse-filter, collapse-forces, colorGroups, hideUnresolved (+12 more)
 
 ### Community 208 - "Community 208"
-Cohesion: 0.14
-Nodes (14): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Cohesion: 0.09
+Nodes (23): Microsoft.IdentityModel.Logging, microsoft_identitymodel_logging, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion (+15 more)
 
 ### Community 209 - "Community 209"
-Cohesion: 0.10
-Nodes (18): AudioService, dispose, _errorPlayer, _initialize, _instance, playError, playSuccess, _successPlayer (+10 more)
+Cohesion: 0.15
+Nodes (12): AudioService, dispose, _errorPlayer, _initialize, _instance, playError, playSuccess, _successPlayer (+4 more)
 
 ### Community 210 - "Community 210"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.15
+Nodes (13): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 211 - "Community 211"
 Cohesion: 0.19
-Nodes (20): files, files, files, files, ref_dotnet_png, ref_lib_net46_microsoft_sqlserver_server_dll, ref_lib_net46_microsoft_sqlserver_server_pdb, ref_lib_net46_microsoft_sqlserver_server_xml (+12 more)
+Nodes (19): files, files, files, files, ref_dotnet_png, ref_lib_net46_microsoft_sqlserver_server_dll, ref_lib_net46_microsoft_sqlserver_server_pdb, ref_lib_net46_microsoft_sqlserver_server_xml (+11 more)
 
 ### Community 212 - "Community 212"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.15
+Nodes (13): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 213 - "Community 213"
 Cohesion: 0.10
@@ -2141,8 +2119,8 @@ Cohesion: 0.10
 Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
 
 ### Community 215 - "Community 215"
-Cohesion: 0.15
-Nodes (13): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
+Cohesion: 0.10
+Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
 
 ### Community 216 - "Community 216"
 Cohesion: 0.08
@@ -2153,8 +2131,8 @@ Cohesion: 0.10
 Nodes (20): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
 
 ### Community 218 - "Community 218"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.14
+Nodes (14): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
 
 ### Community 219 - "Community 219"
 Cohesion: 0.10
@@ -2181,28 +2159,28 @@ Cohesion: 0.12
 Nodes (19): compile, dependencies, runtime, type, lib/netstandard2.1/AutoMapper.dll, Microsoft.CSharp, related, AutoMapper/12.0.1 (+11 more)
 
 ### Community 225 - "Community 225"
-Cohesion: 0.14
-Nodes (14): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, EnterpriseAuth.Api/1.0.0, Microsoft.EntityFrameworkCore.Abstractions/8.0.0 (+6 more)
+Cohesion: 0.11
+Nodes (19): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime (+11 more)
 
 ### Community 226 - "Community 226"
 Cohesion: 0.11
 Nodes (18): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, Jwt (+10 more)
 
 ### Community 227 - "Community 227"
-Cohesion: 0.09
-Nodes (26): lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll, lib/net8.0/Microsoft.IdentityModel.Protocols.dll, lib/net8.0/Microsoft.IdentityModel.Tokens.dll, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, related, related, related (+18 more)
+Cohesion: 0.13
+Nodes (17): lib/net8.0/Microsoft.IdentityModel.Protocols.dll, lib/net8.0/Microsoft.IdentityModel.Tokens.dll, Microsoft.IdentityModel.Logging, related, related, lib/net8.0/Microsoft.IdentityModel.Protocols.dll, lib/net8.0/Microsoft.IdentityModel.Tokens.dll, compile (+9 more)
 
 ### Community 228 - "Community 228"
-Cohesion: 0.11
-Nodes (18): ../../bloc/manufacturing_bloc.dart, ../../bloc/manufacturing_state.dart, ./end_of_day_screen.dart, IconData?, package:enterprise_auth_mobile/features/logistics/presentation/pages/production_tracking_product_list_screen.dart, package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart, build, _buildMenuCard (+10 more)
+Cohesion: 0.17
+Nodes (13): dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, System.Security.Permissions, assemblyVersion, fileVersion (+5 more)
 
 ### Community 229 - "Community 229"
 Cohesion: 0.11
 Nodes (18): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, Jwt (+10 more)
 
 ### Community 230 - "Community 230"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.DependencyInjection/10.0.4, lib/net10.0/Microsoft.Extensions.DependencyInjection.dll
+Cohesion: 0.15
+Nodes (13): Microsoft.Extensions.DependencyInjection.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 231 - "Community 231"
 Cohesion: 0.40
@@ -2213,8 +2191,8 @@ Cohesion: 0.18
 Nodes (19): files, files, ref_buildtransitive_net461_microsoft_extensions_dependencyinjection_abstractions_targets, ref_buildtransitive_netcoreapp2_0_microsoft_extensions_dependencyinjection_abstractions_targets, ref_lib_net10_0_microsoft_extensions_dependencyinjection_abstractions_dll, ref_lib_net10_0_microsoft_extensions_dependencyinjection_abstractions_xml, ref_lib_net462_microsoft_extensions_dependencyinjection_abstractions_dll, ref_lib_net462_microsoft_extensions_dependencyinjection_abstractions_xml (+11 more)
 
 ### Community 233 - "Community 233"
-Cohesion: 0.18
-Nodes (19): files, files, ref_lib_net10_0_microsoft_identitymodel_abstractions_dll, ref_lib_net10_0_microsoft_identitymodel_abstractions_xml, ref_lib_net462_microsoft_identitymodel_abstractions_dll, ref_lib_net462_microsoft_identitymodel_abstractions_xml, ref_lib_net472_microsoft_identitymodel_abstractions_dll, ref_lib_net472_microsoft_identitymodel_abstractions_xml (+11 more)
+Cohesion: 0.21
+Nodes (6): Authorize, BulkStatusUpdateDto, HttpPost, List, ProductionScanDto, ScanDto
 
 ### Community 234 - "Community 234"
 Cohesion: 0.11
@@ -2277,12 +2255,12 @@ Cohesion: 0.11
 Nodes (18): runtimeTargets, Microsoft.Data.SqlClient.SNI.runtime/5.1.0, assetType, fileVersion, rid, assetType, fileVersion, rid (+10 more)
 
 ### Community 249 - "Community 249"
-Cohesion: 0.09
-Nodes (25): buildTransitive/net6.0/_._, lib/net8.0/Microsoft.Extensions.Caching.Abstractions.dll, lib/net8.0/Microsoft.Extensions.Logging.dll, lib/net8.0/Microsoft.Extensions.Primitives.dll, related, related, related, build (+17 more)
+Cohesion: 0.13
+Nodes (17): buildTransitive/net6.0/_._, lib/net8.0/Microsoft.Extensions.Caching.Abstractions.dll, lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, related, build, compile, runtime (+9 more)
 
 ### Community 250 - "Community 250"
-Cohesion: 0.08
-Nodes (39): build_emergency_bridge(), build_episode(), cleanup_old_sessions(), log_session_end(), main(), open_db(), CogniLayer SessionEnd hook — runs when Claude Code session ends., Remove per-session files for sessions already closed in DB. (+31 more)
+Cohesion: 0.09
+Nodes (32): build_emergency_bridge(), build_episode(), cleanup_old_sessions(), log_session_end(), main(), open_db(), CogniLayer SessionEnd hook — runs when Claude Code session ends., Remove per-session files for sessions already closed in DB. (+24 more)
 
 ### Community 251 - "Community 251"
 Cohesion: 0.11
@@ -2345,16 +2323,16 @@ Cohesion: 0.12
 Nodes (17): related, lib/net9.0/System.Diagnostics.EventLog.dll, assetType, rid, assetType, rid, runtimes/win/lib/net9.0/System.Diagnostics.EventLog.dll, runtimes/win/lib/net9.0/System.Diagnostics.EventLog.Messages.dll (+9 more)
 
 ### Community 266 - "Community 266"
-Cohesion: 0.08
-Nodes (26): compile, runtime, type, lib/net5.0/Azure.Core.dll, lib/netstandard2.0/_._, ref/netcoreapp2.0/_._, related, compile (+18 more)
+Cohesion: 0.12
+Nodes (15): lib/netstandard2.0/_._, type, compile, runtime, type, Microsoft.Data.SqlClient.SNI.runtime/5.1.0, Microsoft.EntityFrameworkCore.Analyzers/8.0.0, lib/netstandard2.0/_._ (+7 more)
 
 ### Community 267 - "Community 267"
 Cohesion: 0.13
 Nodes (17): lib/net8.0/Microsoft.IdentityModel.Logging.dll, Microsoft.IdentityModel.Abstractions, related, lib/net8.0/Microsoft.IdentityModel.Logging.dll, lib/netcoreapp2.1/Microsoft.Identity.Client.dll, related, compile, dependencies (+9 more)
 
 ### Community 268 - "Community 268"
-Cohesion: 0.16
-Nodes (17): bool, int, str, _compute_tiers(), consolidate(), _detect_contradictions(), _find_clusters(), consolidate.py — Memory consolidation for CogniLayer.  Clusters related facts, (+9 more)
+Cohesion: 0.20
+Nodes (16): bool, int, str, _compute_tiers(), consolidate(), _detect_contradictions(), _find_clusters(), consolidate.py — Memory consolidation for CogniLayer.  Clusters related facts, (+8 more)
 
 ### Community 269 - "Community 269"
 Cohesion: 0.19
@@ -2373,8 +2351,8 @@ Cohesion: 0.12
 Nodes (17): related, lib/net9.0/System.Diagnostics.EventLog.dll, assetType, rid, assetType, rid, runtimes/win/lib/net9.0/System.Diagnostics.EventLog.dll, runtimes/win/lib/net9.0/System.Diagnostics.EventLog.Messages.dll (+9 more)
 
 ### Community 273 - "Community 273"
-Cohesion: 0.13
-Nodes (15): Microsoft.EntityFrameworkCore.Abstractions, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.dll, microsoft_entityframeworkcore_abstractions (+7 more)
+Cohesion: 0.29
+Nodes (7): Microsoft.EntityFrameworkCore.Abstractions, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.dll
 
 ### Community 274 - "Community 274"
 Cohesion: 0.12
@@ -2389,8 +2367,8 @@ Cohesion: 0.12
 Nodes (16): assemblyVersion, fileVersion, runtime, runtimeTargets, Microsoft.Data.SqlClient/5.1.1, lib/net6.0/Microsoft.Data.SqlClient.dll, assemblyVersion, assetType (+8 more)
 
 ### Community 277 - "Community 277"
-Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
+Cohesion: 0.13
+Nodes (16): dependencies, runtime, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, assemblyVersion, fileVersion (+8 more)
 
 ### Community 278 - "Community 278"
 Cohesion: 0.12
@@ -2405,8 +2383,8 @@ Cohesion: 0.12
 Nodes (16): assemblyVersion, fileVersion, runtime, runtimeTargets, Microsoft.Data.SqlClient/5.1.1, lib/net6.0/Microsoft.Data.SqlClient.dll, assemblyVersion, assetType (+8 more)
 
 ### Community 281 - "Community 281"
-Cohesion: 0.09
-Nodes (21): compilationOptions, libraries, Microsoft.Build.Locator/1.10.2, Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost/5.0.0-2.25567.12, System.Collections.Immutable/9.0.0, hashPath, path, serviceable (+13 more)
+Cohesion: 0.12
+Nodes (15): compilationOptions, libraries, Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost/5.0.0-2.25567.12, Newtonsoft.Json/13.0.3, serviceable, sha512, type, hashPath (+7 more)
 
 ### Community 282 - "Community 282"
 Cohesion: 0.21
@@ -2489,32 +2467,32 @@ Cohesion: 0.18
 Nodes (13): audioplayersdarwinplugin, fluttersecurestorageplugin, fppdeviceinfoplusplugin, GeneratedPluginRegistrant, -registerWithRegistry, generatedpluginregistrant, GeneratedPluginRegistrant, -registerWithRegistry (+5 more)
 
 ### Community 302 - "Community 302"
-Cohesion: 0.13
-Nodes (15): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
+Cohesion: 0.25
+Nodes (8): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
 
 ### Community 303 - "Community 303"
-Cohesion: 0.03
-Nodes (80): buildTransitive/net8.0/Microsoft.Extensions.Options.targets, lib/net8.0/Microsoft.IdentityModel.Tokens.dll, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll, related, related, related, libraries, Microsoft.Data.SqlClient.SNI.runtime/6.0.2 (+72 more)
+Cohesion: 0.17
+Nodes (12): runtimeTargets, type, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, assetType, rid, assetType, rid, assetType (+4 more)
 
 ### Community 304 - "Community 304"
-Cohesion: 0.13
-Nodes (15): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, Microsoft.Extensions.DependencyModel, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+7 more)
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
 
 ### Community 305 - "Community 305"
 Cohesion: 0.13
 Nodes (15): ref/net6.0/Microsoft.Data.SqlClient.dll, related, compile, runtime, runtimeTargets, type, Microsoft.Data.SqlClient/5.1.1, related (+7 more)
 
 ### Community 306 - "Community 306"
-Cohesion: 0.13
-Nodes (15): runtimeTargets, type, Microsoft.Data.SqlClient.SNI.runtime/5.1.0, assetType, rid, assetType, rid, assetType (+7 more)
+Cohesion: 0.15
+Nodes (13): runtimeTargets, assetType, rid, assetType, rid, assetType, rid, assetType (+5 more)
 
 ### Community 307 - "Community 307"
 Cohesion: 0.13
 Nodes (15): ref/net6.0/Microsoft.Data.SqlClient.dll, related, compile, runtime, runtimeTargets, type, Microsoft.Data.SqlClient/5.1.1, related (+7 more)
 
 ### Community 308 - "Community 308"
-Cohesion: 0.13
-Nodes (15): assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost/5.0.0-2.25567.12, Newtonsoft.Json/13.0.3, System.CommandLine/2.0.0-rtm.25509.106 (+7 more)
+Cohesion: 0.17
+Nodes (12): assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, Microsoft.Build.Locator/1.10.2, Newtonsoft.Json/13.0.3, runtime (+4 more)
 
 ### Community 309 - "Community 309"
 Cohesion: 0.13
@@ -2525,8 +2503,8 @@ Cohesion: 0.13
 Nodes (5): bool, str, _is_not_found(), TestCodeIndex, TestCodeSearch
 
 ### Community 311 - "Community 311"
-Cohesion: 0.03
-Nodes (46): active_session(), Shared test fixtures for CogniLayer tests., Create a temporary database for testing.      Patches db.DB_PATH and COGNILAYE, Create a fake active session for tests.      Patches get_active_session() to r, temp_db(), Tests for multi-project code graph isolation.  Verifies that code_search, code, Direct DB queries to verify data is correctly tagged per project., Create two projects with overlapping symbol names in a shared DB.      project (+38 more)
+Cohesion: 0.02
+Nodes (54): active_session(), Shared test fixtures for CogniLayer tests., Create a temporary database for testing.      Patches db.DB_PATH and COGNILAYE, Create a fake active session for tests.      Patches get_active_session() to r, temp_db(), Tests for multi-project code graph isolation.  Verifies that code_search, code, Direct DB queries to verify data is correctly tagged per project., Create two projects with overlapping symbol names in a shared DB.      project (+46 more)
 
 ### Community 312 - "Community 312"
 Cohesion: 0.18
@@ -2537,16 +2515,16 @@ Cohesion: 0.15
 Nodes (14): lib/net9.0/System.Security.Cryptography.Pkcs.dll, related, lib/net9.0/System.Security.Cryptography.Pkcs.dll, assetType, rid, runtimes/win/lib/net9.0/System.Security.Cryptography.Pkcs.dll, System.Security.Cryptography.Pkcs/9.0.13, System.Security.Cryptography.Pkcs/9.0.13 (+6 more)
 
 ### Community 314 - "Community 314"
-Cohesion: 0.20
-Nodes (10): runtimeTargets, assetType, rid, assetType, rid, assetType, rid, runtimes/win-arm64/native/Microsoft.Data.SqlClient.SNI.dll (+2 more)
+Cohesion: 0.13
+Nodes (15): Microsoft.Data.SqlClient.SNI.runtime/6.0.2, path, runtimeTargets, sha512, type, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, assetType, rid (+7 more)
 
 ### Community 315 - "Community 315"
 Cohesion: 0.09
 Nodes (22): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Relational, Npgsql, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+14 more)
 
 ### Community 316 - "Community 316"
-Cohesion: 0.23
-Nodes (15): files, files, ref_buildtransitive_net461_system_configuration_configurationmanager_targets, ref_buildtransitive_netcoreapp2_0_system_configuration_configurationmanager_targets, ref_lib_net462_system_configuration_configurationmanager_dll, ref_lib_net462_system_configuration_configurationmanager_xml, ref_lib_net8_0_system_configuration_configurationmanager_dll, ref_lib_net8_0_system_configuration_configurationmanager_xml (+7 more)
+Cohesion: 0.21
+Nodes (11): bool, Connection, float, str, code_index(), _ensure_fts(), _ensure_tables(), MCP tool: code_index — index project source code for code intelligence. (+3 more)
 
 ### Community 317 - "Community 317"
 Cohesion: 0.14
@@ -2573,24 +2551,24 @@ Cohesion: 0.14
 Nodes (15): lib/net9.0/System.Security.Cryptography.Pkcs.dll, related, lib/net9.0/System.Security.Cryptography.Pkcs.dll, assetType, rid, runtimes/win/lib/net9.0/System.Security.Cryptography.Pkcs.dll, System.Security.Cryptography.Pkcs/9.0.11, System.Security.Cryptography.Pkcs/9.0.11 (+7 more)
 
 ### Community 323 - "Community 323"
-Cohesion: 0.22
-Nodes (11): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, dependencies, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, microsoft_identitymodel_protocols, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt (+3 more)
+Cohesion: 0.18
+Nodes (14): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, dependencies, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, Microsoft.IdentityModel.Protocols (+6 more)
 
 ### Community 324 - "Community 324"
 Cohesion: 0.20
 Nodes (11): lib/net10.0/Microsoft.IdentityModel.JsonWebTokens.dll, related, Microsoft.IdentityModel.JsonWebTokens/8.16.0, compile, dependencies, path, runtime, sha512 (+3 more)
 
 ### Community 325 - "Community 325"
-Cohesion: 0.09
-Nodes (25): dependencies, runtime, Humanizer.Core, Microsoft.Bcl.AsyncInterfaces, System.Composition, System.Memory.Data, assemblyVersion, fileVersion (+17 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 326 - "Community 326"
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 327 - "Community 327"
-Cohesion: 0.14
-Nodes (14): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Cohesion: 0.17
+Nodes (11): packageFolders, C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages, C:\\Users\\Aniket\\.nuget\\packages\\, project, version, projectFileDependencyGroups, net10.0, targets (+3 more)
 
 ### Community 328 - "Community 328"
 Cohesion: 0.27
@@ -2609,16 +2587,16 @@ Cohesion: 0.25
 Nodes (13): bool, get_agents_md_template(), get_language(), inject_agents_md(), _is_multi_agent_enabled_for_project(), main(), Generate AGENTS.md with CogniLayer instructions for Codex CLI.  Codex has no h, Build the static CogniLayer block for AGENTS.md. (+5 more)
 
 ### Community 332 - "Community 332"
-Cohesion: 0.11
-Nodes (20): SalesOrder, Equatable, canCreate, canDelete, canRead, canUpdate, copyWith, email (+12 more)
+Cohesion: 0.18
+Nodes (11): buildTransitive/net8.0/Microsoft.Extensions.Options.targets, related, lib/net9.0/Microsoft.Extensions.Options.dll, Microsoft.Extensions.Options/9.0.11, build, compile, path, runtime (+3 more)
 
 ### Community 333 - "Community 333"
-Cohesion: 0.20
-Nodes (13): int, str, _auto_index_hint(), code_search(), _kind_icon(), MCP tool: code_search — fulltext search for symbols (FTS5 + LIKE fallback)., Fallback LIKE search., Return hint to run code_index first, or tree-sitter install hint. (+5 more)
+Cohesion: 0.03
+Nodes (73): str, code_context(), MCP tool: code_context — 360-degree view of a symbol., Get full context for a symbol: definition, callers, callees, references., find_symbol(), has_index(), Shared helpers for code intelligence tools (code_context, code_impact, code_sear, Check if project has any indexed files. (+65 more)
 
 ### Community 334 - "Community 334"
-Cohesion: 0.50
-Nodes (4): str, Initialize a CogniLayer session and return full context., session_init(), t()
+Cohesion: 0.20
+Nodes (11): lib/net8.0/Microsoft.IdentityModel.Tokens.dll, related, lib/net8.0/Microsoft.IdentityModel.Tokens.dll, Microsoft.IdentityModel.Tokens/7.7.1, compile, dependencies, path, runtime (+3 more)
 
 ### Community 335 - "Community 335"
 Cohesion: 0.25
@@ -2629,12 +2607,12 @@ Cohesion: 0.22
 Nodes (13): _escape_toml_string(), Register CogniLayer MCP server in Codex CLI config.toml., Escape special characters for TOML string value., Serialize a Python value to TOML format., Serialize a TOML key/section part, quoting paths and other non-bare keys., Write a dict to TOML file, preserving section structure., Add CogniLayer MCP server to ~/.codex/config.toml., register() (+5 more)
 
 ### Community 337 - "Community 337"
-Cohesion: 0.18
-Nodes (12): int, str, _auto_index_hint(), code_search(), _kind_icon(), Fallback LIKE search., Return hint to run code_index first, or tree-sitter install hint., Map symbol kind to icon. (+4 more)
+Cohesion: 0.29
+Nodes (10): float, _check_context_and_save(), _get_context_percentage(), main(), CogniLayer PostToolUse hook — logs file changes + context monitoring.  Must be, Check context usage and save proactive bridge at thresholds.      Uses a state, Read context usage % from transcript JSONL. Fast: reads only last ~8KB.      R, Save proactive bridge when context is getting full. (+2 more)
 
 ### Community 338 - "Community 338"
-Cohesion: 0.14
-Nodes (13): deleteAll, getSchema, getToken, getUsername, saveSchema, saveToken, saveUsername, _schemaKey (+5 more)
+Cohesion: 0.20
+Nodes (11): lib/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, Microsoft.Extensions.DependencyInjection.Abstractions/9.0.11, build, compile, path, runtime, sha512 (+3 more)
 
 ### Community 339 - "Community 339"
 Cohesion: 0.19
@@ -2645,8 +2623,8 @@ Cohesion: 0.24
 Nodes (14): HWND, LPARAM, LRESULT, UINT, WPARAM, RECT, OnCreate(), EnableFullDpiSupportIfAvailable() (+6 more)
 
 ### Community 341 - "Community 341"
-Cohesion: 0.08
-Nodes (25): Microsoft.Data.SqlClient, packageFolders, C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages, C:\\Users\\Aniket\\.nuget\\packages\\, project, version, projectFileDependencyGroups, net10.0 (+17 more)
+Cohesion: 0.14
+Nodes (14): Microsoft.Data.SqlClient, Microsoft.NETCore.App, net10.0, target, version, privateAssets, assetTargetFallback, dependencies (+6 more)
 
 ### Community 342 - "Community 342"
 Cohesion: 0.14
@@ -2661,32 +2639,32 @@ Cohesion: 0.14
 Nodes (14): runtimeTargets, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, assetType, fileVersion, rid, assetType, fileVersion, rid (+6 more)
 
 ### Community 345 - "Community 345"
-Cohesion: 0.18
-Nodes (14): ApplicationDbContext, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, IPasswordHasher (+6 more)
+Cohesion: 0.17
+Nodes (15): ApplicationDbContext, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, IPasswordHasher (+7 more)
 
 ### Community 346 - "Community 346"
-Cohesion: 0.06
-Nodes (32): System.Diagnostics.EventLog, System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData, System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData, assemblyVersion, fileVersion, System.Configuration.ConfigurationManager/9.0.13 (+24 more)
+Cohesion: 0.10
+Nodes (21): System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData, related, lib/net9.0/System.Configuration.ConfigurationManager.dll, System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData, System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData (+13 more)
 
 ### Community 347 - "Community 347"
 Cohesion: 0.14
 Nodes (14): runtimeTargets, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, assetType, fileVersion, rid, assetType, fileVersion, rid (+6 more)
 
 ### Community 348 - "Community 348"
-Cohesion: 0.14
-Nodes (14): Microsoft.Data.SqlClient, Microsoft.NETCore.App, net10.0, target, version, privateAssets, assetTargetFallback, dependencies (+6 more)
+Cohesion: 0.09
+Nodes (21): frameworks, version, Microsoft.Data.SqlClient, format, Microsoft.NETCore.App, net10.0, target, version (+13 more)
 
 ### Community 349 - "Community 349"
-Cohesion: 0.14
-Nodes (14): Microsoft.Data.SqlClient, Microsoft.NETCore.App, net10.0, target, version, privateAssets, assetTargetFallback, dependencies (+6 more)
+Cohesion: 0.09
+Nodes (21): frameworks, version, Microsoft.Data.SqlClient, format, Microsoft.NETCore.App, net10.0, target, version (+13 more)
 
 ### Community 350 - "Community 350"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
+Cohesion: 0.14
+Nodes (14): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, runtime, EnterpriseAuth.Api/1.0.0 (+6 more)
 
 ### Community 351 - "Community 351"
-Cohesion: 0.11
-Nodes (18): package:enterprise_auth_mobile/core/config/api_config.dart, _baseUrl, createRole, createUser, deleteRole, _dio, getGroups, getRoles (+10 more)
+Cohesion: 0.22
+Nodes (10): lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll, related, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll, Microsoft.Bcl.AsyncInterfaces/8.0.0, compile, path, runtime, sha512 (+2 more)
 
 ### Community 352 - "Community 352"
 Cohesion: 0.40
@@ -2713,28 +2691,28 @@ Cohesion: 0.15
 Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 358 - "Community 358"
-Cohesion: 0.25
-Nodes (8): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, dependencies, dependencies, runtime, Microsoft.IdentityModel.Logging/7.0.3, lib/net8.0/Microsoft.IdentityModel.Logging.dll
+Cohesion: 0.15
+Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 359 - "Community 359"
-Cohesion: 0.09
-Nodes (22): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+14 more)
+Cohesion: 0.10
+Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
 
 ### Community 360 - "Community 360"
-Cohesion: 0.18
-Nodes (11): assemblyVersion, fileVersion, System.Runtime.Caching/6.0.0, lib/net6.0/System.Runtime.Caching.dll, assemblyVersion, assetType, fileVersion, rid (+3 more)
+Cohesion: 0.06
+Nodes (32): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, assemblyVersion (+24 more)
 
 ### Community 361 - "Community 361"
-Cohesion: 0.21
-Nodes (10): IX3SchemaProvider, List, ScanProductionDbContext, string, SyncSettings, Task, Dictionary, IStagingService (+2 more)
+Cohesion: 0.17
+Nodes (12): DateTime, IX3SchemaProvider, List, ScanProductionDbContext, StagingReportDto, string, SyncSettings, Task (+4 more)
 
 ### Community 362 - "Community 362"
 Cohesion: 0.28
 Nodes (7): ApplicationDbContext, Guid, IEnumerable, Role, Task, IRoleRepository, EfRoleRepository
 
 ### Community 363 - "Community 363"
-Cohesion: 0.15
-Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
+Cohesion: 0.25
+Nodes (8): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, dependencies, dependencies, runtime, Microsoft.IdentityModel.Logging/7.0.3, lib/net8.0/Microsoft.IdentityModel.Logging.dll
 
 ### Community 364 - "Community 364"
 Cohesion: 0.10
@@ -2745,12 +2723,12 @@ Cohesion: 0.15
 Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 366 - "Community 366"
-Cohesion: 0.13
-Nodes (15): runtimeTargets, type, Microsoft.Data.SqlClient.SNI.runtime/5.1.0, assetType, rid, assetType, rid, assetType (+7 more)
+Cohesion: 0.15
+Nodes (13): runtimeTargets, assetType, rid, assetType, rid, assetType, rid, assetType (+5 more)
 
 ### Community 367 - "Community 367"
-Cohesion: 0.14
-Nodes (14): System.Reflection.Metadata, Microsoft.Build.Locator, System.Collections.Immutable, System.CommandLine, dependencies, microsoft_build_locator, microsoft_codeanalysis_analyzers, Microsoft.CodeAnalysis.Analyzers (+6 more)
+Cohesion: 0.12
+Nodes (17): System.Reflection.Metadata, System.Reflection.Metadata, System.Collections.Immutable, microsoft_codeanalysis_analyzers, NuGet.Frameworks, dependencies, Microsoft.TestPlatform.ObjectModel/17.8.0, nuget_frameworks (+9 more)
 
 ### Community 368 - "Community 368"
 Cohesion: 0.22
@@ -2761,16 +2739,16 @@ Cohesion: 0.15
 Nodes (11): handle_new_rx_page(), __lldb_init_module(), Intercept NOTIFY_DEBUGGER_ABOUT_RX_PAGES and touch the pages., SBDebugger, SBFrame, handle_new_rx_page(), __lldb_init_module(), Intercept NOTIFY_DEBUGGER_ABOUT_RX_PAGES and touch the pages. (+3 more)
 
 ### Community 370 - "Community 370"
-Cohesion: 0.18
-Nodes (12): buildTransitive/net8.0/Microsoft.Extensions.Logging.Abstractions.targets, lib/net10.0/Microsoft.Extensions.Logging.Abstractions.dll, related, Microsoft.Extensions.Logging.Abstractions/10.0.0, build, compile, path, runtime (+4 more)
+Cohesion: 0.17
+Nodes (13): buildTransitive/net8.0/Microsoft.Extensions.Logging.Abstractions.targets, lib/net10.0/Microsoft.Extensions.Logging.Abstractions.dll, related, Microsoft.Extensions.Logging.Abstractions/10.0.0, build, compile, dependencies, path (+5 more)
 
 ### Community 371 - "Community 371"
 Cohesion: 0.18
 Nodes (13): microsoft_codecoverage, microsoft_testplatform_testhost, Microsoft.CodeCoverage, Microsoft.TestPlatform.TestHost, dependencies, Microsoft.NET.Test.Sdk/17.14.1, Microsoft.CodeCoverage, Microsoft.TestPlatform.TestHost (+5 more)
 
 ### Community 372 - "Community 372"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 373 - "Community 373"
 Cohesion: 0.15
@@ -2785,8 +2763,8 @@ Cohesion: 0.15
 Nodes (12): Configuration, ConfigurationName, Extensions, LanguageVersion, Documents, FilePath, ProjectWorkspaceState, CSharpLanguageVersion (+4 more)
 
 ### Community 376 - "Community 376"
-Cohesion: 0.17
-Nodes (12): AutoMapper, Dapper, Microsoft.EntityFrameworkCore, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies, assemblyVersion, fileVersion (+4 more)
+Cohesion: 0.20
+Nodes (10): BCrypt.Net-Next, bcrypt_net_next, BCrypt.Net-Next, AutoMapper, BCrypt.Net-Next, Dapper, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore (+2 more)
 
 ### Community 377 - "Community 377"
 Cohesion: 0.15
@@ -2797,8 +2775,8 @@ Cohesion: 0.15
 Nodes (13): Microsoft.IdentityModel.Abstractions, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 379 - "Community 379"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.15
+Nodes (13): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
 
 ### Community 380 - "Community 380"
 Cohesion: 0.20
@@ -2865,16 +2843,16 @@ Cohesion: 0.24
 Nodes (6): Changed, ComposeResult, FactsScreen, _format_age(), Fact browser with search and filters., str
 
 ### Community 397 - "Community 397"
-Cohesion: 0.17
-Nodes (11): dart:typed_data, _buildFooter, _buildHeader, _buildSigLine, _buildTable, EodPdfGenerator, generateAndPrint, package:pdf/pdf.dart (+3 more)
+Cohesion: 0.15
+Nodes (12): _buildFooter, _buildHeader, _buildSectionHeader, _buildSectionTotals, _buildSigLine, _buildTable, _buildWOHeader, _buildWOSubSections (+4 more)
 
 ### Community 398 - "Community 398"
 Cohesion: 0.18
 Nodes (10): DartProject, HWND, LPARAM, LRESULT, FlutterWindow(), UINT, WPARAM, generated_plugin_registrant (+2 more)
 
 ### Community 399 - "Community 399"
-Cohesion: 0.03
-Nodes (53): copyWith, copyWithClearSync, lastSyncTime, props, company.dart, ../../domain/entities/location_lookup.dart, double?, fromMap (+45 more)
+Cohesion: 0.17
+Nodes (11): ../../domain/entities/location_lookup.dart, fromJson, location, LocationLookupDto, locationType, locationTypeName, site, toEntity (+3 more)
 
 ### Community 400 - "Community 400"
 Cohesion: 0.17
@@ -2921,8 +2899,8 @@ Cohesion: 0.12
 Nodes (16): build, _buildActionButton, _buildDropdown, _buildLocationSelection, _buildProductScanSection, _buildTextField, _buildTransferSummary, createState (+8 more)
 
 ### Community 411 - "Community 411"
-Cohesion: 0.06
-Nodes (35): lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll, lib/net8.0/Microsoft.IdentityModel.Protocols.dll, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, related, related, lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll, lib/net8.0/Microsoft.IdentityModel.Protocols.dll (+27 more)
+Cohesion: 0.22
+Nodes (10): lib/net8.0/Microsoft.IdentityModel.Protocols.dll, related, lib/net8.0/Microsoft.IdentityModel.Protocols.dll, Microsoft.IdentityModel.Protocols/7.7.1, compile, path, runtime, sha512 (+2 more)
 
 ### Community 412 - "Community 412"
 Cohesion: 0.23
@@ -3017,8 +2995,8 @@ Cohesion: 0.20
 Nodes (11): Newtonsoft.Json, microsoft_testplatform_objectmodel, Microsoft.TestPlatform.ObjectModel, Newtonsoft.Json, dependencies, Microsoft.TestPlatform.TestHost/17.14.1, Microsoft.TestPlatform.ObjectModel, Newtonsoft.Json (+3 more)
 
 ### Community 435 - "Community 435"
-Cohesion: 0.14
-Nodes (14): Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Design/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Design.dll
 
 ### Community 436 - "Community 436"
 Cohesion: 0.18
@@ -3089,8 +3067,8 @@ Cohesion: 0.18
 Nodes (11): assemblyVersion, fileVersion, System.Security.Cryptography.Pkcs/9.0.11, lib/net9.0/System.Security.Cryptography.Pkcs.dll, assemblyVersion, assetType, fileVersion, rid (+3 more)
 
 ### Community 453 - "Community 453"
-Cohesion: 0.18
-Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
+Cohesion: 0.25
+Nodes (8): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime, swashbuckle_aspnetcore_swagger
 
 ### Community 454 - "Community 454"
 Cohesion: 0.18
@@ -3121,20 +3099,20 @@ Cohesion: 0.20
 Nodes (11): lib/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, Microsoft.Extensions.DependencyInjection.Abstractions/10.0.0, build, compile, path, runtime, sha512 (+3 more)
 
 ### Community 461 - "Community 461"
-Cohesion: 0.20
-Nodes (11): lib/net10.0/Microsoft.IdentityModel.Protocols.dll, related, Microsoft.IdentityModel.Protocols/8.16.0, compile, dependencies, path, runtime, sha512 (+3 more)
+Cohesion: 0.22
+Nodes (10): lib/net10.0/Microsoft.IdentityModel.Protocols.dll, related, Microsoft.IdentityModel.Protocols/8.16.0, compile, path, runtime, sha512, type (+2 more)
 
 ### Community 462 - "Community 462"
-Cohesion: 0.29
-Nodes (13): _alias_name(), _best_match(), _best_module_match(), _module_match_score(), Reference resolver - links references to concrete symbols with confidence scorin, Pick best symbol match based on reference kind., Resolve unlinked references to symbols.      Matches code_references.to_name a, resolve_references() (+5 more)
+Cohesion: 0.20
+Nodes (10): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, dependencies (+2 more)
 
 ### Community 463 - "Community 463"
 Cohesion: 0.18
 Nodes (10): compilationOptions, serviceable, sha512, type, libraries, EnterpriseAuth.Api/1.0.0, runtimeTarget, name (+2 more)
 
 ### Community 464 - "Community 464"
-Cohesion: 0.18
-Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
+Cohesion: 0.29
+Nodes (7): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime
 
 ### Community 465 - "Community 465"
 Cohesion: 0.18
@@ -3153,8 +3131,8 @@ Cohesion: 0.18
 Nodes (10): compilationOptions, serviceable, sha512, type, libraries, EnterpriseAuth.Api/1.0.0, runtimeTarget, name (+2 more)
 
 ### Community 469 - "Community 469"
-Cohesion: 0.18
-Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
+Cohesion: 0.29
+Nodes (7): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime
 
 ### Community 470 - "Community 470"
 Cohesion: 0.18
@@ -3173,32 +3151,32 @@ Cohesion: 0.18
 Nodes (10): background_color, description, display, icons, name, orientation, prefer_related_applications, short_name (+2 more)
 
 ### Community 474 - "Community 474"
-Cohesion: 0.20
-Nodes (11): lib/net8.0/Microsoft.IdentityModel.Logging.dll, related, lib/net8.0/Microsoft.IdentityModel.Logging.dll, Microsoft.IdentityModel.Logging/7.7.1, compile, dependencies, path, runtime (+3 more)
+Cohesion: 0.22
+Nodes (10): lib/net8.0/Microsoft.IdentityModel.Logging.dll, related, lib/net8.0/Microsoft.IdentityModel.Logging.dll, Microsoft.IdentityModel.Logging/7.7.1, compile, path, runtime, sha512 (+2 more)
 
 ### Community 475 - "Community 475"
-Cohesion: 0.17
-Nodes (13): lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, related, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.7.1, compile, dependencies (+5 more)
+Cohesion: 0.22
+Nodes (10): lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, related, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.7.1, compile, path, runtime, sha512 (+2 more)
 
 ### Community 476 - "Community 476"
 Cohesion: 0.22
 Nodes (10): lib/netstandard2.0/Microsoft.SqlServer.Server.dll, related, Microsoft.SqlServer.Server/1.0.0, compile, path, runtime, sha512, type (+2 more)
 
 ### Community 477 - "Community 477"
-Cohesion: 0.14
-Nodes (14): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, assemblyVersion, fileVersion (+6 more)
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 478 - "Community 478"
 Cohesion: 0.22
 Nodes (10): ActionResult, DeviceSyncLogDto, HttpGet, HttpPost, IEnumerable, ISyncRepository, SyncPackageDto, SyncPushRequestDto (+2 more)
 
 ### Community 479 - "Community 479"
-Cohesion: 0.09
-Nodes (25): buildTransitive/net6.0/Microsoft.Extensions.Logging.Abstractions.targets, lib/net8.0/Microsoft.Extensions.DependencyInjection.dll, lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll, Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options, related (+17 more)
+Cohesion: 0.22
+Nodes (10): buildTransitive/net6.0/Microsoft.Extensions.Logging.Abstractions.targets, lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll, related, build, compile, dependencies, runtime, type (+2 more)
 
 ### Community 480 - "Community 480"
-Cohesion: 0.22
-Nodes (10): lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, related, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, compile, dependencies, runtime (+2 more)
+Cohesion: 0.33
+Nodes (7): lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, related, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, compile, runtime, type, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3
 
 ### Community 481 - "Community 481"
 Cohesion: 0.29
@@ -3229,40 +3207,40 @@ Cohesion: 0.20
 Nodes (10): target_ndk_api, ar, cc, ld, android, c_compiler, link_mode_preference, target_architecture (+2 more)
 
 ### Community 488 - "Community 488"
-Cohesion: 0.22
-Nodes (10): lib/netstandard2.0/Microsoft.SqlServer.Server.dll, related, Microsoft.SqlServer.Server/1.0.0, compile, path, runtime, sha512, type (+2 more)
+Cohesion: 0.29
+Nodes (8): lib/netstandard2.0/Microsoft.SqlServer.Server.dll, related, compile, runtime, type, Microsoft.SqlServer.Server/1.0.0, lib/netstandard2.0/Microsoft.SqlServer.Server.dll, net10.0
 
 ### Community 489 - "Community 489"
 Cohesion: 0.20
-Nodes (10): related, lib/net9.0/Microsoft.Extensions.Primitives.dll, Microsoft.Extensions.Primitives/9.0.13, build, compile, path, runtime, sha512 (+2 more)
+Nodes (10): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, dependencies (+2 more)
 
 ### Community 490 - "Community 490"
-Cohesion: 0.15
-Nodes (13): Microsoft.EntityFrameworkCore.Design, Microsoft.EntityFrameworkCore.Design, BCrypt.Net-Next, Dapper, Microsoft.EntityFrameworkCore.Design, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, dependencies (+5 more)
+Cohesion: 0.20
+Nodes (10): Microsoft.EntityFrameworkCore.Design, Microsoft.EntityFrameworkCore.Design, Microsoft.EntityFrameworkCore.Design, microsoft_entityframeworkcore_design, AutoMapper, Dapper, Microsoft.EntityFrameworkCore.Design, Microsoft.EntityFrameworkCore.SqlServer (+2 more)
 
 ### Community 491 - "Community 491"
-Cohesion: 0.20
-Nodes (7): main, main, package:enterprise_auth_mobile/features/logistics/data/models/product_master_dto.dart, package:enterprise_auth_mobile/features/logistics/data/models/sales_order_detail_dto.dart, package:enterprise_auth_mobile/main.dart, package:flutter_test/flutter_test.dart, main
+Cohesion: 0.29
+Nodes (5): main, main, package:enterprise_auth_mobile/features/logistics/data/models/product_master_dto.dart, package:enterprise_auth_mobile/features/logistics/data/models/sales_order_detail_dto.dart, package:flutter_test/flutter_test.dart
 
 ### Community 492 - "Community 492"
-Cohesion: 0.09
-Nodes (21): serviceable, sha512, type, compilationOptions, libraries, CheckRecords/1.0.0, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, Microsoft.IdentityModel.Abstractions/8.16.0 (+13 more)
+Cohesion: 0.07
+Nodes (27): serviceable, sha512, type, compilationOptions, libraries, CheckRecords/1.0.0, Microsoft.Data.SqlClient.Internal.Logging/1.0.0, Microsoft.Data.SqlClient.SNI.runtime/6.0.2 (+19 more)
 
 ### Community 493 - "Community 493"
-Cohesion: 0.14
-Nodes (14): NuGet.Frameworks, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies (+6 more)
+Cohesion: 0.20
+Nodes (10): assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, lib/netcoreapp3.1/Microsoft.TestPlatform.CoreUtilities.dll (+2 more)
 
 ### Community 494 - "Community 494"
 Cohesion: 0.20
 Nodes (10): warningProperties, warnAsError, warningProperties, warnAsError, warningProperties, warnAsError, warnAsError, warningProperties (+2 more)
 
 ### Community 495 - "Community 495"
-Cohesion: 0.15
-Nodes (13): BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, dependencies, runtime, EnterpriseAuth.Api/1.0.0 (+5 more)
+Cohesion: 0.18
+Nodes (11): automapper, AutoMapper, AutoMapper, BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL (+3 more)
 
 ### Community 496 - "Community 496"
-Cohesion: 0.09
-Nodes (25): Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, compile, dependencies, path, runtime, sha512 (+17 more)
+Cohesion: 0.22
+Nodes (10): compile, path, runtime, sha512, type, lib/net8.0/Azure.Identity.dll, related, Azure.Identity/1.17.1 (+2 more)
 
 ### Community 497 - "Community 497"
 Cohesion: 0.22
@@ -3270,7 +3248,7 @@ Nodes (10): lib/net10.0/Microsoft.IdentityModel.Abstractions.dll, related, Micro
 
 ### Community 498 - "Community 498"
 Cohesion: 0.22
-Nodes (10): type, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, net10.0, lib/net10.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, related, compile, runtime, type (+2 more)
+Nodes (10): lib/net10.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll, related, Microsoft.IdentityModel.Protocols.OpenIdConnect/8.16.0, compile, path, runtime, sha512, type (+2 more)
 
 ### Community 499 - "Community 499"
 Cohesion: 0.22
@@ -3289,28 +3267,28 @@ Cohesion: 0.22
 Nodes (10): lib/net9.0/System.ClientModel.dll, related, System.ClientModel/1.8.0, System.ClientModel/1.8.0, lib/net9.0/System.ClientModel.dll, compile, path, runtime (+2 more)
 
 ### Community 503 - "Community 503"
-Cohesion: 0.14
-Nodes (14): System.Reflection.Metadata, lib/netcoreapp3.1/Microsoft.TestPlatform.CoreUtilities.dll, lib/netcoreapp3.1/Microsoft.TestPlatform.PlatformAbstractions.dll, lib/netcoreapp3.1/Microsoft.VisualStudio.TestPlatform.ObjectModel.dll, NuGet.Frameworks, compile, dependencies, runtime (+6 more)
+Cohesion: 0.20
+Nodes (10): lib/netcoreapp3.1/Microsoft.TestPlatform.CoreUtilities.dll, lib/netcoreapp3.1/Microsoft.TestPlatform.PlatformAbstractions.dll, lib/netcoreapp3.1/Microsoft.VisualStudio.TestPlatform.ObjectModel.dll, compile, runtime, type, Microsoft.TestPlatform.ObjectModel/17.8.0, lib/netcoreapp3.1/Microsoft.TestPlatform.CoreUtilities.dll (+2 more)
 
 ### Community 504 - "Community 504"
-Cohesion: 0.22
-Nodes (10): lib/netstandard2.0/Microsoft.Data.SqlClient.Extensions.Abstractions.dll, related, Microsoft.Data.SqlClient.Extensions.Abstractions/1.0.0, compile, path, runtime, sha512, type (+2 more)
+Cohesion: 0.15
+Nodes (14): libraries, Microsoft.SqlServer.Server/1.0.0, path, sha512, lib/netstandard2.0/Microsoft.Data.SqlClient.Extensions.Abstractions.dll, related, Microsoft.Data.SqlClient.Extensions.Abstractions/1.0.0, compile (+6 more)
 
 ### Community 505 - "Community 505"
-Cohesion: 0.22
-Nodes (8): build_end, build_start, code_assets, data_assets, dependencies, ref_file_c_users_aniket_downloads_vsc_20flutter_flutter_flutter_bin_cache_dart_sdk_version, ref_file_d_enterprise_auth_system_frontend_dart_tool_package_config_json, ref_file_d_enterprise_auth_system_frontend_pubspec_yaml
+Cohesion: 0.11
+Nodes (16): build_end, build_start, code_assets, data_assets, dependencies, build_end, build_start, code_assets (+8 more)
 
 ### Community 506 - "Community 506"
-Cohesion: 0.22
-Nodes (8): build_end, build_start, code_assets, data_assets, dependencies, ref_file_c_users_aniket_desktop_enterprise_auth_system_dart_tool_package_config_json, ref_file_c_users_aniket_desktop_enterprise_auth_system_pubspec_yaml, ref_file_c_users_aniket_downloads_vsc_20flutter_flutter_bin_cache_dart_sdk_version
+Cohesion: 0.20
+Nodes (10): related, lib/net9.0/System.Security.Cryptography.ProtectedData.dll, System.Security.Cryptography.ProtectedData/9.0.13, System.Security.Cryptography.ProtectedData/9.0.13, build, compile, path, runtime (+2 more)
 
 ### Community 507 - "Community 507"
 Cohesion: 0.22
 Nodes (8): System.GC.Server, System.Reflection.Metadata.MetadataUpdater.IsSupported, System.Reflection.NullabilityInfoContext.IsSupported, System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization, runtimeOptions, configProperties, frameworks, tfm
 
 ### Community 508 - "Community 508"
-Cohesion: 0.15
-Nodes (13): Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies, assemblyVersion (+5 more)
+Cohesion: 0.20
+Nodes (10): Npgsql.EntityFrameworkCore.PostgreSQL, Npgsql.EntityFrameworkCore.PostgreSQL, BCrypt.Net-Next, Dapper, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies (+2 more)
 
 ### Community 509 - "Community 509"
 Cohesion: 0.50
@@ -3341,32 +3319,32 @@ Cohesion: 0.25
 Nodes (9): buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props, lib/net8.0/Microsoft.EntityFrameworkCore.dll, related, build, compile, runtime, type, Microsoft.EntityFrameworkCore/8.0.0 (+1 more)
 
 ### Community 516 - "Community 516"
-Cohesion: 0.18
-Nodes (12): lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll, Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, related, compile, dependencies, runtime, type (+4 more)
+Cohesion: 0.33
+Nodes (7): lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll, related, compile, runtime, type, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
 
 ### Community 517 - "Community 517"
 Cohesion: 0.21
 Nodes (11): bool, Connection, float, str, code_index(), _ensure_fts(), _ensure_tables(), MCP tool: code_index — index project source code for code intelligence. (+3 more)
 
 ### Community 518 - "Community 518"
-Cohesion: 0.22
-Nodes (10): buildTransitive/net6.0/Microsoft.Extensions.Logging.Abstractions.targets, lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll, related, build, compile, dependencies, runtime, type (+2 more)
+Cohesion: 0.09
+Nodes (25): buildTransitive/net6.0/Microsoft.Extensions.Logging.Abstractions.targets, buildTransitive/net6.0/Microsoft.Extensions.Options.targets, lib/net8.0/Microsoft.Extensions.Logging.Abstractions.dll, lib/net8.0/Microsoft.Extensions.Options.dll, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Primitives, related, related (+17 more)
 
 ### Community 519 - "Community 519"
-Cohesion: 0.25
-Nodes (9): buildTransitive/net6.0/Microsoft.Extensions.Options.targets, lib/net8.0/Microsoft.Extensions.Options.dll, related, build, compile, runtime, type, Microsoft.Extensions.Options/8.0.0 (+1 more)
+Cohesion: 0.20
+Nodes (9): barcode, fromJson, productCode, productDescription, ProductMasterDto, salesUnit, standardWeight, stockUnit (+1 more)
 
 ### Community 520 - "Community 520"
 Cohesion: 0.10
-Nodes (21): Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Analyzers, Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Logging, dependencies, buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props, lib/net8.0/Microsoft.EntityFrameworkCore.dll, Microsoft.EntityFrameworkCore.Abstractions (+13 more)
+Nodes (21): Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Analyzers, Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Logging, dependencies, Microsoft.EntityFrameworkCore.Abstractions, assemblyVersion, fileVersion (+13 more)
 
 ### Community 521 - "Community 521"
 Cohesion: 0.25
 Nodes (9): System.Diagnostics.EventLog, compile, dependencies, runtime, type, lib/net6.0/Castle.Core.dll, related, Castle.Core/5.1.1 (+1 more)
 
 ### Community 522 - "Community 522"
-Cohesion: 0.53
-Nodes (5): int, str, agent_run_list(), agent_run_list — supervisor-facing listing of agent runs for the current project, _truncate()
+Cohesion: 0.22
+Nodes (10): compile, path, runtime, sha512, type, lib/net8.0/Azure.Core.dll, related, Azure.Core/1.50.0 (+2 more)
 
 ### Community 523 - "Community 523"
 Cohesion: 0.22
@@ -3425,16 +3403,16 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 537 - "Community 537"
-Cohesion: 0.25
-Nodes (8): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 
 ### Community 538 - "Community 538"
 Cohesion: 0.25
 Nodes (8): Microsoft.OpenApi, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.Swagger/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.Swagger.dll, dependencies, runtime, microsoft_openapi
 
 ### Community 539 - "Community 539"
-Cohesion: 0.25
-Nodes (8): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime, swashbuckle_aspnetcore_swagger
+Cohesion: 0.18
+Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
 
 ### Community 541 - "Community 541"
 Cohesion: 0.25
@@ -3449,24 +3427,24 @@ Cohesion: 0.25
 Nodes (8): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 
 ### Community 544 - "Community 544"
-Cohesion: 0.25
-Nodes (8): dependencies, runtime, Microsoft.Bcl.AsyncInterfaces, System.Memory.Data, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 545 - "Community 545"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+Cohesion: 0.25
+Nodes (8): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.0.3, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 
 ### Community 546 - "Community 546"
-Cohesion: 0.08
-Nodes (29): buildTransitive/net6.0/_._, lib/net8.0/Microsoft.Extensions.Caching.Abstractions.dll, lib/net8.0/Microsoft.Extensions.Caching.Memory.dll, lib/net8.0/Microsoft.Extensions.Configuration.Abstractions.dll, Microsoft.Extensions.Primitives, related, related, related (+21 more)
+Cohesion: 0.13
+Nodes (17): buildTransitive/net6.0/_._, lib/net8.0/Microsoft.Extensions.Configuration.Abstractions.dll, lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, related, build, compile, runtime (+9 more)
 
 ### Community 547 - "Community 547"
 Cohesion: 0.17
-Nodes (12): AutoMapper, BCrypt.Net-Next, Dapper, Microsoft.EntityFrameworkCore, Swashbuckle.AspNetCore, dependencies, assemblyVersion, fileVersion (+4 more)
+Nodes (12): AutoMapper, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore, Swashbuckle.AspNetCore, dependencies, assemblyVersion, fileVersion (+4 more)
 
 ### Community 548 - "Community 548"
-Cohesion: 0.29
-Nodes (8): lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, build, compile, runtime, type, Microsoft.Extensions.DependencyInjection.Abstractions/8.0.0, lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+Cohesion: 0.22
+Nodes (10): lib/net8.0/Microsoft.Identity.Client.Extensions.Msal.dll, related, Microsoft.Identity.Client.Extensions.Msal/4.78.0, compile, path, runtime, sha512, type (+2 more)
 
 ### Community 549 - "Community 549"
 Cohesion: 0.29
@@ -3477,8 +3455,8 @@ Cohesion: 0.29
 Nodes (8): lib/net8.0/Microsoft.Extensions.Primitives.dll, related, build, compile, runtime, type, Microsoft.Extensions.Primitives/8.0.0, lib/net8.0/Microsoft.Extensions.Primitives.dll
 
 ### Community 551 - "Community 551"
-Cohesion: 0.18
-Nodes (11): Microsoft.AspNetCore.Authentication.JwtBearer, BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies, Microsoft.AspNetCore.Authentication.JwtBearer (+3 more)
+Cohesion: 0.20
+Nodes (10): Swashbuckle.AspNetCore, Swashbuckle.AspNetCore, AutoMapper, BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Swashbuckle.AspNetCore, dependencies (+2 more)
 
 ### Community 552 - "Community 552"
 Cohesion: 0.25
@@ -3501,16 +3479,16 @@ Cohesion: 0.29
 Nodes (8): lib/net8.0/Microsoft.Extensions.Configuration.Abstractions.dll, related, build, compile, runtime, type, Microsoft.Extensions.Configuration.Abstractions/8.0.0, lib/net8.0/Microsoft.Extensions.Configuration.Abstractions.dll
 
 ### Community 557 - "Community 557"
-Cohesion: 0.20
-Nodes (11): Microsoft.Bcl.AsyncInterfaces, Humanizer.Core, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.Workspaces.Common, System.IO.Pipelines, System.Threading.Channels, dependencies, dependencies (+3 more)
+Cohesion: 0.22
+Nodes (10): lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, related, System.IdentityModel.Tokens.Jwt/7.7.1, System.IdentityModel.Tokens.Jwt/7.7.1, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, compile, path, runtime (+2 more)
 
 ### Community 558 - "Community 558"
-Cohesion: 0.50
-Nodes (4): init_db(), Add new V3 columns/tables to existing database (safe idempotent migration)., Create all tables and indexes., upgrade_schema()
+Cohesion: 0.22
+Nodes (10): lib/net9.0/Microsoft.IdentityModel.Abstractions.dll, related, Microsoft.IdentityModel.Abstractions/8.14.0, compile, path, runtime, sha512, type (+2 more)
 
 ### Community 559 - "Community 559"
-Cohesion: 0.25
-Nodes (7): find_symbol(), has_index(), Shared helpers for code intelligence tools (code_context, code_impact, code_sear, Check if project has any indexed files., Keep the incremental index fresh before queries.      In Claude hook flows, fi, Find a symbol by name or qualified_name.      3-stage lookup: exact qualified_, reindex_dirty()
+Cohesion: 0.22
+Nodes (8): packageFolders, C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages, C:\\Users\\Aniket\\.nuget\\packages\\, projectFileDependencyGroups, net10.0, targets, version, ref_microsoft_data_sqlclient_6_1_4
 
 ### Community 560 - "Community 560"
 Cohesion: 0.25
@@ -3521,20 +3499,20 @@ Cohesion: 0.29
 Nodes (10): float, _check_context_and_save(), _get_context_percentage(), main(), CogniLayer PostToolUse hook — logs file changes + context monitoring.  Must be, Check context usage and save proactive bridge at thresholds.      Uses a state, Read context usage % from transcript JSONL. Fast: reads only last ~8KB.      R, Save proactive bridge when context is getting full. (+2 more)
 
 ### Community 562 - "Community 562"
-Cohesion: 0.50
-Nodes (4): init_db(), Add new V3 columns/tables to existing database (safe idempotent migration)., Create all tables and indexes., upgrade_schema()
+Cohesion: 0.29
+Nodes (7): init_db(), CogniLayer v4 — Database schema creation and migration.  Run: python init_db.p, Add new V3 columns/tables to existing database (safe idempotent migration)., Rebuild FTS5 indexes from source tables., Create all tables and indexes., rebuild_fts(), upgrade_schema()
 
 ### Community 563 - "Community 563"
 Cohesion: 0.25
-Nodes (7): find_symbol(), has_index(), Shared helpers for code intelligence tools (code_context, code_impact, code_sear, Check if project has any indexed files., Keep the incremental index fresh before queries.      In Claude hook flows, fi, Find a symbol by name or qualified_name.      3-stage lookup: exact qualified_, reindex_dirty()
+Nodes (9): buildTransitive/net8.0/Microsoft.EntityFrameworkCore.props, lib/net8.0/Microsoft.EntityFrameworkCore.dll, related, build, compile, runtime, type, Microsoft.EntityFrameworkCore/8.0.0 (+1 more)
 
 ### Community 564 - "Community 564"
 Cohesion: 0.25
 Nodes (5): Test shared code_helpers and consistency between tools., Both code_context and code_impact should find the same symbol., When multiple symbols share a name, both tools should pick the same one., Verify that code tools import from code_helpers, not local copies., TestCodeHelpers
 
 ### Community 565 - "Community 565"
-Cohesion: 0.27
-Nodes (10): str, Tests for MCP server tool registration., Every visible tool should have a non-empty description., Every visible tool should have an input schema., _set_multi_agent_mode(), test_core_toolset_registered_when_multi_agent_off(), test_project_override_enables_safe_toolset_without_global_change(), test_safe_multi_agent_toolset_registered_when_enabled() (+2 more)
+Cohesion: 0.29
+Nodes (8): lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll, related, lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll, net10.0, compile, dependencies, runtime, Microsoft.IdentityModel.JsonWebTokens/7.7.1
 
 ### Community 566 - "Community 566"
 Cohesion: 0.25
@@ -3565,8 +3543,8 @@ Cohesion: 0.25
 Nodes (7): System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization, name, version, runtimeOptions, configProperties, framework, tfm
 
 ### Community 573 - "Community 573"
-Cohesion: 0.12
-Nodes (17): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime (+9 more)
+Cohesion: 0.25
+Nodes (8): Microsoft.IdentityModel.Protocols, System.IdentityModel.Tokens.Jwt, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect/7.7.1, lib/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 
 ### Community 574 - "Community 574"
 Cohesion: 0.25
@@ -3593,8 +3571,8 @@ Cohesion: 0.25
 Nodes (7): MSTest.EnableParentProcessQuery, System.Reflection.NullabilityInfoContext.IsSupported, System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization, runtimeOptions, configProperties, frameworks, tfm
 
 ### Community 580 - "Community 580"
-Cohesion: 0.18
-Nodes (11): related, lib/net9.0/Microsoft.Extensions.Caching.Abstractions.dll, Microsoft.Extensions.Caching.Abstractions/9.0.13, build, compile, dependencies, path, runtime (+3 more)
+Cohesion: 0.20
+Nodes (10): related, lib/net9.0/Microsoft.Extensions.Caching.Abstractions.dll, Microsoft.Extensions.Caching.Abstractions/9.0.13, build, compile, path, runtime, sha512 (+2 more)
 
 ### Community 581 - "Community 581"
 Cohesion: 0.25
@@ -3621,12 +3599,12 @@ Cohesion: 0.29
 Nodes (7): Microsoft.OpenApi, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.Swagger/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.Swagger.dll, dependencies, runtime
 
 ### Community 587 - "Community 587"
-Cohesion: 0.29
-Nodes (7): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime
+Cohesion: 0.18
+Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
 
 ### Community 588 - "Community 588"
-Cohesion: 0.29
-Nodes (7): System.Security.Permissions, assemblyVersion, fileVersion, System.Configuration.ConfigurationManager/6.0.1, lib/net6.0/System.Configuration.ConfigurationManager.dll, dependencies, runtime
+Cohesion: 0.17
+Nodes (13): dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, System.Security.Permissions, assemblyVersion, fileVersion (+5 more)
 
 ### Community 589 - "Community 589"
 Cohesion: 0.29
@@ -3637,8 +3615,8 @@ Cohesion: 0.18
 Nodes (11): assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, Microsoft.TestPlatform.ObjectModel/17.14.1 (+3 more)
 
 ### Community 591 - "Community 591"
-Cohesion: 0.29
-Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Cohesion: 0.25
+Nodes (8): libraries, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, path, sha512, Microsoft.IdentityModel.JsonWebTokens/7.7.1, path, sha512, type
 
 ### Community 592 - "Community 592"
 Cohesion: 0.29
@@ -3673,8 +3651,8 @@ Cohesion: 0.29
 Nodes (7): Microsoft.OpenApi, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.Swagger/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.Swagger.dll, dependencies, runtime
 
 ### Community 600 - "Community 600"
-Cohesion: 0.29
-Nodes (7): Swashbuckle.AspNetCore.Swagger, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll, dependencies, runtime
+Cohesion: 0.18
+Nodes (11): Swashbuckle.AspNetCore.Swagger, Swashbuckle.AspNetCore.SwaggerGen, Swashbuckle.AspNetCore.SwaggerUI, assemblyVersion, fileVersion, Swashbuckle.AspNetCore/6.5.0, Swashbuckle.AspNetCore.SwaggerGen/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerGen.dll (+3 more)
 
 ### Community 601 - "Community 601"
 Cohesion: 0.18
@@ -3697,20 +3675,20 @@ Cohesion: 0.33
 Nodes (7): lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll, related, compile, runtime, type, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
 
 ### Community 606 - "Community 606"
-Cohesion: 0.20
-Nodes (10): AutoMapper, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, dependencies, Npgsql.EntityFrameworkCore.PostgreSQL, Npgsql.EntityFrameworkCore.PostgreSQL (+2 more)
+Cohesion: 0.18
+Nodes (11): AutoMapper, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies, Microsoft.EntityFrameworkCore.SqlServer (+3 more)
 
 ### Community 607 - "Community 607"
 Cohesion: 0.29
 Nodes (7): related, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll, ref/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll, compile, runtime, type, Microsoft.Bcl.AsyncInterfaces/1.1.1
 
 ### Community 608 - "Community 608"
-Cohesion: 0.20
-Nodes (10): related, lib/net9.0/System.Configuration.ConfigurationManager.dll, System.Configuration.ConfigurationManager/9.0.13, System.Configuration.ConfigurationManager/9.0.13, build, compile, path, runtime (+2 more)
+Cohesion: 0.29
+Nodes (8): lib/net8.0/Microsoft.Extensions.Caching.Abstractions.dll, related, build, compile, runtime, type, Microsoft.Extensions.Caching.Abstractions/8.0.0, lib/net8.0/Microsoft.Extensions.Caching.Abstractions.dll
 
 ### Community 609 - "Community 609"
 Cohesion: 0.29
-Nodes (3): Entry point: python -m cognilayer.tui or python ~/.cognilayer/tui/__main__.py., Entry point: python -m cognilayer.tui or python ~/.cognilayer/tui/__main__.py., tui_app
+Nodes (8): lib/net8.0/Microsoft.Extensions.Caching.Memory.dll, related, build, compile, runtime, type, Microsoft.Extensions.Caching.Memory/8.0.0, lib/net8.0/Microsoft.Extensions.Caching.Memory.dll
 
 ### Community 610 - "Community 610"
 Cohesion: 0.29
@@ -3745,16 +3723,16 @@ Cohesion: 0.29
 Nodes (7): Microsoft.OpenApi, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.Swagger/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.Swagger.dll, dependencies, runtime
 
 ### Community 618 - "Community 618"
-Cohesion: 0.22
-Nodes (9): AutoMapper, BCrypt.Net-Next, Dapper, Microsoft.EntityFrameworkCore.SqlServer, Swashbuckle.AspNetCore, dependencies, runtime, EnterpriseAuth.Api/1.0.0 (+1 more)
+Cohesion: 0.20
+Nodes (10): BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore.SqlServer, dependencies, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Authentication.JwtBearer, microsoft_aspnetcore_authentication_jwtbearer (+2 more)
 
 ### Community 619 - "Community 619"
 Cohesion: 0.29
 Nodes (7): Microsoft.OpenApi, assemblyVersion, fileVersion, Swashbuckle.AspNetCore.Swagger/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.Swagger.dll, dependencies, runtime
 
 ### Community 620 - "Community 620"
-Cohesion: 0.25
-Nodes (9): lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll, Microsoft.Data.SqlClient, related, compile, dependencies, runtime, type, Microsoft.EntityFrameworkCore.SqlServer/8.0.0 (+1 more)
+Cohesion: 0.33
+Nodes (7): lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll, related, compile, runtime, type, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
 
 ### Community 621 - "Community 621"
 Cohesion: 0.29
@@ -3869,12 +3847,12 @@ Cohesion: 0.33
 Nodes (6): Swashbuckle.AspNetCore/6.5.0, hashPath, path, serviceable, sha512, type
 
 ### Community 649 - "Community 649"
-Cohesion: 0.33
-Nodes (6): assemblyVersion, fileVersion, System.Composition.Convention/6.0.0, lib/net6.0/System.Composition.Convention.dll, dependencies, runtime
+Cohesion: 0.29
+Nodes (8): lib/net8.0/Microsoft.Extensions.DependencyInjection.dll, related, build, compile, runtime, type, Microsoft.Extensions.DependencyInjection/8.0.0, lib/net8.0/Microsoft.Extensions.DependencyInjection.dll
 
 ### Community 650 - "Community 650"
-Cohesion: 0.33
-Nodes (6): assemblyVersion, fileVersion, System.Composition.Hosting/6.0.0, lib/net6.0/System.Composition.Hosting.dll, dependencies, runtime
+Cohesion: 0.13
+Nodes (15): System.Composition.Runtime, assemblyVersion, fileVersion, System.Composition.Hosting/6.0.0, lib/net6.0/System.Composition.Hosting.dll, dependencies, runtime, System.Composition.Runtime (+7 more)
 
 ### Community 651 - "Community 651"
 Cohesion: 0.33
@@ -4001,24 +3979,24 @@ Cohesion: 0.25
 Nodes (6): HttpGet, IEnumerable, string, ControllerBase, WeatherForecastController, WeatherForecast
 
 ### Community 682 - "Community 682"
-Cohesion: 0.40
-Nodes (3): MigrationBuilder, AddCustomerSalesmanToExcess, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
+Cohesion: 0.29
+Nodes (8): lib/net8.0/Microsoft.Extensions.Logging.dll, related, build, compile, runtime, type, Microsoft.Extensions.Logging/8.0.0, lib/net8.0/Microsoft.Extensions.Logging.dll
 
 ### Community 683 - "Community 683"
 Cohesion: 0.40
 Nodes (3): MigrationBuilder, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations, FixGlobalSettingsPK
 
 ### Community 684 - "Community 684"
-Cohesion: 0.25
-Nodes (8): build, buildMultiTargeting, type, Microsoft.Extensions.ApiDescription.Server/6.0.5, build/Microsoft.Extensions.ApiDescription.Server.props, build/Microsoft.Extensions.ApiDescription.Server.targets, buildMultiTargeting/Microsoft.Extensions.ApiDescription.Server.props, buildMultiTargeting/Microsoft.Extensions.ApiDescription.Server.targets
+Cohesion: 0.07
+Nodes (29): build/_._, lib/netstandard2.0/_._, ref/netcoreapp2.0/_._, compile, runtime, type, type, compile (+21 more)
 
 ### Community 685 - "Community 685"
-Cohesion: 0.25
-Nodes (8): dependencies, runtime, Microsoft.Bcl.AsyncInterfaces, System.Memory.Data, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 686 - "Community 686"
-Cohesion: 0.40
-Nodes (3): MigrationBuilder, AddItemDescriptionToStaging, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
+Cohesion: 0.29
+Nodes (8): lib/net8.0/Microsoft.Extensions.Primitives.dll, related, build, compile, runtime, type, Microsoft.Extensions.Primitives/8.0.0, lib/net8.0/Microsoft.Extensions.Primitives.dll
 
 ### Community 687 - "Community 687"
 Cohesion: 0.25
@@ -4033,8 +4011,8 @@ Cohesion: 0.40
 Nodes (3): MigrationBuilder, AddEodFlags, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 690 - "Community 690"
-Cohesion: 0.25
-Nodes (8): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
+Cohesion: 0.05
+Nodes (48): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll (+40 more)
 
 ### Community 691 - "Community 691"
 Cohesion: 0.40
@@ -4045,8 +4023,8 @@ Cohesion: 0.40
 Nodes (3): MigrationBuilder, AddExcludeFromEodToScanTransactions, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 693 - "Community 693"
-Cohesion: 0.33
-Nodes (6): ref/netcoreapp2.0/_._, compile, runtime, type, Microsoft.CSharp/4.7.0, lib/netcoreapp2.0/_._
+Cohesion: 0.25
+Nodes (8): Microsoft.Build.Locator, System.CommandLine, dependencies, runtime, Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost/5.0.0-2.25567.12, Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll, microsoft_build_locator, system_commandline
 
 ### Community 694 - "Community 694"
 Cohesion: 0.33
@@ -4057,8 +4035,8 @@ Cohesion: 0.33
 Nodes (6): build/_._, build, buildMultiTargeting, type, Microsoft.Extensions.ApiDescription.Server/6.0.5, buildMultiTargeting/_._
 
 ### Community 696 - "Community 696"
-Cohesion: 0.29
-Nodes (8): lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll, related, build, compile, runtime, type, Microsoft.Extensions.DependencyInjection.Abstractions/8.0.0, lib/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+Cohesion: 0.25
+Nodes (7): ../local/local_database_helper.dart, fromJson, itemCode, lot, LotDto, siteCode, toSqlMap
 
 ### Community 697 - "Community 697"
 Cohesion: 0.25
@@ -4069,28 +4047,24 @@ Cohesion: 0.25
 Nodes (7): ../entities/sync_progress.dart, ILogisticsRepository get, ../repositories/ilogistics_repository.dart, execute, executeWithProgress, _repository, SynchronizeLogisticsUseCase
 
 ### Community 699 - "Community 699"
-Cohesion: 0.33
-Nodes (6): Newtonsoft.Json/13.0.3, hashPath, path, serviceable, sha512, type
+Cohesion: 0.29
+Nodes (7): System.Security.Permissions, assemblyVersion, fileVersion, System.Configuration.ConfigurationManager/6.0.1, lib/net6.0/System.Configuration.ConfigurationManager.dll, dependencies, runtime
 
 ### Community 700 - "Community 700"
 Cohesion: 0.33
 Nodes (6): System.CommandLine/2.0.0-rtm.25509.106, hashPath, path, serviceable, sha512, type
 
 ### Community 701 - "Community 701"
-Cohesion: 0.53
-Nodes (5): int, str, agent_handoff_inbox(), agent_handoff_inbox — list pending or historical handoffs for a supervisor/root, _truncate()
+Cohesion: 0.29
+Nodes (7): Microsoft.EntityFrameworkCore, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.Relational/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Relational.dll
 
 ### Community 702 - "Community 702"
-Cohesion: 0.83
-Nodes (4): int, str, agent_run_list(), _truncate()
+Cohesion: 0.33
+Nodes (7): lib/net8.0/Microsoft.EntityFrameworkCore.Relational.dll, related, compile, runtime, type, Microsoft.EntityFrameworkCore.Relational/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Relational.dll
 
 ### Community 703 - "Community 703"
-Cohesion: 0.25
-Nodes (7): email, id, permissions, props, siteCode, username, User
-
-### Community 704 - "Community 704"
-Cohesion: 0.53
-Nodes (5): int, str, agent_handoff_inbox(), agent_handoff_inbox — list pending or historical handoffs for a supervisor/root, _truncate()
+Cohesion: 0.33
+Nodes (7): compile, runtime, type, lib/net5.0/Azure.Core.dll, related, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 705 - "Community 705"
 Cohesion: 0.33
@@ -4121,12 +4095,12 @@ Cohesion: 0.33
 Nodes (6): Microsoft.Data.SqlClient.Extensions.Abstractions/1.0.0, hashPath, path, serviceable, sha512, type
 
 ### Community 712 - "Community 712"
-Cohesion: 0.33
-Nodes (6): Microsoft.Data.SqlClient.Internal.Logging/1.0.0, hashPath, path, serviceable, sha512, type
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Tokens/7.7.1, lib/net8.0/Microsoft.IdentityModel.Tokens.dll
 
 ### Community 713 - "Community 713"
-Cohesion: 0.25
-Nodes (7): LocalDatabaseHelper, package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart, _dbHelper, getUnsyncedScans, LocalRepository, markScansAsSynced, saveScan
+Cohesion: 0.04
+Nodes (59): setTheme, ThemeCubit, toggleTheme, Cubit, LocalDatabaseHelper, package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart, package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart, package:enterprise_auth_mobile/features/inventory/ui/screens/picking_screen.dart (+51 more)
 
 ### Community 714 - "Community 714"
 Cohesion: 0.33
@@ -4425,12 +4399,12 @@ Cohesion: 0.33
 Nodes (5): compilationOptions, runtimeTarget, name, signature, targets
 
 ### Community 788 - "Community 788"
-Cohesion: 0.25
-Nodes (8): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
+Cohesion: 0.29
+Nodes (7): System.Windows.Extensions, assemblyVersion, fileVersion, System.Security.Permissions/6.0.0, lib/net6.0/System.Security.Permissions.dll, dependencies, runtime
 
 ### Community 789 - "Community 789"
-Cohesion: 0.25
-Nodes (8): Microsoft.Data.SqlClient, Microsoft.EntityFrameworkCore.Relational, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.EntityFrameworkCore.SqlServer/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.SqlServer.dll
+Cohesion: 0.29
+Nodes (6): forgotPassword, isOfflineSessionValid, login, logout, refreshToken, register
 
 ### Community 790 - "Community 790"
 Cohesion: 0.33
@@ -4453,8 +4427,8 @@ Cohesion: 0.33
 Nodes (6): hashPath, path, serviceable, sha512, type, Dapper/2.1.66
 
 ### Community 795 - "Community 795"
-Cohesion: 0.15
-Nodes (13): Microsoft.IdentityModel.Logging, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime, dependencies (+5 more)
+Cohesion: 0.33
+Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Tokens/7.0.3, lib/net8.0/Microsoft.IdentityModel.Tokens.dll
 
 ### Community 796 - "Community 796"
 Cohesion: 0.33
@@ -4661,8 +4635,8 @@ Cohesion: 0.40
 Nodes (4): Logging, LogLevel, Default, Microsoft.AspNetCore
 
 ### Community 847 - "Community 847"
-Cohesion: 0.11
-Nodes (19): runtime, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+11 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 848 - "Community 848"
 Cohesion: 0.25
@@ -4673,8 +4647,8 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
 ### Community 850 - "Community 850"
-Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
+Cohesion: 0.14
+Nodes (14): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, Dapper/2.1.66 (+6 more)
 
 ### Community 851 - "Community 851"
 Cohesion: 0.40
@@ -4682,7 +4656,7 @@ Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0,
 
 ### Community 852 - "Community 852"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
+Nodes (3): MigrationBuilder, AddGlobalSettingsTable, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 853 - "Community 853"
 Cohesion: 0.40
@@ -4718,7 +4692,7 @@ Nodes (7): System.Drawing.Common, dependencies, System.Drawing.Common, dependenc
 
 ### Community 861 - "Community 861"
 Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
+Nodes (3): MigrationBuilder, AddStagingTable, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 862 - "Community 862"
 Cohesion: 0.40
@@ -4726,7 +4700,7 @@ Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapp
 
 ### Community 863 - "Community 863"
 Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Humanizer.Core/2.14.1, lib/net6.0/Humanizer.dll
+Nodes (3): MigrationBuilder, AddStagingEod, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 864 - "Community 864"
 Cohesion: 0.40
@@ -4734,11 +4708,11 @@ Nodes (5): assemblyVersion, fileVersion, System.Composition.AttributedModel/6.0.
 
 ### Community 865 - "Community 865"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, System.Composition.Runtime/6.0.0, lib/net6.0/System.Composition.Runtime.dll, runtime
+Nodes (3): MigrationBuilder, AddDeliveryRepCode, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 866 - "Community 866"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, System.Composition.TypedParts/6.0.0, lib/net6.0/System.Composition.TypedParts.dll, runtime
+Nodes (3): MigrationBuilder, AddLotNumberToStaging, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 867 - "Community 867"
 Cohesion: 0.29
@@ -4789,8 +4763,8 @@ Cohesion: 0.40
 Nodes (5): ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer
 
 ### Community 879 - "Community 879"
-Cohesion: 0.07
-Nodes (28): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+20 more)
+Cohesion: 0.08
+Nodes (26): runtime, runtime, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+18 more)
 
 ### Community 880 - "Community 880"
 Cohesion: 0.40
@@ -4802,7 +4776,7 @@ Nodes (7): Microsoft.EntityFrameworkCore.Abstractions, assemblyVersion, fileVers
 
 ### Community 882 - "Community 882"
 Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
+Nodes (3): MigrationBuilder, AddLorryShortCodeToStaging, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
 
 ### Community 883 - "Community 883"
 Cohesion: 0.40
@@ -4861,8 +4835,8 @@ Cohesion: 0.40
 Nodes (5): X3SoapService, Password, PoolAlias, Url, Username
 
 ### Community 897 - "Community 897"
-Cohesion: 0.11
-Nodes (19): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+11 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
 
 ### Community 898 - "Community 898"
 Cohesion: 0.40
@@ -4877,12 +4851,12 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Abstractions/7.0.3, lib/net8.0/Microsoft.IdentityModel.Abstractions.dll
 
 ### Community 901 - "Community 901"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
+Cohesion: 0.14
+Nodes (14): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, EnterpriseAuth.Api/1.0.0, Microsoft.OpenApi/1.2.3 (+6 more)
 
 ### Community 902 - "Community 902"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.OpenApi/1.2.3, lib/netstandard2.0/Microsoft.OpenApi.dll
+Cohesion: 0.33
+Nodes (6): ref/netcoreapp2.0/_._, compile, runtime, type, Microsoft.CSharp/4.7.0, lib/netcoreapp2.0/_._
 
 ### Community 903 - "Community 903"
 Cohesion: 0.40
@@ -4897,8 +4871,8 @@ Cohesion: 0.33
 Nodes (7): lib/netstandard2.0/Microsoft.SqlServer.Server.dll, related, compile, runtime, type, lib/netstandard2.0/Microsoft.SqlServer.Server.dll, Microsoft.SqlServer.Server/1.0.0
 
 ### Community 906 - "Community 906"
-Cohesion: 0.40
-Nodes (3): Task, EnterpriseAuth.Api.Core.Application.Interfaces, IStagingService
+Cohesion: 0.33
+Nodes (5): DateTime, List, StagingReportDto, Task, IStagingService
 
 ### Community 907 - "Community 907"
 Cohesion: 0.40
@@ -4913,16 +4887,16 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 910 - "Community 910"
-Cohesion: 0.09
-Nodes (23): dependencies, runtime, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, System.Security.Permissions, assemblyVersion (+15 more)
+Cohesion: 0.17
+Nodes (13): dependencies, Azure.Core, Microsoft.Identity.Client, Microsoft.Identity.Client.Extensions.Msal, System.Security.Cryptography.ProtectedData, System.Security.Permissions, assemblyVersion, fileVersion (+5 more)
 
 ### Community 911 - "Community 911"
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
 ### Community 912 - "Community 912"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Abstractions/7.0.3, lib/net8.0/Microsoft.IdentityModel.Abstractions.dll
+Cohesion: 0.33
+Nodes (6): Microsoft.Build.Locator/1.10.2, hashPath, path, serviceable, sha512, type
 
 ### Community 913 - "Community 913"
 Cohesion: 0.25
@@ -4957,28 +4931,28 @@ Cohesion: 0.40
 Nodes (4): Logging, LogLevel, Default, Microsoft.AspNetCore
 
 ### Community 921 - "Community 921"
-Cohesion: 0.29
-Nodes (7): libraries, Microsoft.Data.SqlClient.SNI.runtime/6.0.2, path, sha512, Microsoft.IdentityModel.Protocols.OpenIdConnect/8.16.0, path, sha512
+Cohesion: 0.33
+Nodes (6): System.Collections.Immutable/9.0.0, hashPath, path, serviceable, sha512, type
 
 ### Community 922 - "Community 922"
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
 
 ### Community 923 - "Community 923"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, System.Composition.AttributedModel/6.0.0, lib/net6.0/System.Composition.AttributedModel.dll, runtime
+Cohesion: 0.07
+Nodes (28): System.Security.Permissions, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+20 more)
 
 ### Community 924 - "Community 924"
-Cohesion: 0.09
-Nodes (24): System.Composition.AttributedModel, System.Composition.Convention, System.Composition.Hosting, System.Composition.Runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+16 more)
+Cohesion: 0.05
+Nodes (42): System.Composition.AttributedModel, System.Composition.Convention, System.Composition.Hosting, System.Composition.TypedParts, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+34 more)
 
 ### Community 925 - "Community 925"
-Cohesion: 0.29
-Nodes (7): System.Windows.Extensions, assemblyVersion, fileVersion, System.Security.Permissions/6.0.0, lib/net6.0/System.Security.Permissions.dll, dependencies, runtime
+Cohesion: 0.33
+Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Protocols/7.7.1, lib/net8.0/Microsoft.IdentityModel.Protocols.dll
 
 ### Community 926 - "Community 926"
-Cohesion: 0.29
-Nodes (7): build/net8.0/Microsoft.EntityFrameworkCore.Design.props, related, build, runtime, type, Microsoft.EntityFrameworkCore.Design/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Design.dll
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 927 - "Community 927"
 Cohesion: 0.40
@@ -4997,12 +4971,12 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
 
 ### Community 931 - "Community 931"
-Cohesion: 0.14
-Nodes (14): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, dependencies, runtime (+6 more)
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, runtime
 
 ### Community 932 - "Community 932"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.OpenApi/1.2.3, lib/netstandard2.0/Microsoft.OpenApi.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.JsonWebTokens/7.0.3, lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll
 
 ### Community 933 - "Community 933"
 Cohesion: 0.40
@@ -5013,16 +4987,16 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, System.CodeDom/4.4.0, lib/netstandard2.0/System.CodeDom.dll, runtime
 
 ### Community 935 - "Community 935"
-Cohesion: 0.33
-Nodes (7): lib/net8.0/Microsoft.EntityFrameworkCore.InMemory.dll, related, compile, runtime, type, Microsoft.EntityFrameworkCore.InMemory/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.InMemory.dll
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, runtime
 
 ### Community 936 - "Community 936"
 Cohesion: 0.33
 Nodes (5): compilationOptions, runtimeTarget, name, signature, targets
 
 ### Community 937 - "Community 937"
-Cohesion: 0.33
-Nodes (6): assemblyVersion, fileVersion, System.Composition.Hosting/6.0.0, lib/net6.0/System.Composition.Hosting.dll, dependencies, runtime
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
 
 ### Community 938 - "Community 938"
 Cohesion: 0.40
@@ -5042,7 +5016,7 @@ Nodes (3): MigrationBuilder, AddIsValidatedToProductionLineState, EnterpriseAuth
 
 ### Community 942 - "Community 942"
 Cohesion: 0.40
-Nodes (3): MigrationBuilder, AddSalesmanSchema, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
+Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 943 - "Community 943"
 Cohesion: 0.40
@@ -5050,7 +5024,7 @@ Nodes (3): MigrationBuilder, AddOptimizedEodIndexes, EnterpriseAuth.Api.Infrastr
 
 ### Community 944 - "Community 944"
 Cohesion: 0.40
-Nodes (3): MigrationBuilder, AddTokenVersion, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 945 - "Community 945"
 Cohesion: 0.40
@@ -5062,19 +5036,23 @@ Nodes (5): bool, float, str, file_index(), Index project documentation files int
 
 ### Community 947 - "Community 947"
 Cohesion: 0.40
-Nodes (3): MigrationBuilder, EnterpriseAuth.Api.Infrastructure.Persistence.Migrations, LinkEodToScanTransactions
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.JsonWebTokens/7.0.3, lib/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll
 
 ### Community 948 - "Community 948"
 Cohesion: 0.40
 Nodes (3): MigrationBuilder, AddEodTransactionId, EnterpriseAuth.Api.Migrations.ScanProductionDb
 
 ### Community 949 - "Community 949"
-Cohesion: 0.33
-Nodes (6): lib/netstandard2.0/_._, compile, runtime, type, Microsoft.EntityFrameworkCore.Analyzers/8.0.0, lib/netstandard2.0/_._
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
+
+### Community 950 - "Community 950"
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
 ### Community 951 - "Community 951"
 Cohesion: 0.40
-Nodes (4): EnterpriseAuth.Api.Core.Application.DTOs, PermissionDto, RoleDto, UserGroupDto
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
 
 ### Community 952 - "Community 952"
 Cohesion: 0.40
@@ -5100,6 +5078,10 @@ Nodes (4): images, info, author, version
 Cohesion: 0.40
 Nodes (4): Logging, LogLevel, Default, Microsoft.AspNetCore
 
+### Community 959 - "Community 959"
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, runtime
+
 ### Community 960 - "Community 960"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, System.Memory.Data/8.0.1, lib/net8.0/System.Memory.Data.dll, runtime
@@ -5109,20 +5091,20 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.Primitives/9.0.11, lib/net9.0/Microsoft.Extensions.Primitives.dll
 
 ### Community 962 - "Community 962"
-Cohesion: 0.33
-Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.IdentityModel.Logging/8.16.0, lib/net10.0/Microsoft.IdentityModel.Logging.dll
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.CodeDom/4.4.0, lib/netstandard2.0/System.CodeDom.dll, runtime
 
 ### Community 963 - "Community 963"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.SqlServer.Server/1.0.0, lib/netstandard2.0/Microsoft.SqlServer.Server.dll
+Cohesion: 0.17
+Nodes (12): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime, Azure.Identity/1.17.1, Microsoft.SqlServer.Server/1.0.0 (+4 more)
 
 ### Community 964 - "Community 964"
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 965 - "Community 965"
-Cohesion: 0.09
-Nodes (23): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+15 more)
+Cohesion: 0.08
+Nodes (26): runtime, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+18 more)
 
 ### Community 966 - "Community 966"
 Cohesion: 0.40
@@ -5130,7 +5112,7 @@ Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapp
 
 ### Community 967 - "Community 967"
 Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Humanizer.Core/2.14.1, lib/net6.0/Humanizer.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Bcl.AsyncInterfaces/6.0.0, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll
 
 ### Community 968 - "Community 968"
 Cohesion: 0.40
@@ -5146,15 +5128,15 @@ Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.Extens
 
 ### Community 971 - "Community 971"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 972 - "Community 972"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
 
 ### Community 973 - "Community 973"
-Cohesion: 0.33
-Nodes (6): assemblyVersion, fileVersion, dependencies, runtime, Microsoft.Extensions.Logging.Abstractions/9.0.11, lib/net9.0/Microsoft.Extensions.Logging.Abstractions.dll
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
 
 ### Community 974 - "Community 974"
 Cohesion: 0.40
@@ -5170,7 +5152,7 @@ Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Exte
 
 ### Community 977 - "Community 977"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.OpenApi/1.2.3, lib/netstandard2.0/Microsoft.OpenApi.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
 
 ### Community 978 - "Community 978"
 Cohesion: 0.40
@@ -5189,8 +5171,8 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 982 - "Community 982"
-Cohesion: 0.11
-Nodes (19): runtime, runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+11 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 983 - "Community 983"
 Cohesion: 0.40
@@ -5202,15 +5184,15 @@ Nodes (5): runtime, assemblyVersion, fileVersion, Castle.Core/5.1.1, lib/net6.0/
 
 ### Community 985 - "Community 985"
 Cohesion: 0.40
-Nodes (5): BCrypt.Net-Next, BCrypt.Net-Next, bcrypt_net_next, BCrypt.Net-Next, BCrypt.Net-Next
+Nodes (5): assemblyVersion, fileVersion, System.Composition.Runtime/6.0.0, lib/net6.0/System.Composition.Runtime.dll, runtime
 
 ### Community 986 - "Community 986"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.DependencyInjection.Abstractions/10.0.4, lib/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+Cohesion: 0.11
+Nodes (19): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime (+11 more)
 
 ### Community 987 - "Community 987"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Newtonsoft.Json/13.0.3, runtime, lib/net6.0/Newtonsoft.Json.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
 
 ### Community 988 - "Community 988"
 Cohesion: 0.40
@@ -5221,8 +5203,8 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.CodeCoverage/17.14.1, lib/net8.0/Microsoft.VisualStudio.CodeCoverage.Shim.dll
 
 ### Community 990 - "Community 990"
-Cohesion: 0.40
-Nodes (5): Swashbuckle.AspNetCore, Swashbuckle.AspNetCore, Swashbuckle.AspNetCore, Swashbuckle.AspNetCore, swashbuckle_aspnetcore
+Cohesion: 0.33
+Nodes (6): BCrypt.Net-Next, Dapper, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore, dependencies
 
 ### Community 991 - "Community 991"
 Cohesion: 0.40
@@ -5257,12 +5239,12 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
 
 ### Community 999 - "Community 999"
-Cohesion: 0.11
-Nodes (19): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime (+11 more)
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
 
 ### Community 1000 - "Community 1000"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 1001 - "Community 1001"
 Cohesion: 0.40
@@ -5281,8 +5263,8 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.SqlServer.Server/1.0.0, lib/netstandard2.0/Microsoft.SqlServer.Server.dll
 
 ### Community 1005 - "Community 1005"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Newtonsoft.Json/13.0.1, runtime, lib/netstandard2.0/Newtonsoft.Json.dll
+Cohesion: 0.11
+Nodes (19): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+11 more)
 
 ### Community 1006 - "Community 1006"
 Cohesion: 0.40
@@ -5309,8 +5291,8 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 1012 - "Community 1012"
-Cohesion: 0.14
-Nodes (14): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, Azure.Core/1.25.0, EnterpriseAuth.Api/1.0.0 (+6 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
 ### Community 1013 - "Community 1013"
 Cohesion: 0.40
@@ -5334,7 +5316,7 @@ Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsq
 
 ### Community 1018 - "Community 1018"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Design/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Design.dll
 
 ### Community 1019 - "Community 1019"
 Cohesion: 0.40
@@ -5361,8 +5343,8 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 1025 - "Community 1025"
-Cohesion: 0.14
-Nodes (14): runtime, runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, Azure.Identity/1.7.0, EnterpriseAuth.Api/1.0.0 (+6 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Identity/1.7.0, lib/netstandard2.0/Azure.Identity.dll
 
 ### Community 1026 - "Community 1026"
 Cohesion: 0.40
@@ -5373,8 +5355,8 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
 
 ### Community 1028 - "Community 1028"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
+Cohesion: 0.11
+Nodes (19): runtime, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion, runtime (+11 more)
 
 ### Community 1029 - "Community 1029"
 Cohesion: 0.40
@@ -5386,7 +5368,7 @@ Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Abstra
 
 ### Community 1031 - "Community 1031"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
 
 ### Community 1032 - "Community 1032"
 Cohesion: 0.40
@@ -5508,9 +5490,17 @@ Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Bcl.AsyncInterfaces/
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
+### Community 1069 - "Community 1069"
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Bcl.AsyncInterfaces/6.0.0, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll
+
+### Community 1071 - "Community 1071"
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.CommandLine/2.0.0-rtm.25509.106, lib/net8.0/System.CommandLine.dll, runtime
+
 ### Community 1072 - "Community 1072"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
+Nodes (4): fromJson, lanMes, lanNum, LorryDto
 
 ### Community 1073 - "Community 1073"
 Cohesion: 0.40
@@ -5522,11 +5512,11 @@ Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstan
 
 ### Community 1075 - "Community 1075"
 Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Humanizer.Core/2.14.1, lib/net6.0/Humanizer.dll
+Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.50.0, lib/net8.0/Azure.Core.dll
 
 ### Community 1079 - "Community 1079"
-Cohesion: 0.67
-Nodes (3): bool, str, agent_delegate_plan()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Abstractions/8.14.0, lib/net9.0/Microsoft.IdentityModel.Abstractions.dll
 
 ### Community 1080 - "Community 1080"
 Cohesion: 0.67
@@ -5545,8 +5535,8 @@ Cohesion: 0.67
 Nodes (3): str, memory_chain(), Create a causal chain link between two facts.
 
 ### Community 1084 - "Community 1084"
-Cohesion: 0.67
-Nodes (3): str, memory_delete(), Delete facts by their UUIDs.
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 1085 - "Community 1085"
 Cohesion: 0.67
@@ -5569,12 +5559,12 @@ Cohesion: 0.67
 Nodes (3): str, memory_chain(), Create a causal chain link between two facts.
 
 ### Community 1090 - "Community 1090"
-Cohesion: 0.67
-Nodes (3): str, memory_delete(), Delete facts by their UUIDs.
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.DependencyModel/8.0.0, lib/net8.0/Microsoft.Extensions.DependencyModel.dll
 
 ### Community 1091 - "Community 1091"
-Cohesion: 0.67
-Nodes (3): str, Recommend tech stack for a project based on existing projects., recommend_tech()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Bcl.AsyncInterfaces/6.0.0, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll
 
 ### Community 1092 - "Community 1092"
 Cohesion: 0.67
@@ -5584,33 +5574,37 @@ Nodes (3): str, Load or save session bridge., session_bridge()
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.DependencyModel/8.0.0, lib/net8.0/Microsoft.Extensions.DependencyModel.dll
 
+### Community 1139 - "Community 1139"
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
+
+### Community 1141 - "Community 1141"
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Identity.Client.Extensions.Msal/2.19.3, lib/netcoreapp2.1/Microsoft.Identity.Client.Extensions.Msal.dll
+
 ### Community 1147 - "Community 1147"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Build.Locator/1.10.2, lib/net8.0/Microsoft.Build.Locator.dll
+Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.IdentityModel.Abstractions/7.0.3, lib/net8.0/Microsoft.IdentityModel.Abstractions.dll
 
 ### Community 1192 - "Community 1192"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, System.Collections.Immutable/9.0.0, lib/net8.0/System.Collections.Immutable.dll, runtime
 
 ### Community 1193 - "Community 1193"
-Cohesion: 0.50
-Nodes (5): bool, int, str, agent_research_wave_finalize(), _parse_promoted_count()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
 
 ### Community 1194 - "Community 1194"
-Cohesion: 0.50
-Nodes (5): str, _compute_safety_hash(), Compute SHA256 hash of safety fields for tampering detection., Verify project identity before sensitive operations., verify_identity()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
 
 ### Community 1195 - "Community 1195"
-Cohesion: 0.50
-Nodes (5): bool, int, str, agent_research_wave_finalize(), _parse_promoted_count()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
 
 ### Community 1196 - "Community 1196"
-Cohesion: 0.50
-Nodes (5): bool, str, _compute_safety_hash(), identity_set(), Set Identity Card fields for current project.
-
-### Community 1197 - "Community 1197"
-Cohesion: 0.50
-Nodes (5): str, _compute_safety_hash(), Compute SHA256 hash of safety fields for tampering detection., Verify project identity before sensitive operations., verify_identity()
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, runtime
 
 ### Community 1198 - "Community 1198"
 Cohesion: 0.40
@@ -5620,17 +5614,9 @@ Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.Primitive
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.SqlServer.Server/1.0.0, lib/netstandard2.0/Microsoft.SqlServer.Server.dll
 
-### Community 1200 - "Community 1200"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.Caching.Memory/9.0.11, lib/net9.0/Microsoft.Extensions.Caching.Memory.dll
-
 ### Community 1201 - "Community 1201"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.DependencyInjection.Abstractions/9.0.11, lib/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
-
-### Community 1202 - "Community 1202"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.Options/9.0.11, lib/net9.0/Microsoft.Extensions.Options.dll
 
 ### Community 1203 - "Community 1203"
 Cohesion: 0.40
@@ -5652,29 +5638,13 @@ Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
 
-### Community 1208 - "Community 1208"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, System.IdentityModel.Tokens.Jwt/7.0.3, lib/net8.0/System.IdentityModel.Tokens.Jwt.dll, runtime
-
 ### Community 1209 - "Community 1209"
 Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, Azure.Core/1.25.0, lib/net5.0/Azure.Core.dll
 
-### Community 1210 - "Community 1210"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Extensions.Primitives/10.0.4, lib/net10.0/Microsoft.Extensions.Primitives.dll
-
 ### Community 1211 - "Community 1211"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.OpenApi/1.2.3, lib/netstandard2.0/Microsoft.OpenApi.dll
-
-### Community 1212 - "Community 1212"
-Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Castle.Core/5.1.1, lib/net6.0/Castle.Core.dll
-
-### Community 1213 - "Community 1213"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.CodeCoverage/17.8.0, lib/netcoreapp3.1/Microsoft.VisualStudio.CodeCoverage.Shim.dll
 
 ### Community 1214 - "Community 1214"
 Cohesion: 0.40
@@ -5689,8 +5659,8 @@ Cohesion: 0.40
 Nodes (4): package:enterprise_auth_mobile/features/logistics/domain/entities/site.dart, call, GetSitesUseCase, repository
 
 ### Community 1217 - "Community 1217"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 1218 - "Community 1218"
 Cohesion: 0.40
@@ -5701,48 +5671,12 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, assetType, fileVersion, rid, runtimes/win/lib/net6.0/System.Windows.Extensions.dll
 
 ### Community 1220 - "Community 1220"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
-
-### Community 1221 - "Community 1221"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.SqlServer.Server/1.0.0, lib/netstandard2.0/Microsoft.SqlServer.Server.dll
+Cohesion: 0.29
+Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
 
 ### Community 1222 - "Community 1222"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, assetType, fileVersion, rid, runtimes/win/lib/net6.0/System.Windows.Extensions.dll
-
-### Community 1223 - "Community 1223"
-Cohesion: 0.50
-Nodes (4): int, str, code_impact(), Analyze blast radius of changing a symbol.      BFS traversal of incoming refe
-
-### Community 1224 - "Community 1224"
-Cohesion: 0.50
-Nodes (4): int, str, file_search(), Search indexed project files (PRD, docs, configs) via FTS5.
-
-### Community 1226 - "Community 1226"
-Cohesion: 0.67
-Nodes (4): int, str, agent_review_run_start(), _parse_started_run_id()
-
-### Community 1227 - "Community 1227"
-Cohesion: 0.50
-Nodes (4): int, str, code_impact(), Analyze blast radius of changing a symbol.      BFS traversal of incoming refe
-
-### Community 1229 - "Community 1229"
-Cohesion: 0.50
-Nodes (3): content, file, main
-
-### Community 1230 - "Community 1230"
-Cohesion: 0.50
-Nodes (3): content, file, main
-
-### Community 1239 - "Community 1239"
-Cohesion: 0.67
-Nodes (3): int, str, agent_run_digest()
-
-### Community 1240 - "Community 1240"
-Cohesion: 0.67
-Nodes (3): str, code_context(), Get full context for a symbol: definition, callers, callees, references.
 
 ### Community 1241 - "Community 1241"
 Cohesion: 0.67
@@ -5760,10 +5694,6 @@ Nodes (3): str, create_demo_db(), Create a temp DB with demo data. Returns path 
 Cohesion: 0.67
 Nodes (3): int, str, agent_run_digest()
 
-### Community 1246 - "Community 1246"
-Cohesion: 0.67
-Nodes (3): str, code_context(), Get full context for a symbol: definition, callers, callees, references.
-
 ### Community 1247 - "Community 1247"
 Cohesion: 0.67
 Nodes (3): str, memory_link(), Create a manual bidirectional link between two facts.
@@ -5773,24 +5703,24 @@ Cohesion: 0.67
 Nodes (3): str, create_demo_db(), Create a temp DB with demo data. Returns path to temp DB.
 
 ## Knowledge Gaps
-- **6775 isolated node(s):** `registrar`, `registerPlugins`, `build_start`, `build_end`, `code_assets` (+6770 more)
+- **6835 isolated node(s):** `registrar`, `registerPlugins`, `build_start`, `build_end`, `code_assets` (+6830 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **122 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **112 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `.NETCoreApp,Version=v10.0` connect `Community 982` to `Community 257`, `Community 151`, `Community 292`, `Community 434`, `Community 309`, `Community 1209`, `Community 1210`, `Community 315`, `Community 1211`, `Community 190`, `Community 577`, `Community 578`, `Community 455`, `Community 590`, `Community 981`, `Community 983`, `Community 984`, `Community 986`, `Community 219`, `Community 988`, `Community 989`, `Community 987`, `Community 991`, `Community 992`, `Community 612`, `Community 230`, `Community 231`, `Community 110`, `Community 371`, `Community 372`, `Community 373`, `Community 759`, `Community 124`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
-- **Why does `.NETCoreApp,Version=v8.0` connect `Community 897` to `Community 898`, `Community 899`, `Community 900`, `Community 901`, `Community 902`, `Community 903`, `Community 904`, `Community 277`, `Community 278`, `Community 544`, `Community 545`, `Community 419`, `Community 420`, `Community 421`, `Community 422`, `Community 554`, `Community 1068`, `Community 174`, `Community 1072`, `Community 177`, `Community 53`, `Community 326`, `Community 327`, `Community 591`, `Community 592`, `Community 358`, `Community 359`, `Community 360`, `Community 881`, `Community 242`, `Community 243`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
-- **Why does `net10.0` connect `Community 498` to `Community 272`, `Community 404`, `Community 313`, `Community 570`, `Community 571`, `Community 450`, `Community 580`, `Community 324`, `Community 460`, `Community 461`, `Community 341`, `Community 95`, `Community 608`, `Community 488`, `Community 489`, `Community 497`, `Community 370`, `Community 499`, `Community 500`, `Community 504`, `Community 254`?**
-  _High betweenness centrality (0.092) - this node is a cross-community bridge._
+- **Why does `.NETCoreApp,Version=v10.0` connect `Community 986` to `Community 257`, `Community 151`, `Community 292`, `Community 434`, `Community 309`, `Community 1209`, `Community 315`, `Community 1211`, `Community 577`, `Community 578`, `Community 455`, `Community 590`, `Community 981`, `Community 982`, `Community 983`, `Community 984`, `Community 219`, `Community 988`, `Community 989`, `Community 991`, `Community 992`, `Community 612`, `Community 230`, `Community 231`, `Community 110`, `Community 1139`, `Community 372`, `Community 373`, `Community 1141`, `Community 759`, `Community 371`, `Community 124`?**
+  _High betweenness centrality (0.086) - this node is a cross-community bridge._
+- **Why does `.NETCoreApp,Version=v8.0` connect `Community 901` to `Community 897`, `Community 898`, `Community 899`, `Community 900`, `Community 903`, `Community 904`, `Community 277`, `Community 278`, `Community 544`, `Community 545`, `Community 419`, `Community 420`, `Community 421`, `Community 422`, `Community 554`, `Community 1068`, `Community 174`, `Community 177`, `Community 53`, `Community 701`, `Community 326`, `Community 967`, `Community 592`, `Community 358`, `Community 359`, `Community 360`, `Community 881`, `Community 242`, `Community 243`?**
+  _High betweenness centrality (0.085) - this node is a cross-community bridge._
+- **Why does `net10.0` connect `Community 488` to `Community 272`, `Community 404`, `Community 313`, `Community 570`, `Community 314`, `Community 571`, `Community 450`, `Community 580`, `Community 324`, `Community 327`, `Community 460`, `Community 461`, `Community 95`, `Community 497`, `Community 370`, `Community 498`, `Community 500`, `Community 499`, `Community 504`, `Community 506`, `Community 254`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
 - **What connects `registrar`, `registerPlugins`, `build_start` to the rest of the system?**
-  _7673 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _7733 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.007326007326007326 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.007326007326007326 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.009569377990430622 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.009433962264150943 - nodes in this community are weakly interconnected._

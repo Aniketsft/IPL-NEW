@@ -25,6 +25,7 @@ class SalesOrderDetailDto {
   final bool isPrepared;
   final String unit;
   final double eaQuantity;
+  final bool isFpp;
 
   SalesOrderDetailDto({
     required this.soNumber,
@@ -51,6 +52,7 @@ class SalesOrderDetailDto {
     this.isPrepared = false,
     this.unit = 'KG',
     this.eaQuantity = 0.0,
+    this.isFpp = false,
   });
 
   factory SalesOrderDetailDto.fromJson(Map<String, dynamic> json) {
@@ -79,6 +81,7 @@ class SalesOrderDetailDto {
       isPrepared: json['isPrepared'] == 1 || json['isPrepared'] == true,
       unit: json['unit']?.toString() ?? 'KG',
       eaQuantity: (json['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+      isFpp: json['isFpp'] == 1 || json['isFpp'] == true,
     );
   }
 
@@ -103,6 +106,7 @@ class SalesOrderDetailDto {
       LocalDatabaseHelper.colDetCustomerCode: customerCode,
       LocalDatabaseHelper.colDetCustomerName: customerName,
       LocalDatabaseHelper.colDetEaScanned: eaQuantity,
+      LocalDatabaseHelper.colDetIsFpp: isFpp ? 1 : 0,
     };
   }
 }
