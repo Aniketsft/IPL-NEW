@@ -137,6 +137,7 @@ class SalesOrderCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                        /*
                         if (hasFppAvailable) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -163,6 +164,7 @@ class SalesOrderCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                        */
                       ],
                     ),
                   ),

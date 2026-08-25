@@ -1592,7 +1592,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (hasBulk || item.isFpp) ...[
+                        if (hasBulk) ...[
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -1621,6 +1621,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                     ],
                                   ),
                                 ),
+                              /*
                               if (item.isFpp)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1638,6 +1639,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                                     ),
                                   ),
                                 ),
+                              */
                             ],
                           ),
                         ],
