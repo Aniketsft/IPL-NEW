@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import '../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
+import '../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart';
 import '../../../data/models/sales_invoice_product_model.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../../../core/network_service.dart';
@@ -22,7 +24,7 @@ class SalesInvoiceProductSelectionScreen extends StatefulWidget {
 }
 
 class _SalesInvoiceProductSelectionScreenState
-    extends State<SalesInvoiceProductSelectionScreen> {
+    extends State<SalesInvoiceProductSelectionScreen> with HardwareScannerMixin {
   late SalesInvoiceProductRepository _repository;
   final TextEditingController _searchController = TextEditingController();
   String _stockFilter = 'in stock'; // Default to in stock as requested
@@ -37,6 +39,81 @@ class _SalesInvoiceProductSelectionScreenState
   int _offset = 0;
   final int _limit = 20;
   final ScrollController _scrollController = ScrollController();
+  
+  bool _isProcessingScan = false;
+
+  @override
+  void onHardwareScan(String data) async {
+    if (_isProcessingScan || data.isEmpty) return;
+    
+    setState(() => _isProcessingScan = true);
+    
+    try {
+      final processor = OfflineBarcodeProcessor();
+      final scanResult = await processor.processBarcode(data);
+      
+      if (scanResult == null) {
+        _showErrorDialog('Product Not Found', 'The scanned barcode could not be identified.');
+        return;
+      }
+      
+      final product = await _repository.getProductByItemCode(scanResult.itemCode);
+      
+      if (product == null) {
+        _showErrorDialog('Product Not Found', 'The product is not available in the sales invoice catalog.');
+        return;
+      }
+
+      // Check if product is already in the cart
+      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      CartItem? existingItem;
+      int? editingIndex;
+      for (int i = 0; i < cartItems.length; i++) {
+        if (cartItems[i].product.sku == product.sku) {
+          existingItem = cartItems[i];
+          editingIndex = i;
+          break;
+        }
+      }
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddItemDetailScreen(
+              product: product,
+              existingItem: existingItem,
+              editingIndex: editingIndex,
+              fromProductSelection: true,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _showErrorDialog('Scan Error', 'An error occurred while processing the scan.');
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingScan = false);
+      }
+    }
+  }
+
+  void _showErrorDialog(String title, String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
