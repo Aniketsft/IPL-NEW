@@ -1071,6 +1071,10 @@ class DeliveryRepository implements ILogisticsRepository {
             processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
 
+      // Prune all stale data outside the rolling window (TODAY-2 → TODAY+5)
+      final pruned = await LocalDatabaseHelper.instance.pruneStaleData();
+      debugPrint('Sync: Pruned stale data — $pruned');
+
       // 3. Mark preparation status updates as synced AFTER refresh
       // This combined with the "Dirty-Aware" refresh prevents stale server data overwrites.
       final updates = (await LocalDatabaseHelper.instance
@@ -1445,6 +1449,10 @@ class DeliveryRepository implements ILogisticsRepository {
         eodProcessAudits:
             processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
+
+      // Prune all stale data outside the rolling window (TODAY-2 → TODAY+5)
+      final pruned = await LocalDatabaseHelper.instance.pruneStaleData();
+      debugPrint('Sync: Pruned stale data — $pruned');
 
       // 3. Mark preparation status updates as synced AFTER refresh
       // We re-fetch from DB to get the current list of what was dirty BEFORE refresh (and preserved)

@@ -3,12 +3,14 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../ui/screens/end_of_day_screen.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 
 class EodPdfGenerator {
   static Future<void> generateAndPrint({
     required String workOrder,
     required DateTime productionDate,
     required List<ProductionTrackingItem> items,
+    bool isSummary = false,
   }) async {
     final fppItems = items.where((i) => i.isFpp).toList();
     final cutsItems = items.where((i) => !i.isFpp).toList();
@@ -16,20 +18,24 @@ class EodPdfGenerator {
     final pdf = pw.Document();
     final dateStr = DateFormat('EEE, d MMM yyyy').format(productionDate);
     final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final username = await SecureStorageService().getUsername() ?? 'Unknown';
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) => [
-          _buildHeader(dateStr, printTime),
+          _buildHeader(dateStr, printTime, username, isSummary: isSummary),
           pw.SizedBox(height: 20),
 
-          // ── CUTS / BUKS SECTION ──
+          // ── CUTS / BULK SECTION ──
           if (cutsItems.isNotEmpty) ...[
-            _buildSectionHeader('✂  CUTS / BUKS'),
+            _buildSectionHeader('✂  CUTS / BULK'),
             pw.SizedBox(height: 10),
-            ..._buildWOSubSections(cutsItems),
+            if (isSummary)
+              _buildTable(cutsItems)
+            else
+              ..._buildWOSubSections(cutsItems),
             _buildSectionTotals(cutsItems),
             pw.SizedBox(height: 24),
           ],
@@ -38,12 +44,13 @@ class EodPdfGenerator {
           if (fppItems.isNotEmpty) ...[
             _buildSectionHeader('🐔  FPP PRODUCTS'),
             pw.SizedBox(height: 10),
-            ..._buildWOSubSections(fppItems),
+            if (isSummary)
+              _buildTable(fppItems)
+            else
+              ..._buildWOSubSections(fppItems),
             _buildSectionTotals(fppItems),
             pw.SizedBox(height: 24),
           ],
-
-          _buildFooter(items),
         ],
         footer: (pw.Context context) => pw.Container(
           alignment: pw.Alignment.centerRight,
@@ -58,7 +65,7 @@ class EodPdfGenerator {
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'EOD_Report_${workOrder}_${DateFormat('yyyyMMdd').format(productionDate)}.pdf',
+      name: 'EOD_${isSummary ? 'Summary' : 'Detailed'}_${workOrder}_${DateFormat('yyyyMMdd').format(productionDate)}.pdf',
     );
   }
 
@@ -68,13 +75,18 @@ class EodPdfGenerator {
   static pw.Widget _buildSectionHeader(String title) {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: const pw.BoxDecoration(color: PdfColors.amber),
+      decoration: const pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.black, width: 1.5),
+        ),
+      ),
       child: pw.Text(
         title,
         style: pw.TextStyle(
           fontSize: 13,
           fontWeight: pw.FontWeight.bold,
-          color: PdfColors.white,
+          color: PdfColors.black,
         ),
       ),
     );
@@ -114,12 +126,12 @@ class EodPdfGenerator {
       decoration: pw.BoxDecoration(
         color: PdfColors.grey200,
         border: const pw.Border(
-          left: pw.BorderSide(color: PdfColors.amber, width: 3),
+          left: pw.BorderSide(color: PdfColors.black, width: 3),
         ),
       ),
       child: pw.Text(
         'Work Order: $wo',
-        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
       ),
     );
   }
@@ -138,9 +150,9 @@ class EodPdfGenerator {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
-          _totCell('Section Processed:', processedKg),
+          _totCell('X3:', processedKg),
           pw.SizedBox(width: 24),
-          _totCell('Section Unprocessed:', unprocessedKg),
+          _totCell('HIPO:', unprocessedKg),
           pw.SizedBox(width: 24),
           _totCell('Section Total:', totalKg, bold: true),
         ],
@@ -151,7 +163,7 @@ class EodPdfGenerator {
   static pw.Widget _totCell(String label, double value, {bool bold = false}) {
     return pw.Row(
       children: [
-        pw.Text(label, style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+        pw.Text(label, style: pw.TextStyle(fontSize: 8, color: PdfColors.black)),
         pw.SizedBox(width: 4),
         pw.Text(
           '${value.toStringAsFixed(2)} KG',
@@ -171,18 +183,19 @@ class EodPdfGenerator {
     const headers = [
       'Code',
       'Description',
-      'Processed',
-      'Unprocessed',
+      'X3',
+      'Hipo',
       'Total',
       'Unit',
       'Location',
       'Lot',
     ];
 
-    // Group by itemCode within this WO
+    // Group by itemCode + lotNumber for accurate per-lot summary
     final Map<String, List<ProductionTrackingItem>> byCode = {};
     for (final item in items) {
-      byCode.putIfAbsent(item.itemCode, () => []).add(item);
+      final key = '${item.itemCode}__${item.lotNumber}';
+      byCode.putIfAbsent(key, () => []).add(item);
     }
 
     final List<List<dynamic>> tableData = [];
@@ -228,10 +241,15 @@ class EodPdfGenerator {
       border: pw.TableBorder.all(color: PdfColors.grey300),
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
+        color: PdfColors.black,
         fontSize: 8,
       ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.amber),
+      headerDecoration: const pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+        ),
+      ),
       cellHeight: 20,
       cellStyle: const pw.TextStyle(fontSize: 8),
       columnWidths: {
@@ -261,7 +279,7 @@ class EodPdfGenerator {
   // ──────────────────────────────────────────
   // Page header
   // ──────────────────────────────────────────
-  static pw.Widget _buildHeader(String date, String time) {
+  static pw.Widget _buildHeader(String date, String time, String username, {bool isSummary = false}) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -273,7 +291,7 @@ class EodPdfGenerator {
               style: pw.TextStyle(
                 fontSize: 24,
                 fontWeight: pw.FontWeight.bold,
-                color: PdfColors.amber,
+                color: PdfColors.black,
               ),
             ),
             pw.Column(
@@ -284,14 +302,26 @@ class EodPdfGenerator {
                   style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                 ),
                 pw.Text(
+                  isSummary ? 'Summary Report' : 'Detailed Report',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    color: PdfColors.black,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Text(
                   'Printed on: $time',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
+                pw.Text(
+                  'Printed by: $username',
                   style: const pw.TextStyle(fontSize: 8),
                 ),
               ],
             ),
           ],
         ),
-        pw.Divider(thickness: 2, color: PdfColors.amber),
+        pw.Divider(thickness: 1.5, color: PdfColors.black),
         pw.SizedBox(height: 8),
         pw.Text(
           'Production Date: $date',
@@ -301,50 +331,4 @@ class EodPdfGenerator {
     );
   }
 
-  // ──────────────────────────────────────────
-  // Grand total footer
-  // ──────────────────────────────────────────
-  static pw.Widget _buildFooter(List<ProductionTrackingItem> items) {
-    final totalQty = items.fold(0.0, (sum, item) => sum + item.manufactured);
-
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.end,
-      children: [
-        pw.Divider(),
-        pw.SizedBox(height: 6),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.end,
-          children: [
-            pw.Text(
-              'Grand Total Production: ',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              '${totalQty.toStringAsFixed(2)} KG',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
-            ),
-          ],
-        ),
-        pw.SizedBox(height: 30),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.end,
-          children: [_buildSigLine('Production Manager')],
-        ),
-      ],
-    );
-  }
-
-  static pw.Widget _buildSigLine(String title) {
-    return pw.Column(
-      children: [
-        pw.Container(
-          width: 150,
-          decoration: const pw.BoxDecoration(
-            border: pw.Border(top: pw.BorderSide()),
-          ),
-        ),
-        pw.Text(title, style: const pw.TextStyle(fontSize: 10)),
-      ],
-    );
-  }
 }

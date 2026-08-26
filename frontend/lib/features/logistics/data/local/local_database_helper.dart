@@ -8,7 +8,7 @@ import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-
+import 'package:intl/intl.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
@@ -1476,7 +1476,8 @@ class LocalDatabaseHelper {
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode
-      WHERE ord.$colDeliveryDate LIKE ? 
+      WHERE ord.$colDeliveryDate LIKE ?
+        AND (ord.$colSource IS NULL OR ord.$colSource != 'Internal')
       GROUP BY det.$colDetSoNum, det.$colDetItemCode
       ORDER BY ord.$colOrderNum ASC
       ''',
@@ -1571,6 +1572,63 @@ class LocalDatabaseHelper {
   Future<List<Map<String, dynamic>>> getSyncHistory() async {
     final db = await instance.database;
     return await db.query(tableSyncHistory, orderBy: '$colSyncTimestamp DESC');
+  }
+
+  Future<Map<String, int>> pruneStaleData() async {
+    final db = await instance.database;
+    final today = DateTime.now();
+    final minDate = today.subtract(const Duration(days: 2));
+    final maxDate = today.add(const Duration(days: 5));
+    final minStr = DateFormat('yyyy-MM-dd').format(minDate);
+    final maxStr = DateFormat('yyyy-MM-dd').format(maxDate);
+    final counts = <String, int>{};
+
+    await db.transaction((txn) async {
+
+      // ── STEP 1: Find stale External order numbers ─────────────────────────
+      final staleOrders = await txn.rawQuery('''
+        SELECT $colOrderNum FROM $tableOrders
+        WHERE $colSource = 'External'
+          AND ($colDeliveryDate < ? OR $colDeliveryDate > ?)
+          AND $columnIsSynced = 1
+      ''', ['$minStr%', '$maxStr%']);
+
+      final staleNums = staleOrders
+          .map((r) => r[colOrderNum] as String)
+          .toList();
+
+      if (staleNums.isNotEmpty) {
+        final ph = List.filled(staleNums.length, '?').join(',');
+
+        // ── STEP 2: Cascade prune child tables linked to stale orders ────────
+        counts['details'] = await txn.rawDelete(
+          'DELETE FROM $tableDetails WHERE $colDetSoNum IN ($ph)', staleNums);
+
+        counts['scans'] = await txn.rawDelete(
+          'DELETE FROM $tableScans WHERE $columnSoNumber IN ($ph) AND $columnIsSynced = 1', staleNums);
+
+        counts['stagingEod'] = await txn.rawDelete(
+          'DELETE FROM $tableStagingEod WHERE $columnSoNumber IN ($ph) AND $columnIsSynced = 1', staleNums);
+
+        counts['deliveryScans'] = await txn.rawDelete(
+          'DELETE FROM $tableDeliveryScans WHERE $colDelScanSoNumber IN ($ph)', staleNums);
+
+        counts['orderRollovers'] = await txn.rawDelete(
+          'DELETE FROM $tableOrderRollovers WHERE $colRolloverSoNum IN ($ph)', staleNums);
+
+        // ── STEP 3: Delete the stale orders themselves ───────────────────────
+        counts['orders'] = await txn.rawDelete(
+          'DELETE FROM $tableOrders WHERE $colOrderNum IN ($ph)', staleNums);
+      }
+
+      // ── STEP 4: Prune stale work orders independently ─────────────────────
+      counts['workOrders'] = await txn.rawDelete(
+        'DELETE FROM $tableWorkOrders WHERE $colWoDate < ?', [minStr]);
+
+    });
+
+    debugPrint('Pruned stale data: $counts (window: $minStr → $maxStr)');
+    return counts;
   }
 
   // Perform bulk refresh of logistics data

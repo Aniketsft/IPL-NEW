@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   /// Base IP Address for the backend server.
   /// Update this value to change the IP globally across the app.
-  static const String serverIp = '192.168.120.7';
+  static const String serverIp = '192.168.1.91';
 
   /// Centralized configuration for user inactivity timeout.
   /// The app will automatically log out the user after this duration of inactivity.

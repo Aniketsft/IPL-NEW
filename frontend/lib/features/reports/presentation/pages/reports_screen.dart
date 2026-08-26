@@ -46,72 +46,110 @@ class _ReportsScreenState extends State<ReportsScreen> {
       },
     );
 
-    if (picked != null && mounted) {
-      setState(() => _isLoading = true);
-      try {
-        final repository = context.read<DeliveryRepository>();
-        final db = LocalDatabaseHelper.instance;
-        
-        final data = await repository.getProductionSummaryFromServer(picked);
-        
-        final List<ProductionTrackingItem> parsedItems = [];
-        for (final e in data) {
-           final code = e['itemCode'] as String? ?? '';
-           double stdWeight = 0.0;
-           if (code.isNotEmpty) {
-             final product = await db.getProductByCode(code);
-             if (product != null && product[LocalDatabaseHelper.colProdStandardWeight] != null) {
-                stdWeight = (product[LocalDatabaseHelper.colProdStandardWeight] as num).toDouble();
-             }
+    if (picked == null || !mounted) return;
+
+    // Ask user to choose report type
+    final bool? isSummary = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Report Type',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Select the type of Daily Production Report to generate.',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, false),
+            icon: const Icon(Icons.list_alt_rounded, color: Colors.amber),
+            label: const Text(
+              'Detailed',
+              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.summarize_rounded, color: Colors.amber),
+            label: const Text(
+              'Summary',
+              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (isSummary == null || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final repository = context.read<DeliveryRepository>();
+      final db = LocalDatabaseHelper.instance;
+      
+      final data = await repository.getProductionSummaryFromServer(picked);
+      
+      final List<ProductionTrackingItem> parsedItems = [];
+      for (final e in data) {
+         final code = e['itemCode'] as String? ?? '';
+         double stdWeight = 0.0;
+         if (code.isNotEmpty) {
+           final product = await db.getProductByCode(code);
+           if (product != null && product[LocalDatabaseHelper.colProdStandardWeight] != null) {
+              stdWeight = (product[LocalDatabaseHelper.colProdStandardWeight] as num).toDouble();
            }
-           
-           parsedItems.add(ProductionTrackingItem(
-              soNumber: e['soNumber'] as String? ?? '',
-              itemCode: code,
-              description: e['description'] as String? ?? '',
-              quantity: (e['quantity'] as num?)?.toDouble() ?? 0.0,
-              manufactured: (e['manufactured'] as num?)?.toDouble() ?? 0.0,
-              lotNumber: e['lotNumber'] as String? ?? '',
-              unit: e['unit'] as String? ?? 'KG',
-              conversion: (e['conversion'] as num?)?.toDouble() ?? 1.0,
-              location: e['location'] as String? ?? 'IPLCH',
-              statusLabel: e['statusLabel'] as String? ?? 'A',
-              eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
-              standardWeight: stdWeight,
-              processedQuantity: (e['processedQuantity'] as num?)?.toDouble() ?? 0.0,
-              unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
-              processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
-              unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
-              workOrderNumber: e['workOrderNumber'] as String? ?? '',
-              createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
-           ));
-        }
+         }
+         
+         parsedItems.add(ProductionTrackingItem(
+            soNumber: e['soNumber'] as String? ?? '',
+            itemCode: code,
+            description: e['description'] as String? ?? '',
+            quantity: (e['quantity'] as num?)?.toDouble() ?? 0.0,
+            manufactured: (e['manufactured'] as num?)?.toDouble() ?? 0.0,
+            lotNumber: e['lotNumber'] as String? ?? '',
+            unit: e['unit'] as String? ?? 'KG',
+            conversion: (e['conversion'] as num?)?.toDouble() ?? 1.0,
+            location: e['location'] as String? ?? 'IPLCH',
+            statusLabel: e['statusLabel'] as String? ?? 'A',
+            eaQuantity: (e['eaQuantity'] as num?)?.toDouble() ?? 0.0,
+            standardWeight: stdWeight,
+            processedQuantity: (e['processedQuantity'] as num?)?.toDouble() ?? 0.0,
+            unprocessedQuantity: (e['unprocessedQuantity'] as num?)?.toDouble() ?? 0.0,
+            processedEaQuantity: (e['processedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+            unprocessedEaQuantity: (e['unprocessedEaQuantity'] as num?)?.toDouble() ?? 0.0,
+            workOrderNumber: e['workOrderNumber'] as String? ?? '',
+            createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
+         ));
+      }
 
-        if (parsedItems.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No production data found for this date.')),
-            );
-          }
-          return;
-        }
-
-        await EodPdfGenerator.generateAndPrint(
-          workOrder: 'Daily Summary',
-          productionDate: picked,
-          items: parsedItems.where((item) => item.manufactured > 0).toList(),
-        );
-
-      } catch (e) {
-        debugPrint('Report Error: $e');
+      if (parsedItems.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate report: $e'), backgroundColor: Colors.redAccent),
+            const SnackBar(content: Text('No production data found for this date.')),
           );
         }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        return;
       }
+
+      await EodPdfGenerator.generateAndPrint(
+        workOrder: 'Daily Summary',
+        productionDate: picked,
+        items: parsedItems.where((item) => item.manufactured > 0).toList(),
+        isSummary: isSummary,
+      );
+
+    } catch (e) {
+      debugPrint('Report Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate report: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -136,40 +174,76 @@ class _ReportsScreenState extends State<ReportsScreen> {
       },
     );
 
-    if (picked != null && mounted) {
-      setState(() => _isLoading = true);
-      try {
-        final db = LocalDatabaseHelper.instance;
-        final dateStr = DateFormat('yyyy-MM-dd').format(picked);
-        
-        final orderDetails = await db.getSalesOrdersByDeliveryDate(dateStr);
+    if (picked == null || !mounted) return;
 
-        if (orderDetails.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No orders found for this delivery date.')),
-            );
-          }
-          return;
-        }
+    // Ask user to choose report type
+    final bool? isSummary = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Report Type',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Select the type of Order Completion Report to generate.',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, false),
+            icon: const Icon(Icons.list_alt_rounded, color: Colors.amber),
+            label: const Text(
+              'Detailed',
+              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.summarize_rounded, color: Colors.amber),
+            label: const Text(
+              'Summary',
+              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
 
-        final repository = context.read<DeliveryRepository>();
+    if (isSummary == null || !mounted) return;
 
-        await OrderCompletionPdfGenerator.generateAndPrint(
-          targetDate: picked,
-          orderDetails: orderDetails,
-        );
+    setState(() => _isLoading = true);
+    try {
+      final db = LocalDatabaseHelper.instance;
+      final dateStr = DateFormat('yyyy-MM-dd').format(picked);
 
-      } catch (e) {
-        debugPrint('Report Error: $e');
+      final orderDetails = await db.getSalesOrdersByDeliveryDate(dateStr);
+
+      if (orderDetails.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate report: $e'), backgroundColor: Colors.redAccent),
+            const SnackBar(content: Text('No orders found for this delivery date.')),
           );
         }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        return;
       }
+
+      await OrderCompletionPdfGenerator.generateAndPrint(
+        targetDate: picked,
+        orderDetails: orderDetails,
+        isSummary: isSummary,
+      );
+
+    } catch (e) {
+      debugPrint('Report Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate report: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

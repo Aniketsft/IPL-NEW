@@ -1594,12 +1594,13 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
                         ),
                         if (hasBulk) ...[
                           const SizedBox(height: 6),
-                          Row(
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
                               if (hasBulk)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  margin: const EdgeInsets.only(right: 6),
                                   decoration: BoxDecoration(
                                     color: Colors.blueAccent.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
