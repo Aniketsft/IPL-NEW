@@ -168,7 +168,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         f0.STU_0 AS [StockUnit],
                         f0.SAU_0 AS [SalesUnit],
                         f0.ITMWEI_0 AS [StandardWeight],
-                        f0.EANCOD_0 AS [Barcode]
+                        f0.EANCOD_0 AS [Barcode],
+                        f1.DEFLOC_2 AS [DefaultLocation],
+                        f0.SHL_0 AS [ShelfLifeDays]
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f0 WITH (NOLOCK)
                     JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
                 ) AS T1

@@ -117,19 +117,38 @@ class _ProductScanFloatingScreenState extends State<ProductScanFloatingScreen> w
       final itemCode = widget.product['code']?.toString() ?? widget.product['productId']?.toString() ?? '';
       final locations = await repository.getTargetLocations(_selectedSite!, itemCode);
       
+      final defaults = await LocalDatabaseHelper.instance.getProductDefaults(itemCode);
+      final String? productDefaultLocation = defaults.location;
+
       if (mounted) {
         setState(() {
           _locations = locations;
-          final lastLoc = _selectedLocationEntity?.location;
-          if (lastLoc != null) {
-             final found = _locations.where((l) => l.location == lastLoc);
-             if (found.isNotEmpty) {
-               _selectedLocationEntity = found.first;
-             }
-          } else if (_locations.isNotEmpty) {
+          
+          bool foundDefault = false;
+          if (productDefaultLocation != null && productDefaultLocation.isNotEmpty) {
+            final match = _locations.where((l) => l.location == productDefaultLocation);
+            if (match.isNotEmpty) {
+              _selectedLocationEntity = match.first;
+              foundDefault = true;
+            }
+          }
+
+          if (!foundDefault) {
+            final lastLoc = _selectedLocationEntity?.location; // From preferences
+            if (lastLoc != null) {
+               final found = _locations.where((l) => l.location == lastLoc);
+               if (found.isNotEmpty) {
+                 _selectedLocationEntity = found.first;
+                 foundDefault = true;
+               }
+            }
+          }
+
+          if (!foundDefault && _locations.isNotEmpty) {
             final iplch = _locations.where((l) => l.location == 'IPLCH');
             _selectedLocationEntity = iplch.isNotEmpty ? iplch.first : _locations.first;
           }
+          
           _isLoadingLocations = false;
         });
       }

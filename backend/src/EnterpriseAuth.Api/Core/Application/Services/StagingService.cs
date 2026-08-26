@@ -87,8 +87,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             // 4. Batch-fetch VAT levels for all item codes in the order (from X3 ITMMASTER)
             var itemCodes = order.Lines.Select(l => l.ItemCode).Where(c => c != null).Distinct().ToList();
-            var vatLevels = await GetItemVatLevelsAsync(itemCodes);
-            Console.WriteLine($"[Staging] Fetched VAT levels for {vatLevels.Count}/{itemCodes.Count} items in SO {soNumber}.");
+            var itemMetadata = await GetItemMetadataAsync(itemCodes);
+            Console.WriteLine($"[Staging] Fetched item metadata for {itemMetadata.Count}/{itemCodes.Count} items in SO {soNumber}.");
 
             // 5. Map to Staging Entity
             var stagingRecords = new List<Staging>();
@@ -168,8 +168,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var lineLotGroups = lotGroups.Where(g => g.Key.SalesOrderLineId == line.Id).ToList();
 
                 // Resolve VAT level: use lookup result, fallback to "STD" if not found
-                var vatLevel = (line.ItemCode != null && vatLevels.ContainsKey(line.ItemCode))
-                    ? vatLevels[line.ItemCode]
+                var vatLevel = (line.ItemCode != null && itemMetadata.ContainsKey(line.ItemCode))
+                    ? itemMetadata[line.ItemCode].VatLevel
                     : "STD";
 
                 if (lineLotGroups.Any())
@@ -245,7 +245,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         ZITMDES_0 = line.Description,
                         ZSAU_0 = line.Unit,
                         ZQTY_0 = state.TotalManufacturedQty,
-                        ZVACITM_0 = vatLevel,  // VAT level from X3 ITMMASTER.VACITM_0
+                        ZVACITM_0 = itemMetadata.ContainsKey(line.ItemCode) ? itemMetadata[line.ItemCode].VatLevel : "STD",
                         LotNumber = null,
                         CreatedAt = DateTime.UtcNow
                     });
@@ -301,8 +301,33 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                     OrderedQty = ol != null ? (decimal)ol.OrderedQuantity : 0,
                                     ProducedQty = pls != null ? pls.TotalManufacturedQty : 0,
                                     DeliveryDate = s.ZDLVDAT_0,
-                                    ExpiryDate = eod != null ? eod.ExpiryDate : (s.CreatedAt.AddDays(5)) // Fallback if EOD record missing
+                                    ExpiryDate = eod != null ? eod.ExpiryDate : (s.CreatedAt.AddDays(5)) // Will be updated below
                                 }).ToListAsync();
+
+            // Fetch dynamic shelf life from X3
+            var itemCodes = result.Select(r => r.ItemCode).Distinct().ToList();
+            var itemMetadata = await GetItemMetadataAsync(itemCodes!);
+
+            foreach (var r in result)
+            {
+                // If there's an EOD record, ExpiryDate is already correct.
+                // If not, it was set to CreatedAt + 5. Let's fix it if we have real metadata.
+                if (itemMetadata.TryGetValue(r.ItemCode, out var meta))
+                {
+                    // Check if it's currently using the fallback (we can just re-apply it safely)
+                    // Actually, if we just want to avoid the hardcode:
+                    var eodRecord = await _context.StagingEodRecords
+                        .FirstOrDefaultAsync(e => e.WorkOrderNumber == r.SONumber && e.ProductCode == r.ItemCode && e.LotNumber == r.LotNumber);
+                    
+                    if (eodRecord == null)
+                    {
+                         // We need the original CreatedAt. We can get it from the staging record.
+                         // But we lost s.CreatedAt in the projection if it wasn't exposed.
+                         // Let's just adjust it by the difference between 5 and the real shelf life.
+                         r.ExpiryDate = r.ExpiryDate?.AddDays(meta.ShelfLife - 5);
+                    }
+                }
+            }
 
             return result;
         }
@@ -343,29 +368,29 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        private async Task<Dictionary<string, string>> GetItemVatLevelsAsync(List<string?> itemCodes)
+        private async Task<Dictionary<string, (string VatLevel, int ShelfLife)>> GetItemMetadataAsync(List<string?> itemCodes)
         {
             try
             {
                 var validCodes = itemCodes.Where(c => c != null).Select(c => c!).Distinct().ToList();
-                if (!validCodes.Any()) return new Dictionary<string, string>();
+                if (!validCodes.Any()) return new Dictionary<string, (string, int)>();
 
                 using var connection = new SqlConnection(_x3ConnectionString);
                 string sql = $@"
-                    SELECT ITMREF_0, ISNULL(VACITM_0, 'STD') AS VACITM_0
+                    SELECT ITMREF_0, ISNULL(VACITM_0, 'STD') AS VACITM_0, ISNULL(SHL_0, 5) AS SHL_0
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER
                     WHERE ITMREF_0 IN @ItemCodes";
 
                 var rows = await connection.QueryAsync(sql, new { ItemCodes = validCodes });
                 return rows.ToDictionary(
                     row => (string)row.ITMREF_0,
-                    row => (string)row.VACITM_0
+                    row => ((string)row.VACITM_0, (int)row.SHL_0)
                 );
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Staging] Warning: VAT level lookup failed: {ex.Message}. Defaulting all lines to 'STD'.");
-                return new Dictionary<string, string>();
+                Console.WriteLine($"[Staging] Warning: Item metadata lookup failed: {ex.Message}. Defaulting to 'STD' and 5 days.");
+                return new Dictionary<string, (string, int)>();
             }
         }
 

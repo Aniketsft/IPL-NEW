@@ -71,9 +71,12 @@ class ProductionTrackingItem {
     this.createdAt,
     this.workOrderNumber = '',
     this.isFpp = false,
+    this.shelfLifeDays = 5,
   });
 
-  DateTime? get expiryDate => createdAt?.add(const Duration(days: 5));
+  final int shelfLifeDays;
+
+  DateTime? get expiryDate => createdAt?.add(Duration(days: shelfLifeDays));
 
   factory ProductionTrackingItem.fromJson(Map<String, dynamic> json) =>
       ProductionTrackingItem(
@@ -271,7 +274,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
            }
          }
          
-         parsedItems.add(ProductionTrackingItem(
+           final defaults = await db.getProductDefaults(code);
+           parsedItems.add(ProductionTrackingItem(
             soNumber: e['soNumber'] as String? ?? '',
             itemCode: code,
             description: e['description'] as String? ?? '',
@@ -291,6 +295,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
             workOrderNumber: e['workOrderNumber'] as String? ?? '',
             createdAt: e['createdAt'] != null ? DateTime.tryParse(e['createdAt'].toString()) : null,
             isFpp: e['isFpp'] as bool? ?? false,
+            shelfLifeDays: defaults.shelfLifeDays,
          ));
       }
       
@@ -428,8 +433,11 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
         if (item.unprocessedQuantity <= 0) continue; // Filter out zero-quantity items
         if (item.statusLabel != 'A') continue; // Only populate status A in stagingeod
 
+        final defaults = await db.getProductDefaults(item.itemCode);
+        final shelfLife = defaults.shelfLifeDays;
         final mfgDate = item.createdAt ?? DateTime.now();
-        final expiryDate = mfgDate.add(const Duration(days: 5));
+        final expiryDate = mfgDate.add(Duration(days: shelfLife));
+        final resolvedLocation = item.location.isNotEmpty ? item.location : defaults.location;
         
         await db.insertStagingEodWithScans({
           'id': const Uuid().v4(),
@@ -438,7 +446,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
           'manufactured_quantity': item.unprocessedQuantity,
           'timestamp': timestamp,
           'unit': item.unit,
-          'location': item.location,
+          'location': resolvedLocation,
           'itemStatus': item.statusLabel,
           'expiryDate': expiryDate.toIso8601String(),
           'createdAt': mfgDate.toIso8601String(),

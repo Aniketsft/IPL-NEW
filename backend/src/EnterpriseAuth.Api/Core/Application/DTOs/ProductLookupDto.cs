@@ -8,5 +8,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string SalesUnit { get; set; } = string.Empty;
         public decimal? StandardWeight { get; set; }
         public string? Barcode { get; set; }
+        public string? DefaultLocation { get; set; }
+        public int? ShelfLifeDays { get; set; }
     }
 }

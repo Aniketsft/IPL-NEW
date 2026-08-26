@@ -208,28 +208,18 @@ class OrderCompletionPdfGenerator {
       final desc = item['description'] as String? ?? '';
       final lot = item['lot'] as String? ?? 'N/A';
 
-      final detLocation = item['location'] as String?;
-      final scanLocation = item['scanLocation'] as String?;
+      final rawLocation = item['location'] as String?;
       String location = 'N/A';
-      if (detLocation != null &&
-          detLocation.trim().isNotEmpty &&
-          detLocation.toUpperCase() != 'NULL') {
-        location = detLocation;
-      } else if (scanLocation != null &&
-          scanLocation.trim().isNotEmpty &&
-          scanLocation.toUpperCase() != 'NULL') {
-        location = scanLocation;
+      if (rawLocation != null && rawLocation.trim().isNotEmpty && rawLocation.toUpperCase() != 'NULL') {
+        location = rawLocation;
       }
 
       String expiry = 'N/A';
-      final scanTimestamp = item['scanTimestamp'] as String?;
-      final createdAt = item['createdAt'] as String?;
-      final timeStr =
-          (scanTimestamp != null && scanTimestamp.isNotEmpty) ? scanTimestamp : createdAt;
-      if (timeStr != null && timeStr.isNotEmpty) {
-        final parsed = DateTime.tryParse(timeStr);
+      final expiryDateStr = item['expiryDate'] as String?;
+      if (expiryDateStr != null && expiryDateStr.isNotEmpty) {
+        final parsed = DateTime.tryParse(expiryDateStr);
         if (parsed != null) {
-          expiry = DateFormat('dd MMM yyyy').format(parsed.add(const Duration(days: 5)));
+          expiry = DateFormat('dd MMM yyyy').format(parsed);
         }
       }
 

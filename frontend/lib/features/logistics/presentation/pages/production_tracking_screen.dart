@@ -208,14 +208,27 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         _selectedSite!,
         widget.product.itemCode,
       );
+
+      final defaults = await LocalDatabaseHelper.instance.getProductDefaults(widget.product.itemCode);
+      final String? productDefaultLocation = defaults.location;
+
       if (mounted) {
         setState(() {
           _locations = locations;
           if (_selectedLocation == null && _locations.isNotEmpty) {
-            final iplch = _locations.where((l) => l.location == 'IPLCH');
-            _selectedLocation = iplch.isNotEmpty
-                ? iplch.first
-                : _locations.first;
+            bool foundDefault = false;
+            if (productDefaultLocation != null && productDefaultLocation.isNotEmpty) {
+              final match = _locations.where((l) => l.location == productDefaultLocation);
+              if (match.isNotEmpty) {
+                _selectedLocation = match.first;
+                foundDefault = true;
+              }
+            }
+
+            if (!foundDefault) {
+              final iplch = _locations.where((l) => l.location == 'IPLCH');
+              _selectedLocation = iplch.isNotEmpty ? iplch.first : _locations.first;
+            }
           }
         });
       }

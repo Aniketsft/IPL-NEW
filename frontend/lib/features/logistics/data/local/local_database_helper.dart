@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 63;
+  static const _databaseVersion = 64;
 
 
   static const tableScans = 'tbl_scans';
@@ -139,6 +139,8 @@ class LocalDatabaseHelper {
   static const colProdSau = 'salesUnit';
   static const colProdStandardWeight = 'standardWeight';
   static const colProdBarcode = 'barcode';
+  static const colProdDefaultLocation = 'defaultLocation';
+  static const colProdShelfLifeDays = 'shelfLifeDays';
 
   // tbl_lots columns
   static const colLotItemCode = 'itemCode';
@@ -944,6 +946,20 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v61: $e");
       }
     }
+    if (oldVersion < 64) {
+      debugPrint('DB Upgrade: Adding defaultLocation and shelfLifeDays to tbl_products (v64)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableProducts)');
+        if (!columns.any((c) => c['name'] == colProdDefaultLocation)) {
+          await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdDefaultLocation TEXT');
+        }
+        if (!columns.any((c) => c['name'] == colProdShelfLifeDays)) {
+          await db.execute('ALTER TABLE $tableProducts ADD COLUMN $colProdShelfLifeDays INTEGER DEFAULT 5');
+        }
+      } catch (e) {
+        debugPrint("Migration error v64: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1116,7 +1132,9 @@ class LocalDatabaseHelper {
         $colProdStu TEXT,
         $colProdSau TEXT,
         $colProdStandardWeight REAL DEFAULT 0,
-        $colProdBarcode TEXT
+        $colProdBarcode TEXT,
+        $colProdDefaultLocation TEXT,
+        $colProdShelfLifeDays INTEGER DEFAULT 5
       )
     ''');
 
@@ -1242,6 +1260,18 @@ class LocalDatabaseHelper {
         timestamp TEXT NOT NULL,
         isSynced INTEGER NOT NULL DEFAULT 0,
         isDeactivated INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableOrderRollovers (
+        $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colRolloverSoNum TEXT NOT NULL,
+        $colRolloverInitialDate TEXT NOT NULL,
+        $colRolloverNewDate TEXT NOT NULL,
+        $colRolloverTimestamp TEXT NOT NULL,
+        $colRolloverIsSynced INTEGER NOT NULL DEFAULT 0,
+        $colDeviceId TEXT
       )
     ''');
   }
@@ -1468,11 +1498,18 @@ class LocalDatabaseHelper {
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnQuantity ELSE 0 END), 0)) as reconciledProduced,
         (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnManufacturedQuantity ELSE 0 END), 0)) as reconciledManufactured,
         (COALESCE(det.$colDetQuantity, 0) - (COALESCE(det.$colDetScanned, 0) + COALESCE(SUM(CASE WHEN scn.$columnItemStatus IN ('A', 'DELETED_ORIGINAL', 'REVERSED') AND (scn.$columnExcludeFromEod IS NULL OR scn.$columnExcludeFromEod = 0) AND scn.is_reflected = 0 THEN scn.$columnManufacturedQuantity ELSE 0 END), 0))) as reconciledRemaining,
-        MAX(scn.$columnLocationCode) as scanLocation,
+        COALESCE(MAX(scn.$columnLocationCode), prod.$colProdDefaultLocation, det.$colDetLocation) as location,
+        COALESCE(
+          MAX(stg.expiryDate),
+          datetime(ord.$colOrderDate, '+' || COALESCE(prod.$colProdShelfLifeDays, 5) || ' days')
+        ) as expiryDate,
         MAX(scn.$columnTimestamp) as scanTimestamp
       FROM $tableOrders ord
       JOIN $tableDetails det ON ord.$colOrderNum = det.$colDetSoNum
       LEFT JOIN $tableProducts prod ON det.$colDetItemCode = prod.$colProdCode
+      LEFT JOIN $tableStagingEod stg 
+        ON det.$colDetSoNum = stg.$columnSoNumber 
+        AND det.$colDetItemCode = stg.$columnProductCode
       LEFT JOIN $tableScans scn 
         ON det.$colDetSoNum = scn.$columnSoNumber 
         AND det.$colDetItemCode = scn.$columnProductCode
@@ -1818,15 +1855,25 @@ class LocalDatabaseHelper {
     );
     return results.isNotEmpty || code == 'BLK' || code == 'CUT';
   }
+
   Future<Map<String, dynamic>?> getProductByCode(String code) async {
     final db = await instance.database;
     final results = await db.query(
       tableProducts,
       where: '$colProdCode = ?',
       whereArgs: [code],
+      limit: 1,
     );
     if (results.isEmpty) return null;
     return results.first;
+  }
+
+  Future<({String location, int shelfLifeDays})> getProductDefaults(String code) async {
+    final product = await getProductByCode(code);
+    return (
+      location: product?[colProdDefaultLocation] as String? ?? 'IPLCH',
+      shelfLifeDays: (product?[colProdShelfLifeDays] as int?) ?? 5,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getSites() async {
