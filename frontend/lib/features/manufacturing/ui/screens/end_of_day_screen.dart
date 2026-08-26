@@ -337,7 +337,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to finalize the new production scans for ${DateFormat('dd MMM yyyy').format(_selectedDate)}?',
+              'Are you sure you want to finalize the new production scans for ${DateFormat('dd.MM.yy').format(_selectedDate)}?',
               style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
@@ -907,7 +907,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                DateFormat('d MMM yyyy').format(_selectedDate),
+                DateFormat('dd.MM.yy').format(_selectedDate),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -978,7 +978,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
                   ),
                   if (w.date != null)
                     Text(
-                      DateFormat('dd MMM yyyy').format(w.date!),
+                      DateFormat('dd.MM.yy').format(w.date!),
                       style: TextStyle(
                         fontSize: 11,
                         color: isDark ? Colors.white54 : Colors.black54,
@@ -1111,8 +1111,8 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
                   _row('LOCATION', first.location, isDark),
                   _row('LOT NUMBER', first.lotNumber, isDark),
                   _row('STATUS', first.statusLabel, isDark),
-                  _row('PROD DATE', first.createdAt != null ? DateFormat('dd MMM yyyy HH:mm').format(first.createdAt!) : 'N/A', isDark),
-                  _row('EXPIRY DATE', first.expiryDate != null ? DateFormat('dd MMM yyyy').format(first.expiryDate!) : 'N/A', isDark),
+                  _row('PROD DATE', first.createdAt != null ? DateFormat('dd.MM.yy HH:mm').format(first.createdAt!) : 'N/A', isDark),
+                  _row('EXPIRY DATE', first.expiryDate != null ? DateFormat('dd.MM.yy').format(first.expiryDate!) : 'N/A', isDark),
                 ],
               ),
             ),

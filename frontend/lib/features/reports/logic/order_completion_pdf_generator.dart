@@ -11,8 +11,8 @@ class OrderCompletionPdfGenerator {
     bool isSummary = false,
   }) async {
     final pdf = pw.Document();
-    final dateStr = DateFormat('EEE, d MMM yyyy').format(targetDate);
-    final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final dateStr = DateFormat('dd.MM.yy').format(targetDate);
+    final printTime = DateFormat('dd.MM.yy HH:mm').format(DateTime.now());
     final username = await SecureStorageService().getUsername() ?? 'Unknown';
 
     // Group the details by SO Number (for detailed mode)
@@ -219,7 +219,7 @@ class OrderCompletionPdfGenerator {
       if (expiryDateStr != null && expiryDateStr.isNotEmpty) {
         final parsed = DateTime.tryParse(expiryDateStr);
         if (parsed != null) {
-          expiry = DateFormat('dd MMM yyyy').format(parsed);
+          expiry = DateFormat('dd.MM.yy').format(parsed);
         }
       }
 

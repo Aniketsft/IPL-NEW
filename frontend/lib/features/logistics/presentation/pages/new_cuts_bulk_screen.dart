@@ -608,7 +608,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
       child: Row(
         children: [
           Text(
-            intl.DateFormat('dd/MM').format(_date!),
+            intl.DateFormat('dd.MM.yy').format(_date!),
             style: TextStyle(
               color: displayColor,
               fontSize: 14,
@@ -996,7 +996,7 @@ class _NewCutsBulkScreenState extends State<NewCutsBulkScreen>
             Text(
               _date == null
                   ? 'dd/mm/yyyy'
-                  : intl.DateFormat('dd/MM/yyyy').format(_date!),
+                  : intl.DateFormat('dd.MM.yy').format(_date!),
               style: TextStyle(
                 color: _date == null
                     ? (isDark ? Colors.white24 : Colors.black26)

@@ -266,7 +266,7 @@ class SalesOrderCard extends StatelessWidget {
                 _buildInfoRow(
                   Icons.history_outlined,
                   'SO Date',
-                  DateFormat('dd/MM/yyyy').format(order.soDate!),
+                  DateFormat('dd.MM.yy').format(order.soDate!),
                   isDark,
                 ),
                 const SizedBox(height: 8),

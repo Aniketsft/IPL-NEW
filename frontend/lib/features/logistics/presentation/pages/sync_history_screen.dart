@@ -130,7 +130,7 @@ class _SyncHistoryScreenState extends State<SyncHistoryScreen> {
           ),
         ),
         title: Text(
-          DateFormat('MMM dd, yyyy - hh:mm a').format(timestamp),
+          DateFormat('dd.MM.yy - hh:mm a').format(timestamp),
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.bold,

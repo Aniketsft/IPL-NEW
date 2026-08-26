@@ -19,7 +19,7 @@ class ZplGenerator {
     String? salesman,
     double? eaQuantity,
   }) {
-    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final now = DateFormat('dd.MM.yy HH:mm').format(DateTime.now());
 
     DateTime parsedProdDate;
     if (productionDate != null) {

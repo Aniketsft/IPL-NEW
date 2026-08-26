@@ -93,7 +93,7 @@ class _ProductionTrackingProductListScreenState
                 BlocBuilder<ManufacturingBloc, ManufacturingState>(
                   builder: (context, state) {
                     final selectedDate = state.selectedDate ?? DateTime.now();
-                    final dateStr = DateFormat('EEE, d MMM yyyy').format(selectedDate);
+                    final dateStr = DateFormat('dd.MM.yy').format(selectedDate);
                     
                     return GestureDetector(
                       onTap: () async {

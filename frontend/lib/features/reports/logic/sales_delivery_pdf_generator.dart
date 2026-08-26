@@ -10,8 +10,8 @@ class SalesDeliveryPdfGenerator {
     required List<Map<String, dynamic>> orderDetails,
   }) async {
     final pdf = pw.Document();
-    final dateStr = DateFormat('EEE, d MMM yyyy').format(targetDate);
-    final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final dateStr = DateFormat('dd.MM.yy').format(targetDate);
+    final printTime = DateFormat('dd.MM.yy HH:mm').format(DateTime.now());
 
     // Group the details by Lorry Number, then by SO Number
     final Map<String, Map<String, List<Map<String, dynamic>>>> groupedByLorry = {};
@@ -192,7 +192,7 @@ class SalesDeliveryPdfGenerator {
       if (item['expiryDate'] != null) {
         try {
           final dt = DateTime.parse(item['expiryDate'].toString());
-          expiry = DateFormat('dd MMM yyyy').format(dt);
+          expiry = DateFormat('dd.MM.yy').format(dt);
         } catch (_) {}
       }
 

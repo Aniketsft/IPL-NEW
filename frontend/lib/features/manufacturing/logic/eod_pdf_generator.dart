@@ -16,8 +16,8 @@ class EodPdfGenerator {
     final cutsItems = items.where((i) => !i.isFpp).toList();
 
     final pdf = pw.Document();
-    final dateStr = DateFormat('EEE, d MMM yyyy').format(productionDate);
-    final printTime = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final dateStr = DateFormat('dd.MM.yy').format(productionDate);
+    final printTime = DateFormat('dd.MM.yy HH:mm').format(DateTime.now());
     final username = await SecureStorageService().getUsername() ?? 'Unknown';
 
     pdf.addPage(
