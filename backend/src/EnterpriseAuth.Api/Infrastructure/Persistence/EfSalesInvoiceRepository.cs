@@ -44,6 +44,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
                     LTRIM(RTRIM(c.BCGCOD_0)) as Bcgcod,
                     LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
+                    c.BETFCY_0 as FacilityFlag,
                     COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
                 LEFT JOIN (
@@ -178,7 +179,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     CONVERT(VARCHAR(10), l.ZDATE2_0, 23) AS ValidTo
                 FROM {_syncSettings.X3DatabaseName}.{schema}.SPRICCONF c WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{schema}.SPRICLIST l WITH (NOLOCK) ON c.PLI_0 = l.PLI_0
-                WHERE c.PLICPY_0 = 'INL' AND c.PLIENAFLG_0 = 2
+                WHERE c.PLIENAFLG_0 = 2
             ";
             return await db.QueryAsync<PriceListDto>(sql);
         }

@@ -107,6 +107,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     final customerCode = customer['code']?.toString() ?? '';
     final bcgcod = customer['bcgcod']?.toString() ?? '';
     final tsccod = customer['tsccod']?.toString() ?? '';
+    final facilityFlag = customer['facilityFlag'] != null ? int.tryParse(customer['facilityFlag'].toString()) : null;
+
+    // D1: Defensive validation — log if key pricing dimensions are missing from the customer cache.
+    // A missing TSCCOD or BCGCOD means entire categories of pricing rules will silently fail to match.
+    if (bcgcod.isEmpty) debugPrint('⚠️ PricingEngine: bcgcod is EMPTY for customer $customerCode — BCGCOD-based rules will not apply.');
+    if (tsccod.isEmpty) debugPrint('⚠️ PricingEngine: tsccod is EMPTY for customer $customerCode — TSCCOD-based rules will not apply.');
 
     try {
       final pricingEngine = PricingEngineService();
@@ -114,13 +120,18 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         customerCode: customerCode,
         bcgcod: bcgcod,
         tsccod: tsccod,
+        facilityFlag: facilityFlag,
         sku: widget.product.sku,
         qty: _quantity.toDouble(),
       );
 
       if (mounted) {
         setState(() {
-          _basePriceController.text = result.basePrice.toStringAsFixed(2);
+          // Only auto-fill price if the engine resolved a base price.
+          // A result of 0.0 means only a discount rule matched — user must enter price manually.
+          if (result.basePrice > 0) {
+            _basePriceController.text = result.basePrice.toStringAsFixed(2);
+          }
           _discountPercent = result.discountPct;
           _discountController.text = result.discountPct.toString();
           _priceSource = result.source;
@@ -450,6 +461,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           _itemTaxLevel = selectedLot.taxLevel;
                         });
                         _calculateVatRate();
+                        // Re-run pricing engine after lot change to keep qty-bracket
+                        // and FOC rules consistent with the current quantity.
+                        _resolvePrice();
                       }
                     },
                   ),
@@ -736,6 +750,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               vatRatePercent: _vatRatePercent,
                               taxRule: _taxRuleCode,
                               isFoc: isFocLocked,
+                              pricingSource: _priceSource,
                             );
 
                             CartItem? focItem;

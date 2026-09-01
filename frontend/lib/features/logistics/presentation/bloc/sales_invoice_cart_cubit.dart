@@ -18,6 +18,8 @@ class CartItem extends Equatable {
   final String taxRule;
   final bool isFoc;
   final String? mainItemSku;
+  /// The pricelist code(s) that were matched by the pricing engine for this item.
+  final String pricingSource;
 
   const CartItem({
     required this.product,
@@ -33,6 +35,7 @@ class CartItem extends Equatable {
     this.taxRule = '',
     this.isFoc = false,
     this.mainItemSku,
+    this.pricingSource = '',
   });
 
   double get discountAmount => basePrice * quantity * (discountPercent / 100);
@@ -54,6 +57,7 @@ class CartItem extends Equatable {
     String? taxRule,
     bool? isFoc,
     String? mainItemSku,
+    String? pricingSource,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -69,6 +73,7 @@ class CartItem extends Equatable {
       taxRule: taxRule ?? this.taxRule,
       isFoc: isFoc ?? this.isFoc,
       mainItemSku: mainItemSku ?? this.mainItemSku,
+      pricingSource: pricingSource ?? this.pricingSource,
     );
   }
 
@@ -87,6 +92,7 @@ class CartItem extends Equatable {
         taxRule,
         isFoc,
         mainItemSku,
+        pricingSource,
       ];
 }
 

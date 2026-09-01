@@ -10,6 +10,7 @@ class PricingEngineService {
     required String customerCode,
     required String bcgcod,
     required String tsccod,
+    int? facilityFlag,
     required String sku,
     required double qty,
   }) async {
@@ -17,31 +18,62 @@ class PricingEngineService {
 
     // 1. Check if we have active price lists for this matching context.
     final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    print('--- RESOLVING PRICE FOR SKU: $sku, CUSTOMER: $customerCode, BCGCOD: $bcgcod, TSCCOD: $tsccod ---');
+    print('--- RESOLVING PRICE FOR SKU: $sku, CUSTOMER: $customerCode, BCGCOD: $bcgcod, TSCCOD: $tsccod, FACILITY: $facilityFlag ---');
     
-    // Optimized SQL: push all criteria down to SQLite so we don't load 50k rows into Dart memory!
-    final List<Map<String, dynamic>> results = await db.rawQuery('''
-      SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
-      WHERE 
-        (
-          (fld0 = 'BCGCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
-          OR (fld0 = 'TSCCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
-          OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
-          OR (fld0 = 'ITMREF' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-          OR (fld0 = 'BPCNUM' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-          OR (fld0 = 'BCGCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-          OR (fld0 = 'TSCCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-        )
-      ORDER BY priority ASC
-    ''', [
-      bcgcod, sku,
-      tsccod, sku,
-      customerCode, sku,
-      sku,
-      customerCode,
-      bcgcod,
-      tsccod
-    ]);
+    List<Map<String, dynamic>> results;
+
+    // Facility Override: If facilityFlag == 2, bypass standard logic and use T40 only
+    if (facilityFlag == 2) {
+      print('Pricing Engine: Facility override detected (BETFCY_0 = 2). Enforcing T40 price list.');
+      results = await db.rawQuery('''
+        SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
+        WHERE pliCode = 'T40'
+          AND (
+            (fld0 = 'ITMREF' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'BPCNUM' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'BCGCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'TSCCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+          )
+          AND (validFrom IS NULL OR validFrom <= ?)
+          AND (validTo IS NULL OR validTo >= ?)
+        ORDER BY priority ASC
+      ''', [
+        sku,
+        customerCode,
+        bcgcod,
+        tsccod,
+        todayStr,
+        todayStr,
+      ]);
+    } else {
+      // Optimized SQL: push all criteria down to SQLite
+      results = await db.rawQuery('''
+        SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
+        WHERE 
+          (
+            (fld0 = 'BCGCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
+            OR (fld0 = 'TSCCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
+            OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
+            OR (fld0 = 'ITMREF' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'BPCNUM' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'BCGCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+            OR (fld0 = 'TSCCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+          )
+          AND (validFrom IS NULL OR validFrom <= ?)
+          AND (validTo IS NULL OR validTo >= ?)
+        ORDER BY priority ASC
+      ''', [
+        bcgcod, sku,
+        tsccod, sku,
+        customerCode, sku,
+        sku,
+        customerCode,
+        bcgcod,
+        tsccod,
+        todayStr,
+        todayStr,
+      ]);
+    }
 
     if (results.isEmpty) {
       print('Pricing Engine: No matching price lists found for current date $todayStr.');
@@ -52,13 +84,15 @@ class PricingEngineService {
 
     PricingResult? bestPriceResult;
     PricingResult? bestDiscountResult;
+    
+    int? bestPricePriority;
+    int? bestDiscountPriority;
 
     for (var row in results) {
-      // Since SQLite already perfectly filtered the rows, we don't need Dart criteria matching anymore.
       final String? matchKey1 = row['matchKey1']?.toString();
       final String? fld0 = row['fld0']?.toString();
       
-      print('MATCHED RULE: fld0=$fld0, matchKey1=$matchKey1, basePrice=${row['basePrice']}');
+      print('MATCHED RULE: pliCode=${row['pliCode']} priority=${row['priority']} ruleType=${row['ruleType']} fld0=$fld0 fil0=${row['fil0']} fld1=${row['fld1']} fil1=${row['fil1']} matchKey1=$matchKey1 matchKey2=${row['matchKey2']} basePrice=${row['basePrice']} isQtyBased=${row['isQtyBased']} minQty=${row['minQty']} maxQty=${row['maxQty']}');
 
       final int isQtyBased = row['isQtyBased'] as int? ?? 1;
       final double minQty = (row['minQty'] as num?)?.toDouble() ?? 0.0;
@@ -69,6 +103,7 @@ class PricingEngineService {
       }
 
       final int ruleType = row['ruleType'] as int? ?? 0;
+      final int priority = row['priority'] as int? ?? 9999;
       final double basePrice = (row['basePrice'] as num?)?.toDouble() ?? 0.0;
       final double discountPct = (row['discountPct'] as num?)?.toDouble() ?? 0.0;
       final double discountAmt = (row['discountAmt'] as num?)?.toDouble() ?? 0.0;
@@ -94,12 +129,11 @@ class PricingEngineService {
       }
 
       if (ruleType == 1) {
-        // Discount rule. Best single discount.
-        // We evaluate by percentage or amount to find the "best". We'll just store the first one
-        // or compare if we have multiple. Let's find the max discount percentage for simplicity.
-        if (bestDiscountResult == null || discountPct > bestDiscountResult.discountPct || discountAmt > bestDiscountResult.discountAmt) {
+        // Discount rule. Sequence priority first, then highest discount.
+        if (bestDiscountPriority == null || priority < bestDiscountPriority) {
+          bestDiscountPriority = priority;
           bestDiscountResult = PricingResult(
-            basePrice: basePrice, // Usually discount rules have 0 base price
+            basePrice: basePrice,
             discountPct: discountPct,
             discountAmt: discountAmt,
             source: source,
@@ -107,11 +141,24 @@ class PricingEngineService {
             focItemSku: focSku,
             focQuantity: focQty,
           );
+        } else if (priority == bestDiscountPriority) {
+          // Tie-breaker: Highest discount wins
+          if (bestDiscountResult != null && (discountPct > bestDiscountResult.discountPct || discountAmt > bestDiscountResult.discountAmt)) {
+            bestDiscountResult = PricingResult(
+              basePrice: basePrice,
+              discountPct: discountPct,
+              discountAmt: discountAmt,
+              source: source,
+              hasFoc: hasFoc,
+              focItemSku: focSku,
+              focQuantity: focQty,
+            );
+          }
         }
       } else if (ruleType == 2) {
-        // Price rule. Lowest price wins on tie. Since we order by priority ASC,
-        // the first one we hit is highest priority for base price.
-        if (bestPriceResult == null) {
+        // Price rule. Hard stop on priority, but apply lowest price tie-breaker for SAME priority.
+        if (bestPricePriority == null || priority < bestPricePriority) {
+           bestPricePriority = priority;
            bestPriceResult = PricingResult(
              basePrice: basePrice,
              discountPct: discountPct,
@@ -121,9 +168,32 @@ class PricingEngineService {
              focItemSku: focSku,
              focQuantity: focQty,
            );
-        } else if (hasFoc && !bestPriceResult.hasFoc) {
-           // We already have a base price, but a lower priority rule is granting FOC!
-           // Merge the FOC into our primary result.
+        } else if (priority == bestPricePriority) {
+           // Tie-breaker: Lowest base price wins
+           if (bestPriceResult != null && basePrice < bestPriceResult.basePrice) {
+             bestPriceResult = PricingResult(
+               basePrice: basePrice,
+               discountPct: discountPct,
+               discountAmt: discountAmt,
+               source: source,
+               hasFoc: hasFoc,
+               focItemSku: focSku,
+               focQuantity: focQty,
+             );
+           } else if (hasFoc && !bestPriceResult!.hasFoc) {
+             // Merge FOC if same priority but higher price (assuming FOC applies)
+             bestPriceResult = PricingResult(
+               basePrice: bestPriceResult.basePrice,
+               discountPct: bestPriceResult.discountPct,
+               discountAmt: bestPriceResult.discountAmt,
+               source: "${bestPriceResult.source} + $source",
+               hasFoc: true,
+               focItemSku: focSku,
+               focQuantity: focQty,
+             );
+           }
+        } else if (hasFoc && bestPriceResult != null && !bestPriceResult.hasFoc) {
+           // FOC from a lower priority rule? (X3 usually stops at base price, but keeping this just in case)
            bestPriceResult = PricingResult(
              basePrice: bestPriceResult.basePrice,
              discountPct: bestPriceResult.discountPct,
@@ -149,6 +219,13 @@ class PricingEngineService {
 
     if (finalSource.isEmpty) {
       finalSource = 'MANUAL';
+    }
+
+    // If only a discount rule matched (no base price rule), tag the source so the
+    // UI knows to keep the price field empty and prompt the user to enter it manually.
+    if (finalBasePrice == 0.0 && bestDiscountResult != null && bestPriceResult == null) {
+      finalSource = '${bestDiscountResult.source} (discount-only — enter price manually)';
+      print('Pricing Engine: Discount-only match. No base price rule found. User must enter price.');
     }
 
     bool finalHasFoc = (bestPriceResult?.hasFoc ?? false) || (bestDiscountResult?.hasFoc ?? false);

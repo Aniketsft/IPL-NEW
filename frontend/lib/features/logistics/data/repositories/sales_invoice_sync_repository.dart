@@ -134,6 +134,10 @@ class SalesInvoiceSyncRepository {
       final schemaStr = await SecureStorageService().getSchema();
       final schema = (schemaStr == null || schemaStr.isEmpty) ? 'INLDRYRUN' : schemaStr;
       
+      if (schema == 'INLDRYRUN') {
+        debugPrint('⚠️ WARNING: Fetching price lists from INLDRYRUN schema. Ensure the correct schema is configured in app settings. Prices may not reflect production rules.');
+      }
+      
       final priceListResponse = await _dio.get(
         'SalesInvoice/price-lists',
         queryParameters: {'schema': schema},

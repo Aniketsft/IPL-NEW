@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 73;
+  static const _databaseVersion = 74;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -214,6 +214,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 74) {
+      debugPrint('DB Upgrade: Adding facilityFlag to tbl_si_customers (v74)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN facilityFlag INTEGER');
+      } catch (e) {
+        debugPrint("Migration error v74: $e");
+      }
+    }
+
     if (oldVersion < 73) {
       debugPrint('DB Upgrade: Ensuring isFoc and lineNo in tbl_si_invoice_lines (v73)');
       try {
@@ -1307,6 +1316,7 @@ class LocalDatabaseHelper {
         outstandingBalance REAL DEFAULT 0,
         bcgcod TEXT,
         tsccod TEXT,
+        facilityFlag INTEGER,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -2814,6 +2824,7 @@ class LocalDatabaseHelper {
       'outstandingBalance': customer['outstandingBalance'],
       'bcgcod': (customer['bcgcod'] ?? customer['Bcgcod'])?.toString().trim() ?? '',
       'tsccod': (customer['tsccod'] ?? customer['Tsccod'])?.toString().trim() ?? '',
+      'facilityFlag': customer['facilityFlag'] ?? customer['FacilityFlag'],
       'isSynced': 1, // hardcoded from columnIsSynced
     }).toList();
   }

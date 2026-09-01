@@ -311,7 +311,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // Ensure default values from plan
                 string site = string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite;
-                string pricingRule = string.IsNullOrWhiteSpace(invoice.PricingRule) ? "75.7" : invoice.PricingRule;
+                string pricingRule = invoice.PricingRule ?? "";
 
                 // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
                 fileBuilder.Append($"V;{site};{invoice.InvoiceType};{site};1;;{invoice.CustomerCode};{invoiceDate};{invoice.Reference ?? ""};2;;MUR;{dueDate};;|");
