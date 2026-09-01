@@ -140,6 +140,7 @@ class MyApp extends StatelessWidget {
                 registerUseCase: RegisterUseCase(authRepo),
                 forgotPasswordUseCase: ForgotPasswordUseCase(authRepo),
                 storageService: context.read<SecureStorageService>(),
+                authRepository: authRepo,
               )..add(AppStarted());
 
               context.read<NetworkService>().onUnauthorized = () {

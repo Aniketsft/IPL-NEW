@@ -4,6 +4,7 @@ class SalesInvoiceCustomer {
   final String? paymentTerm;
   final double? creditLimit;
   final int? statusFlag;
+  final int? facilityFlag;
   final int isSynced;
 
   SalesInvoiceCustomer({
@@ -12,6 +13,7 @@ class SalesInvoiceCustomer {
     this.paymentTerm,
     this.creditLimit,
     this.statusFlag,
+    this.facilityFlag,
     this.isSynced = 1,
   });
 
@@ -22,6 +24,7 @@ class SalesInvoiceCustomer {
       paymentTerm: json['paymentTerm'],
       creditLimit: json['creditLimit'] != null ? (json['creditLimit'] as num).toDouble() : null,
       statusFlag: json['statusFlag'] != null ? int.tryParse(json['statusFlag'].toString()) : null,
+      facilityFlag: json['facilityFlag'] != null ? int.tryParse(json['facilityFlag'].toString()) : null,
       isSynced: json['isSynced'] ?? 1,
     );
   }
@@ -33,6 +36,7 @@ class SalesInvoiceCustomer {
       'paymentTerm': paymentTerm,
       'creditLimit': creditLimit,
       'statusFlag': statusFlag,
+      'facilityFlag': facilityFlag,
       'isSynced': isSynced,
     };
   }

@@ -5,6 +5,7 @@ import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/login_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/register_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/forgot_password_use_case.dart';
+import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -13,23 +14,34 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterUseCase _registerUseCase;
   final ForgotPasswordUseCase _forgotPasswordUseCase;
   final SecureStorageService _storageService;
+  final IAuthRepository _authRepository;
+  
   Timer? _authTimer;
+  Timer? _inactivityTimer;
+  Timer? _refreshTimer;
+
+  static const Duration _inactivityTimeout = Duration(minutes: 5);
+  static const Duration _refreshInterval = Duration(minutes: 5);
 
   AuthBloc({
     required LoginUseCase loginUseCase,
     required RegisterUseCase registerUseCase,
     required ForgotPasswordUseCase forgotPasswordUseCase,
     required SecureStorageService storageService,
+    required IAuthRepository authRepository,
   }) : _loginUseCase = loginUseCase,
        _registerUseCase = registerUseCase,
        _forgotPasswordUseCase = forgotPasswordUseCase,
        _storageService = storageService,
+       _authRepository = authRepository,
        super(AuthInitial()) {
     on<AppStarted>(_onAppStarted);
     on<LoginSubmitted>(_onLoginSubmitted);
     on<RegisterSubmitted>(_onRegisterSubmitted);
     on<LogoutRequested>(_onLogoutRequested);
     on<ForgotPasswordSubmitted>(_onForgotPasswordSubmitted);
+    on<UserInteracted>(_onUserInteracted);
+    on<PerformTokenRefresh>(_onPerformTokenRefresh);
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -96,19 +108,63 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     LogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    _authTimer?.cancel();
+    _cancelAllTimers();
     await _storageService.deleteAll();
     emit(Unauthenticated());
   }
 
+  void _onUserInteracted(
+    UserInteracted event,
+    Emitter<AuthState> emit,
+  ) {
+    if (state is Authenticated) {
+      _startInactivityTimer();
+    }
+  }
+
+  Future<void> _onPerformTokenRefresh(
+    PerformTokenRefresh event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state is Authenticated) {
+      await _authRepository.refreshToken();
+      final isValid = await _authRepository.isOfflineSessionValid();
+      if (!isValid) {
+        add(LogoutRequested());
+      }
+    }
+  }
+
   @override
   Future<void> close() {
-    _authTimer?.cancel();
+    _cancelAllTimers();
     return super.close();
   }
 
-  Future<void> _startAuthTimer() async {
+  void _cancelAllTimers() {
     _authTimer?.cancel();
+    _inactivityTimer?.cancel();
+    _refreshTimer?.cancel();
+  }
+
+  void _startInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(_inactivityTimeout, () {
+      add(LogoutRequested());
+    });
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      add(PerformTokenRefresh());
+    });
+  }
+
+  Future<void> _startAuthTimer() async {
+    _cancelAllTimers();
+    _startInactivityTimer();
+    _startRefreshTimer();
     final token = await _storageService.getToken();
     if (token == null) return;
     try {

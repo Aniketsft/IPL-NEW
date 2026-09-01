@@ -246,6 +246,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
       final selectedSite = cartState.site ?? fallbackSite;
 
+        // Resolve the pricing rule: use the first matched pricelist code from any cart item.
+        // Falls back to empty string if all items were manually priced.
+        final resolvedPricingRule = cartState.items
+            .map((i) => i.pricingSource)
+            .where((s) => s.isNotEmpty && s != 'MANUAL' && !s.contains('discount-only'))
+            .firstOrNull ?? '';
+
       // 1. Insert Invoice
       batch.insert(LocalDatabaseHelper.tableSiInvoices, {
         'invoiceId': invoiceId,
@@ -266,7 +273,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'invoiceType': 'STD',
         'salesSite': selectedSite,
         'salesRep': username,
-        'pricingRule': '',
+        'pricingRule': resolvedPricingRule,
         'dueDate': DateTime.now().toIso8601String(),
         'userName': username,
         'createdBy': username,

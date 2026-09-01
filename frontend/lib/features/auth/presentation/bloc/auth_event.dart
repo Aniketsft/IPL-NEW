@@ -40,3 +40,7 @@ class ForgotPasswordSubmitted extends AuthEvent {
   @override
   List<Object?> get props => [email];
 }
+
+class UserInteracted extends AuthEvent {}
+
+class PerformTokenRefresh extends AuthEvent {}

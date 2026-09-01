@@ -101,6 +101,38 @@ class SalesInvoiceProductRepository {
         .toList();
   }
 
+  Future<SalesInvoiceProductModel?> getProductByItemCode(String itemCode) async {
+    final db = await LocalDatabaseHelper.instance.database;
+
+    final sql = '''
+      SELECT
+        S.itemCode AS sku, 
+        S.itemName AS name, 
+        SUM(S.totalQty) AS stockQty, 
+        MAX(S.warehouse) AS warehouse,
+        MAX(S.cce0) AS cce0
+      FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
+      WHERE S.itemCode = ?
+      GROUP BY S.itemCode, S.itemName
+      LIMIT 1
+    ''';
+
+    final result = await db.rawQuery(sql, [itemCode]);
+
+    if (result.isNotEmpty) {
+      final e = result.first;
+      return SalesInvoiceProductModel(
+        sku: e['sku'] as String,
+        name: e['name'] as String,
+        stockQty: (e['stockQty'] as num?)?.toDouble() ?? 0.0,
+        warehouse: (e['warehouse'] as String?) ?? '',
+        salesUnit: 'EA', // Defaulted as it is aggregated
+        cce0: (e['cce0'] as String?) ?? '',
+      );
+    }
+    return null;
+  }
+
   Future<List<String>> getDistinctWarehouses() async {
     final db = await LocalDatabaseHelper.instance.database;
     final result = await db.rawQuery('''SELECT DISTINCT warehouse 
