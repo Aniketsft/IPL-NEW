@@ -145,6 +145,10 @@ class TransactionHistoryRepository {
         'taxRule': line['taxRule'],
         'isFoc': line['isFoc'],
         'isReversed': 0,
+        'pricingSource': line['pricingSource'] ?? '',
+        'discountAmountFlat': line['discountAmountFlat'] ?? 0.0,
+        'priceListCode': line['priceListCode'] ?? '',
+        'reasonType': line['reasonType'] ?? 0,
       });
 
       // Increment stock

@@ -6,7 +6,7 @@ import '../../data/models/sales_invoice_product_model.dart';
 
 class CartItem extends Equatable {
   final SalesInvoiceProductModel product;
-  final int quantity;
+  final double quantity;
   final String lotNumber;
   final String warehouse;
   final String warehouseName;
@@ -20,6 +20,9 @@ class CartItem extends Equatable {
   final String? mainItemSku;
   /// The pricelist code(s) that were matched by the pricing engine for this item.
   final String pricingSource;
+  final double discountAmountFlat;
+  final String priceListCode;
+  final int reasonType;
 
   const CartItem({
     required this.product,
@@ -36,16 +39,19 @@ class CartItem extends Equatable {
     this.isFoc = false,
     this.mainItemSku,
     this.pricingSource = '',
+    this.discountAmountFlat = 0.0,
+    this.priceListCode = '',
+    this.reasonType = 0,
   });
 
-  double get discountAmount => basePrice * quantity * (discountPercent / 100);
+  double get discountAmount => (basePrice * quantity * (discountPercent / 100)) + discountAmountFlat;
   double get priceAfterDiscount => (basePrice * quantity) - discountAmount;
   double get vatAmount => priceAfterDiscount * (vatRatePercent / 100);
   double get total => priceAfterDiscount + vatAmount;
 
   CartItem copyWith({
     SalesInvoiceProductModel? product,
-    int? quantity,
+    double? quantity,
     String? lotNumber,
     String? warehouse,
     String? warehouseName,
@@ -58,6 +64,9 @@ class CartItem extends Equatable {
     bool? isFoc,
     String? mainItemSku,
     String? pricingSource,
+    double? discountAmountFlat,
+    String? priceListCode,
+    int? reasonType,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -74,6 +83,9 @@ class CartItem extends Equatable {
       isFoc: isFoc ?? this.isFoc,
       mainItemSku: mainItemSku ?? this.mainItemSku,
       pricingSource: pricingSource ?? this.pricingSource,
+      discountAmountFlat: discountAmountFlat ?? this.discountAmountFlat,
+      priceListCode: priceListCode ?? this.priceListCode,
+      reasonType: reasonType ?? this.reasonType,
     );
   }
 
@@ -93,6 +105,9 @@ class CartItem extends Equatable {
         isFoc,
         mainItemSku,
         pricingSource,
+        discountAmountFlat,
+        priceListCode,
+        reasonType,
       ];
 }
 
@@ -157,16 +172,7 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
       final itemToRemove = updatedItems[index];
       updatedItems.removeAt(index);
       
-      // If we removed a main item, check if there are any other main items with the same SKU.
-      // If not, we should also remove any FOC items that were granted by this SKU.
-      if (!itemToRemove.isFoc) {
-        final mainSku = itemToRemove.product.sku;
-        final hasOtherMainItems = updatedItems.any((i) => !i.isFoc && i.product.sku == mainSku);
-        
-        if (!hasOtherMainItems) {
-          updatedItems.removeWhere((i) => i.isFoc && i.mainItemSku == mainSku);
-        }
-      }
+      // PHASE 1: FOC auto-remove logic removed for centralization.
 
       emit(state.copyWith(items: updatedItems));
     }
@@ -184,7 +190,7 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     }
   }
 
-  void updateItemQuantity(int index, int newQuantity) {
+  void updateItemQuantity(int index, double newQuantity) {
     if (newQuantity <= 0) {
       removeItem(index);
       return;

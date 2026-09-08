@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj": {}
+    "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj": {
+    "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj",
+        "projectUniqueName": "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj",
         "projectName": "dbtest",
-        "projectPath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj",
+        "projectPath": "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\dbtest.csproj",
         "packagesPath": "C:\\Users\\Aniket\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Aniket\\Desktop\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\",
+        "outputPath": "D:\\enterprise_auth_system\\backend\\scripts\\dbtest\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -31,6 +31,7 @@
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {}
           }
@@ -45,10 +46,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "Microsoft.Data.SqlClient": {
@@ -72,7 +74,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.204/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

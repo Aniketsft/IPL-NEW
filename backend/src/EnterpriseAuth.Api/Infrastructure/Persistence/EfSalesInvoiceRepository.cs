@@ -37,16 +37,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(c.BPCNUM_0)) as Code,
-                    LTRIM(RTRIM(c.ZFULLBUSNAM_0)) as Name,
+                    LTRIM(RTRIM(c.BPCNAM_0)) as Name,
                     LTRIM(RTRIM(c.PTE_0)) as PaymentTerm,
                     c.OSTAUZ_0 as CreditLimit,
                     LTRIM(RTRIM(c.OSTCTL_0)) as StatusFlag,
                     LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
                     LTRIM(RTRIM(c.BCGCOD_0)) as Bcgcod,
                     LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
-                    c.BETFCY_0 as FacilityFlag,
+                    LTRIM(RTRIM(c.BPCSHO_0)) as Bpcsho,
+                    COALESCE(b.BETFCY_0, 1) as FacilityFlag,
                     COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
                 LEFT JOIN (
                     SELECT 
                         BPR_0, 
@@ -55,7 +57,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
-                WHERE c.ZFULLBUSNAM_0 IS NOT NULL AND c.ZFULLBUSNAM_0 <> ''";
+                WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''";
 
             return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
         }
@@ -171,15 +173,21 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     l.DCGVAL_2 AS DiscountAmt,
                     l.FOCQTYMIN_0 AS FocQtyMin,
                     l.FOCQTYBKT_0 AS FocQtyBkt,
+                    l.FOCAMTMIN_0 AS FocAmtMin,
+                    l.FOCAMTBKT_0 AS FocAmtBkt,
                     LTRIM(RTRIM(l.FOCITMREF_0)) AS FocItmRef,
                     l.FOCQTY_0 AS FocQty,
                     l.MINQTY_0 AS MinQty,
                     l.MAXQTY_0 AS MaxQty,
-                    CONVERT(VARCHAR(10), l.ZDATE1_0, 23) AS ValidFrom,
-                    CONVERT(VARCHAR(10), l.ZDATE2_0, 23) AS ValidTo
+                    CONVERT(VARCHAR(10), l.PLISTRDAT_0, 23) AS ValidFrom,
+                    CONVERT(VARCHAR(10), l.PLIENDDAT_0, 23) AS ValidTo,
+                    c.PRIREN_0 AS ReasonType
                 FROM {_syncSettings.X3DatabaseName}.{schema}.SPRICCONF c WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{schema}.SPRICLIST l WITH (NOLOCK) ON c.PLI_0 = l.PLI_0
-                WHERE c.PLIENAFLG_0 = 2
+                WHERE (c.PLICPY_0 = '{_syncSettings.X3CompanyCode}' OR LTRIM(RTRIM(c.PLICPY_0)) = '')
+                  AND c.PLIENAFLG_0 = 2
+                  AND l.PLISTRDAT_0 <= GETDATE()
+                  AND (l.PLIENDDAT_0 >= CONVERT(DATE, GETDATE()) OR l.PLIENDDAT_0 IN ('1753-01-01', '1900-01-01'))
             ";
             return await db.QueryAsync<PriceListDto>(sql);
         }

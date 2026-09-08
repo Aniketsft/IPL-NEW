@@ -74,7 +74,12 @@ class SalesInvoiceSyncRepository {
               "warehouse": l['warehouse'] ?? '',
               "salesUnit": l['salesUnit'] ?? 'EA',
               "cce0": l['cce0'] ?? '',
-              "taxRule": l['taxRule'] ?? ''
+              "taxRule": l['taxRule'] ?? '',
+              "isFoc": (l['isFoc'] ?? 0) == 1,
+              "pricingSource": l['pricingSource'] ?? '',
+              "discountAmountFlat": l['discountAmountFlat'] ?? 0.0,
+              "priceListCode": l['priceListCode'] ?? '',
+              "reasonType": l['reasonType'] ?? 0
             }).toList()
           };
 
@@ -150,6 +155,12 @@ class SalesInvoiceSyncRepository {
       debugPrint('Sales Invoice Sync completed in ${duration}ms');
       
       return SyncBatchResult(successes: successes, failures: failures);
+    } on DioException catch (e) {
+      debugPrint('Failed to synchronize Sales Invoice data (DioException): $e');
+      if (e.response != null) {
+        debugPrint('DioException Response Data: ${e.response?.data}');
+      }
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
       return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());

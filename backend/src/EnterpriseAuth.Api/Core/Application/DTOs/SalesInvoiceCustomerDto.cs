@@ -11,6 +11,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string TaxRule { get; set; } = string.Empty;
         public string? Bcgcod { get; set; }
         public string? Tsccod { get; set; }
-        public int? FacilityFlag { get; set; }
+        public string? Bpcsho { get; set; }
+        public byte? FacilityFlag { get; set; }
     }
 }

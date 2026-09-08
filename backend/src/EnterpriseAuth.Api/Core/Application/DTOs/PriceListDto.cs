@@ -18,11 +18,14 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public double DiscountAmt { get; set; }
         public double FocQtyMin { get; set; }
         public double FocQtyBkt { get; set; }
+        public double FocAmtMin { get; set; }
+        public double FocAmtBkt { get; set; }
         public string FocItmRef { get; set; }
         public double FocQty { get; set; }
         public double MinQty { get; set; }
         public double MaxQty { get; set; }
         public string ValidFrom { get; set; }
         public string ValidTo { get; set; }
+        public int ReasonType { get; set; }
     }
 }

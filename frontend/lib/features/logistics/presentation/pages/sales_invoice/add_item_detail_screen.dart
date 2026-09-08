@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 import '../../../data/models/sales_invoice_product_model.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
@@ -54,6 +55,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   bool _isResolvingPrice = false;
   String _priceSource = '';
+  double _discountAmountFlat = 0.0;
+  String _priceListCode = '';
+  int _reasonType = 0;
 
   String _lotNumber = ''; // dynamically loaded
   String _warehouse = 'Main (WH-01)';
@@ -66,6 +70,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   double _focQuantity = 0.0;
   String _focItemSku = '';
 
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
@@ -73,7 +79,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         ? widget.product.warehouse
         : 'Main (WH-01)';
     if (widget.existingItem != null) {
-      _quantity = widget.existingItem!.quantity;
+      _quantity = widget.existingItem!.quantity.toInt();
       _qtyController.text = _quantity.toString();
       _basePriceController.text = widget.existingItem!.basePrice
           .toStringAsFixed(2);
@@ -97,67 +103,70 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   }
 
   Future<void> _resolvePrice() async {
-    final customer = context.read<SalesInvoiceCartCubit>().state.customer;
-    if (customer == null) return;
-
-    if (mounted) {
-      setState(() => _isResolvingPrice = true);
-    }
-
-    final customerCode = customer['code']?.toString() ?? '';
-    final bcgcod = customer['bcgcod']?.toString() ?? '';
-    final tsccod = customer['tsccod']?.toString() ?? '';
-    final facilityFlag = customer['facilityFlag'] != null ? int.tryParse(customer['facilityFlag'].toString()) : null;
-
-    // D1: Defensive validation — log if key pricing dimensions are missing from the customer cache.
-    // A missing TSCCOD or BCGCOD means entire categories of pricing rules will silently fail to match.
-    if (bcgcod.isEmpty) debugPrint('⚠️ PricingEngine: bcgcod is EMPTY for customer $customerCode — BCGCOD-based rules will not apply.');
-    if (tsccod.isEmpty) debugPrint('⚠️ PricingEngine: tsccod is EMPTY for customer $customerCode — TSCCOD-based rules will not apply.');
-
-    try {
-      final pricingEngine = PricingEngineService();
-      final result = await pricingEngine.resolvePrice(
-        customerCode: customerCode,
-        bcgcod: bcgcod,
-        tsccod: tsccod,
-        facilityFlag: facilityFlag,
-        sku: widget.product.sku,
-        qty: _quantity.toDouble(),
-      );
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      final customer = context.read<SalesInvoiceCartCubit>().state.customer;
+      if (customer == null) return;
 
       if (mounted) {
-        setState(() {
-          // Only auto-fill price if the engine resolved a base price.
-          // A result of 0.0 means only a discount rule matched — user must enter price manually.
-          if (result.basePrice > 0) {
-            _basePriceController.text = result.basePrice.toStringAsFixed(2);
-          }
-          _discountPercent = result.discountPct;
-          _discountController.text = result.discountPct.toString();
-          _priceSource = result.source;
-          _isResolvingPrice = false;
-          _hasFoc = result.hasFoc;
-          _focQuantity = result.focQuantity;
-          _focItemSku = result.focItemSku;
-        });
+        setState(() => _isResolvingPrice = true);
+      }
 
-        if (result.hasFoc && result.focQuantity > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'FOC applied: ${result.focQuantity.toInt()} of ${result.focItemSku} will be added.',
+      final customerCode = customer['code']?.toString() ?? '';
+      final bcgcod = customer['bcgcod']?.toString() ?? '';
+      final tsccod = customer['tsccod']?.toString() ?? '';
+      final bpcsho = (customer['bpcsho'] ?? customer['Bpcsho'])?.toString() ?? '';
+      final int? facilityFlag = customer['facilityFlag'] != null
+          ? int.tryParse(customer['facilityFlag'].toString())
+          : (customer['FacilityFlag'] != null
+              ? int.tryParse(customer['FacilityFlag'].toString())
+              : null);
+
+      try {
+        final pricingEngine = PricingEngineService();
+        final result = await pricingEngine.resolvePrice(
+          customerCode: customerCode,
+          bcgcod: bcgcod,
+          tsccod: tsccod,
+          bpcsho: bpcsho,
+          facilityFlag: facilityFlag,
+          sku: widget.product.sku,
+          qty: _quantity.toDouble(),
+        );
+
+        if (mounted) {
+          setState(() {
+            _basePriceController.text = result.basePrice.toStringAsFixed(2);
+            _discountPercent = result.discountPct;
+            _discountController.text = result.discountPct.toString();
+            _discountAmountFlat = result.discountAmountFlat;
+            _priceListCode = result.priceListCode;
+            _reasonType = result.reasonType;
+            _priceSource = result.source;
+            _isResolvingPrice = false;
+            _hasFoc = result.hasFoc;
+            _focQuantity = result.focQuantity; // Double support
+            _focItemSku = result.focItemSku;
+          });
+
+          if (result.hasFoc && result.focQuantity > 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'FOC applied: \${result.focQuantity} of \${result.focItemSku} will be added.',
+                ),
+                duration: const Duration(seconds: 3),
               ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Error resolving price: $e');
+        if (mounted) {
+          setState(() => _isResolvingPrice = false);
         }
       }
-    } catch (e) {
-      debugPrint('Error resolving price: $e');
-      if (mounted) {
-        setState(() => _isResolvingPrice = false);
-      }
-    }
+    });
   }
 
   Future<void> _loadSpecificLotStock() async {
@@ -739,7 +748,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                             final item = CartItem(
                               product: widget.product,
-                              quantity: _quantity,
+                              quantity: _quantity.toDouble(),
                               lotNumber: _lotNumber,
                               warehouse: _warehouse,
                               warehouseName: _warehouseName,
@@ -751,6 +760,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               taxRule: _taxRuleCode,
                               isFoc: isFocLocked,
                               pricingSource: _priceSource,
+                              discountAmountFlat: _discountAmountFlat,
+                              priceListCode: _priceListCode,
+                              reasonType: _reasonType,
                             );
 
                             CartItem? focItem;
@@ -797,7 +809,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                               focItem = CartItem(
                                 product: focProduct,
-                                quantity: _focQuantity.toInt(),
+                                quantity: _focQuantity,
                                 lotNumber: isSameItem ? _lotNumber : '',
                                 warehouse: isSameItem ? _warehouse : '',
                                 warehouseName: isSameItem ? _warehouseName : '',
@@ -809,6 +821,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 taxRule: _taxRuleCode,
                                 isFoc: true,
                                 mainItemSku: widget.product.sku,
+                                pricingSource: _priceSource,
+                                discountAmountFlat: 0.0,
+                                priceListCode: _priceListCode,
+                                reasonType: _reasonType,
                               );
                             }
 

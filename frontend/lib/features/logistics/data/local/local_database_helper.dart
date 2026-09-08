@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 74;
+  static const _databaseVersion = 78;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -199,6 +199,21 @@ class LocalDatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
+    
+    // FORCE SCHEMA UPDATE HACK FOR HOT RELOAD/RESTART ISSUES
+    try {
+      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN reasonType INTEGER DEFAULT 0');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtMin REAL DEFAULT 0');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtBkt REAL DEFAULT 0');
+    } catch (_) {}
+    try {
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_lookup ON $tablePriceLists(pliCode, matchKey1, matchKey2)');
+    } catch (_) {}
+    
     return _database!;
   }
 
@@ -214,6 +229,54 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 77) {
+      debugPrint('DB Upgrade: Ensuring reasonType and foc fields exist on tbl_price_lists (v77)');
+      try {
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN reasonType INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v77 reasonType: $e");
+      }
+      try {
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtMin REAL DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v77 focAmtMin: $e");
+      }
+      try {
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtBkt REAL DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v77 focAmtBkt: $e");
+      }
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_lookup ON $tablePriceLists(pliCode, matchKey1, matchKey2)');
+      } catch (e) {}
+    }
+
+    if (oldVersion < 76) {
+      debugPrint('DB Upgrade: Adding pricing and audit fields to tbl_si_invoice_lines (v76)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN pricingSource TEXT DEFAULT ""');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN discountAmountFlat REAL DEFAULT 0');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN priceListCode TEXT DEFAULT ""');
+        await db.execute('ALTER TABLE $tableSiInvoiceLines ADD COLUMN reasonType INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint("Migration error v76: $e");
+      }
+    }
+
+    if (oldVersion < 75) {
+      debugPrint('DB Upgrade: Adding reasonType, focAmtMin, focAmtBkt to tbl_price_lists (v75)');
+      try {
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN reasonType INTEGER DEFAULT 0');
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtMin REAL DEFAULT 0');
+        await db.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtBkt REAL DEFAULT 0');
+        
+        // Composite index for fast lookup
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_lookup ON $tablePriceLists(pliCode, matchKey1, matchKey2)');
+      } catch (e) {
+        debugPrint("Migration error v75: $e");
+      }
+    }
+
     if (oldVersion < 74) {
       debugPrint('DB Upgrade: Adding facilityFlag to tbl_si_customers (v74)');
       try {
@@ -267,13 +330,16 @@ class LocalDatabaseHelper {
           discountAmt REAL,
           focQtyMin   REAL,
           focQtyBkt   REAL,
+          focAmtMin   REAL,
+          focAmtBkt   REAL,
           focItmRef   TEXT,
           focQty      REAL,
           minQty      REAL,
           maxQty      REAL,
           validFrom   TEXT,
           validTo     TEXT,
-          cachedAt    TEXT
+          cachedAt    TEXT,
+          reasonType  INTEGER
         )
       ''');
     }
@@ -383,7 +449,11 @@ class LocalDatabaseHelper {
           basePrice REAL,
           discountAmount REAL,
           vatAmount REAL,
-          total REAL
+          total REAL,
+          pricingSource TEXT DEFAULT "",
+          discountAmountFlat REAL DEFAULT 0,
+          priceListCode TEXT DEFAULT "",
+          reasonType INTEGER DEFAULT 0
         )
       ''');
       await db.execute('''
@@ -1270,6 +1340,14 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v71: $e");
       }
     }
+    if (oldVersion < 78) {
+      debugPrint('DB Upgrade: Adding bpcsho to tbl_si_customers (v78)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceCustomers ADD COLUMN bpcsho TEXT');
+      } catch (e) {
+        debugPrint("Migration error v78: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1316,6 +1394,7 @@ class LocalDatabaseHelper {
         outstandingBalance REAL DEFAULT 0,
         bcgcod TEXT,
         tsccod TEXT,
+        bpcsho TEXT,
         facilityFlag INTEGER,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
@@ -1386,7 +1465,11 @@ class LocalDatabaseHelper {
         cce0 TEXT,
         taxRule TEXT,
         isFoc INTEGER DEFAULT 0,
-        isReversed INTEGER DEFAULT 0
+        isReversed INTEGER DEFAULT 0,
+        pricingSource TEXT DEFAULT "",
+        discountAmountFlat REAL DEFAULT 0,
+        priceListCode TEXT DEFAULT "",
+        reasonType INTEGER DEFAULT 0
       )
     ''');
 
@@ -2824,6 +2907,7 @@ class LocalDatabaseHelper {
       'outstandingBalance': customer['outstandingBalance'],
       'bcgcod': (customer['bcgcod'] ?? customer['Bcgcod'])?.toString().trim() ?? '',
       'tsccod': (customer['tsccod'] ?? customer['Tsccod'])?.toString().trim() ?? '',
+      'bpcsho': (customer['bpcsho'] ?? customer['Bpcsho'])?.toString().trim() ?? '',
       'facilityFlag': customer['facilityFlag'] ?? customer['FacilityFlag'],
       'isSynced': 1, // hardcoded from columnIsSynced
     }).toList();
