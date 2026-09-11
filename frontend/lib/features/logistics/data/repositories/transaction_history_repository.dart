@@ -1,14 +1,24 @@
+import 'package:sqflite/sqflite.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/eod_report_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:intl/intl.dart';
 
 
 class TransactionHistoryRepository {
   final LocalDatabaseHelper _dbHelper;
+  final Future<Database> Function()? _dbProvider;
 
-  TransactionHistoryRepository({LocalDatabaseHelper? dbHelper})
-      : _dbHelper = dbHelper ?? LocalDatabaseHelper.instance;
+  TransactionHistoryRepository({
+    LocalDatabaseHelper? dbHelper,
+    Future<Database> Function()? dbProvider,
+  })  : _dbHelper = dbHelper ?? LocalDatabaseHelper.instance,
+        _dbProvider = dbProvider;
+
+  Future<Database> get _database async =>
+      _dbProvider != null ? await _dbProvider!() : await _dbHelper.database;
 
   Future<List<TransactionModel>> getTransactions({
     String? type,
@@ -17,43 +27,99 @@ class TransactionHistoryRepository {
     int limit = 50,
     int offset = 0,
   }) async {
-    final db = await _dbHelper.database;
+    final db = await _database;
+    final Map<String, TransactionModel> uniqueMap = {};
 
-    String whereClause = '1 = 1';
-    List<dynamic> whereArgs = [];
+    // 1. Fetch Invoices
+    if (type == null || type.isEmpty || type == 'ALL' || type == 'INVOICE' || type == 'RETURN') {
+      String whereClause = '1 = 1';
+      List<dynamic> whereArgs = [];
 
-    if (type != null && type.isNotEmpty && type != 'ALL') {
-      whereClause += ' AND transactionType = ?';
-      whereArgs.add(type);
+      if (type != null && type.isNotEmpty && type != 'ALL') {
+        whereClause += ' AND transactionType = ?';
+        whereArgs.add(type);
+      }
+
+      if (startDate != null && startDate.isNotEmpty) {
+        whereClause += ' AND createdAt >= ?';
+        whereArgs.add(startDate);
+      }
+
+      if (endDate != null && endDate.isNotEmpty) {
+        whereClause += ' AND createdAt <= ?';
+        whereArgs.add(endDate);
+      }
+
+      final List<Map<String, dynamic>> maps = await db.query(
+        LocalDatabaseHelper.tableSiInvoices,
+        where: whereClause,
+        whereArgs: whereArgs,
+        orderBy: 'createdAt DESC',
+        limit: limit,
+        offset: offset,
+      );
+
+      for (final m in maps) {
+        final tx = TransactionModel.fromJson(m);
+        uniqueMap[tx.id] = tx;
+      }
     }
 
-    if (startDate != null && startDate.isNotEmpty) {
-      whereClause += ' AND createdAt >= ?';
-      whereArgs.add(startDate);
+    // 2. Fetch Dedicated Credit Notes
+    if (type == null || type.isEmpty || type == 'ALL' || type == 'CREDIT_NOTE') {
+      String cnWhere = '1 = 1';
+      List<dynamic> cnArgs = [];
+
+      if (startDate != null && startDate.isNotEmpty) {
+        cnWhere += ' AND createdAt >= ?';
+        cnArgs.add(startDate);
+      }
+
+      if (endDate != null && endDate.isNotEmpty) {
+        cnWhere += ' AND createdAt <= ?';
+        cnArgs.add(endDate);
+      }
+
+      final List<Map<String, dynamic>> cnMaps = await db.query(
+        LocalDatabaseHelper.tableSiCreditNotes,
+        where: cnWhere,
+        whereArgs: cnArgs,
+        orderBy: 'createdAt DESC',
+        limit: limit,
+        offset: offset,
+      );
+
+      for (final cn in cnMaps) {
+        final id = cn['creditNoteId'] as String;
+        uniqueMap[id] = TransactionModel(
+          id: id,
+          type: 'CREDIT_NOTE',
+          customerCode: (cn['customerCode'] as String?) ?? '',
+          customerName: (cn['customerName'] as String?) ?? '',
+          grandTotal: (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
+          createdAt: (cn['createdAt'] as String?) ?? '',
+          status: 'CONFIRMED',
+          isSynced: (cn['isSynced'] as int?) ?? 0,
+          isReversed: 0,
+          auditMetadata: AuditMetadata(
+            createdByUserName: cn['createdBy'] as String?,
+            deviceId: cn['deviceId'] as String?,
+          ),
+        );
+      }
     }
 
-    if (endDate != null && endDate.isNotEmpty) {
-      whereClause += ' AND createdAt <= ?';
-      whereArgs.add(endDate);
+    final results = uniqueMap.values.toList();
+    results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (results.length > limit) {
+      return results.sublist(0, limit);
     }
-
-    final List<Map<String, dynamic>> maps = await db.query(
-      LocalDatabaseHelper.tableSiInvoices,
-      where: whereClause,
-      whereArgs: whereArgs,
-      orderBy: 'createdAt DESC',
-      limit: limit,
-      offset: offset,
-    );
-
-    return List.generate(maps.length, (i) {
-      return TransactionModel.fromJson(maps[i]);
-    });
+    return results;
   }
 
   // Method to get distinct transaction types, if needed
   Future<List<String>> getTransactionTypes() async {
-    final db = await _dbHelper.database;
+    final db = await _database;
     final List<Map<String, dynamic>> maps = await db.rawQuery(
       'SELECT DISTINCT transactionType FROM ${LocalDatabaseHelper.tableSiInvoices} WHERE transactionType IS NOT NULL',
     );
@@ -61,108 +127,70 @@ class TransactionHistoryRepository {
   }
 
   Future<List<Map<String, dynamic>>> getTransactionLines(String invoiceId) async {
-    return await _dbHelper.getSalesInvoiceLines(invoiceId);
+    final db = await _database;
+    if (invoiceId.startsWith('CN-')) {
+      final query = '''
+        SELECT 
+          cnl.lineId,
+          cnl.creditNoteId,
+          cnl.lineNo,
+          cnl.quantity,
+          COALESCE(cnl.standaloneSku, il.sku) AS sku,
+          COALESCE(cnl.standaloneName, il.name) AS name,
+          COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
+          COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
+          COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
+          COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
+          COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
+          COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
+          ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
+        WHERE cnl.creditNoteId = ?
+        ORDER BY cnl.lineNo ASC
+      ''';
+      final cnLines = await db.rawQuery(query, [invoiceId]);
+      if (cnLines.isNotEmpty) return cnLines;
+    }
+    final lines = await db.query(
+      LocalDatabaseHelper.tableSiInvoiceLines,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+    );
+    if (lines.isEmpty) {
+      final query = '''
+        SELECT 
+          cnl.lineId,
+          cnl.creditNoteId,
+          cnl.lineNo,
+          cnl.quantity,
+          COALESCE(cnl.standaloneSku, il.sku) AS sku,
+          COALESCE(cnl.standaloneName, il.name) AS name,
+          COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
+          COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
+          COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
+          COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
+          COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
+          COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
+          ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
+        WHERE cnl.creditNoteId = ?
+        ORDER BY cnl.lineNo ASC
+      ''';
+      final cnLines = await db.rawQuery(query, [invoiceId]);
+      if (cnLines.isNotEmpty) return cnLines;
+    }
+    return lines;
   }
 
-  Future<void> cancelInvoice(TransactionModel transaction) async {
-    final db = await _dbHelper.database;
-    final batch = db.batch();
-
-    // 1. Mark original invoice as reversed
-    batch.update(
-      LocalDatabaseHelper.tableSiInvoices,
-      {'isReversed': 1},
-      where: 'invoiceId = ?',
-      whereArgs: [transaction.id],
+  Future<CreditNoteModel> cancelInvoice(TransactionModel transaction) async {
+    final creditNoteService = CreditNoteService(dbProvider: () => _database);
+    return await creditNoteService.createReversalCreditNote(
+      invoiceId: transaction.id,
+      createdBy: transaction.auditMetadata.createdByUserName ?? 'SYSTEM',
+      deviceId: transaction.auditMetadata.deviceId,
     );
-
-    // 2. Mark its lines as reversed
-    batch.update(
-      LocalDatabaseHelper.tableSiInvoiceLines,
-      {'isReversed': 1},
-      where: 'invoiceId = ?',
-      whereArgs: [transaction.id],
-    );
-
-    // 3. Generate a new Credit Note row
-    final creditNoteId = 'CN-${transaction.id}';
-    final now = DateTime.now().toIso8601String();
-    
-    // Fetch original invoice to get exact vat and discount
-    final originalInvoice = await db.query(
-      LocalDatabaseHelper.tableSiInvoices,
-      where: 'invoiceId = ?',
-      whereArgs: [transaction.id],
-      limit: 1,
-    );
-    
-    double totalVat = 0.0;
-    double totalDiscount = 0.0;
-    if (originalInvoice.isNotEmpty) {
-      totalVat = (originalInvoice.first['totalVat'] as num?)?.toDouble() ?? 0.0;
-      totalDiscount = (originalInvoice.first['totalDiscount'] as num?)?.toDouble() ?? 0.0;
-    }
-    
-    batch.insert(LocalDatabaseHelper.tableSiInvoices, {
-      'invoiceId': creditNoteId,
-      'customerCode': transaction.customerCode,
-      'customerName': transaction.customerName,
-      'totalVat': totalVat,
-      'totalDiscount': totalDiscount,
-      'grandTotal': transaction.grandTotal,
-      'createdAt': now,
-      'status': 'CREDIT_NOTE',
-      'isSynced': 0,
-      'transactionType': 'CREDIT_NOTE',
-      'createdByUserId': transaction.auditMetadata.createdByUserId,
-      'createdByUserName': transaction.auditMetadata.createdByUserName,
-      'deviceId': transaction.auditMetadata.deviceId,
-      'appVersion': transaction.auditMetadata.appVersion,
-      'reference': transaction.id, // Links to original invoice
-      'invoiceType': 'CREDIT_NOTE',
-      'isReversed': 1,
-      'transactionalId': transaction.id,
-    });
-
-    // 4. Copy lines and increment stock
-    final lines = await getTransactionLines(transaction.id);
-    for (var line in lines) {
-      // Copy line
-      batch.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
-        'invoiceId': creditNoteId,
-        'sku': line['sku'],
-        'name': line['name'],
-        'quantity': line['quantity'],
-        'basePrice': line['basePrice'],
-        'discountAmount': line['discountAmount'],
-        'vatAmount': line['vatAmount'],
-        'total': line['total'],
-        'lotNumber': line['lotNumber'],
-        'warehouse': line['warehouse'],
-        'location': line['location'],
-        'salesUnit': line['salesUnit'],
-        'cce0': line['cce0'],
-        'taxRule': line['taxRule'],
-        'isFoc': line['isFoc'],
-        'isReversed': 0,
-        'pricingSource': line['pricingSource'] ?? '',
-        'discountAmountFlat': line['discountAmountFlat'] ?? 0.0,
-        'priceListCode': line['priceListCode'] ?? '',
-        'reasonType': line['reasonType'] ?? 0,
-      });
-
-      // Increment stock
-      batch.rawUpdate(
-        '''
-        UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-        SET totalQty = totalQty + ? 
-        WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
-        ''',
-        [line['quantity'], line['sku'], line['lotNumber'], line['warehouse'], line['location']],
-      );
-    }
-
-    await batch.commit(noResult: true);
   }
 
   /// Aggregates all End-of-Day data for the given [date] from local SQLite.

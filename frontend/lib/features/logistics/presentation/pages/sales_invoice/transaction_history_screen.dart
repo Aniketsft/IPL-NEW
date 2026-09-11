@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
-import '../../../../../core/widgets/industrial_module_layout.dart';
 import 'transaction_preview_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {

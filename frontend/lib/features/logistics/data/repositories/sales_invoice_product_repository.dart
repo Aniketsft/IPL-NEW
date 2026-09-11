@@ -73,8 +73,10 @@ class SalesInvoiceProductRepository {
         S.itemName AS name, 
         SUM(S.totalQty) AS stockQty, 
         MAX(S.warehouse) AS warehouse,
-        MAX(S.cce0) AS cce0
+        MAX(S.cce0) AS cce0,
+        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
+      LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
       $whereClause
       GROUP BY S.itemCode, S.itemName
       $havingClause
@@ -94,7 +96,9 @@ class SalesInvoiceProductRepository {
             name: e['name'] as String,
             stockQty: (e['stockQty'] as num?)?.toDouble() ?? 0.0,
             warehouse: (e['warehouse'] as String?) ?? '',
-            salesUnit: 'EA', // Defaulted as it is aggregated
+            salesUnit: ((e['salesUnit'] as String?)?.trim().isNotEmpty == true)
+                ? (e['salesUnit'] as String).trim()
+                : 'UN',
             cce0: (e['cce0'] as String?) ?? '',
           ),
         )
@@ -110,8 +114,10 @@ class SalesInvoiceProductRepository {
         S.itemName AS name, 
         SUM(S.totalQty) AS stockQty, 
         MAX(S.warehouse) AS warehouse,
-        MAX(S.cce0) AS cce0
+        MAX(S.cce0) AS cce0,
+        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
+      LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
       WHERE S.itemCode = ?
       GROUP BY S.itemCode, S.itemName
       LIMIT 1
@@ -126,7 +132,9 @@ class SalesInvoiceProductRepository {
         name: e['name'] as String,
         stockQty: (e['stockQty'] as num?)?.toDouble() ?? 0.0,
         warehouse: (e['warehouse'] as String?) ?? '',
-        salesUnit: 'EA', // Defaulted as it is aggregated
+        salesUnit: ((e['salesUnit'] as String?)?.trim().isNotEmpty == true)
+            ? (e['salesUnit'] as String).trim()
+            : 'UN',
         cce0: (e['cce0'] as String?) ?? '',
       );
     }

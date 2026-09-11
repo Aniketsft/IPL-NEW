@@ -9,6 +9,7 @@ class SalesInvoiceItemStockModel {
   final double totalQty;
   final String taxLevel;
   final String cce0;
+  final String salesUnit;
   final int isSynced;
 
   SalesInvoiceItemStockModel({
@@ -22,6 +23,7 @@ class SalesInvoiceItemStockModel {
     this.totalQty = 0.0,
     this.taxLevel = '',
     this.cce0 = '',
+    this.salesUnit = '',
     this.isSynced = 1,
   });
 
@@ -36,6 +38,7 @@ class SalesInvoiceItemStockModel {
     double? totalQty,
     String? taxLevel,
     String? cce0,
+    String? salesUnit,
     int? isSynced,
   }) {
     return SalesInvoiceItemStockModel(
@@ -49,6 +52,7 @@ class SalesInvoiceItemStockModel {
       totalQty: totalQty ?? this.totalQty,
       taxLevel: taxLevel ?? this.taxLevel,
       cce0: cce0 ?? this.cce0,
+      salesUnit: salesUnit ?? this.salesUnit,
       isSynced: isSynced ?? this.isSynced,
     );
   }
@@ -65,6 +69,7 @@ class SalesInvoiceItemStockModel {
       totalQty: (json['totalQty'] as num?)?.toDouble() ?? 0.0,
       taxLevel: (json['taxLevel'] ?? '').toString(),
       cce0: (json['cce0'] ?? '').toString(),
+      salesUnit: (json['salesUnit'] ?? json['unit'] ?? '').toString(),
     );
   }
 
@@ -80,6 +85,7 @@ class SalesInvoiceItemStockModel {
       totalQty: (map['totalQty'] as num?)?.toDouble() ?? 0.0,
       taxLevel: map['taxLevel'] as String? ?? '',
       cce0: map['cce0'] as String? ?? '',
+      salesUnit: (map['salesUnit'] as String?) ?? '',
       isSynced: map['isSynced'] as int? ?? 1,
     );
   }
@@ -96,6 +102,7 @@ class SalesInvoiceItemStockModel {
       'totalQty': totalQty,
       'taxLevel': taxLevel,
       'cce0': cce0,
+      'salesUnit': salesUnit,
       'isSynced': isSynced,
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

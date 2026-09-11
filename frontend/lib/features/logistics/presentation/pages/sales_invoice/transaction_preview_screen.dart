@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
 
 class TransactionPreviewScreen extends StatefulWidget {
   final TransactionModel transaction;
@@ -71,12 +77,53 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
     if (confirm == true) {
       setState(() => _isLoading = true);
       try {
-        await _repository.cancelInvoice(widget.transaction);
+        final creditNote = await _repository.cancelInvoice(widget.transaction);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invoice cancelled successfully.')),
+          setState(() => _isLoading = false);
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Invoice Cancelled'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Credit Note ${creditNote.creditNoteId} generated successfully.'),
+                  const SizedBox(height: 6),
+                  const Text('Stock replenished and transaction recorded.'),
+                ],
+              ),
+              actions: [
+                TextButton.icon(
+                  icon: const Icon(Icons.print),
+                  label: const Text('Print Voucher'),
+                  onPressed: () async {
+                    await Printing.layoutPdf(
+                      onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+                        pageFormat: format,
+                        creditNote: creditNote,
+                        resolvedLines: _lines,
+                      ),
+                    );
+                  },
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
           );
-          Navigator.of(context).pop(true); // Return true so history screen refreshes
         }
       } catch (e) {
         if (mounted) {
@@ -89,6 +136,75 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
     }
   }
 
+  Future<void> _handlePrint() async {
+    final isCreditNote = widget.transaction.type == 'CREDIT_NOTE' || widget.transaction.id.startsWith('CN-');
+    if (isCreditNote) {
+      final creditNote = CreditNoteModel(
+        creditNoteId: widget.transaction.id,
+        creditNoteType: CreditNoteType.reversal,
+        x3CreditNoteType: 'CRN',
+        salesSite: 'SCG',
+        customerCode: widget.transaction.customerCode,
+        customerName: widget.transaction.customerName,
+        currency: 'MUR',
+        grandTotal: widget.transaction.grandTotal,
+        originalInvoiceId: widget.transaction.id.replaceFirst('CN-', ''),
+        settlementType: 'REFUND',
+        reference: widget.transaction.id,
+        isSynced: widget.transaction.isSynced,
+        createdAt: widget.transaction.createdAt,
+        createdBy: widget.transaction.auditMetadata.createdByUserName ?? 'SYSTEM',
+        deviceId: widget.transaction.auditMetadata.deviceId,
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+          pageFormat: format,
+          creditNote: creditNote,
+          resolvedLines: _lines,
+        ),
+      );
+    } else {
+      // Print Invoice thermal format
+      final pdfService = SalesInvoicePdfService();
+      await Printing.layoutPdf(
+        dynamicLayout: true,
+        onLayout: (format) async {
+          return await pdfService.generateInvoicePdf(
+            pageFormat: format,
+            invoiceId: widget.transaction.id,
+            customer: {
+              'code': widget.transaction.customerCode,
+              'name': widget.transaction.customerName,
+            },
+            items: _lines.map((l) => CartItem(
+              product: SalesInvoiceProductModel(
+                sku: (l['sku'] as String?) ?? '',
+                name: (l['name'] as String?) ?? '',
+                stockQty: (l['quantity'] as num?)?.toDouble() ?? 0.0,
+                warehouse: (l['warehouse'] as String?) ?? '',
+                salesUnit: (l['salesUnit'] as String?) ?? 'EA',
+                cce0: (l['cce0'] as String?) ?? '',
+              ),
+              quantity: (l['quantity'] as num?)?.toDouble() ?? 0.0,
+              basePrice: (l['basePrice'] as num?)?.toDouble() ?? 0.0,
+              lotNumber: (l['lotNumber'] as String?) ?? '',
+              warehouse: (l['warehouse'] as String?) ?? '',
+              location: (l['location'] as String?) ?? '',
+              taxRule: (l['taxRule'] as String?) ?? '',
+            )).toList(),
+            subtotal: widget.transaction.grandTotal,
+            discountAmount: 0.0,
+            vatAmount: 0.0,
+            grandTotal: widget.transaction.grandTotal,
+            paymentMethod: 'CASH',
+            paymentStatus: widget.transaction.isReversed == 1 ? 'CANCELLED' : 'PAID',
+          );
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     DateTime parsedDate;
@@ -98,12 +214,18 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
       parsedDate = DateTime.now();
     }
     final dateStr = DateFormat('dd MMM yyyy, HH:mm').format(parsedDate);
+    final isCreditNote = widget.transaction.type == 'CREDIT_NOTE' || widget.transaction.id.startsWith('CN-');
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Transaction ${widget.transaction.id}'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            tooltip: isCreditNote ? 'Print Credit Note Voucher' : 'Print Invoice Receipt',
+            onPressed: _handlePrint,
+          ),
           if (widget.transaction.type == 'INVOICE' && widget.transaction.isReversed == 0)
             IconButton(
               icon: const Icon(Icons.cancel, color: Colors.red),
@@ -123,7 +245,43 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Customer: ${widget.transaction.customerName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Customer: ${widget.transaction.customerName}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
+                      if (widget.transaction.isReversed == 1)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.red),
+                          ),
+                          child: const Text(
+                            'REVERSED',
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        )
+                      else if (isCreditNote)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.purple),
+                          ),
+                          child: const Text(
+                            'CREDIT NOTE',
+                            style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Text('Type: ${widget.transaction.type}'),
                   const SizedBox(height: 4),

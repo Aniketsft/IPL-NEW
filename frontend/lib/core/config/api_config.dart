@@ -1,10 +1,15 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'auth_config.dart';
+export 'auth_config.dart';
 
 class ApiConfig {
+  /// Canonical session and inactivity timeout defined centrally in [AuthConfig].
+  static const Duration sessionTimeout = AuthConfig.sessionTimeout;
+
   /// Base IP Address for the backend server.
   /// Update this value to change the IP globally across the app.
-  static const String serverIp = '192.168.1.73';
+  static const String serverIp = '192.168.43.16';
 
   //'192.168.100.13';
   // 192.168.1.62 sft

@@ -8,6 +8,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/local/local_datab
 import 'package:sqflite/sqflite.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:enterprise_auth_mobile/core/config/auth_config.dart';
 
 class AuthRepository implements IAuthRepository {
   final Dio _dio;
@@ -88,7 +89,7 @@ class AuthRepository implements IAuthRepository {
       final lastSyncTimeStr = row[LocalDatabaseHelper.colLastSyncTime] as String?;
       if (lastSyncTimeStr != null) {
         final lastSyncTime = DateTime.parse(lastSyncTimeStr);
-        if (DateTime.now().difference(lastSyncTime) > const Duration(minutes: 30)) {
+        if (DateTime.now().difference(lastSyncTime) > AuthConfig.sessionTimeout) {
            throw 'Offline session expired. Please connect to the network to re-authenticate.';
         }
       } else {
@@ -180,7 +181,7 @@ class AuthRepository implements IAuthRepository {
       final lastSyncTimeStr = maps.first[LocalDatabaseHelper.colLastSyncTime] as String?;
       if (lastSyncTimeStr != null) {
         final lastSyncTime = DateTime.parse(lastSyncTimeStr);
-        if (DateTime.now().difference(lastSyncTime) <= const Duration(minutes: 30)) {
+        if (DateTime.now().difference(lastSyncTime) <= AuthConfig.sessionTimeout) {
           return true;
         }
       }

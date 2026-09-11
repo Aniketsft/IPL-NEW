@@ -291,6 +291,42 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
+        private async Task<Dictionary<string, (string SalesUnit, string TaxLevel)>> GetItemMetadataAsync(IEnumerable<string?> itemCodes)
+        {
+            var dict = new Dictionary<string, (string SalesUnit, string TaxLevel)>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var validCodes = itemCodes.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!.Trim()).Distinct().ToList();
+                if (!validCodes.Any()) return dict;
+
+                string schema = "INLPROD";
+                var httpContext = _httpContextAccessor.HttpContext;
+                if (httpContext != null && httpContext.Request.Headers.TryGetValue("X-X3-Schema", out var schemaHeader) && !string.IsNullOrWhiteSpace(schemaHeader))
+                {
+                    schema = schemaHeader.ToString().Trim();
+                }
+
+                using var connection = new SqlConnection(_innodisConnectionString);
+                string sql = $@"
+                    SELECT LTRIM(RTRIM(ITMREF_0)) AS ItemCode, 
+                           LTRIM(RTRIM(ISNULL(SAU_0, 'UN'))) AS SalesUnit, 
+                           LTRIM(RTRIM(ISNULL(VACITM_0, 'STD'))) AS TaxLevel
+                    FROM x3.{schema}.ITMMASTER
+                    WHERE ITMREF_0 IN @ItemCodes";
+
+                var rows = await connection.QueryAsync(sql, new { ItemCodes = validCodes });
+                foreach (var r in rows)
+                {
+                    dict[(string)r.ItemCode] = ((string)r.SalesUnit, (string)r.TaxLevel);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SageX3SoapService] Warning: Failed to query ITMMASTER metadata: {ex.Message}");
+            }
+            return dict;
+        }
+
         public async Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice)
         {
             var result = new X3ImportResult { Identifier = invoice.InvoiceId };
@@ -316,19 +352,40 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
                 fileBuilder.Append($"V;{site};{invoice.InvoiceType};{site};1;;{invoice.CustomerCode};{invoiceDate};{invoice.Reference ?? ""};2;;MUR;{dueDate};;|");
 
+                // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER)
+                var itemMetadata = await GetItemMetadataAsync(invoice.Lines.Select(l => l.Sku));
+
                 int lineMultiplier = 1000;
                 foreach (var line in invoice.Lines)
                 {
-                    string qty = line.Quantity.ToString("F3");
-                    string basePrice = line.BasePrice.ToString("F2");
-                    string discount = line.DiscountAmount.ToString("F2");
-                    string vat = line.VatAmount.ToString("F2");
+                    string unit = line.SalesUnit ?? "";
+                    string taxRule = line.TaxRule ?? "";
 
-                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;LotNumber;BasePrice;DiscountAmount1;DiscountAmount2;DiscountAmount3;TaxRule;;;;Warehouse|
-                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{line.SalesUnit ?? "EA"};{qty};{line.LotNumber ?? ""};{basePrice};{discount};0.00;0.00;{line.TaxRule ?? ""};;;;{line.Warehouse ?? ""}|");
+                    if (itemMetadata.TryGetValue(line.Sku ?? "", out var meta))
+                    {
+                        if (string.IsNullOrWhiteSpace(unit) || string.Equals(unit, "EA", StringComparison.OrdinalIgnoreCase))
+                        {
+                            unit = meta.SalesUnit;
+                        }
+                        if (string.IsNullOrWhiteSpace(taxRule) || taxRule == "0.00" || taxRule == "0")
+                        {
+                            taxRule = meta.TaxLevel;
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
+                    if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
+
+                    string qty = line.Quantity.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+                    string basePrice = line.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    string discount = line.DiscountAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;Price;Disc1;Disc2;Disc3;TaxRule;;0;|
+                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{unit};{qty};{basePrice};{discount};0;0;{taxRule};;0;|");
                     
                     // Analytical Record: A;DPT;Cce0|
-                    fileBuilder.Append($"A;DPT;{line.Cce0 ?? ""}|");
+                    string cce0 = string.IsNullOrWhiteSpace(line.Cce0) ? "COMMERCIAL" : line.Cce0;
+                    fileBuilder.Append($"A;DPT;{cce0};|");
                     
                     lineMultiplier += 1000;
                 }
@@ -401,6 +458,196 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 result.Success = false;
                 result.TechnicalError = ex.Message;
                 await InsertSoapAuditAsync("ImportSalesInvoice", invoice.InvoiceId, soapEnvelope, responseXml, false, ex.Message);
+                return result;
+            }
+        }
+
+        public async Task<X3ImportResult> ImportCreditNoteAsync(StagingCreditNoteHeader creditNote)
+        {
+            var result = new X3ImportResult { Identifier = creditNote.CreditNoteId };
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
+
+            try
+            {
+                // 1. Build the I_FILE content
+                var fileBuilder = new StringBuilder();
+
+                string creditNoteDate = creditNote.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd");
+                creditNoteDate = creditNoteDate.Replace("-", "").Replace(" ", "").Replace(":", "");
+                if (creditNoteDate.Length > 8) creditNoteDate = creditNoteDate.Substring(0, 8);
+                else creditNoteDate = creditNoteDate.PadRight(8, '0');
+
+                string dueDate = creditNoteDate;
+
+                string site = string.IsNullOrWhiteSpace(creditNote.SalesSite) ? "SCG" : creditNote.SalesSite;
+                string crnType = string.IsNullOrWhiteSpace(creditNote.X3CreditNoteType) ? "CRN" : creditNote.X3CreditNoteType;
+
+                // Position 15 rule: 
+                // Standalone = 1 (not linked to any invoice)
+                // Cash Only = 4
+                // Reversal = 4 for cash, or matching payment code
+                string pos15 = "4";
+                string originDoc = "";
+                if (string.Equals(creditNote.CreditNoteType, "STANDALONE", StringComparison.OrdinalIgnoreCase))
+                {
+                    pos15 = "1";
+                    originDoc = "";
+                }
+                else if (string.Equals(creditNote.CreditNoteType, "CASH_ONLY", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(creditNote.CreditNoteType, "AMOUNT_ONLY", StringComparison.OrdinalIgnoreCase))
+                {
+                    pos15 = "4";
+                    originDoc = creditNote.LinkedInvoiceIds ?? "";
+                }
+                else // REVERSAL
+                {
+                    pos15 = string.Equals(creditNote.SettlementType, "CASH", StringComparison.OrdinalIgnoreCase) ? "4" : "1";
+                    originDoc = creditNote.OriginalInvoiceId ?? "";
+                }
+
+                string reference = creditNote.Reference ?? creditNote.CreditNoteId;
+
+                // Header Record: V;SalesSite;InvoiceType;;INVTYP;OriginDoc;CustomerCode;CreditNoteDate;Reference;1;;Currency;DueDate;;;Pos15;|
+                // Sample: V;SCG;CRN;;2;SCGSC260632463;HD999;20260601;273804;1;;MUR;20260601;;;4;|
+                fileBuilder.Append($"V;{site};{crnType};;2;{originDoc};{creditNote.CustomerCode};{creditNoteDate};{reference};1;;{creditNote.Currency};{dueDate};;;{pos15};|");
+
+                // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER)
+                var candidateSkus = new HashSet<string>(creditNote.Lines.Where(l => !string.IsNullOrEmpty(l.StandaloneSku)).Select(l => l.StandaloneSku!));
+                var originInvoiceIds = creditNote.Lines.Where(l => string.IsNullOrEmpty(l.StandaloneSku) && !string.IsNullOrEmpty(l.OriginInvoiceId)).Select(l => l.OriginInvoiceId!).Distinct().ToList();
+                if (originInvoiceIds.Any())
+                {
+                    var originSkus = await _context.StagingSalesInvoiceLines
+                        .Where(l => originInvoiceIds.Contains(l.InvoiceId) && !string.IsNullOrEmpty(l.Sku))
+                        .Select(l => l.Sku!)
+                        .Distinct()
+                        .ToListAsync();
+                    foreach (var s in originSkus)
+                    {
+                        if (!string.IsNullOrEmpty(s)) candidateSkus.Add(s);
+                    }
+                }
+                var itemMetadata = await GetItemMetadataAsync(candidateSkus);
+
+                int lineMultiplier = 1000;
+                foreach (var line in creditNote.Lines)
+                {
+                    string sku = line.StandaloneSku ?? "";
+                    string name = line.StandaloneName ?? "";
+                    string unit = line.StandaloneSalesUnit ?? "";
+                    double price = line.StandalonePrice ?? 0.0;
+                    string taxRule = line.StandaloneTaxRule ?? "";
+                    string cce0 = line.StandaloneCce0 ?? "COMMERCIAL";
+
+                    // If lean reference exists, resolve from origin invoice lines if available
+                    if (string.IsNullOrEmpty(sku) && !string.IsNullOrEmpty(line.OriginInvoiceId))
+                    {
+                        var originLine = await _context.StagingSalesInvoiceLines
+                            .FirstOrDefaultAsync(l => l.InvoiceId == line.OriginInvoiceId && l.LineId == line.OriginLineNo);
+                        if (originLine != null)
+                        {
+                            sku = originLine.Sku ?? "";
+                            name = originLine.Name ?? "";
+                            unit = originLine.SalesUnit ?? "";
+                            price = originLine.BasePrice;
+                            taxRule = originLine.TaxRule ?? "";
+                            cce0 = originLine.Cce0 ?? "COMMERCIAL";
+                        }
+                    }
+
+                    if (itemMetadata.TryGetValue(sku, out var meta))
+                    {
+                        if (string.IsNullOrWhiteSpace(unit) || string.Equals(unit, "EA", StringComparison.OrdinalIgnoreCase))
+                        {
+                            unit = meta.SalesUnit;
+                        }
+                        if (string.IsNullOrWhiteSpace(taxRule) || taxRule == "0.00" || taxRule == "0")
+                        {
+                            taxRule = meta.TaxLevel;
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
+                    if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
+
+                    string qty = line.Quantity.ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
+                    string basePriceStr = price.ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
+
+                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;Price;Disc1;Disc2;Disc3;TaxRule;;0;|
+                    // Sample: D;1000;890774;Huggies E.Care Nappies No1*42;EA;16;310;0;0;0;VAT0;;0;|
+                    fileBuilder.Append($"D;{lineMultiplier};{sku};{name};{unit};{qty};{basePriceStr};0;0;0;{taxRule};;0;|");
+
+                    // Analytical Record: A;DPT;COMMERCIAL;|
+                    fileBuilder.Append($"A;DPT;{cce0};|");
+
+                    lineMultiplier += 1000;
+                }
+
+                fileBuilder.Append("END");
+
+                // 2. Construct JSON CDATA
+                string iFile = fileBuilder.ToString();
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZSIHWEBA\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
+
+                // 3. Construct SOAP Envelope
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
+         <callContext xsi:type=""wss:CAdxCallContext"">
+            <codeLang xsi:type=""xsd:string"">ENG</codeLang>
+            <poolAlias xsi:type=""xsd:string"">{_poolAlias}</poolAlias>
+            <poolId xsi:type=""xsd:string""></poolId>
+            <requestConfig xsi:type=""xsd:string""></requestConfig>
+         </callContext>
+         <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
+            <inputXml xsi:type=""xsd:string"">
+                  <![CDATA[{inputXmlJson}]]>
+          </inputXml>
+      </wss:run>
+   </soapenv:Body>
+</soapenv:Envelope>";
+
+                Console.WriteLine("====== SAGE X3 CREDIT NOTE SOAP REQUEST ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("==============================================");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
+                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+
+                request.Headers.TryAddWithoutValidation("SOAPAction", "");
+                request.Headers.TryAddWithoutValidation("soapAction", "");
+
+                var response = await _httpClient.SendAsync(request);
+                responseXml = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    result.Success = false;
+                    result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportCreditNote", creditNote.CreditNoteId, soapEnvelope, responseXml, false, result.TechnicalError);
+                    return result;
+                }
+
+                // 5. Parse Response
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                await InsertSoapAuditAsync("ImportCreditNote", creditNote.CreditNoteId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportCreditNote", creditNote.CreditNoteId, soapEnvelope, responseXml, false, ex.Message);
                 return result;
             }
         }

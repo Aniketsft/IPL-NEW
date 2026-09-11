@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 78;
+  static const _databaseVersion = 80;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -42,6 +42,9 @@ class LocalDatabaseHelper {
   static const tableSiInvoiceLines = 'tbl_si_invoice_lines';
   static const colSiLineIsFoc = 'isFoc';
   static const tableSiPayments = 'tbl_si_payments';
+  static const tableSiCreditNotes = 'tbl_si_credit_notes';
+  static const tableSiCreditNoteLines = 'tbl_si_credit_note_lines';
+  static const tableSiCreditNoteRefunds = 'tbl_si_credit_note_refunds';
   static const tablePriceLists = 'tbl_price_lists';
 
   // tbl_tax_matrix columns
@@ -213,6 +216,9 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_lookup ON $tablePriceLists(pliCode, matchKey1, matchKey2)');
     } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN salesUnit TEXT DEFAULT ""');
+    } catch (_) {}
     
     return _database!;
   }
@@ -229,6 +235,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 80) {
+      debugPrint('DB Upgrade: Adding salesUnit to tbl_si_item_stock_details (v80)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN salesUnit TEXT DEFAULT ""');
+      } catch (e) {
+        debugPrint("Migration error v80 salesUnit: $e");
+      }
+    }
+
     if (oldVersion < 77) {
       debugPrint('DB Upgrade: Ensuring reasonType and foc fields exist on tbl_price_lists (v77)');
       try {
@@ -1348,6 +1363,64 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v78: $e");
       }
     }
+    if (oldVersion < 79) {
+      debugPrint('DB Upgrade: Creating Credit Note tables (v79)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiCreditNotes (
+            creditNoteId TEXT PRIMARY KEY,
+            creditNoteType TEXT NOT NULL,
+            x3CreditNoteType TEXT DEFAULT 'CRN',
+            salesSite TEXT NOT NULL,
+            customerCode TEXT NOT NULL,
+            customerName TEXT NOT NULL,
+            currency TEXT DEFAULT 'MUR',
+            grandTotal REAL NOT NULL,
+            originalInvoiceId TEXT,
+            linkedInvoiceIds TEXT,
+            settlementType TEXT NOT NULL,
+            reference TEXT,
+            isSynced INTEGER DEFAULT 0,
+            x3DocumentId TEXT,
+            createdAt TEXT NOT NULL,
+            createdBy TEXT NOT NULL,
+            deviceId TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiCreditNoteLines (
+            lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+            creditNoteId TEXT NOT NULL,
+            lineNo INTEGER NOT NULL,
+            quantity REAL NOT NULL,
+            originInvoiceId TEXT,
+            originLineNo INTEGER,
+            standaloneSku TEXT,
+            standaloneName TEXT,
+            standaloneSalesUnit TEXT,
+            standalonePrice REAL,
+            standaloneTaxRule TEXT,
+            standaloneLot TEXT,
+            standaloneWarehouse TEXT,
+            standaloneCce0 TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiCreditNoteRefunds (
+            refundId INTEGER PRIMARY KEY AUTOINCREMENT,
+            creditNoteId TEXT NOT NULL,
+            method TEXT NOT NULL,
+            amount REAL NOT NULL,
+            bankCode TEXT,
+            bankName TEXT,
+            chequeNumber TEXT,
+            chequeDate TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint("Migration error v79: $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1363,6 +1436,7 @@ class LocalDatabaseHelper {
         totalQty REAL,
         taxLevel TEXT,
         cce0 TEXT,
+        salesUnit TEXT,
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,
@@ -1484,6 +1558,60 @@ class LocalDatabaseHelper {
         chequeNumber TEXT,
         chequeDate TEXT,
         qrTransactionRef TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiCreditNotes (
+        creditNoteId TEXT PRIMARY KEY,
+        creditNoteType TEXT NOT NULL,
+        x3CreditNoteType TEXT DEFAULT 'CRN',
+        salesSite TEXT NOT NULL,
+        customerCode TEXT NOT NULL,
+        customerName TEXT NOT NULL,
+        currency TEXT DEFAULT 'MUR',
+        grandTotal REAL NOT NULL,
+        originalInvoiceId TEXT,
+        linkedInvoiceIds TEXT,
+        settlementType TEXT NOT NULL,
+        reference TEXT,
+        isSynced INTEGER DEFAULT 0,
+        x3DocumentId TEXT,
+        createdAt TEXT NOT NULL,
+        createdBy TEXT NOT NULL,
+        deviceId TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiCreditNoteLines (
+        lineId INTEGER PRIMARY KEY AUTOINCREMENT,
+        creditNoteId TEXT NOT NULL,
+        lineNo INTEGER NOT NULL,
+        quantity REAL NOT NULL,
+        originInvoiceId TEXT,
+        originLineNo INTEGER,
+        standaloneSku TEXT,
+        standaloneName TEXT,
+        standaloneSalesUnit TEXT,
+        standalonePrice REAL,
+        standaloneTaxRule TEXT,
+        standaloneLot TEXT,
+        standaloneWarehouse TEXT,
+        standaloneCce0 TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiCreditNoteRefunds (
+        refundId INTEGER PRIMARY KEY AUTOINCREMENT,
+        creditNoteId TEXT NOT NULL,
+        method TEXT NOT NULL,
+        amount REAL NOT NULL,
+        bankCode TEXT,
+        bankName TEXT,
+        chequeNumber TEXT,
+        chequeDate TEXT
       )
     ''');
 
@@ -3069,5 +3197,94 @@ class LocalDatabaseHelper {
         await Future.delayed(Duration.zero);
       }
     });
+  }
+
+  // --- Credit Note Sync & Query Methods ---
+
+  Future<List<Map<String, dynamic>>> getMergedCreditNoteLines(String creditNoteId) async {
+    final db = await database;
+    final query = '''
+      SELECT 
+        cnl.lineId,
+        cnl.creditNoteId,
+        cnl.lineNo,
+        cnl.quantity,
+        COALESCE(cnl.standaloneSku, il.sku) AS sku,
+        COALESCE(cnl.standaloneName, il.name) AS name,
+        COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
+        COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
+        COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
+        COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
+        COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
+        COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
+      FROM $tableSiCreditNoteLines cnl
+      LEFT JOIN $tableSiInvoiceLines il
+        ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
+      WHERE cnl.creditNoteId = ?
+      ORDER BY cnl.lineNo ASC
+    ''';
+    return await db.rawQuery(query, [creditNoteId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedCreditNotes() async {
+    final db = await database;
+    return await db.query(
+      tableSiCreditNotes,
+      where: 'isSynced = ? OR isSynced IS NULL',
+      whereArgs: [0],
+      orderBy: 'createdAt DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getCreditNoteRefunds(String creditNoteId) async {
+    final db = await database;
+    return await db.query(
+      tableSiCreditNoteRefunds,
+      where: 'creditNoteId = ?',
+      whereArgs: [creditNoteId],
+    );
+  }
+
+  Future<void> markCreditNoteSynced(String creditNoteId, {String? x3DocumentId}) async {
+    final db = await database;
+    final updates = <String, dynamic>{'isSynced': 1};
+    if (x3DocumentId != null && x3DocumentId.isNotEmpty) {
+      updates['x3DocumentId'] = x3DocumentId;
+    }
+    await db.update(
+      tableSiCreditNotes,
+      updates,
+      where: 'creditNoteId = ?',
+      whereArgs: [creditNoteId],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getCreditNotes({
+    String? creditNoteType,
+    String? customerCode,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+
+    if (creditNoteType != null && creditNoteType.isNotEmpty) {
+      whereClauses.add('creditNoteType = ?');
+      whereArgs.add(creditNoteType);
+    }
+    if (customerCode != null && customerCode.isNotEmpty) {
+      whereClauses.add('customerCode = ?');
+      whereArgs.add(customerCode);
+    }
+
+    return await db.query(
+      tableSiCreditNotes,
+      where: whereClauses.isEmpty ? null : whereClauses.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      orderBy: 'createdAt DESC',
+      limit: limit,
+      offset: offset,
+    );
   }
 }

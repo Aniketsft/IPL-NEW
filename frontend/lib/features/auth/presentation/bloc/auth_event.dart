@@ -44,3 +44,5 @@ class ForgotPasswordSubmitted extends AuthEvent {
 class UserInteracted extends AuthEvent {}
 
 class PerformTokenRefresh extends AuthEvent {}
+
+class ValidateSession extends AuthEvent {}

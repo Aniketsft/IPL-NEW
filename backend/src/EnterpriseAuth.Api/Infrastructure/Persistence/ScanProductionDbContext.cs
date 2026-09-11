@@ -33,6 +33,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<StagingSalesInvoiceHeader> StagingSalesInvoiceHeaders { get; set; }
         public DbSet<StagingSalesInvoiceLine> StagingSalesInvoiceLines { get; set; }
 
+        // --- CREDIT NOTE STAGING ---
+        public DbSet<StagingCreditNoteHeader> StagingCreditNoteHeaders { get; set; }
+        public DbSet<StagingCreditNoteLine> StagingCreditNoteLines { get; set; }
+        public DbSet<StagingCreditNoteRefund> StagingCreditNoteRefunds { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -172,6 +177,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             modelBuilder.Entity<StagingSalesInvoiceLine>(entity =>
             {
                 entity.HasKey(e => e.LineId);
+            });
+
+            // StagingCreditNoteHeader
+            modelBuilder.Entity<StagingCreditNoteHeader>(entity =>
+            {
+                entity.HasKey(e => e.CreditNoteId);
+                
+                entity.HasMany(e => e.Lines)
+                      .WithOne(e => e.Header)
+                      .HasForeignKey(e => e.CreditNoteId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(e => e.Refunds)
+                      .WithOne(e => e.Header)
+                      .HasForeignKey(e => e.CreditNoteId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // StagingCreditNoteLine
+            modelBuilder.Entity<StagingCreditNoteLine>(entity =>
+            {
+                entity.HasKey(e => e.LineId);
+            });
+
+            // StagingCreditNoteRefund
+            modelBuilder.Entity<StagingCreditNoteRefund>(entity =>
+            {
+                entity.HasKey(e => e.RefundId);
             });
         }
     }

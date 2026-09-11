@@ -9,6 +9,7 @@ import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
+import 'amount_only_credit_note_screen.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
@@ -151,7 +152,7 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
               description: 'Issue credit for overpayments or adjustments.',
               icon: Icons.description_rounded,
               color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Credit Note', 'CREDIT_NOTE'),
+              onTap: () => _showCreditNotePrompt(context),
             ),
             const SizedBox(height: 16),
             _buildTransactionCard(
@@ -306,6 +307,162 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                 ),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCreditNotePrompt(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Credit Note Type',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choose which type of credit note to issue.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                // 1. Select Invoice to Reverse
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.undo_rounded, color: Colors.red, size: 22),
+                  ),
+                  title: const Text(
+                    '1. Select Invoice to Reverse',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text('Auto-reverses matching original settlement and returns stock'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TransactionHistoryScreen(
+                          transactionType: 'INVOICE',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // 2. Standalone Return
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.blue, size: 22),
+                  ),
+                  title: const Text(
+                    '2. Standalone Return',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text('Select customer & products directly; pick Cash or Credit refund'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    context.read<SalesInvoiceCartCubit>().clearCart(transactionType: 'STANDALONE_CREDIT_NOTE');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CustomerSelectionScreen(),
+                      ),
+                    );
+                  },
+                ),
+                // 3. Amount Only
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.payments_rounded, color: Colors.green, size: 22),
+                  ),
+                  title: const Text(
+                    '3. Amount Only Refund',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text('Enter refund amount linked to 1 or multiple invoices'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AmountOnlyCreditNoteScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(),
+                // View Previous
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.history_rounded, color: Colors.grey, size: 22),
+                  ),
+                  title: const Text('View Previous Credit Notes'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TransactionHistoryScreen(
+                          transactionType: 'CREDIT_NOTE',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
           ),
         );
       },

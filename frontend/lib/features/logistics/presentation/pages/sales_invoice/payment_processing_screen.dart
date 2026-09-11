@@ -10,6 +10,10 @@ import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'invoice_preview_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:printing/printing.dart';
 
 class PaymentEntry {
   final String id;
@@ -34,7 +38,12 @@ class PaymentEntry {
 }
 
 class PaymentProcessingScreen extends StatefulWidget {
-  const PaymentProcessingScreen({super.key});
+  final bool isCreditNoteRefund;
+
+  const PaymentProcessingScreen({
+    super.key,
+    this.isCreditNoteRefund = false,
+  });
 
   @override
   State<PaymentProcessingScreen> createState() =>
@@ -245,6 +254,54 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final authState = context.read<AuthBloc>().state;
       final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
       final selectedSite = cartState.site ?? fallbackSite;
+
+      // Handle Credit Note Refund flow
+      if (widget.isCreditNoteRefund) {
+        final refundMethod = _payments.isNotEmpty ? _payments.first.method : 'CASH';
+        final creditNote = await CreditNoteService().createStandaloneCreditNote(
+          salesSite: selectedSite,
+          customerCode: cartState.customer!['code'],
+          customerName: cartState.customer!['name'],
+          refundMethod: refundMethod,
+          refundAmount: grandTotal,
+          createdBy: username,
+          deviceId: deviceId,
+          reference: _referenceController.text.trim(),
+          items: cartState.items.map((item) => CreditNoteLineModel(
+            creditNoteId: '',
+            lineNo: 1000,
+            quantity: item.quantity,
+            standaloneSku: item.product.sku,
+            standaloneName: item.product.name,
+            standaloneSalesUnit: item.product.salesUnit,
+            standalonePrice: item.basePrice,
+            standaloneTaxRule: item.taxRule,
+            standaloneLot: item.lotNumber,
+            standaloneWarehouse: item.warehouse,
+            standaloneCce0: item.product.cce0,
+          )).toList(),
+        );
+
+        if (!mounted) return;
+        context.read<SalesInvoiceCartCubit>().clearCart();
+
+        // Print thermal receipt
+        await Printing.layoutPdf(
+          onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+            pageFormat: format,
+            creditNote: creditNote,
+            resolvedLines: cartState.items.map((i) => {
+              'sku': i.product.sku,
+              'name': i.product.name,
+              'quantity': i.quantity,
+              'basePrice': i.basePrice,
+            }).toList(),
+          ),
+        );
+
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
 
         // Resolve the pricing rule: use the first matched pricelist code from any cart item.
         // Falls back to empty string if all items were manually priced.
@@ -469,7 +526,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Payment Processing'),
+        title: Text(widget.isCreditNoteRefund ? 'Refund Processing' : 'Payment Processing'),
         centerTitle: true,
       ),
       body: BlocBuilder<SalesInvoiceCartCubit, SalesInvoiceCartState>(
@@ -520,9 +577,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'INVOICE DETAILS',
-                        style: TextStyle(
+                      Text(
+                        widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS',
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -539,9 +596,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                       ),
                       const SizedBox(height: 24),
                       if (!isFullyPaid) ...[
-                        const Text(
-                          'ADD PAYMENT',
-                          style: TextStyle(
+                        Text(
+                          widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -571,6 +628,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                               'QR CODE',
                               Icons.qr_code_scanner,
                               'QR PAY',
+                              isEnabled: !widget.isCreditNoteRefund,
                             ),
                           ],
                         ),
@@ -880,9 +938,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                               width: 24,
                               child: CircularProgressIndicator(strokeWidth: 3),
                             )
-                          : const Text(
-                              'CONFIRM INVOICE',
-                              style: TextStyle(
+                          : Text(
+                              widget.isCreditNoteRefund
+                                  ? 'CONFIRM CREDIT NOTE REFUND'
+                                  : 'CONFIRM INVOICE',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1,

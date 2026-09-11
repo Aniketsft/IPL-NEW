@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'package:enterprise_auth_mobile/core/config/auth_config.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/login_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/register_use_case.dart';
@@ -19,9 +21,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Timer? _authTimer;
   Timer? _inactivityTimer;
   Timer? _refreshTimer;
-
-  static const Duration _inactivityTimeout = Duration(minutes: 5);
-  static const Duration _refreshInterval = Duration(minutes: 5);
+  DateTime? _lastActivityTime;
 
   AuthBloc({
     required LoginUseCase loginUseCase,
@@ -42,6 +42,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<ForgotPasswordSubmitted>(_onForgotPasswordSubmitted);
     on<UserInteracted>(_onUserInteracted);
     on<PerformTokenRefresh>(_onPerformTokenRefresh);
+    on<ValidateSession>(_onValidateSession);
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -60,6 +61,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('AuthBloc: Login successful for ${user.username}');
       print('AuthBloc: Permissions received: ${user.permissions}');
 
+      _lastActivityTime = DateTime.now();
       await _startAuthTimer();
 
       emit(
@@ -109,16 +111,58 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     _cancelAllTimers();
+    _lastActivityTime = null;
     await _storageService.deleteAll();
     emit(Unauthenticated());
   }
 
-  void _onUserInteracted(
+  Future<void> _onUserInteracted(
     UserInteracted event,
     Emitter<AuthState> emit,
-  ) {
+  ) async {
     if (state is Authenticated) {
+      // 1. Check if inactivity timeout has elapsed
+      if (_lastActivityTime != null &&
+          DateTime.now().difference(_lastActivityTime!) >= AuthConfig.sessionTimeout) {
+        print('AuthBloc: User interacted after timeout (${AuthConfig.sessionTimeout.inMinutes}m). Auto-logging out.');
+        add(LogoutRequested());
+        return;
+      }
+
+      // 2. Check if JWT token is lost or expired
+      final token = await _storageService.getToken();
+      if (token == null || token.isEmpty || isTokenExpired(token)) {
+        print('AuthBloc: JWT token is lost or expired on user interaction. Auto-logging out.');
+        add(LogoutRequested());
+        return;
+      }
+
+      // 3. User is actively interacting with a valid session: refresh timestamp and timer
+      _lastActivityTime = DateTime.now();
       _startInactivityTimer();
+    }
+  }
+
+  Future<void> _onValidateSession(
+    ValidateSession event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state is Authenticated) {
+      // 1. Check if inactivity elapsed while app was paused or in background
+      if (_lastActivityTime != null &&
+          DateTime.now().difference(_lastActivityTime!) >= AuthConfig.sessionTimeout) {
+        print('AuthBloc: Session expired due to inactivity while paused/idle. Auto-logging out.');
+        add(LogoutRequested());
+        return;
+      }
+
+      // 2. Check if JWT token is lost or expired
+      final token = await _storageService.getToken();
+      if (token == null || token.isEmpty || isTokenExpired(token)) {
+        print('AuthBloc: JWT token is lost or expired during session validation. Auto-logging out.');
+        add(LogoutRequested());
+        return;
+      }
     }
   }
 
@@ -149,14 +193,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   void _startInactivityTimer() {
     _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(_inactivityTimeout, () {
+    _inactivityTimer = Timer(AuthConfig.sessionTimeout, () {
+      print('AuthBloc: Inactivity timer expired (${AuthConfig.sessionTimeout.inMinutes}m). Auto-logging out.');
       add(LogoutRequested());
     });
   }
 
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+    _refreshTimer = Timer.periodic(AuthConfig.tokenRefreshInterval, (_) {
+
       add(PerformTokenRefresh());
     });
   }

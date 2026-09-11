@@ -57,10 +57,26 @@ class NetworkService {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          final path = options.path.toLowerCase();
+          final isPublicEndpoint = path.contains('auth/login') ||
+              path.contains('auth/register') ||
+              path.contains('auth/forgot-password');
+
           final token = await _storageService.getToken();
-          if (token != null) {
+          if (!isPublicEndpoint) {
+            if (token == null || token.isEmpty) {
+              debugPrint('Global Auth Interceptor: JWT token is lost/missing on protected route ($path). Auto-logging out.');
+              await _storageService.deleteAll();
+              onUnauthorized?.call();
+              return handler.reject(DioException(
+                requestOptions: options,
+                error: 'JWT token is missing',
+                type: DioExceptionType.cancel,
+              ));
+            }
+
             if (isTokenExpired(token)) {
-              debugPrint('Global 401 Intercepted: Token expired locally.');
+              debugPrint('Global Auth Interceptor: JWT token expired locally. Auto-logging out.');
               await _storageService.deleteAll();
               onUnauthorized?.call();
               return handler.reject(DioException(
@@ -69,6 +85,7 @@ class NetworkService {
                 type: DioExceptionType.cancel,
               ));
             }
+
             options.headers['Authorization'] = 'Bearer $token';
           }
           

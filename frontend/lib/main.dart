@@ -50,6 +50,8 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -184,22 +186,30 @@ class MyApp extends StatelessWidget {
         child: BlocBuilder<ThemeCubit, ThemeMode>(
           builder: (context, themeMode) {
             return InactivityWatcher(
-              child: MaterialApp(
-                title: 'Enterprise Auth',
-                theme: AppTheme.lightTheme,
-                darkTheme: AppTheme.darkTheme,
-                themeMode: themeMode,
-                debugShowCheckedModeBanner: false,
-                home: BlocBuilder<AuthBloc, AuthState>(
-                  builder: (context, state) {
-                    if (state is Authenticated) {
-                      return HomeScreen(
-                        username: state.username,
-                        permissions: state.permissions,
-                      );
-                    }
-                    return const LoginScreen();
-                  },
+              child: BlocListener<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state is Unauthenticated) {
+                    rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+                  }
+                },
+                child: MaterialApp(
+                  navigatorKey: rootNavigatorKey,
+                  title: 'Enterprise Auth',
+                  theme: AppTheme.lightTheme,
+                  darkTheme: AppTheme.darkTheme,
+                  themeMode: themeMode,
+                  debugShowCheckedModeBanner: false,
+                  home: BlocBuilder<AuthBloc, AuthState>(
+                    builder: (context, state) {
+                      if (state is Authenticated) {
+                        return HomeScreen(
+                          username: state.username,
+                          permissions: state.permissions,
+                        );
+                      }
+                      return const LoginScreen();
+                    },
+                  ),
                 ),
               ),
             );

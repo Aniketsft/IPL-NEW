@@ -784,7 +784,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 if (result.isNotEmpty) {
                                   final productRow = result.first;
                                   focName = productRow['itemName']?.toString() ?? '';
-                                  focSalesUnit = 'EA';
+                                  focSalesUnit = (productRow['salesUnit'] as String?)?.trim().isNotEmpty == true
+                                      ? (productRow['salesUnit'] as String).trim()
+                                      : 'UN';
                                 }
 
                                 final sumResult = await db.rawQuery(

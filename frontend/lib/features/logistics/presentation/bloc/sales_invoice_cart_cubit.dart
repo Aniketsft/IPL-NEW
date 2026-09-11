@@ -117,11 +117,13 @@ class SalesInvoiceCartState extends Equatable {
   final Map<String, dynamic>? customer;
   final List<CartItem> items;
   final String? site;
+  final String transactionType;
 
   const SalesInvoiceCartState({
     this.customer,
     this.items = const [],
     this.site,
+    this.transactionType = 'INVOICE',
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
@@ -133,22 +135,28 @@ class SalesInvoiceCartState extends Equatable {
     Map<String, dynamic>? customer,
     List<CartItem>? items,
     String? site,
+    String? transactionType,
   }) {
     return SalesInvoiceCartState(
       customer: customer ?? this.customer,
       items: items ?? this.items,
       site: site ?? this.site,
+      transactionType: transactionType ?? this.transactionType,
     );
   }
 
   @override
-  List<Object?> get props => [customer, items, site];
+  List<Object?> get props => [customer, items, site, transactionType];
 }
 
 // --- CUBIT ---
 
 class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   SalesInvoiceCartCubit() : super(const SalesInvoiceCartState());
+
+  void setTransactionType(String type) {
+    emit(state.copyWith(transactionType: type));
+  }
 
   void setSite(String site) {
     emit(state.copyWith(site: site));
@@ -202,7 +210,10 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     }
   }
 
-  void clearCart() {
-    emit(state.copyWith(items: []));
+  void clearCart({String? transactionType}) {
+    emit(state.copyWith(
+      items: [],
+      transactionType: transactionType ?? 'INVOICE',
+    ));
   }
 }

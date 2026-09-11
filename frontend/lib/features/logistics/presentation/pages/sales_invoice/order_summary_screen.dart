@@ -221,62 +221,69 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: cartState.items.isEmpty
-                              ? null
-                              : () {
-                                  final missingLotItems = cartState.items.where((i) => i.isFoc && i.lotNumber.isEmpty);
-                                  if (missingLotItems.isNotEmpty) {
-                                    showDialog(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Missing Lot Number'),
-                                        content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            child: const Text('OK'),
+                      Builder(
+                        builder: (context) {
+                          final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE';
+                          return SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: cartState.items.isEmpty
+                                  ? null
+                                  : () {
+                                      final missingLotItems = cartState.items.where((i) => i.isFoc && i.lotNumber.isEmpty);
+                                      if (missingLotItems.isNotEmpty) {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('Missing Lot Number'),
+                                            content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    );
-                                    return;
-                                  }
+                                        );
+                                        return;
+                                      }
 
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const PaymentProcessingScreen(),
-                                    ),
-                                  );
-                                },
-                          icon: const Icon(
-                            Icons.check_circle,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: const Text(
-                            'Confirm',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.primaryColor,
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              PaymentProcessingScreen(
+                                                isCreditNoteRefund: isCreditNote,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                              icon: Icon(
+                                isCreditNote ? Icons.assignment_return : Icons.check_circle,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              label: Text(
+                                isCreditNote ? 'Proceed to Refund' : 'Confirm',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.primaryColor,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4),
                             ),
                             elevation: 0,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
+                    ),
                     ],
                   ),
                 ),
