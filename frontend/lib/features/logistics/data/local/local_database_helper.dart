@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 80;
+  static const _databaseVersion = 81;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -48,6 +48,8 @@ class LocalDatabaseHelper {
   static const tablePriceLists = 'tbl_price_lists';
   static const tableSiSalesOrders = 'tbl_si_sales_orders';
   static const tableSiSalesOrderDetails = 'tbl_si_sales_order_details';
+  /// Tracks per-line reversal history for partial invoice reversals.
+  static const tableSiInvoiceLineReversals = 'tbl_si_invoice_line_reversals';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -221,6 +223,22 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN salesUnit TEXT DEFAULT ""');
     } catch (_) {}
+    // v81: partial reversal tracking
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiInvoiceLineReversals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoiceId TEXT NOT NULL,
+          lineId TEXT NOT NULL,
+          reversedQty REAL NOT NULL,
+          reversalCreditNoteId TEXT,
+          createdAt TEXT NOT NULL
+        )
+      ''');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN isPartiallyReversed INTEGER DEFAULT 0');
+    } catch (_) {}
     
     return _database!;
   }
@@ -237,6 +255,29 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 81) {
+      debugPrint('DB Upgrade: Adding invoice line reversals table and isPartiallyReversed column (v81)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiInvoiceLineReversals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoiceId TEXT NOT NULL,
+            lineId TEXT NOT NULL,
+            reversedQty REAL NOT NULL,
+            reversalCreditNoteId TEXT,
+            createdAt TEXT NOT NULL
+          )
+        ''');
+      } catch (e) {
+        debugPrint('Migration error v81 (line_reversals table): $e');
+      }
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN isPartiallyReversed INTEGER DEFAULT 0');
+      } catch (e) {
+        debugPrint('Migration error v81 (isPartiallyReversed): $e');
+      }
+    }
+
     if (oldVersion < 80) {
       debugPrint('DB Upgrade: Adding salesUnit to tbl_si_item_stock_details (v80)');
       try {

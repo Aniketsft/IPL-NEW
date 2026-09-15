@@ -164,6 +164,227 @@ class CreditNoteService {
     return creditNote;
   }
 
+  /// Creates a credit note for a **partial** invoice reversal.
+  ///
+  /// [selectedLines] is a list of maps, each containing:
+  ///   - 'lineId' (String): the original invoice line ID
+  ///   - 'reversedQty' (double): how much quantity to reverse
+  Future<CreditNoteModel> createPartialReversalCreditNote({
+    required String invoiceId,
+    required List<Map<String, dynamic>> selectedLines,
+    required String createdBy,
+    String? deviceId,
+  }) async {
+    if (selectedLines.isEmpty) {
+      throw ArgumentError('At least one line must be selected for partial reversal.');
+    }
+
+    final db = await _dbProvider();
+
+    // 1. Fetch origin invoice header
+    final invRows = await db.query(
+      LocalDatabaseHelper.tableSiInvoices,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+      limit: 1,
+    );
+    if (invRows.isEmpty) throw StateError('Original invoice $invoiceId not found.');
+    final invoice = invRows.first;
+    if ((invoice['isReversed'] as int? ?? 0) == 1) {
+      throw StateError('Invoice $invoiceId has already been fully reversed.');
+    }
+
+    // 2. Fetch original payments to mirror settlement method
+    final payments = await db.query(
+      LocalDatabaseHelper.tableSiPayments,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+    );
+    String settlementType = CreditNoteRefundMethod.cash;
+    Map<String, dynamic>? primaryPayment;
+    if (payments.isNotEmpty) {
+      primaryPayment = payments.first;
+      settlementType = (primaryPayment['method'] as String? ?? 'CASH').toUpperCase();
+    }
+
+    // 3. Fetch all original invoice lines
+    final allLines = await db.query(
+      LocalDatabaseHelper.tableSiInvoiceLines,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+    );
+    final allLinesMap = {for (final l in allLines) l['lineId'].toString(): l};
+
+    // 4. Pre-flight guard: check already-reversed quantities per line
+    for (final sel in selectedLines) {
+      final lineId = sel['lineId'].toString();
+      final requestedQty = (sel['reversedQty'] as num).toDouble();
+      final originalLine = allLinesMap[lineId];
+      if (originalLine == null) throw StateError('Line $lineId not found in invoice $invoiceId.');
+      final originalQty = (originalLine['quantity'] as num?)?.toDouble() ?? 0.0;
+
+      final alreadyReversed = await db.rawQuery(
+        'SELECT COALESCE(SUM(reversedQty), 0) as total FROM ${LocalDatabaseHelper.tableSiInvoiceLineReversals} WHERE invoiceId = ? AND lineId = ?',
+        [invoiceId, lineId],
+      );
+      final alreadyQty = (alreadyReversed.first['total'] as num?)?.toDouble() ?? 0.0;
+      final remaining = originalQty - alreadyQty;
+
+      if (requestedQty <= 0) throw ArgumentError('Reversed quantity for line $lineId must be positive.');
+      if (requestedQty > remaining) {
+        throw StateError('Cannot reverse $requestedQty of line $lineId — only $remaining remaining.');
+      }
+    }
+
+    // 5. Compute grand total from selected lines with pro-rated VAT and discount
+    double grandTotal = 0.0;
+    final creditNoteLineItems = <Map<String, dynamic>>[];
+    for (final sel in selectedLines) {
+      final lineId = sel['lineId'].toString();
+      final reversedQty = (sel['reversedQty'] as num).toDouble();
+      final originalLine = allLinesMap[lineId]!;
+      final originalQty = (originalLine['quantity'] as num?)?.toDouble() ?? 1.0;
+      final ratio = reversedQty / originalQty;
+
+      final basePrice = (originalLine['basePrice'] as num?)?.toDouble() ?? 0.0;
+      final discountAmount = ((originalLine['discountAmountFlat'] ?? originalLine['discountAmount']) as num?)?.toDouble() ?? 0.0;
+      final vatAmount = (originalLine['vatAmount'] as num?)?.toDouble() ?? 0.0;
+
+      final lineTotal = basePrice * reversedQty;
+      final lineDisc = discountAmount * ratio;
+      final lineVat = vatAmount * ratio;
+      final lineNet = lineTotal - lineDisc + lineVat;
+      grandTotal += lineNet;
+
+      creditNoteLineItems.add({
+        'lineId': lineId,
+        'reversedQty': reversedQty,
+        'originalLine': originalLine,
+        'lineNet': lineNet,
+      });
+    }
+
+    final creditNoteId = 'CN-P-${DateTime.now().millisecondsSinceEpoch}';
+    final now = DateTime.now().toIso8601String();
+    final salesSite = (invoice['salesSite'] as String?) ?? 'SCG';
+    final customerCode = (invoice['customerCode'] as String?) ?? '';
+    final customerName = (invoice['customerName'] as String?) ?? '';
+
+    final creditNote = CreditNoteModel(
+      creditNoteId: creditNoteId,
+      creditNoteType: CreditNoteType.reversal,
+      x3CreditNoteType: 'CRN',
+      salesSite: salesSite,
+      customerCode: customerCode,
+      customerName: customerName,
+      currency: 'MUR',
+      grandTotal: grandTotal,
+      originalInvoiceId: invoiceId,
+      settlementType: settlementType,
+      reference: invoiceId,
+      isSynced: 0,
+      createdAt: now,
+      createdBy: createdBy,
+      deviceId: deviceId,
+    );
+
+    await db.transaction((txn) async {
+      // A. Insert credit note header
+      await txn.insert(LocalDatabaseHelper.tableSiCreditNotes, creditNote.toMap());
+
+      int lineNo = 1000;
+      for (final item in creditNoteLineItems) {
+        final lineId = item['lineId'] as String;
+        final reversedQty = item['reversedQty'] as double;
+        final originalLine = item['originalLine'] as Map<String, dynamic>;
+
+        // B. Insert credit note line
+        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+          'creditNoteId': creditNoteId,
+          'lineNo': lineNo,
+          'quantity': reversedQty,
+          'originInvoiceId': invoiceId,
+          'originLineNo': lineId,
+        });
+
+        // C. Record this reversal in tbl_si_invoice_line_reversals
+        await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
+          'invoiceId': invoiceId,
+          'lineId': lineId,
+          'reversedQty': reversedQty,
+          'reversalCreditNoteId': creditNoteId,
+          'createdAt': now,
+        });
+
+        // D. Replenish stock (partial quantity only — atomically with credit note insert)
+        final sku = originalLine['sku'] as String?;
+        final lotNumber = originalLine['lotNumber'] as String?;
+        final warehouse = originalLine['warehouse'] as String?;
+        final location = originalLine['location'] as String?;
+        if (sku != null && lotNumber != null && warehouse != null && location != null) {
+          final updated = await txn.rawUpdate(
+            'UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} SET totalQty = totalQty + ? WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?',
+            [reversedQty, sku, lotNumber, warehouse, location],
+          );
+          if (updated == 0) {
+            await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
+              'itemCode': sku,
+              'itemName': originalLine['name'] ?? '',
+              'lotNumber': lotNumber,
+              'warehouse': warehouse,
+              'location': location,
+              'totalQty': reversedQty,
+              'taxLevel': originalLine['taxRule'] ?? '',
+              'cce0': originalLine['cce0'] ?? '',
+              'isSynced': 1,
+              'createdAt': now,
+            });
+          }
+        }
+
+        lineNo += 1000;
+      }
+
+      // E. Insert refund record
+      await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
+        'creditNoteId': creditNoteId,
+        'method': settlementType,
+        'amount': grandTotal,
+        'bankCode': primaryPayment?['bankCode'],
+        'bankName': primaryPayment?['bankName'],
+        'chequeNumber': primaryPayment?['chequeNumber'],
+        'chequeDate': primaryPayment?['chequeDate'],
+      });
+
+      // F. Check if ALL lines are now fully reversed → flip isReversed = 1, else isPartiallyReversed = 1
+      bool allFullyReversed = true;
+      for (final originalLine in allLines) {
+        final lineId = originalLine['lineId'].toString();
+        final originalQty = (originalLine['quantity'] as num?)?.toDouble() ?? 0.0;
+        final reversalRows = await txn.rawQuery(
+          'SELECT COALESCE(SUM(reversedQty), 0) as total FROM ${LocalDatabaseHelper.tableSiInvoiceLineReversals} WHERE invoiceId = ? AND lineId = ?',
+          [invoiceId, lineId],
+        );
+        final totalReversed = (reversalRows.first['total'] as num?)?.toDouble() ?? 0.0;
+        if (totalReversed < originalQty) {
+          allFullyReversed = false;
+          break;
+        }
+      }
+
+      await txn.update(
+        LocalDatabaseHelper.tableSiInvoices,
+        allFullyReversed
+            ? {'isReversed': 1, 'isPartiallyReversed': 0}
+            : {'isPartiallyReversed': 1},
+        where: 'invoiceId = ?',
+        whereArgs: [invoiceId],
+      );
+    });
+
+    return creditNote;
+  }
+
   Future<CreditNoteModel> createStandaloneCreditNote({
     required String salesSite,
     required String customerCode,

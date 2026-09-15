@@ -9,6 +9,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/repositories/tran
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
+import 'invoice_item_reversal_screen.dart';
 
 class TransactionPreviewScreen extends StatefulWidget {
   final TransactionModel transaction;
@@ -226,12 +227,6 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
             tooltip: isCreditNote ? 'Print Credit Note Voucher' : 'Print Invoice Receipt',
             onPressed: _handlePrint,
           ),
-          if (widget.transaction.type == 'INVOICE' && widget.transaction.isReversed == 0)
-            IconButton(
-              icon: const Icon(Icons.cancel, color: Colors.red),
-              tooltip: 'Cancel Invoice',
-              onPressed: _showCancelConfirmation,
-            ),
         ],
       ),
       body: Column(
@@ -263,8 +258,21 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                             border: Border.all(color: Colors.red),
                           ),
                           child: const Text(
-                            'REVERSED',
+                            'FULLY REVERSED',
                             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                          ),
+                        )
+                      else if (widget.transaction.isPartiallyReversed == 1)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.orange),
+                          ),
+                          child: const Text(
+                            'PARTIALLY REVERSED',
+                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 11),
                           ),
                         )
                       else if (isCreditNote)
@@ -335,6 +343,40 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                         },
                       ),
           ),
+
+          // Reversal action buttons — only for un-reversed invoices
+          if (!isCreditNote && widget.transaction.isReversed == 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute(
+                            builder: (_) => InvoiceItemReversalScreen(transaction: widget.transaction),
+                          ),
+                        );
+                        if (result == true && mounted) Navigator.of(context).pop(true);
+                      },
+                      icon: const Icon(Icons.checklist, color: Colors.orange),
+                      label: const Text('Reverse Items', style: TextStyle(color: Colors.orange)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showCancelConfirmation,
+                      icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+                      label: const Text('Reverse All', style: TextStyle(color: Colors.orange)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

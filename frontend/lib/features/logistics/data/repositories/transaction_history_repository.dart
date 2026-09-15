@@ -193,6 +193,30 @@ class TransactionHistoryRepository {
     );
   }
 
+  /// Returns a map of lineId → totalReversedQty for all already-reversed lines of [invoiceId].
+  Future<Map<String, double>> getReversedLineIds(String invoiceId) async {
+    final db = await _database;
+    final rows = await db.rawQuery(
+      'SELECT lineId, COALESCE(SUM(reversedQty), 0) as total FROM ${LocalDatabaseHelper.tableSiInvoiceLineReversals} WHERE invoiceId = ? GROUP BY lineId',
+      [invoiceId],
+    );
+    return {for (final r in rows) r['lineId'] as String: (r['total'] as num).toDouble()};
+  }
+
+  /// Partially reverses [selectedLines] on [transaction], creating a partial Credit Note.
+  Future<CreditNoteModel> partialReverseInvoice(
+    TransactionModel transaction,
+    List<Map<String, dynamic>> selectedLines,
+  ) async {
+    final creditNoteService = CreditNoteService(dbProvider: () => _database);
+    return await creditNoteService.createPartialReversalCreditNote(
+      invoiceId: transaction.id,
+      selectedLines: selectedLines,
+      createdBy: transaction.auditMetadata.createdByUserName ?? 'SYSTEM',
+      deviceId: transaction.auditMetadata.deviceId,
+    );
+  }
+
   /// Aggregates all End-of-Day data for the given [date] from local SQLite.
   /// All 6 SQL queries verified against the confirmed DB schema.
   Future<EodReportModel> getEodReportData(DateTime date) async {
@@ -202,6 +226,7 @@ class TransactionHistoryRepository {
     final endDate = '${dateStr}T23:59:59';
 
     // ── 1. Valid Sales ────────────────────────────────────────────────────────
+    // Only count fully clean invoices: isReversed = 0 AND isPartiallyReversed = 0
     final salesRows = await db.rawQuery('''
       SELECT COUNT(*) as cnt,
              COALESCE(SUM(grandTotal), 0) as grossTotal,
@@ -212,6 +237,7 @@ class TransactionHistoryRepository {
       FROM ${LocalDatabaseHelper.tableSiInvoices}
       WHERE transactionType = 'INVOICE'
         AND isReversed = 0
+        AND COALESCE(isPartiallyReversed, 0) = 0
         AND createdAt >= ? AND createdAt <= ?
     ''', [startDate, endDate]);
 
@@ -234,7 +260,7 @@ class TransactionHistoryRepository {
     final int returnsCount = (returnsRows.first['cnt'] as int?) ?? 0;
     final double returnsGross = (returnsRows.first['grossTotal'] as num?)?.toDouble() ?? 0.0;
 
-    // ── 3. Cancelled (Reversed) Receipts ──────────────────────────────────────
+    // ── 3. Cancelled (Fully Reversed) Receipts ─────────────────────────────────
     final cancelledRows = await db.rawQuery('''
       SELECT invoiceId, customerName,
              grandTotal,
@@ -243,6 +269,20 @@ class TransactionHistoryRepository {
       WHERE isReversed = 1
         AND createdAt >= ? AND createdAt <= ?
       ORDER BY createdAt DESC
+    ''', [startDate, endDate]);
+
+    // Partially reversed invoices also appear in the cancelled section with a note
+    final partialRows = await db.rawQuery('''
+      SELECT I.invoiceId, I.customerName, I.grandTotal,
+             COALESCE(SUM(R.reversedQty * L.basePrice), 0) as reversedAmount
+      FROM ${LocalDatabaseHelper.tableSiInvoices} I
+      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLineReversals} R ON R.invoiceId = I.invoiceId
+      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} L ON L.lineId = CAST(R.lineId AS INTEGER) AND L.invoiceId = I.invoiceId
+      WHERE COALESCE(I.isPartiallyReversed, 0) = 1
+        AND I.isReversed = 0
+        AND I.createdAt >= ? AND I.createdAt <= ?
+      GROUP BY I.invoiceId
+      ORDER BY I.createdAt DESC
     ''', [startDate, endDate]);
 
     final cancelledReceipts = cancelledRows.map((row) {

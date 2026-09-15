@@ -62,7 +62,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('AuthBloc: Permissions received: ${user.permissions}');
 
       _lastActivityTime = DateTime.now();
-      await _startAuthTimer();
+      _startTimers();
+      await _updateAuthTimer();
 
       emit(
         Authenticated(
@@ -175,6 +176,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final isValid = await _authRepository.isOfflineSessionValid();
       if (!isValid) {
         add(LogoutRequested());
+      } else {
+        await _updateAuthTimer();
       }
     }
   }
@@ -207,10 +210,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
-  Future<void> _startAuthTimer() async {
-    _cancelAllTimers();
+  void _startTimers() {
+    _inactivityTimer?.cancel();
+    _refreshTimer?.cancel();
     _startInactivityTimer();
     _startRefreshTimer();
+  }
+
+  Future<void> _updateAuthTimer() async {
+    _authTimer?.cancel();
     final token = await _storageService.getToken();
     if (token == null) return;
     try {
