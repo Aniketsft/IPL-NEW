@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 import 'select_transaction_screen.dart';
 import 'sales_reports_screen.dart';
+import 'sales_orders_list_screen.dart';
 
 class SalesMenuScreen extends StatelessWidget {
   final List<String> permissions;
@@ -91,6 +92,12 @@ class SalesMenuScreen extends StatelessWidget {
             'Reports',
             Icons.analytics_rounded,
             SalesReportsScreen(permissions: permissions),
+          ),
+          _buildMenuButton(
+            context,
+            'Sales Order',
+            Icons.list_alt_rounded,
+            const SalesOrdersListScreen(),
           ),
         ],
       ),

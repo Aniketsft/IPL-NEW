@@ -13,6 +13,8 @@ import 'invoice_preview_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:printing/printing.dart';
 
 class PaymentEntry {
@@ -390,6 +392,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       await batch.commit(noResult: true);
 
+      if (cartState.sourceSalesOrderId != null) {
+        final service = SISalesOrderService();
+        await service.markOrderAsConverted(cartState.sourceSalesOrderId!);
+      }
+
       if (!mounted) return;
       context.read<SalesInvoiceCartCubit>().clearCart();
 
@@ -607,12 +614,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         Row(
                           children: [
                             _buildMethodButton('CASH', Icons.money, 'CASH'),
-                            _buildMethodButton(
-                              'CHEQUE',
-                              Icons.receipt_long,
-                              'CHEQUE',
-                              isEnabled: isChequeEnabled,
-                            ),
+                            if (!widget.isCreditNoteRefund)
+                              _buildMethodButton(
+                                'CHEQUE',
+                                Icons.receipt_long,
+                                'CHEQUE',
+                                isEnabled: isChequeEnabled,
+                              ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -624,12 +632,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                               'CREDIT',
                               isEnabled: isCreditEnabled,
                             ),
-                            _buildMethodButton(
-                              'QR CODE',
-                              Icons.qr_code_scanner,
-                              'QR PAY',
-                              isEnabled: !widget.isCreditNoteRefund,
-                            ),
+                            if (!widget.isCreditNoteRefund)
+                              _buildMethodButton(
+                                'QR CODE',
+                                Icons.qr_code_scanner,
+                                'QR PAY',
+                                isEnabled: true,
+                              ),
                           ],
                         ),
                         const SizedBox(height: 16),

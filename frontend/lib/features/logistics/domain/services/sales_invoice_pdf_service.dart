@@ -5,11 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 
 class SalesInvoicePdfService {
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final numberFormat = NumberFormat('#,##0.00', 'en_US');
 
   Future<Uint8List> generateInvoicePdf({
     required PdfPageFormat pageFormat,
@@ -166,14 +162,14 @@ class SalesInvoicePdfService {
               flex: 1,
               child: pw.Text(
                 'QTY',
-                textAlign: pw.TextAlign.right,
+                textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
               ),
             ),
             pw.Expanded(
               flex: 2,
               child: pw.Text(
-                'TOTAL',
+                'TOTAL (Rs)',
                 textAlign: pw.TextAlign.right,
                 style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
               ),
@@ -199,7 +195,7 @@ class SalesInvoicePdfService {
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
-                        '${item.quantity} x ${currencyFormat.format(item.basePrice)}',
+                        '${item.quantity.toStringAsFixed(0)} ${item.product.salesUnit} x ${numberFormat.format(item.basePrice)}',
                         style: const pw.TextStyle(
                           fontSize: 9,
                           color: PdfColors.grey600,
@@ -211,15 +207,15 @@ class SalesInvoicePdfService {
                 pw.Expanded(
                   flex: 1,
                   child: pw.Text(
-                    item.quantity.toString(),
-                    textAlign: pw.TextAlign.right,
+                    '${item.quantity.toStringAsFixed(0)} ${item.product.salesUnit}',
+                    textAlign: pw.TextAlign.center,
                     style: const pw.TextStyle(fontSize: 10),
                   ),
                 ),
                 pw.Expanded(
                   flex: 2,
                   child: pw.Text(
-                    currencyFormat.format(item.total),
+                    numberFormat.format(item.total),
                     textAlign: pw.TextAlign.right,
                     style: const pw.TextStyle(fontSize: 10),
                   ),
@@ -253,12 +249,12 @@ class SalesInvoicePdfService {
           child: pw.Column(
             children: [
               pw.Text(
-                'GRAND TOTAL',
+                'GRAND TOTAL (Rs)',
                 style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 4),
               pw.Text(
-                currencyFormat.format(grandTotal),
+                numberFormat.format(grandTotal),
                 style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
             ],
@@ -269,7 +265,7 @@ class SalesInvoicePdfService {
   }
 
   pw.Widget _buildTotalRow(String label, double value, {bool isDiscount = false}) {
-    final formattedValue = isDiscount ? '-${currencyFormat.format(value)}' : currencyFormat.format(value);
+    final formattedValue = isDiscount ? '-${numberFormat.format(value)}' : numberFormat.format(value);
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),
       child: pw.Row(

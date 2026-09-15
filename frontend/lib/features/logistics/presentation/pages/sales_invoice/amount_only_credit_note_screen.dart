@@ -166,7 +166,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
 
     if (_selectedInvoiceIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('At least 1 linked invoice is required for Amount Only refund.')),
+        const SnackBar(content: Text('At least 1 linked invoice is required for Cash refund.')),
       );
       return;
     }
@@ -276,7 +276,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
         !_isProcessing;
 
     return IndustrialModuleLayout(
-      title: 'Amount Only Credit Note',
+      title: 'Cash Refund',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

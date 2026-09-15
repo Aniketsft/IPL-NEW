@@ -7,11 +7,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invo
 import 'package:enterprise_auth_mobile/features/logistics/data/models/eod_report_model.dart';
 
 class SalesReportPdfService {
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final NumberFormat _numberFormat = NumberFormat('#,##0.00', 'en_US');
 
   final DateFormat _dateFormat = DateFormat('dd MMM yyyy HH:mm');
 
@@ -133,7 +129,7 @@ class SalesReportPdfService {
       children: [
         _buildStatRow('Total Invoices', '$invoices'),
         _buildStatRow('Total Credit Notes', '$creditNotes'),
-        _buildStatRow('Grand Revenue', _currencyFormat.format(total)),
+        _buildStatRow('Grand Revenue (Rs)', _numberFormat.format(total)),
       ],
     );
   }
@@ -153,10 +149,15 @@ class SalesReportPdfService {
 
   pw.Widget _buildInvoiceTable(List<TransactionModel> invoices) {
     return pw.TableHelper.fromTextArray(
-      headers: ['Invoice#', 'Date', 'Customer', 'Total'],
+      headers: ['Invoice#', 'Date', 'Customer', 'Total (Rs)'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
       cellStyle: const pw.TextStyle(fontSize: 7.5),
-      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerLeft,
+        3: pw.Alignment.centerRight,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
       oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
@@ -174,7 +175,7 @@ class SalesReportPdfService {
           displayId,
           DateFormat('dd MMM HH:mm').format(date),
           _cleanText(displayCust),
-          _currencyFormat.format(inv.grandTotal),
+          _numberFormat.format(inv.grandTotal),
         ];
       }).toList(),
     );
@@ -187,11 +188,11 @@ class SalesReportPdfService {
           pw.Divider(thickness: 1, borderStyle: pw.BorderStyle.dashed),
           pw.SizedBox(height: 4),
           pw.Text(
-            'GRAND REVENUE',
+            'GRAND REVENUE (Rs)',
             style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
           ),
           pw.Text(
-            _currencyFormat.format(total),
+            _numberFormat.format(total),
             style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 4),
@@ -206,7 +207,11 @@ class SalesReportPdfService {
       headers: ['SKU', 'Item Name', 'Qty'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
       cellStyle: const pw.TextStyle(fontSize: 7.5),
-      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.center,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
       oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
@@ -221,7 +226,7 @@ class SalesReportPdfService {
         return [
           displaySku,
           _cleanText(displayName),
-          item.stockQty.toStringAsFixed(2),
+          '${item.stockQty.toStringAsFixed(0)} ${item.salesUnit}',
         ];
       }).toList(),
     );
@@ -395,7 +400,7 @@ class SalesReportPdfService {
                 child: pw.Text('', style: const pw.TextStyle(fontSize: 8))),
             pw.SizedBox(
               width: 60,
-              child: pw.Text('RS',
+              child: pw.Text('Rs',
                   textAlign: pw.TextAlign.right,
                   style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
             ),
@@ -403,15 +408,15 @@ class SalesReportPdfService {
         ),
         pw.SizedBox(height: 2),
         // Sales row
-        _buildEodCountRow('${data.salesCount}', 'Sales', _currencyFormat.format(data.salesGross)),
+        _buildEodCountRow('${data.salesCount}', 'Sales', _numberFormat.format(data.salesGross)),
         // Returns row
-        _buildEodCountRow('${data.returnsCount}', 'Returns', _currencyFormat.format(data.returnsGross)),
+        _buildEodCountRow('${data.returnsCount}', 'Returns', _numberFormat.format(data.returnsGross)),
         pw.SizedBox(height: 4),
         pw.Divider(thickness: 0.3, borderStyle: pw.BorderStyle.dashed),
         pw.SizedBox(height: 2),
-        _buildEodTallyRow('Total net sales:', _currencyFormat.format(netSales)),
-        _buildEodTallyRow('Taxes:', _currencyFormat.format(data.totalVat)),
-        _buildEodTallyRow('Total gross sum:', _currencyFormat.format(data.salesGross), bold: true),
+        _buildEodTallyRow('Total net sales:', _numberFormat.format(netSales)),
+        _buildEodTallyRow('Taxes:', _numberFormat.format(data.totalVat)),
+        _buildEodTallyRow('Total gross sum:', _numberFormat.format(data.salesGross), bold: true),
       ],
     );
   }
@@ -467,10 +472,15 @@ class SalesReportPdfService {
           style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600));
     }
     return pw.TableHelper.fromTextArray(
-      headers: ['#ID', 'Reason', 'Net', 'Gross'],
+      headers: ['#ID', 'Reason', 'Net (Rs)', 'Gross (Rs)'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
       cellStyle: const pw.TextStyle(fontSize: 7),
-      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerRight,
+        3: pw.Alignment.centerRight,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
       rowDecoration: const pw.BoxDecoration(
           border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.3))),
@@ -506,13 +516,13 @@ class SalesReportPdfService {
         pw.SizedBox(height: 3),
         pw.Divider(thickness: 0.3, borderStyle: pw.BorderStyle.dashed),
         pw.SizedBox(height: 2),
-        _buildEodTallyRow('Cash register balance', _currencyFormat.format(balance.expectedBalance)),
-        _buildEodTallyRow('Cash register balance (counted)', _currencyFormat.format(balance.expectedBalance)),
-        _buildEodTallyRow('Difference', _currencyFormat.format(0.0)),
+        _buildEodTallyRow('Cash register balance', _numberFormat.format(balance.expectedBalance)),
+        _buildEodTallyRow('Cash register balance (counted)', _numberFormat.format(balance.expectedBalance)),
+        _buildEodTallyRow('Difference', _numberFormat.format(0.0)),
         pw.SizedBox(height: 3),
         pw.Divider(thickness: 0.3, borderStyle: pw.BorderStyle.dashed),
         pw.SizedBox(height: 2),
-        _buildEodTallyRow('Cash register balance new', _currencyFormat.format(balance.expectedBalance), bold: true),
+        _buildEodTallyRow('Cash register balance new', _numberFormat.format(balance.expectedBalance), bold: true),
       ],
     );
   }
@@ -521,10 +531,15 @@ class SalesReportPdfService {
   pw.Widget _buildEodVatTable(List<EodVatSummary> items, double totalGross, double totalVat) {
     final totalNet = totalGross - totalVat;
     return pw.TableHelper.fromTextArray(
-      headers: ['St %', 'Net', 'Tax', 'Gross'],
+      headers: ['St %', 'Net (Rs)', 'Tax (Rs)', 'Gross (Rs)'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
       cellStyle: const pw.TextStyle(fontSize: 7),
-      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerRight,
+        2: pw.Alignment.centerRight,
+        3: pw.Alignment.centerRight,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
       rowDecoration: const pw.BoxDecoration(
           border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.3))),
@@ -551,10 +566,13 @@ class SalesReportPdfService {
   pw.Widget _buildEodPaymentTable(List<EodPaymentSummary> items) {
     final grandTotal = items.fold(0.0, (sum, p) => sum + p.amount);
     return pw.TableHelper.fromTextArray(
-      headers: ['Method', 'Amount'],
+      headers: ['Method', 'Amount (Rs)'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
       cellStyle: const pw.TextStyle(fontSize: 7),
-      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerRight,
+      },
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
       rowDecoration: const pw.BoxDecoration(
           border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.3))),
@@ -563,8 +581,8 @@ class SalesReportPdfService {
         1: const pw.FlexColumnWidth(2),
       },
       data: [
-        ...items.map((p) => [p.method, _currencyFormat.format(p.amount)]),
-        ['Total', _currencyFormat.format(grandTotal)],
+        ...items.map((p) => [p.method, _numberFormat.format(p.amount)]),
+        ['Total', _numberFormat.format(grandTotal)],
       ],
     );
   }

@@ -396,7 +396,7 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                     child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.blue, size: 22),
                   ),
                   title: const Text(
-                    '2. Standalone Return',
+                    '2. Open Credit Note',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: const Text('Select customer & products directly; pick Cash or Credit refund'),
@@ -422,7 +422,7 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                     child: const Icon(Icons.payments_rounded, color: Colors.green, size: 22),
                   ),
                   title: const Text(
-                    '3. Amount Only Refund',
+                    '3. Cash Refund',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: const Text('Enter refund amount linked to 1 or multiple invoices'),

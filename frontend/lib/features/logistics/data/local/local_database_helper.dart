@@ -46,6 +46,8 @@ class LocalDatabaseHelper {
   static const tableSiCreditNoteLines = 'tbl_si_credit_note_lines';
   static const tableSiCreditNoteRefunds = 'tbl_si_credit_note_refunds';
   static const tablePriceLists = 'tbl_price_lists';
+  static const tableSiSalesOrders = 'tbl_si_sales_orders';
+  static const tableSiSalesOrderDetails = 'tbl_si_sales_order_details';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -1612,6 +1614,37 @@ class LocalDatabaseHelper {
         bankName TEXT,
         chequeNumber TEXT,
         chequeDate TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiSalesOrders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerCode TEXT NOT NULL,
+        customerName TEXT NOT NULL,
+        totalAmount REAL NOT NULL,
+        status TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableSiSalesOrderDetails (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orderId INTEGER NOT NULL,
+        productCode TEXT NOT NULL,
+        productName TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        basePrice REAL NOT NULL,
+        discountAmount REAL NOT NULL,
+        vatAmount REAL NOT NULL,
+        total REAL NOT NULL,
+        salesUnit TEXT,
+        lotNumber TEXT,
+        warehouse TEXT,
+        location TEXT,
+        cce0 TEXT,
+        taxRule TEXT
       )
     ''');
 

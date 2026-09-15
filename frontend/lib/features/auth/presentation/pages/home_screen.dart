@@ -25,6 +25,11 @@ import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_invoice_sync_overlay.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -78,15 +83,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _triggerSync() {
+    final selectedSite = context.read<SalesInvoiceCartCubit>().state.site;
     final authState = context.read<AuthBloc>().state;
-    String? siteCode;
-    if (authState is Authenticated) {
-      siteCode = authState.siteCode;
-    }
-
-    context.read<ManufacturingBloc>().add(
-      SyncDataRequested(siteCode: siteCode),
-    );
+    final siteCode = selectedSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
+    
+    context.read<SalesInvoiceSyncBloc>().add(
+          StartSalesInvoiceSyncRequested(siteCode: siteCode),
+        );
 
     // Periodically check if sync is done to refresh timestamp
     Future.delayed(const Duration(seconds: 3), () => _loadLastSync());
@@ -102,9 +105,12 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, syncState) {
         return BlocBuilder<ManufacturingBloc, ManufacturingState>(
           builder: (context, mfgState) {
-            final isSyncing =
-                syncState is SyncInProgress ||
-                mfgState is ManufacturingSyncProgress;
+            return BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+              builder: (context, salesSyncState) {
+                final isSyncing =
+                    syncState is SyncInProgress ||
+                    mfgState is ManufacturingSyncProgress ||
+                    salesSyncState is SalesInvoiceSyncInProgress;
 
             return PopScope(
               canPop: false,
@@ -161,8 +167,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     body: _buildBody(context),
                   ),
                   const SyncOverlay(),
+                  const SalesInvoiceSyncOverlay(),
                 ],
               ),
+            );
+              },
             );
           },
         );
@@ -345,8 +354,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final syncState = context.watch<SyncBloc>().state;
     final mfgState = context.watch<ManufacturingBloc>().state;
+    final salesSyncState = context.watch<SalesInvoiceSyncBloc>().state;
     final isSyncing =
-        syncState is SyncInProgress || mfgState is ManufacturingSyncProgress;
+        syncState is SyncInProgress || mfgState is ManufacturingSyncProgress || salesSyncState is SalesInvoiceSyncInProgress;
 
     return Material(
       color: theme.cardColor,

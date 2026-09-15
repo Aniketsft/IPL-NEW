@@ -27,7 +27,7 @@ class _SalesInvoiceProductSelectionScreenState
     extends State<SalesInvoiceProductSelectionScreen> with HardwareScannerMixin {
   late SalesInvoiceProductRepository _repository;
   final TextEditingController _searchController = TextEditingController();
-  String _stockFilter = 'in stock'; // Default to in stock as requested
+  String _stockFilter = 'all'; // Default to all as requested
   String? _selectedWarehouse;
   List<String> _warehouses = [];
   bool _isInit = false;
@@ -151,7 +151,7 @@ class _SalesInvoiceProductSelectionScreenState
     if (mounted) {
       setState(() {
         _searchController.text = prefs.getString('si_product_search') ?? '';
-        _stockFilter = prefs.getString('si_product_stock_filter') ?? 'in stock';
+        _stockFilter = prefs.getString('si_product_stock_filter') ?? 'all';
         _selectedWarehouse = prefs.getString('si_product_warehouse');
       });
     }
@@ -216,6 +216,7 @@ class _SalesInvoiceProductSelectionScreenState
         _isLoading = false;
       });
       debugPrint('Error loading products: $e');
+      _showErrorDialog('Error Loading Products', 'Failed to load products: ${e.toString()}');
     }
   }
 

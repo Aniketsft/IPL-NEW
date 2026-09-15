@@ -6,7 +6,9 @@ import '../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import '../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart';
 import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
-import '../../bloc/sales_invoice_cart_cubit.dart';
+import 'package:provider/provider.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
 import 'payment_processing_screen.dart';
@@ -249,6 +251,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                         return;
                                       }
 
+                                      if (cartState.transactionType == 'SI_SALES_ORDER') {
+                                        _saveSalesOrder(context, cartState);
+                                        return;
+                                      }
+
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -260,12 +267,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                       );
                                     },
                               icon: Icon(
-                                isCreditNote ? Icons.assignment_return : Icons.check_circle,
+                                _getConfirmIcon(cartState.transactionType),
                                 color: Colors.white,
                                 size: 18,
                               ),
                               label: Text(
-                                isCreditNote ? 'Proceed to Refund' : 'Confirm',
+                                _getConfirmText(cartState.transactionType),
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -293,6 +300,59 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         );
       },
     );
+  }
+
+  IconData _getConfirmIcon(String transactionType) {
+    if (transactionType == 'SI_SALES_ORDER') return Icons.save;
+    if (transactionType == 'STANDALONE_CREDIT_NOTE') return Icons.assignment_return;
+    return Icons.check_circle;
+  }
+
+  String _getConfirmText(String transactionType) {
+    if (transactionType == 'SI_SALES_ORDER') return 'Save Sales Order';
+    if (transactionType == 'STANDALONE_CREDIT_NOTE') return 'Proceed to Refund';
+    return 'Confirm';
+  }
+
+  Future<void> _saveSalesOrder(BuildContext context, SalesInvoiceCartState cartState) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final service = SISalesOrderService();
+      await service.saveSalesOrder(
+        customer: cartState.customer!,
+        items: cartState.items,
+        totalAmount: cartState.grandTotal,
+      );
+
+      if (context.mounted) {
+        Navigator.pop(context); // close dialog
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sales Order saved successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        context.read<SalesInvoiceCartCubit>().clearCart();
+        Navigator.pop(context); // return to previous screen
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // close dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save order: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildLineItemCard(

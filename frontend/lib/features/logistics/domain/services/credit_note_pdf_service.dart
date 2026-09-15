@@ -5,11 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 
 class CreditNotePdfService {
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final numberFormat = NumberFormat('#,##0.00', 'en_US');
 
   Future<Uint8List> generateCreditNotePdf({
     required PdfPageFormat pageFormat,
@@ -93,9 +89,10 @@ class CreditNotePdfService {
 
     String typeLabel = 'REVERSAL';
     if (creditNote.creditNoteType == CreditNoteType.standalone) {
-      typeLabel = 'STANDALONE RETURN';
+      // Maps to API 'STANDALONE'
+      typeLabel = 'OPEN CREDIT NOTE';
     } else if (creditNote.creditNoteType == CreditNoteType.cashOnly) {
-      typeLabel = 'AMOUNT ONLY REFUND';
+      typeLabel = 'CASH REFUND';
     }
 
     return pw.Column(
@@ -173,14 +170,14 @@ class CreditNotePdfService {
               flex: 1,
               child: pw.Text(
                 'QTY',
-                textAlign: pw.TextAlign.right,
+                textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
               ),
             ),
             pw.Expanded(
               flex: 2,
               child: pw.Text(
-                'TOTAL',
+                'TOTAL (Rs)',
                 textAlign: pw.TextAlign.right,
                 style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
               ),
@@ -194,6 +191,7 @@ class CreditNotePdfService {
           final name = line['name']?.toString() ?? line['sku']?.toString() ?? 'Item';
           final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
           final price = (line['basePrice'] as num?)?.toDouble() ?? 0.0;
+          final unit = line['salesUnit']?.toString() ?? line['unit']?.toString() ?? 'EA';
           final lineTotal = qty * price;
 
           return pw.Padding(
@@ -211,7 +209,7 @@ class CreditNotePdfService {
                         style: const pw.TextStyle(fontSize: 9),
                       ),
                       pw.Text(
-                        '${qty.toStringAsFixed(0)} x ${currencyFormat.format(price)}',
+                        '${qty.toStringAsFixed(0)} $unit x ${numberFormat.format(price)}',
                         style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
                       ),
                     ],
@@ -220,15 +218,15 @@ class CreditNotePdfService {
                 pw.Expanded(
                   flex: 1,
                   child: pw.Text(
-                    qty.toStringAsFixed(0),
-                    textAlign: pw.TextAlign.right,
+                    '${qty.toStringAsFixed(0)} $unit',
+                    textAlign: pw.TextAlign.center,
                     style: const pw.TextStyle(fontSize: 9),
                   ),
                 ),
                 pw.Expanded(
                   flex: 2,
                   child: pw.Text(
-                    currencyFormat.format(lineTotal),
+                    numberFormat.format(lineTotal),
                     textAlign: pw.TextAlign.right,
                     style: const pw.TextStyle(fontSize: 9),
                   ),
@@ -249,11 +247,11 @@ class CreditNotePdfService {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text(
-              'TOTAL REFUND:',
+              'TOTAL REFUND (Rs):',
               style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
             ),
             pw.Text(
-              currencyFormat.format(creditNote.grandTotal),
+              numberFormat.format(creditNote.grandTotal),
               style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
             ),
           ],

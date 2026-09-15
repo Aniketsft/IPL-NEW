@@ -32,16 +32,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 24),
-          _sectionHeader('PRINTING MODE', isDark),
-          _modeSelector(orange, isDark),
-          
-          if (PrinterService.instance.currentMode == PrintMode.directIp) ...[
-            const SizedBox(height: 24),
-            _sectionHeader('IP THERMAL PRINTER SETTINGS', isDark),
-          ] else ...[
-            const SizedBox(height: 24),
-            _sectionHeader('SYSTEM PDF PRINTERS', isDark),
-          ],
+          _sectionHeader('IP THERMAL PRINTER SETTINGS', isDark),
           
           _printerList(orange, isDark),
           const SizedBox(height: 16),
@@ -70,31 +61,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     );
   }
 
-  Widget _modeSelector(Color orange, bool isDark) {
-    final mode = PrinterService.instance.currentMode;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SegmentedButton<PrintMode>(
-        segments: const [
-          ButtonSegment(value: PrintMode.system, label: Text('SYSTEM PDF'), icon: Icon(Icons.picture_as_pdf)),
-          ButtonSegment(value: PrintMode.directIp, label: Text('DIRECT IP'), icon: Icon(Icons.lan)),
-        ],
-        selected: {mode},
-        onSelectionChanged: _canUpdate ? (newSelection) async {
-          await PrinterService.instance.setPrintMode(newSelection.first);
-          setState(() {});
-        } : null,
-        style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: orange,
-          selectedForegroundColor: Colors.black,
-          side: BorderSide(color: orange.withValues(alpha: 0.5)),
-        ),
-      ),
-    );
-  }
-
   Widget _printerList(Color orange, bool isDark) {
-    final mode = PrinterService.instance.currentMode;
+    final mode = PrintMode.directIp;
     final printers = PrinterService.instance.printers.where((p) => p.mode == mode).toList();
     
     if (printers.isEmpty) {
@@ -165,7 +133,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   }
 
   Future<void> _showAddEditPrinterDialog(BuildContext context, Color orange, bool isDark) async {
-    final mode = PrinterService.instance.currentMode;
+    final mode = PrintMode.directIp;
     final nameCtrl = TextEditingController();
     final modelCtrl = TextEditingController();
     final ipCtrl = TextEditingController();

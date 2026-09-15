@@ -2,6 +2,7 @@ import 'dart:convert';
 
 class CreditNoteType {
   static const String reversal = 'REVERSAL';
+  // Note: UI displays this as "Open Credit Note". The API expects 'STANDALONE'.
   static const String standalone = 'STANDALONE';
   static const String amountOnly = 'AMOUNT_ONLY';
   static const String cashOnly = 'AMOUNT_ONLY';
@@ -10,7 +11,6 @@ class CreditNoteType {
 class CreditNoteRefundMethod {
   static const String cash = 'CASH';
   static const String credit = 'CREDIT';
-  static const String cheque = 'CHEQUE';
 }
 
 class CreditNoteModel {

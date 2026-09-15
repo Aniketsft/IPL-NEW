@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../ui/screens/end_of_day_screen.dart';
 
 class EodPdfGenerator {
+  static final NumberFormat _numberFormat = NumberFormat('#,##0.00', 'en_US');
   static Future<void> generateAndPrint({
     required String workOrder,
     required DateTime productionDate,
@@ -94,9 +95,9 @@ class EodPdfGenerator {
       final location = first.location;
       final isEA = first.unit.toUpperCase() == 'EA' || first.unit.toUpperCase() == 'PCS';
 
-      String qtyStr = totalQty.toStringAsFixed(2);
+      String qtyStr = '${totalQty.toStringAsFixed(0)} ${first.unit}';
       if (isEA) {
-        qtyStr = '${totalQty.toStringAsFixed(2)} KG / ${totalEa.toStringAsFixed(2)} EA';
+        qtyStr = '${totalQty.toStringAsFixed(0)} KG / ${totalEa.toStringAsFixed(0)} EA';
       }
 
       return [
@@ -129,7 +130,7 @@ class EodPdfGenerator {
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerRight,
+        2: pw.Alignment.center,
         3: pw.Alignment.center,
         4: pw.Alignment.center,
         5: pw.Alignment.centerLeft,
@@ -149,7 +150,7 @@ class EodPdfGenerator {
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
             pw.Text('Total Production: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.Text(totalQty.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+            pw.Text(totalQty.toStringAsFixed(0), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
             pw.SizedBox(width: 50),
           ],
         ),

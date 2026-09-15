@@ -61,9 +61,9 @@ class SalesInvoiceProductRepository {
 
     String havingClause = '';
     if (stockFilter == 'in stock') {
-      havingClause = 'HAVING stockQty > 0';
+      havingClause = 'HAVING SUM(S.totalQty) > 0';
     } else if (stockFilter == 'out of stock') {
-      havingClause = 'HAVING stockQty <= 0';
+      havingClause = 'HAVING SUM(S.totalQty) <= 0';
     }
 
     final sql =

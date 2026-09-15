@@ -118,12 +118,14 @@ class SalesInvoiceCartState extends Equatable {
   final List<CartItem> items;
   final String? site;
   final String transactionType;
+  final int? sourceSalesOrderId;
 
   const SalesInvoiceCartState({
     this.customer,
     this.items = const [],
     this.site,
     this.transactionType = 'INVOICE',
+    this.sourceSalesOrderId,
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
@@ -136,17 +138,19 @@ class SalesInvoiceCartState extends Equatable {
     List<CartItem>? items,
     String? site,
     String? transactionType,
+    int? sourceSalesOrderId,
   }) {
     return SalesInvoiceCartState(
       customer: customer ?? this.customer,
       items: items ?? this.items,
       site: site ?? this.site,
       transactionType: transactionType ?? this.transactionType,
+      sourceSalesOrderId: sourceSalesOrderId ?? this.sourceSalesOrderId,
     );
   }
 
   @override
-  List<Object?> get props => [customer, items, site, transactionType];
+  List<Object?> get props => [customer, items, site, transactionType, sourceSalesOrderId];
 }
 
 // --- CUBIT ---
@@ -210,10 +214,12 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     }
   }
 
-  void clearCart({String? transactionType}) {
+  void clearCart({String? transactionType, int? sourceSalesOrderId}) {
+    emit(const SalesInvoiceCartState()); // Full reset first
     emit(state.copyWith(
       items: [],
       transactionType: transactionType ?? 'INVOICE',
+      sourceSalesOrderId: sourceSalesOrderId,
     ));
   }
 }
