@@ -94,15 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
             letterSpacing: 2,
           ),
         ).animate().fadeIn(delay: 200.ms),
-        Text(
-          'INDUSTRIAL ACCESS SYSTEM',
-          style: TextStyle(
-            color: isDark ? Colors.white38 : Colors.black38,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.5,
-          ),
-        ).animate().fadeIn(delay: 400.ms),
       ],
     );
   }
@@ -132,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             _buildTextFormField(
               controller: _usernameController,
-              label: 'USERNAME / EMAIL',
+              label: 'USERNAME',
               icon: Icons.person_outline_rounded,
               validator: (value) {
                 if (value == null || value.isEmpty)
@@ -254,7 +245,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showForgotPasswordDialog() {
-    final emailController = TextEditingController();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
@@ -265,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: theme.cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Reset Password',
+          'Forgot Password',
           style: TextStyle(
             color: orange,
             fontWeight: FontWeight.bold,
@@ -275,52 +265,20 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Enter your email address to receive a password reset link.',
+              'Please contact your IT adminidtrator',
               style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: emailController,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-              decoration: InputDecoration(
-                labelText: 'EMAIL',
-                labelStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
-                prefixIcon: Icon(
-                  Icons.email_outlined,
-                  color: orange,
-                  size: 20,
-                ),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-              ),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
           ElevatedButton(
-            onPressed: () {
-              if (emailController.text.isNotEmpty) {
-                context.read<AuthBloc>().add(
-                  ForgotPasswordSubmitted(email: emailController.text.trim()),
-                );
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Processing password reset...')),
-                );
-              }
-            },
+            onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: orange,
               foregroundColor: Colors.black,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('SEND RESET LINK', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

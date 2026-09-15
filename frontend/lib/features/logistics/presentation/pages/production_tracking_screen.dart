@@ -617,7 +617,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Enter the number of times to multiply this scan record:', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: controller,
                     focusNode: focusNode,
@@ -927,26 +927,24 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             const SizedBox(width: 8),
           ],
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
+        resizeToAvoidBottomInset: true,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
                           const SizedBox(height: 8),
                           _buildHeaderCard(),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
                           _buildSettingsCard(),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
                           _buildProgressAndStatus(),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 8),
                           _buildScannerOrSummary(),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
                           if (_scans.isNotEmpty) ...[
                             _buildHistoryHeader(),
                             const SizedBox(height: 12),
@@ -1089,9 +1087,8 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   const SliverToBoxAdapter(child: SizedBox(height: 40)),
                 ],
               ),
-            ),
-            _buildActionFooter(),
-          ],
+        bottomNavigationBar: SafeArea(
+          child: _buildActionFooter(),
         ),
       ),
     );
@@ -1114,7 +1111,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1267,7 +1264,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                       'Available to deduct: ${widget.product.formatQuantity(maxDeductible)} KG',
                       style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: amountController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1293,7 +1290,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     Text(
                       'Transfer Type',
                       style: TextStyle(color: isDark ? Colors.grey : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold),
@@ -1713,7 +1710,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     final double tolerance = isEA ? 0.0 : _tolerancePercentage;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1736,9 +1733,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Divider(color: isDark ? Colors.white10 : Colors.black12, height: 1),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Row(
             children: [
               Text(
@@ -1755,9 +1752,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             ],
           ),
           if (_excessPools.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Divider(color: isDark ? Colors.white10 : Colors.black12, height: 1),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             _buildExcessAllocationButton(),
           ],
         ],
@@ -1866,7 +1863,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
@@ -1942,27 +1939,33 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
   }
 
   Widget _statTile(String label, String value, bool isDark, {Color? color}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isDark ? Colors.grey : Colors.black54,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.grey : Colors.black54,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: color ?? (isDark ? Colors.white : Colors.black87),
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: color ?? (isDark ? Colors.white : Colors.black87),
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2034,7 +2037,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             color: (isDark ? Colors.black : Colors.white).withValues(
               alpha: 0.85,
             ),
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(12),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2047,7 +2050,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                     letterSpacing: 2.0,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -2120,7 +2123,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
@@ -2154,9 +2157,9 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: orange.withValues(alpha: isDark ? 0.10 : 0.06),
               borderRadius: BorderRadius.circular(16),
@@ -2182,14 +2185,14 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                       ),
                       style: TextStyle(
                         color: orange,
-                        fontSize: 56,
+                        fontSize: 36,
                         fontWeight: FontWeight.w900,
                         height: 1.0,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Text(
                   widget.product.unit + 
                   ((widget.product.unit.toUpperCase() == 'EA' || widget.product.unit.toUpperCase() == 'PCS') 
@@ -2338,7 +2341,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
         16,
         16,
         16,
-        MediaQuery.of(context).padding.bottom + 16,
+        16,
       ),
       decoration: BoxDecoration(
         color: theme.cardColor,
@@ -2460,7 +2463,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Container(
           height: MediaQuery.of(context).size.height * 0.75,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(12),
           child: Column(
             children: [
               Container(
@@ -2471,7 +2474,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
               Text(
                 'SELECT LOCATION',
                 style: TextStyle(
@@ -2481,7 +2484,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   letterSpacing: 1.0,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
               TextField(
                 controller: searchController,
                 style: TextStyle(color: isDark ? Colors.white : Colors.black87),
@@ -2517,7 +2520,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   });
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
               Expanded(
                 child: ListView.builder(
                   itemCount: filteredLocations.length,

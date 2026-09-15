@@ -819,7 +819,7 @@ class _EndOfDayScreenState extends State<EndOfDayScreen> with SingleTickerProvid
             unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
             indicatorColor: _amber,
             tabs: const [
-              Tab(text: 'Cuts / Buks'),
+              Tab(text: 'Cuts / Bulks'),
               Tab(text: 'FPP'),
             ],
           ),
