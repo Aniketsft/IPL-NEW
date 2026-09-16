@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
-import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
@@ -79,14 +77,38 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
     }
   }
 
+  String _formatQty(double val) =>
+      val % 1 == 0 ? val.toStringAsFixed(0) : val.toStringAsFixed(2);
+
+  bool get _hasInvalidSelectedQuantities {
+    for (final line in _lines) {
+      final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
+      if (_selected[lineId] == true) {
+        final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+        final alreadyReversed = _alreadyReversedQty[lineId] ?? 0.0;
+        final remaining = originalQty - alreadyReversed;
+        final qty = double.tryParse(_qtyControllers[lineId]?.text ?? '') ?? 0.0;
+        if (qty <= 0 || qty > remaining) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   double get _reversalTotal {
     double total = 0.0;
     for (final line in _lines) {
       final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
       if (_selected[lineId] == true) {
+        final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+        final alreadyReversed = _alreadyReversedQty[lineId] ?? 0.0;
+        final remaining = originalQty - alreadyReversed;
         final qty = double.tryParse(_qtyControllers[lineId]?.text ?? '0') ?? 0.0;
-        final basePrice = (line['basePrice'] as num?)?.toDouble() ?? 0.0;
-        total += basePrice * qty;
+        if (qty > 0 && qty <= remaining) {
+          final basePrice = (line['basePrice'] as num?)?.toDouble() ?? 0.0;
+          total += basePrice * qty;
+        }
       }
     }
     return total;
@@ -99,10 +121,35 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
     for (final line in _lines) {
       final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
       if (_selected[lineId] == true) {
+        final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+        final alreadyReversed = _alreadyReversedQty[lineId] ?? 0.0;
+        final remaining = originalQty - alreadyReversed;
         final qty = double.tryParse(_qtyControllers[lineId]?.text ?? '0') ?? 0.0;
-        if (qty > 0) {
-          selectedLines.add({'lineId': lineId, 'reversedQty': qty});
+
+        if (qty <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Quantity for "${line['name'] ?? lineId}" must be greater than zero.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
         }
+
+        if (qty > remaining) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Cannot reverse ${_formatQty(qty)} of "${line['name'] ?? lineId}". '
+                'Only ${_formatQty(remaining)} remaining of ordered ${_formatQty(originalQty)}.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        selectedLines.add({'lineId': lineId, 'reversedQty': qty});
       }
     }
 
@@ -339,7 +386,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                         const SizedBox(width: 48),
                                         Flexible(
                                           child: Text(
-                                            'Original: $originalQty | Reversed: $alreadyReversed | Remaining: $remaining',
+                                            'Original: ${_formatQty(originalQty)} | Reversed: ${_formatQty(alreadyReversed)} | Remaining: ${_formatQty(remaining)}',
                                             style: const TextStyle(fontSize: 11, color: Colors.grey),
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 2,
@@ -349,33 +396,148 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                     ),
                                     if (!isFullyReversed && isSelected) ...[
                                       const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          const SizedBox(width: 48),
-                                          const Text('Qty:', style: TextStyle(fontSize: 13)),
-                                          const SizedBox(width: 6),
-                                          SizedBox(
-                                            width: 90,
-                                            child: TextField(
-                                              controller: _qtyControllers[lineId],
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                              decoration: const InputDecoration(
-                                                isDense: true,
-                                                border: OutlineInputBorder(),
-                                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      Builder(
+                                        builder: (context) {
+                                          final enteredQty = double.tryParse(_qtyControllers[lineId]?.text ?? '') ?? 0.0;
+                                          final isExceeding = enteredQty > remaining;
+
+                                          return Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  const SizedBox(width: 48),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.remove_circle_outline, size: 22),
+                                                    color: enteredQty > 1 ? Colors.orange : Colors.grey,
+                                                    padding: EdgeInsets.zero,
+                                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                    tooltip: 'Decrease quantity',
+                                                    onPressed: enteredQty > 1
+                                                        ? () {
+                                                            final newQty = (enteredQty - 1).clamp(1.0, remaining);
+                                                            _qtyControllers[lineId]?.text = _formatQty(newQty);
+                                                            setState(() {});
+                                                          }
+                                                        : null,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  SizedBox(
+                                                    width: 76,
+                                                    child: TextField(
+                                                      controller: _qtyControllers[lineId],
+                                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                      textAlign: TextAlign.center,
+                                                      style: TextStyle(
+                                                        color: isExceeding ? Colors.red : null,
+                                                        fontWeight: isExceeding ? FontWeight.bold : FontWeight.normal,
+                                                      ),
+                                                      decoration: InputDecoration(
+                                                        isDense: true,
+                                                        border: OutlineInputBorder(
+                                                          borderSide: BorderSide(color: isExceeding ? Colors.red : Colors.grey),
+                                                        ),
+                                                        enabledBorder: OutlineInputBorder(
+                                                          borderSide: BorderSide(
+                                                            color: isExceeding ? Colors.red : Colors.grey.withOpacity(0.5),
+                                                            width: isExceeding ? 1.5 : 1.0,
+                                                          ),
+                                                        ),
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderSide: BorderSide(
+                                                            color: isExceeding ? Colors.red : Colors.orange,
+                                                            width: 1.5,
+                                                          ),
+                                                        ),
+                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                                      ),
+                                                      onChanged: (_) => setState(() {}),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.add_circle_outline, size: 22),
+                                                    color: (enteredQty < remaining && !isExceeding) ? Colors.orange : Colors.grey,
+                                                    padding: EdgeInsets.zero,
+                                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                    tooltip: 'Increase quantity',
+                                                    onPressed: (enteredQty < remaining && !isExceeding)
+                                                        ? () {
+                                                            final newQty = (enteredQty + 1).clamp(0.0, remaining);
+                                                            _qtyControllers[lineId]?.text = _formatQty(newQty);
+                                                            setState(() {});
+                                                          }
+                                                        : null,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  InkWell(
+                                                    onTap: enteredQty != remaining
+                                                        ? () {
+                                                            _qtyControllers[lineId]?.text = _formatQty(remaining);
+                                                            setState(() {});
+                                                          }
+                                                        : null,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                                      decoration: BoxDecoration(
+                                                        color: (enteredQty == remaining ? Colors.grey : Colors.orange).withOpacity(0.15),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                        border: Border.all(
+                                                          color: enteredQty == remaining ? Colors.grey : Colors.orange,
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'MAX',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: enteredQty == remaining ? Colors.grey : Colors.orange,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      '/ ${_formatQty(remaining)} max',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: isExceeding ? Colors.red : Colors.grey,
+                                                        fontWeight: isExceeding ? FontWeight.bold : FontWeight.normal,
+                                                      ),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              onChanged: (_) => setState(() {}),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              '/ $remaining max',
-                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
+                                              if (isExceeding) ...[
+                                                const SizedBox(height: 4),
+                                                Padding(
+                                                  padding: const EdgeInsets.only(left: 48),
+                                                  child: Text(
+                                                    'Cannot exceed remaining (${_formatQty(remaining)}) of ordered (${_formatQty(originalQty)})',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.red,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ] else if (enteredQty <= 0) ...[
+                                                const SizedBox(height: 4),
+                                                const Padding(
+                                                  padding: EdgeInsets.only(left: 48),
+                                                  child: Text(
+                                                    'Quantity must be greater than zero',
+                                                    style: TextStyle(fontSize: 11, color: Colors.red),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ],
                                   ],
@@ -399,6 +561,22 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (_hasInvalidSelectedQuantities)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 8.0),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.error_outline, color: Colors.red, size: 16),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'Please fix invalid or exceeding quantities before reversing.',
+                                        style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -413,7 +591,12 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _selectedCount > 0 && _reversalTotal > 0 && !_isProcessing ? _confirmReversal : null,
+                                onPressed: _selectedCount > 0 &&
+                                        _reversalTotal > 0 &&
+                                        !_hasInvalidSelectedQuantities &&
+                                        !_isProcessing
+                                    ? _confirmReversal
+                                    : null,
                                 icon: const Icon(Icons.undo),
                                 label: const Text('Reverse Selected Items'),
                                 style: ElevatedButton.styleFrom(

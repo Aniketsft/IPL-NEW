@@ -6,11 +6,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sal
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'customer_selection_screen.dart';
 import 'sales_order_details_screen.dart';
-import 'order_summary_screen.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
-import 'package:enterprise_auth_mobile/core/network_service.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+
 class SalesOrdersListScreen extends StatefulWidget {
   const SalesOrdersListScreen({Key? key}) : super(key: key);
 
@@ -32,6 +28,7 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
   Future<void> _loadOrders() async {
     setState(() => _isLoading = true);
     try {
+      await _service.ensureHardcodedSalesOrderSeeded();
       final orders = await _service.getSalesOrders();
       setState(() {
         _orders = orders;
@@ -60,45 +57,23 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                   itemBuilder: (context, index) {
                     final order = _orders[index];
                     final isConverted = order['status'] == 'Converted';
-                    final date = DateTime.parse(order['createdAt']);
+                    final date = DateTime.tryParse(order['createdAt'] ?? '') ?? DateTime.now();
+                    final orderNumber = (order['orderNumber'] as String?)?.isNotEmpty == true
+                        ? order['orderNumber'] as String
+                        : 'SO-#${order['id']}';
                     
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: isConverted ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3),
-                        )
+                          color: isConverted
+                              ? Colors.green.withValues(alpha: 0.3)
+                              : Colors.orange.withValues(alpha: 0.3),
+                        ),
                       ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        title: Text(
-                          order['customerName'] ?? 'Unknown Customer',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 8),
-                            Text('Code: ${order['customerCode']}'),
-                            Text('Total: Rs ${order['totalAmount'].toStringAsFixed(2)}'),
-                            Text('Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}'),
-                          ],
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isConverted ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            order['status'],
-                            style: TextStyle(
-                              color: isConverted ? Colors.green : Colors.orange,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -107,6 +82,123 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                             ),
                           ).then((_) => _loadOrders()); // Reload on return in case it was converted
                         },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Top Row: Sales Number & Status badge
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueGrey.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.receipt_long, size: 14, color: Colors.blueGrey),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          orderNumber,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                            color: Colors.blueGrey,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isConverted
+                                          ? Colors.green.withValues(alpha: 0.12)
+                                          : Colors.orange.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      order['status'] ?? 'Open',
+                                      style: TextStyle(
+                                        color: isConverted ? Colors.green.shade700 : Colors.orange.shade800,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // Customer Name
+                              Text(
+                                order['customerName'] ?? 'Unknown Customer',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 4),
+                              // Customer Code
+                              Row(
+                                children: [
+                                  const Text('Customer Code: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                  Text(
+                                    order['customerCode'] ?? '-',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              // Total Amount
+                              Text(
+                                'Total: Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              // Order Date
+                              Text(
+                                'Order Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}',
+                                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                              ),
+                              // Delivery Date
+                              Builder(
+                                builder: (context) {
+                                  final rawDelivery = order['deliveryDate'] as String?;
+                                  final deliveryDt = rawDelivery != null ? DateTime.tryParse(rawDelivery) : null;
+                                  if (deliveryDt == null) return const SizedBox.shrink();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.local_shipping_outlined,
+                                          size: 15,
+                                          color: Colors.teal,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          'Delivery: ${DateFormat('dd MMM yyyy').format(deliveryDt)}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                            color: Colors.teal.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -116,7 +208,10 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
           context.read<SalesInvoiceCartCubit>().clearCart(transactionType: 'SI_SALES_ORDER');
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CustomerSelectionScreen()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'CustomerSelectionScreen'),
+              builder: (_) => const CustomerSelectionScreen(),
+            ),
           ).then((_) => _loadOrders()); // Reload list when returning
         },
         icon: const Icon(Icons.add),

@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 81;
+  static const _databaseVersion = 83;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -239,6 +239,12 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN isPartiallyReversed INTEGER DEFAULT 0');
     } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN deliveryDate TEXT');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN orderNumber TEXT');
+    } catch (_) {}
     
     return _database!;
   }
@@ -255,6 +261,24 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 83) {
+      debugPrint('DB Upgrade: Adding orderNumber to tbl_si_sales_orders (v83)');
+      try {
+        await db.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN orderNumber TEXT');
+      } catch (e) {
+        debugPrint('Migration error v83 (orderNumber): $e');
+      }
+    }
+
+    if (oldVersion < 82) {
+      debugPrint('DB Upgrade: Adding deliveryDate to tbl_si_sales_orders (v82)');
+      try {
+        await db.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN deliveryDate TEXT');
+      } catch (e) {
+        debugPrint('Migration error v82 (deliveryDate): $e');
+      }
+    }
+
     if (oldVersion < 81) {
       debugPrint('DB Upgrade: Adding invoice line reversals table and isPartiallyReversed column (v81)');
       try {
@@ -1661,10 +1685,12 @@ class LocalDatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableSiSalesOrders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orderNumber TEXT,
         customerCode TEXT NOT NULL,
         customerName TEXT NOT NULL,
         totalAmount REAL NOT NULL,
         status TEXT NOT NULL,
+        deliveryDate TEXT,
         createdAt TEXT NOT NULL
       )
     ''');

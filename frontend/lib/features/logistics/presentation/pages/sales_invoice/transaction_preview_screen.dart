@@ -66,6 +66,16 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
   }
 
   Future<void> _showCancelConfirmation() async {
+    if (widget.transaction.isPartiallyReversed == 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This invoice is already partially reversed. Please use "Reverse Items" to reverse remaining items.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     if (widget.transaction.grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -469,11 +479,18 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: widget.transaction.grandTotal <= 0 ? null : _showCancelConfirmation,
-                      icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
-                      label: const Text('Reverse All', style: TextStyle(color: Colors.orange)),
-                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),
+                    child: Tooltip(
+                      message: widget.transaction.isPartiallyReversed == 1
+                          ? 'Invoice is partially reversed. Use Reverse Items for remaining items.'
+                          : 'Reverse entire invoice',
+                      child: OutlinedButton.icon(
+                        onPressed: (widget.transaction.grandTotal <= 0 || widget.transaction.isPartiallyReversed == 1)
+                            ? null
+                            : _showCancelConfirmation,
+                        icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+                        label: const Text('Reverse All', style: TextStyle(color: Colors.orange)),
+                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),
+                      ),
                     ),
                   ),
                 ],

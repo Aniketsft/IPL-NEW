@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
-import '../../../../../core/widgets/industrial_module_layout.dart';
 import '../../../data/models/sales_invoice_product_model.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../../data/models/sales_invoice_item_stock_model.dart';
@@ -252,6 +251,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         _itemTaxLevel = firstStock.taxLevel;
       });
       _calculateVatRate();
+    } else if (mounted) {
+      _calculateVatRate();
     }
   }
 
@@ -289,6 +290,15 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     super.dispose();
   }
 
+  bool get _isSalesOrder {
+    try {
+      return context.read<SalesInvoiceCartCubit>().state.transactionType ==
+          'SI_SALES_ORDER';
+    } catch (_) {
+      return false;
+    }
+  }
+
   double get _maxValidQty {
     double maxQty = _lotTotalQty;
     if (widget.existingItem != null &&
@@ -305,8 +315,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       int newQty = _quantity + change;
       if (newQty < 1) newQty = 1;
 
-      // Strict validation against maximum valid quantity
-      if (_maxValidQty > 0 && newQty > _maxValidQty) {
+      // Strict validation against maximum valid quantity (only enforced for invoices)
+      if (!_isSalesOrder && _maxValidQty > 0 && newQty > _maxValidQty) {
         _showStockErrorDialog(
           'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
         );
@@ -414,15 +424,21 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.primaryColor.withOpacity(0.15),
+                                color: _isSalesOrder
+                                    ? Colors.blue.withOpacity(0.15)
+                                    : theme.primaryColor.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
+                                _isSalesOrder
+                                    ? 'Stock: ${actualTotalStock.toInt()} | Order (No Limit)'
+                                    : 'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: theme.primaryColor,
+                                  color: _isSalesOrder
+                                      ? Colors.blue
+                                      : theme.primaryColor,
                                 ),
                               ),
                             ),
@@ -445,7 +461,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                   // Placeholder Fields
                   _buildReadOnlyField(
                     'Lot Number',
-                    _lotNumber,
+                    _lotNumber.isNotEmpty
+                        ? _lotNumber
+                        : (_isSalesOrder ? 'Not Assigned (Sales Order)' : 'None'),
                     isDark,
                     trailingIcon: Icons.chevron_right,
                     onTap: () async {
@@ -686,7 +704,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 final parsed = int.tryParse(val);
                                 if (parsed != null && parsed > 0) {
                                   int updatedQty = parsed;
-                                  if (_maxValidQty > 0 && updatedQty > _maxValidQty) {
+                                  if (!_isSalesOrder &&
+                                      _maxValidQty > 0 &&
+                                      updatedQty > _maxValidQty) {
                                     _showStockErrorDialog(
                                       'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
                                     );
@@ -739,7 +759,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () async {
-                            if (_quantity > _maxValidQty) {
+                            if (!_isSalesOrder && _quantity > _maxValidQty) {
                               _showStockErrorDialog(
                                 'Cannot proceed: Insufficient stock in this lot (${_maxValidQty.toInt()} available).',
                               );
@@ -1092,46 +1112,6 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                 color: isDark ? Colors.white : Colors.black87,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdownField(String label, String value, bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.grey[500],
-                size: 20,
-              ),
-            ],
           ),
         ],
       ),

@@ -149,9 +149,10 @@ class _SalesInvoiceProductSelectionScreenState
     final prefs = await SharedPreferences.getInstance();
     _prefs = prefs;
     if (mounted) {
+      final isSalesOrder = context.read<SalesInvoiceCartCubit>().state.transactionType == 'SI_SALES_ORDER';
       setState(() {
         _searchController.text = prefs.getString('si_product_search') ?? '';
-        _stockFilter = prefs.getString('si_product_stock_filter') ?? 'all';
+        _stockFilter = isSalesOrder ? 'all' : (prefs.getString('si_product_stock_filter') ?? 'all');
         _selectedWarehouse = prefs.getString('si_product_warehouse');
       });
     }

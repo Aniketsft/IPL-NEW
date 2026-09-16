@@ -119,6 +119,7 @@ class SalesInvoiceCartState extends Equatable {
   final String? site;
   final String transactionType;
   final int? sourceSalesOrderId;
+  final DateTime? deliveryDate;
 
   const SalesInvoiceCartState({
     this.customer,
@@ -126,6 +127,7 @@ class SalesInvoiceCartState extends Equatable {
     this.site,
     this.transactionType = 'INVOICE',
     this.sourceSalesOrderId,
+    this.deliveryDate,
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
@@ -139,6 +141,7 @@ class SalesInvoiceCartState extends Equatable {
     String? site,
     String? transactionType,
     int? sourceSalesOrderId,
+    DateTime? deliveryDate,
   }) {
     return SalesInvoiceCartState(
       customer: customer ?? this.customer,
@@ -146,11 +149,12 @@ class SalesInvoiceCartState extends Equatable {
       site: site ?? this.site,
       transactionType: transactionType ?? this.transactionType,
       sourceSalesOrderId: sourceSalesOrderId ?? this.sourceSalesOrderId,
+      deliveryDate: deliveryDate ?? this.deliveryDate,
     );
   }
 
   @override
-  List<Object?> get props => [customer, items, site, transactionType, sourceSalesOrderId];
+  List<Object?> get props => [customer, items, site, transactionType, sourceSalesOrderId, deliveryDate];
 }
 
 // --- CUBIT ---
@@ -159,7 +163,16 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   SalesInvoiceCartCubit() : super(const SalesInvoiceCartState());
 
   void setTransactionType(String type) {
-    emit(state.copyWith(transactionType: type));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    emit(state.copyWith(
+      transactionType: type,
+      deliveryDate: type == 'SI_SALES_ORDER' ? (state.deliveryDate ?? today) : state.deliveryDate,
+    ));
+  }
+
+  void setDeliveryDate(DateTime date) {
+    emit(state.copyWith(deliveryDate: date));
   }
 
   void setSite(String site) {
@@ -167,7 +180,13 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   }
 
   void setCustomer(Map<String, dynamic> customer) {
-    emit(state.copyWith(customer: customer, items: [])); // Clear cart when changing customer
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    emit(state.copyWith(
+      customer: customer,
+      items: [],
+      deliveryDate: state.transactionType == 'SI_SALES_ORDER' ? (state.deliveryDate ?? today) : state.deliveryDate,
+    )); // Clear cart items when changing customer
   }
 
   void addItem(CartItem item) {
@@ -214,12 +233,17 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     }
   }
 
-  void clearCart({String? transactionType, int? sourceSalesOrderId}) {
+  void clearCart({String? transactionType, int? sourceSalesOrderId, DateTime? deliveryDate}) {
     emit(const SalesInvoiceCartState()); // Full reset first
+    final type = transactionType ?? 'INVOICE';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final defaultDelivery = type == 'SI_SALES_ORDER' ? (deliveryDate ?? today) : null;
     emit(state.copyWith(
       items: [],
-      transactionType: transactionType ?? 'INVOICE',
+      transactionType: type,
       sourceSalesOrderId: sourceSalesOrderId,
+      deliveryDate: defaultDelivery,
     ));
   }
 }

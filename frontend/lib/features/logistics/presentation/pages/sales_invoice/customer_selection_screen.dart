@@ -304,14 +304,18 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
-                              onTap: () {
+                              onTap: () async {
                                 context.read<SalesInvoiceCartCubit>().setCustomer(customer);
-                                Navigator.push(
+                                final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
+                                    settings: const RouteSettings(name: 'OrderSummaryScreen'),
                                     builder: (context) => const OrderSummaryScreen(),
                                   ),
                                 );
+                                if (result == true && context.mounted) {
+                                  Navigator.pop(context, true);
+                                }
                               },
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),

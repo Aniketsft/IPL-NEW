@@ -33,6 +33,9 @@ class CreditNoteService {
     if ((invoice['isReversed'] as int? ?? 0) == 1) {
       throw StateError('Invoice $invoiceId has already been reversed.');
     }
+    if ((invoice['isPartiallyReversed'] as int? ?? 0) == 1) {
+      throw StateError('Invoice $invoiceId has already been partially reversed. Please use partial reversal to reverse remaining items.');
+    }
 
     // 2. Fetch original payments to mirror settlement method
     final payments = await db.query(
@@ -235,7 +238,7 @@ class CreditNoteService {
 
       if (requestedQty <= 0) throw ArgumentError('Reversed quantity for line $lineId must be positive.');
       if (requestedQty > remaining) {
-        throw StateError('Cannot reverse $requestedQty of line $lineId — only $remaining remaining.');
+        throw ArgumentError('Cannot reverse $requestedQty of line $lineId — only $remaining remaining of ordered quantity $originalQty.');
       }
     }
 

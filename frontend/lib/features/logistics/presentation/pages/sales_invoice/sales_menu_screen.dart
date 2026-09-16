@@ -28,7 +28,10 @@ class SalesMenuScreen extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => screen),
+            MaterialPageRoute(
+              settings: RouteSettings(name: screen.runtimeType.toString()),
+              builder: (_) => screen,
+            ),
           );
         },
         borderRadius: BorderRadius.circular(16),

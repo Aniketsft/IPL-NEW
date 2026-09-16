@@ -28,6 +28,7 @@ void main() {
         isSynced INTEGER DEFAULT 0,
         transactionType TEXT DEFAULT 'INVOICE',
         isReversed INTEGER DEFAULT 0,
+        isPartiallyReversed INTEGER DEFAULT 0,
         reference TEXT,
         salesSite TEXT,
         x3DocumentId TEXT
@@ -134,6 +135,17 @@ void main() {
         bankName TEXT,
         chequeNumber TEXT,
         chequeDate TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE ${LocalDatabaseHelper.tableSiInvoiceLineReversals} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoiceId TEXT NOT NULL,
+        lineId TEXT NOT NULL,
+        reversedQty REAL NOT NULL,
+        reversalCreditNoteId TEXT NOT NULL,
+        createdAt TEXT NOT NULL
       )
     ''');
 
@@ -343,5 +355,228 @@ void main() {
     expect(creditNote.settlementType, 'CASH');
     expect(creditNote.grandTotal, 250.0);
     expect(creditNote.linkedInvoiceIds, contains('INV-LINK-1'));
+  });
+
+  // Partial Reversal Quantity Enforcement Tests
+  test('createPartialReversalCreditNote rejects requestedQty exceeding remaining quantity', () async {
+    // Seed invoice with quantity 5
+    await db.insert(LocalDatabaseHelper.tableSiInvoices, {
+      'invoiceId': 'INV-PARTIAL-1',
+      'customerCode': 'CUST-P',
+      'customerName': 'Partial Customer',
+      'grandTotal': 500.0,
+      'createdAt': '2026-06-01T10:00:00',
+      'salesSite': 'SCG',
+      'isReversed': 0,
+      'isPartiallyReversed': 0,
+    });
+
+    await db.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
+      'lineId': 1,
+      'invoiceId': 'INV-PARTIAL-1',
+      'sku': 'SKU-P1',
+      'name': 'Item P1',
+      'quantity': 5.0,
+      'basePrice': 100.0,
+      'total': 500.0,
+      'lotNumber': 'LOT-P1',
+      'warehouse': 'WH1',
+      'location': 'LOC1',
+      'salesUnit': 'EA',
+      'taxRule': 'VAT0',
+      'cce0': 'COMMERCIAL',
+    });
+
+    // Attempt to reverse 6 when ordered is 5 -> must throw ArgumentError
+    expect(
+      () => service.createPartialReversalCreditNote(
+        invoiceId: 'INV-PARTIAL-1',
+        selectedLines: [
+          {'lineId': '1', 'reversedQty': 6.0},
+        ],
+        createdBy: 'agent1',
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
+  test('createPartialReversalCreditNote rejects negative or zero quantity', () async {
+    await db.insert(LocalDatabaseHelper.tableSiInvoices, {
+      'invoiceId': 'INV-PARTIAL-ZERO',
+      'customerCode': 'CUST-P',
+      'customerName': 'Partial Customer',
+      'grandTotal': 500.0,
+      'createdAt': '2026-06-01T10:00:00',
+      'salesSite': 'SCG',
+      'isReversed': 0,
+      'isPartiallyReversed': 0,
+    });
+
+    await db.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
+      'lineId': 2,
+      'invoiceId': 'INV-PARTIAL-ZERO',
+      'sku': 'SKU-P2',
+      'name': 'Item P2',
+      'quantity': 5.0,
+      'basePrice': 100.0,
+      'total': 500.0,
+      'lotNumber': 'LOT-P2',
+      'warehouse': 'WH1',
+      'location': 'LOC1',
+      'salesUnit': 'EA',
+      'taxRule': 'VAT0',
+      'cce0': 'COMMERCIAL',
+    });
+
+    // Zero quantity
+    expect(
+      () => service.createPartialReversalCreditNote(
+        invoiceId: 'INV-PARTIAL-ZERO',
+        selectedLines: [
+          {'lineId': '2', 'reversedQty': 0.0},
+        ],
+        createdBy: 'agent1',
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+
+    // Negative quantity
+    expect(
+      () => service.createPartialReversalCreditNote(
+        invoiceId: 'INV-PARTIAL-ZERO',
+        selectedLines: [
+          {'lineId': '2', 'reversedQty': -2.0},
+        ],
+        createdBy: 'agent1',
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
+  test('createPartialReversalCreditNote tracks remaining quantity across multiple reversals and prevents exceeding remaining', () async {
+    await db.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
+      'itemCode': 'SKU-MULTI',
+      'itemName': 'Multi Item',
+      'lotNumber': 'LOT-M',
+      'warehouse': 'WH1',
+      'location': 'LOC1',
+      'totalQty': 10.0,
+    });
+
+    await db.insert(LocalDatabaseHelper.tableSiInvoices, {
+      'invoiceId': 'INV-MULTI',
+      'customerCode': 'CUST-M',
+      'customerName': 'Multi Customer',
+      'grandTotal': 1000.0,
+      'createdAt': '2026-06-01T10:00:00',
+      'salesSite': 'SCG',
+      'isReversed': 0,
+      'isPartiallyReversed': 0,
+    });
+
+    await db.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
+      'lineId': 10,
+      'invoiceId': 'INV-MULTI',
+      'sku': 'SKU-MULTI',
+      'name': 'Multi Item',
+      'quantity': 10.0,
+      'basePrice': 100.0,
+      'total': 1000.0,
+      'lotNumber': 'LOT-M',
+      'warehouse': 'WH1',
+      'location': 'LOC1',
+      'salesUnit': 'EA',
+      'taxRule': 'VAT0',
+      'cce0': 'COMMERCIAL',
+    });
+
+    // Reversal 1: Reverse 4 out of 10
+    final cn1 = await service.createPartialReversalCreditNote(
+      invoiceId: 'INV-MULTI',
+      selectedLines: [
+        {'lineId': '10', 'reversedQty': 4.0},
+      ],
+      createdBy: 'agent1',
+    );
+
+    expect(cn1.grandTotal, 400.0);
+
+    // Verify invoice is marked as partially reversed
+    final invRows1 = await db.query(
+      LocalDatabaseHelper.tableSiInvoices,
+      where: 'invoiceId = ?',
+      whereArgs: ['INV-MULTI'],
+    );
+    expect(invRows1.first['isPartiallyReversed'], 1);
+    expect(invRows1.first['isReversed'], 0);
+
+    // Verify stock replenished by 4 (10 + 4 = 14)
+    final stock1 = await db.query(
+      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+      where: 'itemCode = ? AND lotNumber = ?',
+      whereArgs: ['SKU-MULTI', 'LOT-M'],
+    );
+    expect(stock1.first['totalQty'], 14.0);
+
+    // Reversal 2 Attempt: Try to reverse 7 (only 6 remaining) -> must fail
+    expect(
+      () => service.createPartialReversalCreditNote(
+        invoiceId: 'INV-MULTI',
+        selectedLines: [
+          {'lineId': '10', 'reversedQty': 7.0},
+        ],
+        createdBy: 'agent1',
+      ),
+      throwsA(isA<ArgumentError>()),
+    );
+
+    // Reversal 2 Valid: Reverse remaining 6
+    final cn2 = await service.createPartialReversalCreditNote(
+      invoiceId: 'INV-MULTI',
+      selectedLines: [
+        {'lineId': '10', 'reversedQty': 6.0},
+      ],
+      createdBy: 'agent1',
+    );
+
+    expect(cn2.grandTotal, 600.0);
+
+    // Now all 10 have been reversed -> invoice should now be marked isReversed = 1
+    final invRows2 = await db.query(
+      LocalDatabaseHelper.tableSiInvoices,
+      where: 'invoiceId = ?',
+      whereArgs: ['INV-MULTI'],
+    );
+    expect(invRows2.first['isReversed'], 1);
+    expect(invRows2.first['isPartiallyReversed'], 0);
+
+    // Stock should now be 14 + 6 = 20
+    final stock2 = await db.query(
+      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+      where: 'itemCode = ? AND lotNumber = ?',
+      whereArgs: ['SKU-MULTI', 'LOT-M'],
+    );
+    expect(stock2.first['totalQty'], 20.0);
+  });
+
+  test('createReversalCreditNote rejects full reversal if invoice is partially reversed', () async {
+    await db.insert(LocalDatabaseHelper.tableSiInvoices, {
+      'invoiceId': 'INV-PARTIAL-LOCKED',
+      'customerCode': 'CUST-L',
+      'customerName': 'Locked Customer',
+      'grandTotal': 500.0,
+      'createdAt': '2026-06-01T10:00:00',
+      'salesSite': 'SCG',
+      'isReversed': 0,
+      'isPartiallyReversed': 1,
+    });
+
+    expect(
+      () => service.createReversalCreditNote(
+        invoiceId: 'INV-PARTIAL-LOCKED',
+        createdBy: 'agent1',
+      ),
+      throwsA(isA<StateError>()),
+    );
   });
 }

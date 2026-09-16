@@ -119,6 +119,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (cartState.transactionType == 'SI_SALES_ORDER') ...[
+                        _buildDeliveryDateCard(context, cartState, isDark),
+                        const SizedBox(height: 16),
+                      ],
                       Text(
                         'Line Items (${cartState.items.length})',
                         style: TextStyle(
@@ -335,6 +339,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }
 
   Future<void> _saveSalesOrder(BuildContext context, SalesInvoiceCartState cartState) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final deliveryDate = cartState.deliveryDate ?? today;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -347,6 +355,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         customer: cartState.customer!,
         items: cartState.items,
         totalAmount: cartState.grandTotal,
+        deliveryDate: deliveryDate.toIso8601String(),
       );
 
       if (context.mounted) {
@@ -360,7 +369,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         );
         
         context.read<SalesInvoiceCartCubit>().clearCart();
-        Navigator.pop(context); // return to previous screen
+        Navigator.pop(context, true); // return true so CustomerSelectionScreen pops back to SalesOrdersListScreen
       }
     } catch (e) {
       if (context.mounted) {
@@ -372,6 +381,152 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           ),
         );
       }
+    }
+  }
+
+  Widget _buildDeliveryDateCard(
+    BuildContext context,
+    SalesInvoiceCartState cartState,
+    bool isDark,
+  ) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final deliveryDate = cartState.deliveryDate ?? today;
+
+    final bool isToday = deliveryDate.year == today.year &&
+        deliveryDate.month == today.month &&
+        deliveryDate.day == today.day;
+    final bool isTomorrow = deliveryDate.year == today.add(const Duration(days: 1)).year &&
+        deliveryDate.month == today.add(const Duration(days: 1)).month &&
+        deliveryDate.day == today.add(const Duration(days: 1)).day;
+
+    String dateSuffix = '';
+    if (isToday) {
+      dateSuffix = ' (Today)';
+    } else if (isTomorrow) {
+      dateSuffix = ' (Tomorrow)';
+    }
+
+    final formattedDate = '${DateFormat('EEE, dd MMM yyyy').format(deliveryDate)}$dateSuffix';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.primaryColor.withOpacity(0.35),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _pickDeliveryDate(context, cartState),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.local_shipping_outlined,
+                    color: theme.primaryColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DELIVERY DATE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        formattedDate,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[800] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        size: 16,
+                        color: theme.primaryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Change',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDeliveryDate(BuildContext context, SalesInvoiceCartState cartState) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final currentSelected = cartState.deliveryDate ?? today;
+    final initial = currentSelected.isBefore(today) ? today : currentSelected;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+      helpText: 'SELECT DELIVERY DATE',
+      confirmText: 'SET DATE',
+    );
+
+    if (picked != null && context.mounted) {
+      context.read<SalesInvoiceCartCubit>().setDeliveryDate(picked);
     }
   }
 

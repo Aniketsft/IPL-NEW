@@ -22,11 +22,60 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
   final SISalesOrderService _service = SISalesOrderService();
   List<Map<String, dynamic>> _details = [];
   bool _isLoading = true;
+  String? _currentDeliveryDate;
 
   @override
   void initState() {
     super.initState();
+    _currentDeliveryDate = widget.order['deliveryDate'] as String?;
     _loadDetails();
+  }
+
+  Future<void> _editDeliveryDate() async {
+    if (widget.order['status'] == 'Converted') return;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime initial = today;
+    if (_currentDeliveryDate != null) {
+      final parsed = DateTime.tryParse(_currentDeliveryDate!);
+      if (parsed != null && !parsed.isBefore(today)) {
+        initial = parsed;
+      }
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+      helpText: 'UPDATE DELIVERY DATE',
+      confirmText: 'UPDATE',
+    );
+
+    if (picked != null && mounted) {
+      final formattedIso = picked.toIso8601String();
+      try {
+        await _service.updateDeliveryDate(widget.order['id'] as int, formattedIso);
+        setState(() {
+          _currentDeliveryDate = formattedIso;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Delivery date updated to ${DateFormat('dd MMM yyyy').format(picked)}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update delivery date: $e')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _loadDetails() async {
@@ -165,7 +214,19 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
   Widget build(BuildContext context) {
     final order = widget.order;
     final isConverted = order['status'] == 'Converted';
-    final date = DateTime.parse(order['createdAt']);
+    final date = DateTime.tryParse(order['createdAt'] ?? '') ?? DateTime.now();
+    final orderNumber = (order['orderNumber'] as String?)?.isNotEmpty == true
+        ? order['orderNumber'] as String
+        : 'SO-#${order['id']}';
+
+    final subtotal = _details.fold<double>(
+      0.0,
+      (sum, item) => sum + (((item['basePrice'] as num?)?.toDouble() ?? 0.0) * ((item['quantity'] as num?)?.toDouble() ?? 0.0)),
+    );
+    final totalVat = _details.fold<double>(
+      0.0,
+      (sum, item) => sum + ((item['vatAmount'] as num?)?.toDouble() ?? 0.0),
+    );
 
     return IndustrialModuleLayout(
       title: 'Order Details',
@@ -180,7 +241,9 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
-                      color: isConverted ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3),
+                      color: isConverted
+                          ? Colors.green.withValues(alpha: 0.3)
+                          : Colors.orange.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Padding(
@@ -188,27 +251,112 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Sales Order Number & Status
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.blueGrey.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.25)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.receipt_long, size: 16, color: Colors.blueGrey),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    orderNumber,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Colors.blueGrey,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: isConverted
+                                    ? Colors.green.withValues(alpha: 0.12)
+                                    : Colors.orange.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                order['status'] ?? 'Open',
+                                style: TextStyle(
+                                  color: isConverted ? Colors.green.shade700 : Colors.orange.shade800,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Customer Name
                         Text(
                           order['customerName'] ?? 'Unknown Customer',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                         ),
-                        const SizedBox(height: 8),
-                        Text('Code: ${order['customerCode']}'),
-                        Text('Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}'),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isConverted ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            order['status'],
-                            style: TextStyle(
-                              color: isConverted ? Colors.green : Colors.orange,
-                              fontWeight: FontWeight.bold,
+                        const SizedBox(height: 4),
+                        // Customer Code
+                        Row(
+                          children: [
+                            const Text('Customer Code: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text(
+                              order['customerCode'] ?? '-',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                             ),
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text('Order Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}'),
+                        const SizedBox(height: 8),
+                        Builder(
+                          builder: (context) {
+                            final deliveryDt = _currentDeliveryDate != null 
+                                ? DateTime.tryParse(_currentDeliveryDate!) 
+                                : null;
+                            return InkWell(
+                              onTap: isConverted ? null : _editDeliveryDate,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.teal.withValues(alpha: 0.25)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.local_shipping_outlined, size: 16, color: Colors.teal),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      deliveryDt != null 
+                                          ? 'Delivery: ${DateFormat('EEE, dd MMM yyyy').format(deliveryDt)}'
+                                          : 'Delivery: Not set',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: Colors.teal.shade800,
+                                      ),
+                                    ),
+                                    if (!isConverted) ...[
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.edit, size: 13, color: Colors.teal),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -232,30 +380,75 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                           itemCount: _details.length,
                           itemBuilder: (context, index) {
                             final detail = _details[index];
+                            final qty = (detail['quantity'] as num?)?.toDouble() ?? 0.0;
+                            final unit = (detail['salesUnit'] as String?)?.trim().isNotEmpty == true
+                                ? detail['salesUnit'] as String
+                                : 'EA';
+                            final price = (detail['basePrice'] as num?)?.toDouble() ?? 0.0;
+                            final lineTotal = (detail['total'] as num?)?.toDouble() ?? (qty * price);
+                            
                             return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
-                                title: Text(detail['productName'] ?? 'Unknown'),
-                                subtitle: Text('SKU: ${detail['productCode']} | Qty: ${detail['quantity']} ${detail['salesUnit']}'),
-                                trailing: Text('Rs ${detail['total']?.toStringAsFixed(2) ?? '0.00'}'),
+                                title: Text(
+                                  detail['productName'] ?? 'Unknown Product',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  'SKU: ${detail['productCode']} • Qty: ${qty.toStringAsFixed(0)} $unit @ Rs ${price.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                trailing: Text(
+                                  'Rs ${lineTotal.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
                               ),
                             );
                           },
                         ),
                 ),
                 
-                // Total Row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Total Summary Card
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
                     children: [
-                      const Text(
-                        'Total:',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Rs ${order['totalAmount'].toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      if (totalVat > 0) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Excl. Tax:', style: TextStyle(color: Colors.black54, fontSize: 13)),
+                            Text('Rs ${subtotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('VAT:', style: TextStyle(color: Colors.black54, fontSize: 13)),
+                            Text('Rs ${totalVat.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                        const Divider(height: 12),
+                      ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Amount:',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                          ),
+                        ],
                       ),
                     ],
                   ),
