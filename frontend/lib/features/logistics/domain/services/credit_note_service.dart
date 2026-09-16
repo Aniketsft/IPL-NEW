@@ -59,6 +59,9 @@ class CreditNoteService {
     final creditNoteId = 'CN-$invoiceId';
     final now = DateTime.now().toIso8601String();
     final grandTotal = (invoice['grandTotal'] as num?)?.toDouble() ?? 0.0;
+    if (grandTotal <= 0) {
+      throw StateError('Cannot reverse invoice: amount must be greater than zero.');
+    }
     final salesSite = (invoice['salesSite'] as String?) ?? 'SCG';
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
@@ -264,6 +267,10 @@ class CreditNoteService {
       });
     }
 
+    if (grandTotal <= 0) {
+      throw StateError('Cannot create partial reversal credit note: total amount must be greater than zero.');
+    }
+
     final creditNoteId = 'CN-P-${DateTime.now().millisecondsSinceEpoch}';
     final now = DateTime.now().toIso8601String();
     final salesSite = (invoice['salesSite'] as String?) ?? 'SCG';
@@ -399,6 +406,10 @@ class CreditNoteService {
     final methodUpper = refundMethod.toUpperCase();
     if (methodUpper == 'QR' || methodUpper.contains('QR')) {
       throw ArgumentError('QR Code refund is strictly disabled for Credit Notes.');
+    }
+
+    if (refundAmount <= 0) {
+      throw ArgumentError('Credit note refund amount must be greater than zero.');
     }
 
     if (items.isEmpty) {

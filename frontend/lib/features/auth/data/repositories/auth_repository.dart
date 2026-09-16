@@ -89,11 +89,13 @@ class AuthRepository implements IAuthRepository {
       final lastSyncTimeStr = row[LocalDatabaseHelper.colLastSyncTime] as String?;
       if (lastSyncTimeStr != null) {
         final lastSyncTime = DateTime.parse(lastSyncTimeStr);
-        if (DateTime.now().difference(lastSyncTime) > AuthConfig.sessionTimeout) {
-           throw 'Offline session expired. Please connect to the network to re-authenticate.';
+        // Use offlineLoginWindow (7 days) — fully decoupled from the UX inactivity timeout.
+        // This allows field workers to log in without connectivity across a full work week.
+        if (DateTime.now().difference(lastSyncTime) > AuthConfig.offlineLoginWindow) {
+           throw 'Offline credentials have expired (>${AuthConfig.offlineLoginWindow.inDays} days without sync). Please connect to re-authenticate.';
         }
       } else {
-         throw 'Offline session expired. Please connect to the network to re-authenticate.';
+         throw 'No offline credentials found. Please connect to the network to log in.';
       }
 
       return User(
@@ -181,7 +183,8 @@ class AuthRepository implements IAuthRepository {
       final lastSyncTimeStr = maps.first[LocalDatabaseHelper.colLastSyncTime] as String?;
       if (lastSyncTimeStr != null) {
         final lastSyncTime = DateTime.parse(lastSyncTimeStr);
-        if (DateTime.now().difference(lastSyncTime) <= AuthConfig.sessionTimeout) {
+        // Offline session is valid as long as credentials were synced within the offline window.
+        if (DateTime.now().difference(lastSyncTime) <= AuthConfig.offlineLoginWindow) {
           return true;
         }
       }

@@ -226,13 +226,31 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       Builder(
                         builder: (context) {
                           final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE';
-                          return SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: ElevatedButton.icon(
-                              onPressed: cartState.items.isEmpty
-                                  ? null
-                                  : () {
+                          final isZeroAmount = cartState.grandTotal <= 0;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isZeroAmount && cartState.items.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Text(
+                                    isCreditNote
+                                        ? 'Credit note amount must be greater than zero.'
+                                        : 'Invoice amount must be greater than zero.',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: (cartState.items.isEmpty || isZeroAmount)
+                                      ? null
+                                      : () {
                                       final missingLotItems = cartState.items.where((i) => i.isFoc && i.lotNumber.isEmpty);
                                       if (missingLotItems.isNotEmpty) {
                                         showDialog(
@@ -266,31 +284,33 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                         ),
                                       );
                                     },
-                              icon: Icon(
-                                _getConfirmIcon(cartState.transactionType),
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              label: Text(
-                                _getConfirmText(cartState.transactionType),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1.1,
+                                    icon: Icon(
+                                      _getConfirmIcon(cartState.transactionType),
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      _getConfirmText(cartState.transactionType),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: theme.primaryColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            elevation: 0,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ],
+                            );
+                          },
+                      ),
                     ],
                   ),
                 ),

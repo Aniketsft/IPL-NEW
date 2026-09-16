@@ -46,3 +46,8 @@ class UserInteracted extends AuthEvent {}
 class PerformTokenRefresh extends AuthEvent {}
 
 class ValidateSession extends AuthEvent {}
+
+/// Fired by InactivityWatcher when the app resumes and the elapsed time is
+/// within the active session window. Does NOT perform any logout checks —
+/// it simply slides the inactivity timer to prevent premature idle-timeout.
+class SoftSessionCheck extends AuthEvent {}

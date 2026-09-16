@@ -152,11 +152,16 @@ class TransactionHistoryRepository {
       final cnLines = await db.rawQuery(query, [invoiceId]);
       if (cnLines.isNotEmpty) return cnLines;
     }
-    final lines = await db.query(
-      LocalDatabaseHelper.tableSiInvoiceLines,
-      where: 'invoiceId = ?',
-      whereArgs: [invoiceId],
-    );
+    final lines = await db.rawQuery('''
+      SELECT
+        il.*,
+        COALESCE(SUM(rev.reversedQty), 0.0) AS reversedQty
+      FROM ${LocalDatabaseHelper.tableSiInvoiceLines} il
+      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLineReversals} rev
+        ON CAST(rev.lineId AS INTEGER) = il.lineId AND rev.invoiceId = il.invoiceId
+      WHERE il.invoiceId = ?
+      GROUP BY il.lineId
+    ''', [invoiceId]);
     if (lines.isEmpty) {
       final query = '''
         SELECT 
@@ -164,6 +169,7 @@ class TransactionHistoryRepository {
           cnl.creditNoteId,
           cnl.lineNo,
           cnl.quantity,
+          0.0 AS reversedQty,
           COALESCE(cnl.standaloneSku, il.sku) AS sku,
           COALESCE(cnl.standaloneName, il.name) AS name,
           COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,

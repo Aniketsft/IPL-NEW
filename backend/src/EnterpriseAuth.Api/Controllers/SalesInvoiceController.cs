@@ -34,6 +34,10 @@ namespace EnterpriseAuth.Api.Controllers
             if (payload == null || string.IsNullOrWhiteSpace(payload.InvoiceId))
                 return BadRequest(new { success = false, error = "Invalid payload." });
 
+            var totalAmount = payload.Lines.Sum(l => l.Total);
+            if (payload.Lines.Count == 0 || totalAmount <= 0)
+                return BadRequest(new { success = false, error = "Invoice with zero or negative total amount cannot be created." });
+
             // Process one invoice at a time, transactionally
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
@@ -121,6 +125,9 @@ namespace EnterpriseAuth.Api.Controllers
         {
             if (payload == null || string.IsNullOrWhiteSpace(payload.CreditNoteId))
                 return BadRequest(new { success = false, error = "Invalid credit note payload." });
+
+            if (payload.GrandTotal <= 0)
+                return BadRequest(new { success = false, error = "Credit note with zero or negative total amount cannot be created." });
 
             // Atomic transaction: rollback on failure, commit only on confirmed X3 success
             using var transaction = await _dbContext.Database.BeginTransactionAsync();

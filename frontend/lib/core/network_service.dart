@@ -65,8 +65,8 @@ class NetworkService {
           final token = await _storageService.getToken();
           if (!isPublicEndpoint) {
             if (token == null || token.isEmpty) {
-              debugPrint('Global Auth Interceptor: JWT token is lost/missing on protected route ($path). Auto-logging out.');
-              await _storageService.deleteAll();
+              // Token is completely missing — cannot proceed, notify AuthBloc to handle
+              debugPrint('Global Auth Interceptor: JWT missing on protected route ($path).');
               onUnauthorized?.call();
               return handler.reject(DioException(
                 requestOptions: options,
@@ -76,8 +76,9 @@ class NetworkService {
             }
 
             if (isTokenExpired(token)) {
-              debugPrint('Global Auth Interceptor: JWT token expired locally. Auto-logging out.');
-              await _storageService.deleteAll();
+              // Token is expired locally — notify AuthBloc so it can attempt a silent refresh.
+              // Do NOT clear storage here; the AuthBloc decides whether to logout or refresh.
+              debugPrint('Global Auth Interceptor: JWT expired locally — notifying AuthBloc for refresh.');
               onUnauthorized?.call();
               return handler.reject(DioException(
                 requestOptions: options,
@@ -98,8 +99,10 @@ class NetworkService {
         },
         onError: (DioException e, handler) async {
           if (e.response?.statusCode == 401) {
-            debugPrint('Global 401 Intercepted: Clearing session.');
-            await _storageService.deleteAll();
+            // Server rejected our token — notify AuthBloc to handle (it will attempt
+            // a silent refresh and only logout if that also fails).
+            // Do NOT clear storage here to avoid race conditions with the refresh cycle.
+            debugPrint('Global 401 Intercepted: Notifying AuthBloc for session refresh.');
             onUnauthorized?.call();
           }
           return handler.next(e);

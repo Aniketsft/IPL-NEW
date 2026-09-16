@@ -80,6 +80,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   void _addPayment(SalesInvoiceCartState cartState) {
     final grandTotal = cartState.grandTotal;
+    if (grandTotal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Total amount must be greater than zero.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final totalPaid = _getTotalPaid();
     final remaining = grandTotal - totalPaid;
 
@@ -223,6 +232,20 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     if (cartState.customer == null || cartState.items.isEmpty) return;
 
     final grandTotal = cartState.grandTotal;
+    if (grandTotal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isCreditNoteRefund
+                ? 'Credit note amount must be greater than zero.'
+                : 'Invoice amount must be greater than zero.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final totalPaid = _getTotalPaid();
 
     if (totalPaid < grandTotal) {
@@ -568,7 +591,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           final grandTotal = state.grandTotal;
           final totalPaid = _getTotalPaid();
           final remaining = grandTotal - totalPaid;
-          final isFullyPaid = remaining <= 0;
+          final isFullyPaid = grandTotal > 0 && remaining <= 0;
           final changeDue = remaining < 0 ? remaining.abs() : 0.0;
 
           // Set default amount input if empty and not fully paid
@@ -932,10 +955,38 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         ),
                       ],
                     ),
+                    if (grandTotal <= 0)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                widget.isCreditNoteRefund
+                                    ? 'Credit note amount must be greater than zero.'
+                                    : 'Invoice amount must be greater than zero.',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 24),
 
                     ElevatedButton(
-                      onPressed: (!isFullyPaid || _isProcessing)
+                      onPressed: (!isFullyPaid || grandTotal <= 0 || _isProcessing)
                           ? null
                           : () => _processPayment(state),
                       style: ElevatedButton.styleFrom(

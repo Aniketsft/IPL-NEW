@@ -24,6 +24,7 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
   final TransactionHistoryRepository _repository = TransactionHistoryRepository();
   List<Map<String, dynamic>> _lines = [];
   bool _isLoading = true;
+  double? _effectiveGrandTotal;
 
   final currencyFormat = NumberFormat.currency(
     locale: 'en_US',
@@ -40,8 +41,18 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
   Future<void> _loadLines() async {
     try {
       final lines = await _repository.getTransactionLines(widget.transaction.id);
+      // Compute the effective (post-reversal) grand total from the lines
+      double effective = 0.0;
+      for (final l in lines) {
+        final originalQty = (l['quantity'] as num?)?.toDouble() ?? 0.0;
+        final reversedQty = (l['reversedQty'] as num?)?.toDouble() ?? 0.0;
+        final effectiveQty = (originalQty - reversedQty).clamp(0.0, double.infinity);
+        final price = (l['basePrice'] as num?)?.toDouble() ?? 0.0;
+        effective += price * effectiveQty;
+      }
       setState(() {
         _lines = lines;
+        _effectiveGrandTotal = effective > 0 ? effective : widget.transaction.grandTotal;
         _isLoading = false;
       });
     } catch (e) {
@@ -55,6 +66,16 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
   }
 
   Future<void> _showCancelConfirmation() async {
+    if (widget.transaction.grandTotal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot reverse an invoice with zero amount.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -295,10 +316,26 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                   const SizedBox(height: 4),
                   Text('Date: $dateStr'),
                   const SizedBox(height: 8),
-                  Text(
-                    'Grand Total: ${currencyFormat.format(widget.transaction.grandTotal)}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primaryAmber),
-                  ),
+                  if (widget.transaction.isPartiallyReversed == 1 && _effectiveGrandTotal != null) ...[
+                    // Show remaining effective amount prominently
+                    Text(
+                      'Remaining: ${currencyFormat.format(_effectiveGrandTotal!)}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.orange),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Original: ${currencyFormat.format(widget.transaction.grandTotal)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ] else
+                    Text(
+                      'Grand Total: ${currencyFormat.format(widget.transaction.grandTotal)}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primaryAmber),
+                    ),
                 ],
               ),
             ),
@@ -320,23 +357,86 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                           final sku = line['sku'] ?? 'Unknown';
                           final name = line['name'] ?? 'Unknown Item';
                           final lot = line['lotNumber'] ?? 'No Lot';
-                          final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+                          final salesUnit = (line['salesUnit'] as String?) ?? 'EA';
+                          final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+                          final reversedQty = (line['reversedQty'] as num?)?.toDouble() ?? 0.0;
+                          final effectiveQty = (originalQty - reversedQty).clamp(0.0, double.infinity);
                           final price = (line['basePrice'] as num?)?.toDouble() ?? 0.0;
-                          
+                          final originalAmount = price * originalQty;
+                          final effectiveAmount = price * effectiveQty;
+                          final isPartiallyReversed = reversedQty > 0 && effectiveQty > 0;
+                          final isFullyReversed = reversedQty >= originalQty;
+
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                             child: ListTile(
-                              title: Text('$sku - $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              title: Text('$sku - $name',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    decoration: isFullyReversed ? TextDecoration.lineThrough : null,
+                                    color: isFullyReversed ? Colors.grey : null,
+                                  )),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text('Lot: $lot'),
-                                  Text('Qty: $qty EA'),
+                                  // Effective (remaining) quantity — the source of truth
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Qty: ${effectiveQty % 1 == 0 ? effectiveQty.toStringAsFixed(0) : effectiveQty.toStringAsFixed(2)} $salesUnit',
+                                        style: TextStyle(
+                                          color: isFullyReversed
+                                              ? Colors.grey
+                                              : isPartiallyReversed
+                                                  ? Colors.orange
+                                                  : null,
+                                          fontWeight: isPartiallyReversed ? FontWeight.bold : null,
+                                        ),
+                                      ),
+                                      if (isPartiallyReversed) ...[
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '(orig: ${originalQty % 1 == 0 ? originalQty.toStringAsFixed(0) : originalQty.toStringAsFixed(2)})',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
+                                            decoration: TextDecoration.lineThrough,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  if (isFullyReversed)
+                                    const Text('FULLY REVERSED',
+                                        style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
                                 ],
                               ),
-                              trailing: Text(
-                                currencyFormat.format(price * qty),
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    currencyFormat.format(effectiveAmount),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isFullyReversed
+                                          ? Colors.grey
+                                          : isPartiallyReversed
+                                              ? Colors.orange
+                                              : null,
+                                    ),
+                                  ),
+                                  if (isPartiallyReversed)
+                                    Text(
+                                      currencyFormat.format(originalAmount),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           );
@@ -352,14 +452,16 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final result = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                            builder: (_) => InvoiceItemReversalScreen(transaction: widget.transaction),
-                          ),
-                        );
-                        if (result == true && mounted) Navigator.of(context).pop(true);
-                      },
+                      onPressed: widget.transaction.grandTotal <= 0
+                          ? null
+                          : () async {
+                              final result = await Navigator.of(context).push<bool>(
+                                MaterialPageRoute(
+                                  builder: (_) => InvoiceItemReversalScreen(transaction: widget.transaction),
+                                ),
+                              );
+                              if (result == true && mounted) Navigator.of(context).pop(true);
+                            },
                       icon: const Icon(Icons.checklist, color: Colors.orange),
                       label: const Text('Reverse Items', style: TextStyle(color: Colors.orange)),
                       style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),
@@ -368,7 +470,7 @@ class _TransactionPreviewScreenState extends State<TransactionPreviewScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _showCancelConfirmation,
+                      onPressed: widget.transaction.grandTotal <= 0 ? null : _showCancelConfirmation,
                       icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
                       label: const Text('Reverse All', style: TextStyle(color: Colors.orange)),
                       style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.orange)),

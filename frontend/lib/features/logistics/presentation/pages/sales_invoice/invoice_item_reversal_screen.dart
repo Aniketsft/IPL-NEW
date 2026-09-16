@@ -113,6 +113,16 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
       return;
     }
 
+    if (_reversalTotal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reversal amount must be greater than zero.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Summary confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
@@ -327,8 +337,14 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                     Row(
                                       children: [
                                         const SizedBox(width: 48),
-                                        Text('Original: $originalQty | Reversed: $alreadyReversed | Remaining: $remaining',
-                                            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                        Flexible(
+                                          child: Text(
+                                            'Original: $originalQty | Reversed: $alreadyReversed | Remaining: $remaining',
+                                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 2,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                     if (!isFullyReversed && isSelected) ...[
@@ -336,10 +352,10 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                       Row(
                                         children: [
                                           const SizedBox(width: 48),
-                                          const Text('Qty to Reverse:', style: TextStyle(fontSize: 13)),
-                                          const SizedBox(width: 8),
+                                          const Text('Qty:', style: TextStyle(fontSize: 13)),
+                                          const SizedBox(width: 6),
                                           SizedBox(
-                                            width: 100,
+                                            width: 90,
                                             child: TextField(
                                               controller: _qtyControllers[lineId],
                                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -351,8 +367,14 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                               onChanged: (_) => setState(() {}),
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
-                                          Text('/ $remaining max', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              '/ $remaining max',
+                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ],
@@ -391,7 +413,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _selectedCount > 0 && !_isProcessing ? _confirmReversal : null,
+                                onPressed: _selectedCount > 0 && _reversalTotal > 0 && !_isProcessing ? _confirmReversal : null,
                                 icon: const Icon(Icons.undo),
                                 label: const Text('Reverse Selected Items'),
                                 style: ElevatedButton.styleFrom(
