@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'customer_selection_screen.dart';
 import 'sales_order_details_screen.dart';
 
 class SalesOrdersListScreen extends StatefulWidget {
-  const SalesOrdersListScreen({Key? key}) : super(key: key);
+  const SalesOrdersListScreen({super.key});
 
   @override
   State<SalesOrdersListScreen> createState() => _SalesOrdersListScreenState();
@@ -45,6 +46,8 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return IndustrialModuleLayout(
       title: 'Sales Orders',
       body: _isLoading
@@ -94,21 +97,31 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.blueGrey.withValues(alpha: 0.12),
+                                      color: isDark
+                                          ? Colors.blueGrey.withValues(alpha: 0.25)
+                                          : Colors.blueGrey.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.25)),
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Colors.cyan.withValues(alpha: 0.35)
+                                            : Colors.blueGrey.withValues(alpha: 0.25),
+                                      ),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.receipt_long, size: 14, color: Colors.blueGrey),
+                                        Icon(
+                                          Icons.receipt_long, 
+                                          size: 14, 
+                                          color: isDark ? Colors.cyan.shade300 : Colors.blueGrey,
+                                        ),
                                         const SizedBox(width: 5),
                                         Text(
                                           orderNumber,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 13,
-                                            color: Colors.blueGrey,
+                                            color: isDark ? Colors.cyan.shade200 : Colors.blueGrey,
                                             letterSpacing: 0.5,
                                           ),
                                         ),
@@ -144,28 +157,50 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                               // Customer Code
                               Row(
                                 children: [
-                                  const Text('Customer Code: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                  Text(
+                                    'Customer Code: ', 
+                                    style: TextStyle(color: isDark ? Colors.white60 : Colors.grey, fontSize: 13),
+                                  ),
                                   Text(
                                     order['customerCode'] ?? '-',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600, 
+                                      fontSize: 13,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 6),
-                              // Total Amount
-                              Text(
-                                'Total: Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Colors.black87,
-                                ),
+                              // Total Amount (Theme-aware with amber highlight)
+                              Row(
+                                children: [
+                                  Text(
+                                    'Total: ',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white70 : Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: isDark ? AppTheme.primaryAmber : Colors.black87,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 6),
-                              // Order Date
+                              // Order Date (Theme-aware contrast)
                               Text(
                                 'Order Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}',
-                                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                style: TextStyle(
+                                  fontSize: 12, 
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
                               ),
                               // Delivery Date
                               Builder(
@@ -177,10 +212,10 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                                     padding: const EdgeInsets.only(top: 4.0),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.local_shipping_outlined,
                                           size: 15,
-                                          color: Colors.teal,
+                                          color: isDark ? Colors.teal.shade300 : Colors.teal,
                                         ),
                                         const SizedBox(width: 5),
                                         Text(
@@ -188,7 +223,7 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 13,
-                                            color: Colors.teal.shade700,
+                                            color: isDark ? Colors.teal.shade300 : Colors.teal.shade700,
                                           ),
                                         ),
                                       ],

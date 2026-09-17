@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'order_summary_screen.dart';
@@ -12,7 +13,7 @@ import 'package:enterprise_auth_mobile/core/network_service.dart';
 class SalesOrderDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> order;
 
-  const SalesOrderDetailsScreen({Key? key, required this.order}) : super(key: key);
+  const SalesOrderDetailsScreen({super.key, required this.order});
 
   @override
   State<SalesOrderDetailsScreen> createState() => _SalesOrderDetailsScreenState();
@@ -212,6 +213,7 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final order = widget.order;
     final isConverted = order['status'] == 'Converted';
     final date = DateTime.tryParse(order['createdAt'] ?? '') ?? DateTime.now();
@@ -258,21 +260,31 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
-                                color: Colors.blueGrey.withValues(alpha: 0.12),
+                                color: isDark
+                                    ? Colors.blueGrey.withValues(alpha: 0.25)
+                                    : Colors.blueGrey.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.25)),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.cyan.withValues(alpha: 0.35)
+                                      : Colors.blueGrey.withValues(alpha: 0.25),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.receipt_long, size: 16, color: Colors.blueGrey),
+                                  Icon(
+                                    Icons.receipt_long, 
+                                    size: 16, 
+                                    color: isDark ? Colors.cyan.shade300 : Colors.blueGrey,
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     orderNumber,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 14,
-                                      color: Colors.blueGrey,
+                                      color: isDark ? Colors.cyan.shade200 : Colors.blueGrey,
                                       letterSpacing: 0.5,
                                     ),
                                   ),
@@ -308,15 +320,28 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                         // Customer Code
                         Row(
                           children: [
-                            const Text('Customer Code: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text(
+                              'Customer Code: ', 
+                              style: TextStyle(color: isDark ? Colors.white60 : Colors.grey, fontSize: 13),
+                            ),
                             Text(
                               order['customerCode'] ?? '-',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600, 
+                                fontSize: 13,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text('Order Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}'),
+                        Text(
+                          'Order Date: ${DateFormat('dd MMM yyyy, HH:mm').format(date)}',
+                          style: TextStyle(
+                            fontSize: 13, 
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Builder(
                           builder: (context) {
@@ -336,7 +361,11 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.local_shipping_outlined, size: 16, color: Colors.teal),
+                                    Icon(
+                                      Icons.local_shipping_outlined, 
+                                      size: 16, 
+                                      color: isDark ? Colors.teal.shade300 : Colors.teal,
+                                    ),
                                     const SizedBox(width: 6),
                                     Text(
                                       deliveryDt != null 
@@ -345,12 +374,16 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
-                                        color: Colors.teal.shade800,
+                                        color: isDark ? Colors.teal.shade300 : Colors.teal.shade800,
                                       ),
                                     ),
                                     if (!isConverted) ...[
                                       const SizedBox(width: 6),
-                                      const Icon(Icons.edit, size: 13, color: Colors.teal),
+                                      Icon(
+                                        Icons.edit, 
+                                        size: 13, 
+                                        color: isDark ? Colors.teal.shade300 : Colors.teal,
+                                      ),
                                     ],
                                   ],
                                 ),
@@ -396,11 +429,18 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                                 ),
                                 subtitle: Text(
                                   'SKU: ${detail['productCode']} • Qty: ${qty.toStringAsFixed(0)} $unit @ Rs ${price.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 13),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? Colors.white70 : Colors.black54,
+                                  ),
                                 ),
                                 trailing: Text(
                                   'Rs ${lineTotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold, 
+                                    fontSize: 14,
+                                    color: isDark ? AppTheme.primaryAmber : Colors.black87,
+                                  ),
                                 ),
                               ),
                             );
@@ -408,14 +448,16 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                         ),
                 ),
                 
-                // Total Summary Card
+                // Total Summary Card (Dark Theme Industrial Surface)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.grey.shade300,
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -423,30 +465,67 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Excl. Tax:', style: TextStyle(color: Colors.black54, fontSize: 13)),
-                            Text('Rs ${subtotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
+                            Text(
+                              'Excl. Tax:', 
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54, 
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              'Rs ${subtotal.toStringAsFixed(2)}', 
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('VAT:', style: TextStyle(color: Colors.black54, fontSize: 13)),
-                            Text('Rs ${totalVat.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
+                            Text(
+                              'VAT:', 
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54, 
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              'Rs ${totalVat.toStringAsFixed(2)}', 
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
                           ],
                         ),
-                        const Divider(height: 12),
+                        Divider(
+                          height: 16, 
+                          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300,
+                        ),
                       ],
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Total Amount:',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
                           ),
                           Text(
                             'Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                            style: TextStyle(
+                              fontSize: 18, 
+                              fontWeight: FontWeight.bold, 
+                              color: isDark ? AppTheme.primaryAmber : Colors.blueGrey,
+                            ),
                           ),
                         ],
                       ),

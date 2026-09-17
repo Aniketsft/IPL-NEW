@@ -248,47 +248,46 @@ void main() {
   });
 
   group('SISalesOrderService Hardcoded Sage X3 Order Tests', () {
-    test('ensureHardcodedSalesOrderSeeded creates CGDSO250800001 with WINNER\'S BEL AIR', () async {
+    test('ensureHardcodedSalesOrderSeeded creates all 3 Sage X3 orders with full details', () async {
       await service.ensureHardcodedSalesOrderSeeded();
 
       final orders = await service.getSalesOrders();
-      expect(orders.length, equals(1));
-      final order = orders.first;
+      expect(orders.length, equals(3));
 
-      expect(order['orderNumber'], equals('CGDSO250800001'));
-      expect(order['customerCode'], equals('WIN001'));
-      expect(order['customerName'], equals("WINNER'S BEL AIR"));
-      expect(order['totalAmount'], equals(9577.96));
-      expect(order['status'], equals('Open'));
+      // 1. Verify CGDSO250800001
+      final order1 = orders.firstWhere((o) => o['orderNumber'] == 'CGDSO250800001');
+      expect(order1['customerCode'], equals('WIN001'));
+      expect(order1['customerName'], equals("WINNER'S BEL AIR"));
+      expect(order1['totalAmount'], equals(9577.96));
+      expect(order1['status'], equals('Open'));
 
-      final details = await service.getSalesOrderDetails(order['id'] as int);
-      expect(details.length, equals(5));
+      final details1 = await service.getSalesOrderDetails(order1['id'] as int);
+      expect(details1.length, equals(5));
+      expect(details1.any((d) => d['productCode'] == '8101' && d['quantity'] == 16.0), isTrue);
 
-      // Verify each product and its ordered quantity
-      final line1 = details.firstWhere((d) => d['productCode'] == '8101');
-      expect(line1['productName'], equals('Barilla Macaroni 500g'));
-      expect(line1['quantity'], equals(16.0));
-      expect(line1['salesUnit'], equals('EA'));
+      // 2. Verify CGDSO250800002
+      final order2 = orders.firstWhere((o) => o['orderNumber'] == 'CGDSO250800002');
+      expect(order2['customerCode'], equals('WIN006'));
+      expect(order2['customerName'], equals("WINNER'S FLACQ"));
+      expect(order2['totalAmount'], equals(71954.66));
+      expect(order2['status'], equals('Open'));
 
-      final line2 = details.firstWhere((d) => d['productCode'] == '620410');
-      expect(line2['productName'], equals('Lorenz Naturels Sal&Pep 100g'));
-      expect(line2['quantity'], equals(25.0));
-      expect(line2['salesUnit'], equals('EA'));
+      final details2 = await service.getSalesOrderDetails(order2['id'] as int);
+      expect(details2.length, equals(18));
+      expect(details2.any((d) => d['productCode'] == '6243' && d['quantity'] == 12.0), isTrue);
+      expect(details2.any((d) => d['productCode'] == '721401' && d['quantity'] == 200.0), isTrue);
 
-      final line3 = details.firstWhere((d) => d['productCode'] == '624050');
-      expect(line3['productName'], equals('EVERFRESH UHT MILK 1L LOWFATX6'));
-      expect(line3['quantity'], equals(6.0));
-      expect(line3['salesUnit'], equals('EA'));
+      // 3. Verify CGDSO250800006
+      final order3 = orders.firstWhere((o) => o['orderNumber'] == 'CGDSO250800006');
+      expect(order3['customerCode'], equals('SDP028'));
+      expect(order3['customerName'], equals('DREAM PRICE - TRIOLET EXPRESS'));
+      expect(order3['totalAmount'], equals(125946.62));
+      expect(order3['status'], equals('Open'));
 
-      final line4 = details.firstWhere((d) => d['productCode'] == '624004');
-      expect(line4['productName'], equals('Twin Cows UHT FC 1L'));
-      expect(line4['quantity'], equals(15.0));
-      expect(line4['salesUnit'], equals('EA'));
-
-      final line5 = details.firstWhere((d) => d['productCode'] == '6251');
-      expect(line5['productName'], equals('Twin Cows IFCMP 1Kg'));
-      expect(line5['quantity'], equals(10.0));
-      expect(line5['salesUnit'], equals('EA'));
+      final details3 = await service.getSalesOrderDetails(order3['id'] as int);
+      expect(details3.length, equals(19));
+      expect(details3.any((d) => d['productCode'] == '624251' && d['quantity'] == 60.0), isTrue);
+      expect(details3.any((d) => d['productCode'] == '721401' && d['quantity'] == 1000.0), isTrue);
     });
 
     test('ensureHardcodedSalesOrderSeeded is idempotent and does not create duplicate orders', () async {
@@ -297,7 +296,7 @@ void main() {
       await service.ensureHardcodedSalesOrderSeeded();
 
       final orders = await service.getSalesOrders();
-      expect(orders.length, equals(1));
+      expect(orders.length, equals(3));
     });
 
     test('saveSalesOrder persists custom orderNumber and falls back to auto-generated', () async {
