@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../../../data/models/sales_invoice_product_model.dart';
-import '../../bloc/sales_invoice_cart_cubit.dart';
+import '../../bloc/sales_invoice_cart_cubit.dart'; // Keep for CartItem
+import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_event.dart';
+import '../../bloc/sales_invoice_state.dart';
 import '../../../data/models/sales_invoice_item_stock_model.dart';
 import '../../../data/local/local_database_helper.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
@@ -71,6 +74,17 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   Timer? _debounce;
 
+  double _originalInvoicedQty = 0.0;
+
+  bool get _isCreditNote {
+    try {
+      final state = context.read<SalesInvoiceBloc>().state;
+      return state is SalesInvoiceLoaded && state.transactionType == 'CREDIT_NOTE';
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +93,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         : 'Main (WH-01)';
     if (widget.existingItem != null) {
       _quantity = widget.existingItem!.quantity.toInt();
+      _originalInvoicedQty = widget.existingItem!.quantity;
       _qtyController.text = _quantity.toString();
       _basePriceController.text = widget.existingItem!.basePrice
           .toStringAsFixed(2);
@@ -95,16 +110,23 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _locationType = widget.existingItem!.locationType.isNotEmpty
           ? widget.existingItem!.locationType
           : _locationType;
-      _loadSpecificLotStock();
+      if (!_isCreditNote) {
+        _loadSpecificLotStock();
+      }
     } else {
-      _loadItemStocks().then((_) => _resolvePrice());
+      if (!_isCreditNote) {
+        _loadItemStocks().then((_) => _resolvePrice());
+      }
     }
   }
 
   Future<void> _resolvePrice() async {
+    if (_isCreditNote) return;
+
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () async {
-      final customer = context.read<SalesInvoiceCartCubit>().state.customer;
+      final state = context.read<SalesInvoiceBloc>().state;
+      final customer = state is SalesInvoiceLoaded ? state.customer : null;
       if (customer == null) return;
 
       if (mounted) {
@@ -186,7 +208,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       );
 
       // Calculate cart deduction for this lot
-      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final state = context.read<SalesInvoiceBloc>().state;
+      final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       double cartQty = 0;
       for (var item in cartItems) {
         if (item.product.sku == widget.product.sku &&
@@ -222,7 +245,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       final firstStock = stocks.first;
 
       // Calculate cart deduction for this lot
-      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final state = context.read<SalesInvoiceBloc>().state;
+      final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       double cartQty = 0;
       for (var item in cartItems) {
         if (item.product.sku == widget.product.sku &&
@@ -257,7 +281,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   }
 
   Future<void> _calculateVatRate() async {
-    final customer = context.read<SalesInvoiceCartCubit>().state.customer;
+    final state = context.read<SalesInvoiceBloc>().state;
+    final customer = state is SalesInvoiceLoaded ? state.customer : null;
     if (customer == null) {
       debugPrint('VAT Calc: No customer selected');
       return;
@@ -292,14 +317,16 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   bool get _isSalesOrder {
     try {
-      return context.read<SalesInvoiceCartCubit>().state.transactionType ==
-          'SI_SALES_ORDER';
+      final state = context.read<SalesInvoiceBloc>().state;
+      return state is SalesInvoiceLoaded && state.transactionType == 'SI_SALES_ORDER';
     } catch (_) {
       return false;
     }
   }
 
   double get _maxValidQty {
+    if (_isCreditNote) return _originalInvoicedQty;
+
     double maxQty = _lotTotalQty;
     if (widget.existingItem != null &&
         widget.existingItem!.lotNumber == _lotNumber &&
@@ -315,8 +342,13 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       int newQty = _quantity + change;
       if (newQty < 1) newQty = 1;
 
-      // Strict validation against maximum valid quantity (only enforced for invoices)
-      if (!_isSalesOrder && _maxValidQty > 0 && newQty > _maxValidQty) {
+      // Strict validation against maximum valid quantity
+      if (_isCreditNote) {
+        if (newQty > _maxValidQty) {
+          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
+          return;
+        }
+      } else if (!_isSalesOrder && _maxValidQty > 0 && newQty > _maxValidQty) {
         _showStockErrorDialog(
           'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
         );
@@ -356,7 +388,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
     final bool isFocLocked = widget.existingItem?.isFoc == true;
 
-    final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
+    final state = context.watch<SalesInvoiceBloc>().state;
+    final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
     double totalCartQtyOfProduct = 0;
     for (var item in cartItems) {
       if (item.product.sku == widget.product.sku) {
@@ -430,9 +463,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                _isSalesOrder
-                                    ? 'Stock: ${actualTotalStock.toInt()} | Order (No Limit)'
-                                    : 'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
+                                _isCreditNote
+                                    ? 'Original Qty: ${_originalInvoicedQty.toInt()}'
+                                    : _isSalesOrder
+                                        ? 'Stock: ${actualTotalStock.toInt()} | Order (No Limit)'
+                                        : 'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -466,7 +501,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         : (_isSalesOrder ? 'Not Assigned (Sales Order)' : 'None'),
                     isDark,
                     trailingIcon: Icons.chevron_right,
-                    onTap: () async {
+                    onTap: _isCreditNote ? null : () async {
                       final selectedLot = await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -704,12 +739,20 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 final parsed = int.tryParse(val);
                                 if (parsed != null && parsed > 0) {
                                   int updatedQty = parsed;
-                                  if (!_isSalesOrder &&
+                                  if (_isCreditNote) {
+                                    if (updatedQty > _maxValidQty) {
+                                      _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
+                                      _qtyController.text = _quantity.toString();
+                                      return;
+                                    }
+                                  } else if (!_isSalesOrder &&
                                       _maxValidQty > 0 &&
                                       updatedQty > _maxValidQty) {
                                     _showStockErrorDialog(
                                       'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
                                     );
+                                    _qtyController.text = _quantity.toString();
+                                    return;
                                   }
                                   setState(() => _quantity = updatedQty);
                                   _resolvePrice();
@@ -832,13 +875,13 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               focItem = CartItem(
                                 product: focProduct,
                                 quantity: _focQuantity,
-                                lotNumber: isSameItem ? _lotNumber : '',
-                                warehouse: isSameItem ? _warehouse : '',
-                                warehouseName: isSameItem ? _warehouseName : '',
-                                location: isSameItem ? _location : '',
-                                locationType: isSameItem ? _locationType : '',
                                 basePrice: 0.0,
-                                discountPercent: 0.0,
+                                discountPercent: 100.0,
+                                lotNumber: '',
+                                warehouse: '',
+                                warehouseName: '',
+                                location: '',
+                                locationType: '',
                                 vatRatePercent: _vatRatePercent,
                                 taxRule: _taxRuleCode,
                                 isFoc: true,
@@ -852,26 +895,41 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                             if (!mounted) return;
                             
-                            final cartCubit = context.read<SalesInvoiceCartCubit>();
+                            final bloc = context.read<SalesInvoiceBloc>();
+                            final state = bloc.state;
+                            if (state is! SalesInvoiceLoaded) return;
 
                             if (widget.editingIndex != null) {
-                              cartCubit.updateItem(widget.editingIndex!, item);
+                              bloc.add(UpdateCartItem(widget.editingIndex!, item));
                               
                               if (focItem != null) {
-                                final cartItems = cartCubit.state.items;
-                                int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && i.product.sku == focItem!.product.sku);
-                                if (existingFocIndex != -1) {
-                                  final existingFoc = cartItems[existingFocIndex];
-                                  focItem = focItem.copyWith(
-                                    lotNumber: existingFoc.lotNumber, 
-                                    location: existingFoc.location, 
-                                    warehouse: existingFoc.warehouse,
-                                    warehouseName: existingFoc.warehouseName,
-                                    locationType: existingFoc.locationType
-                                  );
-                                  cartCubit.updateItem(existingFocIndex, focItem);
-                                } else {
-                                  cartCubit.addItem(focItem);
+                                bool? confirmFoc = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Apply FOC Item?'),
+                                    content: Text('Do you want to apply the FOC item (${focItem!.product.name})?'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+                                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Yes')),
+                                    ],
+                                  ),
+                                );
+                                if (confirmFoc == true) {
+                                  final cartItems = state.cartItems;
+                                  int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && i.product.sku == focItem!.product.sku);
+                                  if (existingFocIndex != -1) {
+                                    final existingFoc = cartItems[existingFocIndex];
+                                    focItem = focItem!.copyWith(
+                                      lotNumber: existingFoc.lotNumber, 
+                                      location: existingFoc.location, 
+                                      warehouse: existingFoc.warehouse,
+                                      warehouseName: existingFoc.warehouseName,
+                                      locationType: existingFoc.locationType
+                                    );
+                                    bloc.add(UpdateCartItem(existingFocIndex, focItem!));
+                                  } else {
+                                    bloc.add(AddCartItem(focItem!));
+                                  }
                                 }
                               }
                               if (widget.fromProductSelection) {
@@ -880,9 +938,22 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 Navigator.of(context).pop();
                               }
                             } else {
-                              cartCubit.addItem(item);
+                              bloc.add(AddCartItem(item));
                               if (focItem != null) {
-                                cartCubit.addItem(focItem);
+                                bool? confirmFoc = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Apply FOC Item?'),
+                                    content: Text('Do you want to apply the FOC item (${focItem!.product.name})?'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+                                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Yes')),
+                                    ],
+                                  ),
+                                );
+                                if (confirmFoc == true) {
+                                  bloc.add(AddCartItem(focItem!));
+                                }
                               }
                               Navigator.of(context)
                                 ..pop()

@@ -4,6 +4,8 @@ import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../../../core/network_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
+import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_state.dart';
 
 class LotSelectionScreen extends StatefulWidget {
   final String itemCode;
@@ -43,7 +45,8 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
       final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
       final stocks = await repository.getSalesInvoiceItemStockDetails(widget.itemCode);
       
-      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final state = context.read<SalesInvoiceBloc>().state;
+      final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       final lots = stocks.map((stock) {
         double cartQty = 0;
         for (var item in cartItems) {

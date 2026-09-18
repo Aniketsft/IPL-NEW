@@ -4,8 +4,10 @@ import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:async';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../bloc/sales_invoice_cart_cubit.dart';
-import 'order_summary_screen.dart';
+import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_event.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../core/navigation/app_routes.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
   const CustomerSelectionScreen({Key? key}) : super(key: key);
@@ -305,14 +307,8 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
                               onTap: () async {
-                                context.read<SalesInvoiceCartCubit>().setCustomer(customer);
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    settings: const RouteSettings(name: 'OrderSummaryScreen'),
-                                    builder: (context) => const OrderSummaryScreen(),
-                                  ),
-                                );
+                                context.read<SalesInvoiceBloc>().add(SetCustomer(customer));
+                                final result = await context.push(AppRoutes.orderSummary);
                                 if (result == true && context.mounted) {
                                   Navigator.pop(context, true);
                                 }

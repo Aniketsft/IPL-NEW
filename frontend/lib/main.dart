@@ -37,6 +37,9 @@ import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/barcode_scanner/hardware_scanner_service.dart';
 import 'package:enterprise_auth_mobile/core/widgets/inactivity_watcher.dart';
+import 'package:enterprise_auth_mobile/core/navigation/app_router.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_repository.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,10 +53,16 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
-
-class MyApp extends StatelessWidget {
+// Global GoRouter instance (handled in state)
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  AppRouter? _appRouter;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +95,11 @@ class MyApp extends StatelessWidget {
           create: (context) => SalesInvoiceSyncRepository(
             networkService: context.read<NetworkService>(),
             productRepository: context.read<SalesInvoiceProductRepository>(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => SalesRepository(
+            context.read<NetworkService>(),
           ),
         ),
         RepositoryProvider(create: (_) => LocalRepository()),
@@ -149,8 +163,11 @@ class MyApp extends StatelessWidget {
                 authBloc.add(LogoutRequested());
               };
 
+              _appRouter = AppRouter(authBloc);
+
               return authBloc;
             },
+            lazy: false,
           ),
           BlocProvider(
             create: (context) => enterprise_auth_mobile_bloc.OrderBloc(
@@ -181,37 +198,39 @@ class MyApp extends StatelessWidget {
             ),
           ),
           BlocProvider(create: (_) => SalesInvoiceCartCubit()),
+          BlocProvider(
+            create: (context) => SalesInvoiceBloc(
+              repository: context.read<SalesRepository>(),
+            ),
+          ),
           BlocProvider(create: (_) => ThemeCubit()),
         ],
         child: BlocBuilder<ThemeCubit, ThemeMode>(
           builder: (context, themeMode) {
             return InactivityWatcher(
-              child: BlocListener<AuthBloc, AuthState>(
-                listener: (context, state) {
-                  if (state is Unauthenticated) {
-                    rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
-                  }
-                },
-                child: MaterialApp(
-                  navigatorKey: rootNavigatorKey,
-                  title: 'Enterprise Auth',
-                  theme: AppTheme.lightTheme,
-                  darkTheme: AppTheme.darkTheme,
-                  themeMode: themeMode,
-                  debugShowCheckedModeBanner: false,
-                  home: BlocBuilder<AuthBloc, AuthState>(
-                    builder: (context, state) {
-                      if (state is Authenticated) {
-                        return HomeScreen(
-                          username: state.username,
-                          permissions: state.permissions,
+              child: _appRouter == null 
+                  ? const SizedBox.shrink() 
+                  : MaterialApp.router(
+                      routerConfig: _appRouter!.router,
+                      title: 'Enterprise Auth',
+                      theme: AppTheme.lightTheme,
+                      darkTheme: AppTheme.darkTheme,
+                      themeMode: themeMode,
+                      debugShowCheckedModeBanner: false,
+                      builder: (context, child) {
+                        final mediaQueryData = MediaQuery.of(context);
+                        // Apply global scaling for smaller screens
+                        final isSmallScreen = mediaQueryData.size.width < 400;
+                        return MediaQuery(
+                          data: mediaQueryData.copyWith(
+                            textScaler: isSmallScreen
+                                ? const TextScaler.linear(0.85)
+                                : TextScaler.noScaling,
+                          ),
+                          child: child!,
                         );
-                      }
-                      return const LoginScreen();
-                    },
-                  ),
-                ),
-              ),
+                      },
+                    ),
             );
           },
         ),

@@ -10,6 +10,8 @@ import '../../../../../core/widgets/standard_filter.dart';
 import '../../../../../core/widgets/search_picker_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
+import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_state.dart';
 import 'add_item_detail_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -65,7 +67,8 @@ class _SalesInvoiceProductSelectionScreenState
       }
 
       // Check if product is already in the cart
-      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final state = context.read<SalesInvoiceBloc>().state;
+      final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       CartItem? existingItem;
       int? editingIndex;
       for (int i = 0; i < cartItems.length; i++) {
@@ -149,7 +152,8 @@ class _SalesInvoiceProductSelectionScreenState
     final prefs = await SharedPreferences.getInstance();
     _prefs = prefs;
     if (mounted) {
-      final isSalesOrder = context.read<SalesInvoiceCartCubit>().state.transactionType == 'SI_SALES_ORDER';
+      final state = context.read<SalesInvoiceBloc>().state;
+      final isSalesOrder = state is SalesInvoiceLoaded && state.transactionType == 'SI_SALES_ORDER';
       setState(() {
         _searchController.text = prefs.getString('si_product_search') ?? '';
         _stockFilter = isSalesOrder ? 'all' : (prefs.getString('si_product_stock_filter') ?? 'all');
@@ -289,10 +293,10 @@ class _SalesInvoiceProductSelectionScreenState
                 ? const Center(child: Text('No products found.'))
                 : ListView.separated(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(8),
                     itemCount: _products.length + (_hasMore ? 1 : 0),
                     separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       if (index == _products.length) {
                         return const Center(
@@ -317,7 +321,8 @@ class _SalesInvoiceProductSelectionScreenState
     SalesInvoiceProductModel product,
     bool isDark,
   ) {
-    final cartItems = context.watch<SalesInvoiceCartCubit>().state.items;
+    final state = context.watch<SalesInvoiceBloc>().state;
+    final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
     double cartQty = 0;
     CartItem? existingItem;
     int? editingIndex;
@@ -363,7 +368,7 @@ class _SalesInvoiceProductSelectionScreenState
                   ),
                 ],
         ),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -374,7 +379,7 @@ class _SalesInvoiceProductSelectionScreenState
                   child: Text(
                     product.sku,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
@@ -388,7 +393,7 @@ class _SalesInvoiceProductSelectionScreenState
                       TextSpan(
                         text: '${actualStock.toStringAsFixed(0)} ',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
@@ -398,7 +403,7 @@ class _SalesInvoiceProductSelectionScreenState
                             ? product.salesUnit
                             : 'units',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
                       ),
@@ -411,12 +416,12 @@ class _SalesInvoiceProductSelectionScreenState
             Text(
               product.name,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white : Colors.black87,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

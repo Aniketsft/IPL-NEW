@@ -5,6 +5,9 @@ import '../../../../../../core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'order_summary_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
@@ -165,20 +168,21 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
         }
       }
 
-      // Populate Cubit
-      final cubit = context.read<SalesInvoiceCartCubit>();
-      cubit.clearCart(
+      // Populate Bloc
+      final bloc = context.read<SalesInvoiceBloc>();
+      bloc.add(ClearCart());
+      bloc.add(InitializeTransaction(
         transactionType: 'INVOICE', 
-        sourceSalesOrderId: widget.order['id'] as int,
-      );
+        originalDocumentId: widget.order['id'].toString(),
+      ));
       
-      cubit.setCustomer({
+      bloc.add(SetCustomer({
         'code': widget.order['customerCode'],
         'name': widget.order['customerName'],
-      });
+      }));
 
       for (final detail in _details) {
-        cubit.addItem(CartItem(
+        bloc.add(AddCartItem(CartItem(
           product: SalesInvoiceProductModel(
             sku: detail['productCode'],
             name: detail['productName'],

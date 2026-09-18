@@ -4,9 +4,12 @@ import 'package:intl/intl.dart';
 import '../../../../../../core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
-import 'customer_selection_screen.dart';
-import 'sales_order_details_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
+import 'package:go_router/go_router.dart';
+import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
 
 class SalesOrdersListScreen extends StatefulWidget {
   const SalesOrdersListScreen({super.key});
@@ -77,13 +80,70 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                       ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SalesOrderDetailsScreen(order: order),
-                            ),
-                          ).then((_) => _loadOrders()); // Reload on return in case it was converted
+                        onTap: () async {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                          );
+                          try {
+                            final details = await _service.getSalesOrderDetails(order['id'] as int);
+                            if (context.mounted) {
+                              Navigator.pop(context); // Close loading dialog
+                              
+                              final bloc = context.read<SalesInvoiceBloc>();
+                              bloc.add(ClearCart());
+                              
+                              // Set transaction type for viewing
+                              bloc.add(InitializeTransaction(
+                                transactionType: 'VIEW_SI_SALES_ORDER',
+                                originalDocumentId: order['id'].toString(),
+                              ));
+                              
+                              bloc.add(SetCustomer({
+                                'code': order['customerCode'],
+                                'name': order['customerName'],
+                              }));
+
+                              if (order['deliveryDate'] != null) {
+                                final dt = DateTime.tryParse(order['deliveryDate'].toString());
+                                if (dt != null) {
+                                  bloc.add(SetDeliveryDate(dt));
+                                }
+                              }
+
+                              for (final detail in details) {
+                                bloc.add(AddCartItem(
+                                  CartItem(
+                                    product: SalesInvoiceProductModel(
+                                      sku: detail['productCode'],
+                                      name: detail['productName'],
+                                      stockQty: 0,
+                                      warehouse: detail['warehouse'] ?? '',
+                                      salesUnit: detail['salesUnit'] ?? '',
+                                    ),
+                                    quantity: detail['quantity'] as double,
+                                    basePrice: detail['basePrice'] as double,
+                                    discountAmountFlat: detail['discountAmount'] as double,
+                                    vatRatePercent: 0,
+                                    taxRule: detail['taxRule'] ?? '',
+                                    lotNumber: detail['lotNumber'] ?? '',
+                                    warehouse: detail['warehouse'] ?? '',
+                                    location: detail['location'] ?? '',
+                                  )
+                                ));
+                              }
+
+                              context.push(AppRoutes.orderSummary).then((_) => _loadOrders());
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error loading details: $e')),
+                              );
+                            }
+                          }
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -240,14 +300,13 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          context.read<SalesInvoiceCartCubit>().clearCart(transactionType: 'SI_SALES_ORDER');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              settings: const RouteSettings(name: 'CustomerSelectionScreen'),
-              builder: (_) => const CustomerSelectionScreen(),
-            ),
-          ).then((_) => _loadOrders()); // Reload list when returning
+          final bloc = context.read<SalesInvoiceBloc>();
+          bloc.add(ClearCart());
+          bloc.add(const InitializeTransaction(
+            transactionType: 'SI_SALES_ORDER',
+            originalDocumentId: null,
+          ));
+          context.push(AppRoutes.customerSelection).then((_) => _loadOrders());
         },
         icon: const Icon(Icons.add),
         label: const Text('New Order'),

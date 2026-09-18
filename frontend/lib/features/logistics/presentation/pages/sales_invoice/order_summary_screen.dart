@@ -8,7 +8,12 @@ import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../core/navigation/app_routes.dart';
 import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
 import 'payment_processing_screen.dart';
@@ -33,6 +38,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   void onHardwareScan(String data) async {
     if (_isProcessingScan || data.isEmpty) return;
     
+    final currentState = context.read<SalesInvoiceBloc>().state;
+    if (currentState is SalesInvoiceLoaded && currentState.transactionType == 'VIEW_SI_SALES_ORDER') {
+      return; // Do not allow scanning in view mode
+    }
+
     setState(() => _isProcessingScan = true);
     
     try {
@@ -53,7 +63,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
       }
 
       // Check if product is already in the cart
-      final cartItems = context.read<SalesInvoiceCartCubit>().state.items;
+      final currentState = context.read<SalesInvoiceBloc>().state;
+      if (currentState is! SalesInvoiceLoaded) return;
+      final cartItems = currentState.cartItems;
       CartItem? existingItem;
       int? editingIndex;
       for (int i = 0; i < cartItems.length; i++) {
@@ -107,15 +119,19 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return BlocBuilder<SalesInvoiceCartCubit, SalesInvoiceCartState>(
-      builder: (context, cartState) {
+    return BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
+      builder: (context, state) {
+        if (state is! SalesInvoiceLoaded) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final cartState = state;
         return IndustrialModuleLayout(
           title: 'Order Summary',
           body: Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -124,9 +140,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         const SizedBox(height: 16),
                       ],
                       Text(
-                        'Line Items (${cartState.items.length})',
+                        'Line Items (${cartState.cartItems.length})',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
@@ -134,7 +150,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       const SizedBox(height: 12),
 
                       // Line Items List
-                      if (cartState.items.isEmpty)
+                      if (cartState.cartItems.isEmpty)
                         Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
@@ -148,55 +164,58 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         ListView.separated(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: cartState.items.length,
+                          itemCount: cartState.cartItems.length,
                           separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                           itemBuilder: (context, index) {
-                            final item = cartState.items[index];
+                            final item = cartState.cartItems[index];
                             return _buildLineItemCard(
                               context,
                               item,
                               index,
                               isDark,
+                              cartState.transactionType,
                             );
                           },
                         ),
 
-                      const SizedBox(height: 16),
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const SalesInvoiceProductSelectionScreen(
-                                      siteCode: 'IPL',
-                                    ),
-                              ),
-                            );
-                          },
-                          icon: Icon(
-                            Icons.add,
-                            color: theme.primaryColor,
-                            size: 20,
-                          ),
-                          label: Text(
-                            'ADD PRODUCT',
-                            style: TextStyle(
+                      if (cartState.transactionType != 'VIEW_SI_SALES_ORDER') ...[
+                        const SizedBox(height: 16),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const SalesInvoiceProductSelectionScreen(
+                                        siteCode: 'IPL',
+                                      ),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              Icons.add,
                               color: theme.primaryColor,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
+                              size: 20,
                             ),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 24,
+                            label: Text(
+                              'ADD PRODUCT',
+                              style: TextStyle(
+                                color: theme.primaryColor,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 24,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -205,14 +224,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               // Calculation Section Fixed at Bottom
               Container(
                 color: isDark ? theme.colorScheme.surface : Colors.grey[50],
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                 child: _buildCalculationCard(cartState, theme, isDark),
               ),
 
               // Action Buttons Container
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 decoration: BoxDecoration(
                   color: isDark ? theme.colorScheme.surface : Colors.white,
                   boxShadow: [
@@ -229,12 +248,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                     children: [
                       Builder(
                         builder: (context) {
-                          final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE';
+                          final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE' || cartState.transactionType == 'CREDIT_NOTE';
                           final isZeroAmount = cartState.grandTotal <= 0;
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (isZeroAmount && cartState.items.isNotEmpty)
+                              if (isZeroAmount && cartState.cartItems.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Text(
@@ -252,10 +271,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                 width: double.infinity,
                                 height: 48,
                                 child: ElevatedButton.icon(
-                                  onPressed: (cartState.items.isEmpty || isZeroAmount)
+                                  onPressed: (cartState.cartItems.isEmpty || isZeroAmount)
                                       ? null
                                       : () {
-                                      final missingLotItems = cartState.items.where((i) => i.isFoc && i.lotNumber.isEmpty);
+                                      final missingLotItems = cartState.cartItems.where((i) => i.isFoc && i.lotNumber.isEmpty);
                                       if (missingLotItems.isNotEmpty) {
                                         showDialog(
                                           context: context,
@@ -278,14 +297,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                         return;
                                       }
 
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              PaymentProcessingScreen(
-                                                isCreditNoteRefund: isCreditNote,
-                                              ),
-                                        ),
+                                      if (cartState.transactionType == 'VIEW_SI_SALES_ORDER') {
+                                        _handleOrderConversion(context, cartState);
+                                        return;
+                                      }
+
+                                      context.push(
+                                        AppRoutes.paymentProcessing,
+                                        extra: isCreditNote,
                                       );
                                     },
                                     icon: Icon(
@@ -328,17 +347,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
   IconData _getConfirmIcon(String transactionType) {
     if (transactionType == 'SI_SALES_ORDER') return Icons.save;
-    if (transactionType == 'STANDALONE_CREDIT_NOTE') return Icons.assignment_return;
+    if (transactionType == 'VIEW_SI_SALES_ORDER') return Icons.transform;
+    if (transactionType == 'STANDALONE_CREDIT_NOTE' || transactionType == 'CREDIT_NOTE') return Icons.assignment_return;
     return Icons.check_circle;
   }
 
   String _getConfirmText(String transactionType) {
     if (transactionType == 'SI_SALES_ORDER') return 'Save Sales Order';
+    if (transactionType == 'VIEW_SI_SALES_ORDER') return 'Convert to Invoice';
     if (transactionType == 'STANDALONE_CREDIT_NOTE') return 'Proceed to Refund';
+    if (transactionType == 'CREDIT_NOTE') return 'Confirm Reversal';
     return 'Confirm';
   }
 
-  Future<void> _saveSalesOrder(BuildContext context, SalesInvoiceCartState cartState) async {
+  Future<void> _saveSalesOrder(BuildContext context, SalesInvoiceLoaded cartState) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final deliveryDate = cartState.deliveryDate ?? today;
@@ -353,7 +375,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
       final service = SISalesOrderService();
       await service.saveSalesOrder(
         customer: cartState.customer!,
-        items: cartState.items,
+        items: cartState.cartItems,
         totalAmount: cartState.grandTotal,
         deliveryDate: deliveryDate.toIso8601String(),
       );
@@ -368,7 +390,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           ),
         );
         
-        context.read<SalesInvoiceCartCubit>().clearCart();
+        context.read<SalesInvoiceBloc>().add(ClearCart());
         Navigator.pop(context, true); // return true so CustomerSelectionScreen pops back to SalesOrdersListScreen
       }
     } catch (e) {
@@ -376,7 +398,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         Navigator.pop(context); // close dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save order: $e'),
+            content: Text('Failed to save Sales Order: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -384,9 +406,36 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     }
   }
 
+  Future<void> _handleOrderConversion(BuildContext context, SalesInvoiceLoaded cartState) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Provide a small delay to simulate processing or allow future stock check API integration
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!context.mounted) return;
+    Navigator.pop(context);
+
+    // Convert to INVOICE
+    context.read<SalesInvoiceBloc>().add(InitializeTransaction(
+      transactionType: 'INVOICE',
+      originalDocumentId: cartState.originalDocumentId,
+    ));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Order converted to Invoice. Please proceed to payment.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   Widget _buildDeliveryDateCard(
     BuildContext context,
-    SalesInvoiceCartState cartState,
+    SalesInvoiceLoaded cartState,
     bool isDark,
   ) {
     final theme = Theme.of(context);
@@ -432,7 +481,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           borderRadius: BorderRadius.circular(12),
           onTap: () => _pickDeliveryDate(context, cartState),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
             child: Row(
               children: [
                 Container(
@@ -510,7 +559,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     );
   }
 
-  Future<void> _pickDeliveryDate(BuildContext context, SalesInvoiceCartState cartState) async {
+  Future<void> _pickDeliveryDate(BuildContext context, SalesInvoiceLoaded cartState) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final currentSelected = cartState.deliveryDate ?? today;
@@ -526,7 +575,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     );
 
     if (picked != null && context.mounted) {
-      context.read<SalesInvoiceCartCubit>().setDeliveryDate(picked);
+      context.read<SalesInvoiceBloc>().add(SetDeliveryDate(picked));
     }
   }
 
@@ -535,9 +584,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     CartItem item,
     int index,
     bool isDark,
+    String transactionType,
   ) {
     final theme = Theme.of(context);
     final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty;
+    final isViewOnly = transactionType == 'VIEW_SI_SALES_ORDER';
 
     return Material(
       color: isDark ? Colors.grey[900] : Colors.white,
@@ -551,7 +602,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
       elevation: isDark ? 0 : 0.5,
       shadowColor: Colors.black.withOpacity(0.05),
       child: InkWell(
-        onTap: () {
+        onTap: isViewOnly ? null : () {
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -563,7 +614,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             ),
           );
         },
-        onLongPress: () {
+        onLongPress: isViewOnly ? null : () {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -578,7 +629,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 ),
                 TextButton(
                   onPressed: () {
-                    context.read<SalesInvoiceCartCubit>().removeItem(index);
+                    context.read<SalesInvoiceBloc>().add(RemoveCartItem(index));
                     Navigator.pop(ctx);
                   },
                   child: const Text(
@@ -592,7 +643,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         },
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -728,12 +779,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }
 
   Widget _buildCalculationCard(
-    SalesInvoiceCartState cart,
+    SalesInvoiceLoaded cart,
     ThemeData theme,
     bool isDark,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[900] : Colors.white,
         borderRadius: BorderRadius.circular(8),

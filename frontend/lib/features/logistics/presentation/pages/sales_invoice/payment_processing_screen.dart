@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
@@ -78,7 +80,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     return _payments.fold(0.0, (sum, item) => sum + item.amount);
   }
 
-  void _addPayment(SalesInvoiceCartState cartState) {
+  void _addPayment(SalesInvoiceLoaded cartState) {
     final grandTotal = cartState.grandTotal;
     if (grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -228,8 +230,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     );
   }
 
-  Future<void> _processPayment(SalesInvoiceCartState cartState) async {
-    if (cartState.customer == null || cartState.items.isEmpty) return;
+  Future<void> _processPayment(SalesInvoiceLoaded cartState) async {
+    if (cartState.customer == null || cartState.cartItems.isEmpty) return;
 
     final grandTotal = cartState.grandTotal;
     if (grandTotal <= 0) {
@@ -276,9 +278,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
 
-      final authState = context.read<AuthBloc>().state;
-      final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
-      final selectedSite = cartState.site ?? fallbackSite;
+      // Default to IPL if no site selected
+      final fallbackSite = context.read<AuthBloc>().state is Authenticated 
+          ? (context.read<AuthBloc>().state as Authenticated).siteCode ?? 'IPL' 
+          : 'IPL';
+      final selectedSite = cartState.customer?['site'] ?? fallbackSite;
 
       // Handle Credit Note Refund flow
       if (widget.isCreditNoteRefund) {
@@ -292,7 +296,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           createdBy: username,
           deviceId: deviceId,
           reference: _referenceController.text.trim(),
-          items: cartState.items.map((item) => CreditNoteLineModel(
+          items: cartState.cartItems.map((item) => CreditNoteLineModel(
             creditNoteId: '',
             lineNo: 1000,
             quantity: item.quantity,
@@ -308,14 +312,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         );
 
         if (!mounted) return;
-        context.read<SalesInvoiceCartCubit>().clearCart();
+        context.read<SalesInvoiceBloc>().add(ClearCart());
 
         // Print thermal receipt
         await Printing.layoutPdf(
           onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
             pageFormat: format,
             creditNote: creditNote,
-            resolvedLines: cartState.items.map((i) => {
+            resolvedLines: cartState.cartItems.map((i) => {
               'sku': i.product.sku,
               'name': i.product.name,
               'quantity': i.quantity,
@@ -330,7 +334,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
         // Resolve the pricing rule: use the first matched pricelist code from any cart item.
         // Falls back to empty string if all items were manually priced.
-        final resolvedPricingRule = cartState.items
+        final resolvedPricingRule = cartState.cartItems
             .map((i) => i.pricingSource)
             .where((s) => s.isNotEmpty && s != 'MANUAL' && !s.contains('discount-only'))
             .firstOrNull ?? '';
@@ -363,7 +367,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       });
 
       // 2. Insert Lines & Deduct Stock
-      for (var item in cartState.items) {
+      for (var item in cartState.cartItems) {
         batch.insert(LocalDatabaseHelper.tableSiInvoiceLines, {
           'invoiceId': invoiceId,
           'sku': item.product.sku,
@@ -415,13 +419,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       await batch.commit(noResult: true);
 
-      if (cartState.sourceSalesOrderId != null) {
+      if (cartState.originalDocumentId != null) {
         final service = SISalesOrderService();
-        await service.markOrderAsConverted(cartState.sourceSalesOrderId!);
+        await service.markOrderAsConverted(int.parse(cartState.originalDocumentId!));
       }
 
       if (!mounted) return;
-      context.read<SalesInvoiceCartCubit>().clearCart();
+      context.read<SalesInvoiceBloc>().add(ClearCart());
 
       // Get distinct payment methods for the preview screen summary
       final distinctMethods = _payments.map((p) => p.method).toSet().join(', ');
@@ -438,7 +442,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             grandTotal: grandTotal,
             paymentMethod: distinctMethods,
             paymentStatus: mainStatus,
-            items: cartState.items,
+            items: cartState.cartItems,
           ),
         ),
       );
@@ -484,7 +488,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected
                 ? AppTheme.primaryAmber.withOpacity(0.15)
@@ -536,7 +540,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                   color: isSelected
                       ? AppTheme.primaryAmber
@@ -559,36 +563,50 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         title: Text(widget.isCreditNoteRefund ? 'Refund Processing' : 'Payment Processing'),
         centerTitle: true,
       ),
-      body: BlocBuilder<SalesInvoiceCartCubit, SalesInvoiceCartState>(
+      body: BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
         builder: (context, state) {
-          if (state.customer == null)
+          if (state is! SalesInvoiceLoaded) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final cartState = state;
+          
+          if (cartState.customer == null && !widget.isCreditNoteRefund) {
             return const Center(child: Text('No Customer'));
+          }
 
-          final customer = state.customer!;
-          final statusStr = customer['statusFlag']?.toString() ?? '1';
-
-          bool isChequeEnabled = (statusStr == '1');
+          bool isChequeEnabled = false;
           bool isCreditEnabled = false;
 
-          if (statusStr != '3') {
-            final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
-            final outstandingStr =
-                customer['outstandingBalance']?.toString() ?? '0';
-            double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
-            double outstanding = double.tryParse(outstandingStr) ?? 0.0;
+          if (widget.isCreditNoteRefund) {
+            // For refunds, we don't care about the customer's payment term status
+            // because we are refunding them money, which adds to their credit balance.
+            isCreditEnabled = true;
+          } else {
+            final customer = cartState.customer!;
+            final statusStr = customer['statusFlag']?.toString() ?? '1';
 
-            // Calculate existing credit payments in the cart
-            double cartCreditTotal = _payments
-                .where((p) => p.method == 'CREDIT')
-                .fold(0.0, (sum, p) => sum + p.amount);
+            isChequeEnabled = (statusStr == '1');
 
-            if (creditLimit > 0 &&
-                (creditLimit - outstanding - cartCreditTotal) > 0) {
-              isCreditEnabled = true;
+            if (statusStr != '3') {
+              final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
+              final outstandingStr =
+                  customer['outstandingBalance']?.toString() ?? '0';
+              double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
+              double outstanding = double.tryParse(outstandingStr) ?? 0.0;
+
+              // Calculate existing credit payments in the cart
+              double cartCreditTotal = _payments
+                  .where((p) => p.method == 'CREDIT')
+                  .fold(0.0, (sum, p) => sum + p.amount);
+
+              if (creditLimit > 0 &&
+                  (creditLimit - outstanding - cartCreditTotal) > 0) {
+                isCreditEnabled = true;
+              }
             }
           }
 
-          final grandTotal = state.grandTotal;
+          final grandTotal = cartState.grandTotal;
           final totalPaid = _getTotalPaid();
           final remaining = grandTotal - totalPaid;
           final isFullyPaid = grandTotal > 0 && remaining <= 0;
@@ -603,7 +621,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -624,7 +642,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                           fillColor: Colors.grey.withOpacity(0.05),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       if (!isFullyPaid) ...[
                         Text(
                           widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT',
@@ -664,7 +682,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
                         TextField(
                           controller: _amountController,
@@ -679,11 +697,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                             fillColor: Colors.grey.withOpacity(0.05),
                           ),
                           style: const TextStyle(
-                            fontSize: 24,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
                         // Dynamic Fields
                         if (_selectedMethod == 'CHEQUE') ...[
@@ -784,16 +802,16 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         ],
 
                         ElevatedButton.icon(
-                          onPressed: () => _addPayment(state),
+                          onPressed: () => _addPayment(cartState),
                           icon: const Icon(Icons.add),
                           label: const Text('ADD PAYMENT'),
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ],
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       if (_payments.isNotEmpty) ...[
                         const Text(
                           'PAYMENT ENTRIES',
@@ -875,10 +893,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   ],
                 ),
                 padding: EdgeInsets.fromLTRB(
-                  24,
-                  24,
-                  24,
-                  MediaQuery.of(context).padding.bottom + 16,
+                  16,
+                  16,
+                  16,
+                  MediaQuery.of(context).padding.bottom + 8,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -983,14 +1001,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                           ],
                         ),
                       ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     ElevatedButton(
                       onPressed: (!isFullyPaid || grandTotal <= 0 || _isProcessing)
                           ? null
                           : () => _processPayment(state),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: _isProcessing
                           ? const SizedBox(
@@ -1003,7 +1021,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                                   ? 'CONFIRM CREDIT NOTE REFUND'
                                   : 'CONFIRM INVOICE',
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1,
                               ),

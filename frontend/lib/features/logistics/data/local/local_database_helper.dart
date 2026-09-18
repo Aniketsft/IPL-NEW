@@ -3196,6 +3196,20 @@ class LocalDatabaseHelper {
     return result.map((r) => r['paymentTerm'].toString()).toList();
   }
 
+  Future<Map<String, dynamic>?> getSalesInvoiceCustomerByCode(String code) async {
+    final db = await instance.database;
+    final results = await db.query(
+      tableSalesInvoiceCustomers,
+      where: '$colCode = ?',
+      whereArgs: [code],
+      limit: 1,
+    );
+    if (results.isNotEmpty) {
+      return results.first;
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getPaginatedSalesInvoiceCustomers({
     int limit = 25,
     int offset = 0,

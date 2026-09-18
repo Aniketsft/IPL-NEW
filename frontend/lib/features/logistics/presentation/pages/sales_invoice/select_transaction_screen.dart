@@ -10,7 +10,8 @@ import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
 import 'amount_only_credit_note_screen.dart';
-import '../../bloc/sales_invoice_cart_cubit.dart';
+import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_event.dart';
 import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 
@@ -27,7 +28,8 @@ class SelectTransactionScreen extends StatefulWidget {
 }
 
 class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
-  late Future<List<String>> _warehousesFuture;
+  Future<List<String>>? _warehousesFuture;
+  String? _currentSite;
 
   @override
   void initState() {
@@ -57,9 +59,8 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
               icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
               tooltip: 'Sync Sales Data',
               onPressed: () {
-                final selectedSite = context.read<SalesInvoiceCartCubit>().state.site;
                 final authState = context.read<AuthBloc>().state;
-                final siteCode = selectedSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
+                final siteCode = _currentSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
                 
                 context.read<SalesInvoiceSyncBloc>().add(
                       StartSalesInvoiceSyncRequested(siteCode: siteCode),
@@ -102,37 +103,35 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                 
                 final sites = ['ALL', ...sitesList].toSet().toList();
                 
-                return BlocBuilder<SalesInvoiceCartCubit, SalesInvoiceCartState>(
-                  builder: (context, state) {
-                    final currentSite = state.site ?? 'ALL';
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: sites.contains(currentSite) ? currentSite : sites.first,
-                          icon: Icon(Icons.location_on, color: theme.primaryColor),
-                          dropdownColor: theme.cardColor,
-                          items: sites.toSet().toList().map<DropdownMenuItem<String>>((site) {
-                            return DropdownMenuItem<String>(
-                              value: site,
-                              child: Text('Sales Site: $site', style: TextStyle(fontWeight: FontWeight.bold)),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              context.read<SalesInvoiceCartCubit>().setSite(val);
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
+                final currentSite = _currentSite ?? fallbackSite;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: sites.contains(currentSite) ? currentSite : sites.first,
+                      icon: Icon(Icons.location_on, color: theme.primaryColor),
+                      dropdownColor: theme.cardColor,
+                      items: sites.toSet().toList().map<DropdownMenuItem<String>>((site) {
+                        return DropdownMenuItem<String>(
+                          value: site,
+                          child: Text('Sales Site: $site', style: TextStyle(fontWeight: FontWeight.bold)),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _currentSite = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
                 );
               },
             ),
@@ -380,6 +379,7 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                       MaterialPageRoute(
                         builder: (context) => const TransactionHistoryScreen(
                           transactionType: 'INVOICE',
+                          isForReversal: true,
                         ),
                       ),
                     );
@@ -402,7 +402,8 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                   subtitle: const Text('Select customer & products directly; pick Cash or Credit refund'),
                   onTap: () {
                     Navigator.pop(ctx);
-                    context.read<SalesInvoiceCartCubit>().clearCart(transactionType: 'STANDALONE_CREDIT_NOTE');
+                    context.read<SalesInvoiceBloc>().add(ClearCart());
+                    context.read<SalesInvoiceBloc>().add(const InitializeTransaction(transactionType: 'STANDALONE_CREDIT_NOTE'));
                     Navigator.push(
                       context,
                       MaterialPageRoute(
