@@ -1149,7 +1149,7 @@ class _SalesOrderDetailScreenState extends State<SalesOrderDetailScreen>
           child: AnimatedPadding(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            padding: EdgeInsets.all(_isHeaderExpanded ? 24 : 16),
+            padding: EdgeInsets.all(_isHeaderExpanded ? 16 : 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

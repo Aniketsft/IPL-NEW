@@ -1127,7 +1127,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1192,7 +1192,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
             widget.product.description,
             style: TextStyle(
               color: isDark ? Colors.white : Colors.black87,
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1492,7 +1492,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                 setState(() => _isSettingsExpanded = !_isSettingsExpanded),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
                   Icon(Icons.settings_outlined, color: orange, size: 20),
@@ -1726,7 +1726,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
     final double tolerance = isEA ? 0.0 : _tolerancePercentage;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -2133,7 +2133,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
@@ -2195,7 +2195,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                       ),
                       style: TextStyle(
                         color: orange,
-                        fontSize: 56,
+                        fontSize: 40,
                         fontWeight: FontWeight.w900,
                         height: 1.0,
                       ),
@@ -2217,7 +2217,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
               ],
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
 
           // ── Primary: Scan instruction text ──
           Row(
@@ -2271,7 +2271,7 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> wit
                   onTap: _showManualBarcodeDialog,
                   borderRadius: BorderRadius.circular(32),
                   child: Container(
-                    height: 56,
+                    height: 48,
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(32),

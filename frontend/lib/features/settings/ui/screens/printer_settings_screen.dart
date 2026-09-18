@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/models/printer_device.dart';
-import 'package:printing/printing.dart';
+
 class PrinterSettingsScreen extends StatefulWidget {
   final List<String> permissions;
   const PrinterSettingsScreen({super.key, required this.permissions});
@@ -32,17 +32,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 24),
-          _sectionHeader('PRINTING MODE', isDark),
-          _modeSelector(orange, isDark),
-          
-          if (PrinterService.instance.currentMode == PrintMode.directIp) ...[
-            const SizedBox(height: 24),
-            _sectionHeader('IP THERMAL PRINTER SETTINGS', isDark),
-          ] else ...[
-            const SizedBox(height: 24),
-            _sectionHeader('SYSTEM PDF PRINTERS', isDark),
-          ],
-          
+          _sectionHeader('IP THERMAL PRINTER SETTINGS', isDark),
           _printerList(orange, isDark),
           const SizedBox(height: 16),
           _addPrinterButton(orange, isDark),
@@ -70,38 +60,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     );
   }
 
-  Widget _modeSelector(Color orange, bool isDark) {
-    final mode = PrinterService.instance.currentMode;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SegmentedButton<PrintMode>(
-        segments: const [
-          ButtonSegment(value: PrintMode.system, label: Text('SYSTEM PDF'), icon: Icon(Icons.picture_as_pdf)),
-          ButtonSegment(value: PrintMode.directIp, label: Text('DIRECT IP'), icon: Icon(Icons.lan)),
-        ],
-        selected: {mode},
-        onSelectionChanged: _canUpdate ? (newSelection) async {
-          await PrinterService.instance.setPrintMode(newSelection.first);
-          setState(() {});
-        } : null,
-        style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: orange,
-          selectedForegroundColor: Colors.black,
-          side: BorderSide(color: orange.withValues(alpha: 0.5)),
-        ),
-      ),
-    );
-  }
-
   Widget _printerList(Color orange, bool isDark) {
-    final mode = PrinterService.instance.currentMode;
-    final printers = PrinterService.instance.printers.where((p) => p.mode == mode).toList();
+    final printers = PrinterService.instance.printers;
     
     if (printers.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
         child: Text(
-          'No printers configured for this mode.',
+          'No printers configured.',
           style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
           textAlign: TextAlign.center,
         ),
@@ -114,11 +80,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       itemCount: printers.length,
       itemBuilder: (context, index) {
         final printer = printers[index];
-        final isDefault = (mode == PrintMode.directIp && PrinterService.instance.defaultDirectIpPrinter?.id == printer.id) ||
-                          (mode == PrintMode.system && PrinterService.instance.defaultSystemPrinter?.id == printer.id);
+        final isDefault = PrinterService.instance.defaultDirectIpPrinter?.id == printer.id;
 
         return ListTile(
-          leading: Icon(mode == PrintMode.directIp ? Icons.print : Icons.picture_as_pdf, color: isDefault ? orange : Colors.grey),
+          leading: Icon(Icons.print, color: isDefault ? orange : Colors.grey),
           title: Text(printer.name, style: TextStyle(fontWeight: isDefault ? FontWeight.bold : FontWeight.normal)),
           subtitle: Text('${printer.printerModel}${printer.ipAddress != null ? ' - ${printer.ipAddress}:${printer.port}' : ''}'),
           trailing: Row(
@@ -140,7 +105,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
             ],
           ),
           onTap: _canUpdate ? () async {
-            await PrinterService.instance.setDefaultPrinter(printer.id, mode);
+            await PrinterService.instance.setDefaultPrinter(printer.id);
             setState(() {});
           } : null,
         );
@@ -165,29 +130,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   }
 
   Future<void> _showAddEditPrinterDialog(BuildContext context, Color orange, bool isDark) async {
-    final mode = PrinterService.instance.currentMode;
     final nameCtrl = TextEditingController();
     final modelCtrl = TextEditingController();
     final ipCtrl = TextEditingController();
     final portCtrl = TextEditingController(text: '9100');
-
-    List<Printer>? availablePrinters;
-    Printer? selectedPrinter;
-
-    if (mode == PrintMode.system) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const Center(child: CircularProgressIndicator()),
-      );
-      try {
-        availablePrinters = await Printing.listPrinters();
-      } catch (e) {
-        availablePrinters = [];
-      }
-      if (!context.mounted) return;
-      Navigator.pop(context); // Close loading indicator
-    }
 
     if (!context.mounted) return;
 
@@ -195,36 +141,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setStateDialog) => AlertDialog(
-          title: Text('Add ${mode == PrintMode.directIp ? 'Direct IP' : 'System PDF'} Printer'),
+          title: const Text('Add Direct IP Printer'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (mode == PrintMode.system && availablePrinters != null) ...[
-                  if (availablePrinters!.isEmpty)
-                    const Text('No network printers discovered. Please ensure you are connected to the same network as your printers.', style: TextStyle(color: Colors.redAccent)),
-                  if (availablePrinters!.isNotEmpty)
-                    DropdownButtonFormField<Printer>(
-                      decoration: const InputDecoration(labelText: 'Select Network Printer'),
-                      value: selectedPrinter,
-                      items: availablePrinters!.map((p) {
-                        return DropdownMenuItem(
-                          value: p,
-                          child: Text(p.name, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setStateDialog(() {
-                          selectedPrinter = val;
-                          if (val != null) {
-                            nameCtrl.text = val.name;
-                            modelCtrl.text = val.model ?? 'System Printer';
-                            ipCtrl.text = val.url; // Use URL to store system printer connection info if needed
-                          }
-                        });
-                      },
-                    ),
-                ],
                 TextField(
                   controller: nameCtrl,
                   decoration: const InputDecoration(labelText: 'Printer Name (e.g. Warehouse 1)'),
@@ -233,18 +154,16 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   controller: modelCtrl,
                   decoration: const InputDecoration(labelText: 'Printer Model (e.g. Zebra ZD421)'),
                 ),
-                if (mode == PrintMode.directIp) ...[
-                  TextField(
-                    controller: ipCtrl,
-                    decoration: const InputDecoration(labelText: 'IP Address'),
-                    keyboardType: TextInputType.number,
-                  ),
-                  TextField(
-                    controller: portCtrl,
-                    decoration: const InputDecoration(labelText: 'Port'),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
+                TextField(
+                  controller: ipCtrl,
+                  decoration: const InputDecoration(labelText: 'IP Address'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: portCtrl,
+                  decoration: const InputDecoration(labelText: 'Port'),
+                  keyboardType: TextInputType.number,
+                ),
               ],
             ),
           ),
@@ -254,15 +173,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: orange, foregroundColor: Colors.black),
               onPressed: () async {
                 if (nameCtrl.text.isEmpty || modelCtrl.text.isEmpty) return;
-                if (mode == PrintMode.directIp && ipCtrl.text.isEmpty) return;
+                if (ipCtrl.text.isEmpty) return;
 
                 final newPrinter = PrinterDevice(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   name: nameCtrl.text,
                   printerModel: modelCtrl.text,
-                  ipAddress: mode == PrintMode.directIp ? ipCtrl.text : (mode == PrintMode.system && selectedPrinter != null ? selectedPrinter!.url : null),
-                  port: mode == PrintMode.directIp ? int.tryParse(portCtrl.text) : null,
-                  mode: mode,
+                  ipAddress: ipCtrl.text,
+                  port: int.tryParse(portCtrl.text),
                 );
 
                 await PrinterService.instance.addPrinter(newPrinter);

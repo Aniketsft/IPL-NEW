@@ -61,7 +61,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Define fetching tasks with separate connections for parallel execution
             // Pre-fetch customer mappings from ZBTBORD to avoid slow OUTER APPLY
-            var ordersTask = FetchFromInnodisAsync<SalesOrderHeaderDto>($@"
+            var ordersResult = await FetchFromInnodisAsync<SalesOrderHeaderDto>($@"
                 WITH CustMap AS (
                     SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0, PONO_0,
                            ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY PONO_0) as rn
@@ -107,7 +107,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND f0.SHIDAT_0 <= DATEADD(day, 5, CAST(GETDATE() AS DATE))
                 ORDER BY f0.ORDDAT_0 DESC", new { Site = site });
 
-            var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
+            var detailsResult = await FetchFromInnodisAsync<SalesOrderDetailDto>($@"
                 WITH CustMap AS (
                     SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0,
                            ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY ORISOCUST_0) as rn
@@ -140,9 +140,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND f0.SHIDAT_0 >= DATEADD(day, -2, CAST(GETDATE() AS DATE))
                   AND f0.SHIDAT_0 <= DATEADD(day, 5, CAST(GETDATE() AS DATE))", new { Site = site });
 
-            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER WITH (NOLOCK)");
-            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)");
-            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.FACILITY WITH (NOLOCK)");
+            var customersResult = await FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER WITH (NOLOCK)");
+            var repsResult = await FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)");
+            var sitesResult = await FetchFromInnodisAsync<SiteLookupDto>($"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.FACILITY WITH (NOLOCK)");
             
             var locSql = $@"
                 SELECT 
@@ -155,7 +155,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' and ATRA.LANGUE_0 = 'BRI' and ATRA.ZONE_0 = 'TYPDESAXX'
                 WHERE T1.STOFCY_0 = @Site";
-            var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
+            var locationsResult = await FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
 
             var productsSql = $@"
                 SELECT T1.*
@@ -176,19 +176,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ) AS T1
                 WHERE T1.Site = @Site
                   AND T1.Category NOT IN ('ADMIN','CONSU','TECHN')";
-            var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
+            var productsResult = await FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
             var lotsSql = $@"
                 SELECT DISTINCT ITMREF_0 as ItemCode, STOFCY_0 as SiteCode, LOT_0 as Lot
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK WITH (NOLOCK)
                 WHERE STOFCY_0 = @Site AND QTYPCU_0 > 0";
-            var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
+            var lotsResult = await FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
 
-            // Execute tasks in parallel
-            await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask, lotsTask);
-
-            package.Orders = ordersTask.Result.ToList();
-            package.Details = detailsTask.Result.ToList();
+            package.Orders = ordersResult.ToList();
+            package.Details = detailsResult.ToList();
 
             // --- MERGE INTERNAL ORDERS ---
             var internalOrders = await _scanContext.SalesOrders
@@ -240,12 +237,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            package.Customers = customersTask.Result.ToList();
-            package.Reps = repsTask.Result.ToList();
-            package.Sites = sitesTask.Result.ToList();
-            package.Locations = locationsTask.Result.ToList();
-            package.Products = productsTask.Result.ToList();
-            package.Lots = lotsTask.Result.ToList();
+            package.Customers = customersResult.ToList();
+            package.Reps = repsResult.ToList();
+            package.Sites = sitesResult.ToList();
+            package.Locations = locationsResult.ToList();
+            package.Products = productsResult.ToList();
+            package.Lots = lotsResult.ToList();
 
             // Override status from NORMALIZED tables
             var allSoNumbers = package.Orders.Select(o => o.SohNum).ToList();

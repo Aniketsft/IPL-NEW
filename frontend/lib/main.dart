@@ -187,6 +187,18 @@ class MyApp extends StatelessWidget {
                   darkTheme: AppTheme.darkTheme,
                   themeMode: themeMode,
                   debugShowCheckedModeBanner: false,
+                  builder: (context, child) {
+                    final mediaQuery = MediaQuery.of(context);
+                    // Scale down text slightly for small hardware terminals
+                    return MediaQuery(
+                      data: mediaQuery.copyWith(
+                        textScaler: mediaQuery.size.width < 400 
+                            ? const TextScaler.linear(0.85) 
+                            : TextScaler.noScaling,
+                      ),
+                      child: child!,
+                    );
+                  },
                   home: BlocBuilder<AuthBloc, AuthState>(
                     builder: (context, state) {
                       if (state is Authenticated) {
