@@ -198,7 +198,7 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
           lotNumber: detail['lotNumber'] ?? '',
           warehouse: detail['warehouse'] ?? '',
           location: detail['location'] ?? '',
-        ));
+        )));
       }
 
       if (!mounted) return;

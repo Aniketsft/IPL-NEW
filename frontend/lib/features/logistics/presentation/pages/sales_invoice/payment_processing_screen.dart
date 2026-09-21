@@ -17,6 +17,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
 import 'package:printing/printing.dart';
 
 class PaymentEntry {
@@ -556,23 +557,93 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     );
   }
 
+  Future<void> _handleHistoricalPrint(SalesInvoiceLoaded cartState) async {
+    final isCreditNote = cartState.transactionType == 'PREVIEW_CREDIT_NOTE';
+    if (isCreditNote) {
+      final creditNote = CreditNoteModel(
+        creditNoteId: cartState.originalDocumentId ?? '',
+        creditNoteType: CreditNoteType.reversal,
+        x3CreditNoteType: 'CRN',
+        salesSite: 'SCG', 
+        customerCode: cartState.customer!['code'],
+        customerName: cartState.customer!['name'],
+        currency: 'MUR',
+        grandTotal: cartState.grandTotal,
+        originalInvoiceId: cartState.originalDocumentId?.replaceFirst('CN-', '') ?? '',
+        settlementType: 'REFUND',
+        reference: cartState.originalDocumentId ?? '',
+        isSynced: 0,
+        createdAt: DateTime.now().toIso8601String(), 
+        createdBy: 'SYSTEM',
+        deviceId: '',
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+          pageFormat: format,
+          creditNote: creditNote,
+          resolvedLines: cartState.cartItems.map((i) => {
+            'sku': i.product.sku,
+            'name': i.product.name,
+            'quantity': i.quantity,
+            'basePrice': i.basePrice,
+          }).toList(),
+        ),
+      );
+    } else {
+      final pdfService = SalesInvoicePdfService();
+      await Printing.layoutPdf(
+        dynamicLayout: true,
+        onLayout: (format) async {
+          return await pdfService.generateInvoicePdf(
+            pageFormat: format,
+            invoiceId: cartState.originalDocumentId ?? '',
+            customer: {
+              'code': cartState.customer!['code'],
+              'name': cartState.customer!['name'],
+            },
+            items: cartState.cartItems.toList(),
+            subtotal: cartState.subtotal,
+            discountAmount: cartState.totalDiscount,
+            vatAmount: cartState.totalVat,
+            grandTotal: cartState.grandTotal,
+            paymentMethod: 'MULTIPLE',
+            paymentStatus: 'PAID',
+          );
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isCreditNoteRefund ? 'Refund Processing' : 'Payment Processing'),
-        centerTitle: true,
-      ),
-      body: BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
-        builder: (context, state) {
-          if (state is! SalesInvoiceLoaded) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final cartState = state;
-          
-          if (cartState.customer == null && !widget.isCreditNoteRefund) {
-            return const Center(child: Text('No Customer'));
-          }
+    return BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
+      builder: (context, state) {
+        if (state is! SalesInvoiceLoaded) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final cartState = state;
+        final isPreview = cartState.transactionType.startsWith('PREVIEW');
+        
+        if (cartState.customer == null && !widget.isCreditNoteRefund) {
+          return const Scaffold(body: Center(child: Text('No Customer')));
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.isCreditNoteRefund ? 'Refund Processing' : (isPreview ? 'Transaction Details' : 'Payment Processing')),
+            centerTitle: true,
+            actions: [
+              if (isPreview)
+                IconButton(
+                  icon: const Icon(Icons.print),
+                  tooltip: 'Print',
+                  onPressed: () => _handleHistoricalPrint(cartState),
+                ),
+            ],
+          ),
+          body: Builder(
+            builder: (context) {
 
           bool isChequeEnabled = false;
           bool isCreditEnabled = false;
@@ -804,7 +875,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         ElevatedButton.icon(
                           onPressed: () => _addPayment(cartState),
                           icon: const Icon(Icons.add),
-                          label: const Text('ADD PAYMENT'),
+                          label: Text(widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
@@ -1032,8 +1103,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               ),
             ],
           );
-        },
-      ),
+            },
+          ),
+        );
+      },
     );
   }
 }

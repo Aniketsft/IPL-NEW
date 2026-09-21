@@ -8,19 +8,55 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
 
   SalesInvoiceBloc({required this.repository}) : super(SalesInvoiceInitial()) {
     on<InitializeTransaction>(_onInitializeTransaction);
+    on<PrepareReversalCreditNote>(_onPrepareReversalCreditNote);
+    on<RestoreOriginalInvoice>(_onRestoreOriginalInvoice);
     on<SetCustomer>(_onSetCustomer);
     on<AddCartItem>(_onAddCartItem);
     on<RemoveCartItem>(_onRemoveCartItem);
     on<UpdateCartItem>(_onUpdateCartItem);
     on<SetDeliveryDate>(_onSetDeliveryDate);
+    on<ConvertToCreditNote>(_onConvertToCreditNote);
     on<ClearCart>(_onClearCart);
     on<SubmitTransaction>(_onSubmitTransaction);
+  }
+
+  void _onConvertToCreditNote(ConvertToCreditNote event, Emitter<SalesInvoiceState> emit) {
+    final currentState = state;
+    if (currentState is SalesInvoiceLoaded) {
+      if (currentState.transactionType == 'PREVIEW_INVOICE') {
+        emit(currentState.copyWith(transactionType: 'CREDIT_NOTE'));
+      }
+    }
+  }
+
+  void _onPrepareReversalCreditNote(PrepareReversalCreditNote event, Emitter<SalesInvoiceState> emit) {
+    final currentState = state;
+    if (currentState is SalesInvoiceLoaded) {
+      emit(currentState.copyWith(
+        transactionType: 'CREDIT_NOTE',
+        originalDocumentId: event.originalInvoiceId,
+        cartItems: event.items,
+      ));
+    }
+  }
+
+  void _onRestoreOriginalInvoice(RestoreOriginalInvoice event, Emitter<SalesInvoiceState> emit) {
+    final currentState = state;
+    if (currentState is SalesInvoiceLoaded) {
+      emit(currentState.copyWith(
+        transactionType: event.transactionType,
+        originalDocumentId: event.originalDocumentId,
+        config: event.config,
+        cartItems: event.cartItems,
+      ));
+    }
   }
 
   void _onInitializeTransaction(InitializeTransaction event, Emitter<SalesInvoiceState> emit) {
     emit(SalesInvoiceLoaded(
       transactionType: event.transactionType,
       originalDocumentId: event.originalDocumentId,
+      config: event.config,
     ));
   }
 
@@ -107,17 +143,26 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
         }
         emit(const SalesInvoiceSuccess("Invoice created successfully."));
       } else if (currentState.transactionType == 'CREDIT_NOTE') {
+        // Filter out items with 0 return quantity for credit notes
+        final itemsToReverse = currentState.cartItems.where((i) => i.quantity > 0).toList();
+        
+        if (itemsToReverse.isEmpty) {
+          emit(const SalesInvoiceError("No items to return."));
+          emit(currentState);
+          return;
+        }
+
         // If it has an original ID, it's a reversed invoice. Otherwise open CN.
         if (currentState.originalDocumentId != null) {
           await repository.reverseInvoice(
             originalInvoiceId: int.parse(currentState.originalDocumentId!),
-            itemsToReverse: currentState.cartItems,
+            itemsToReverse: itemsToReverse,
           );
         } else {
           await repository.createStandaloneCreditNote(
             customer: currentState.customer!,
-            items: currentState.cartItems,
-            totalAmount: currentState.totalAmount,
+            items: itemsToReverse,
+            totalAmount: itemsToReverse.fold(0.0, (sum, i) => sum + i.total),
             refundMethod: event.paymentMode,
           );
         }

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'sales_invoice_cart_cubit.dart'; // To reuse CartItem
+import '../../domain/models/transaction_config.dart';
 
 abstract class SalesInvoiceEvent extends Equatable {
   const SalesInvoiceEvent();
@@ -11,11 +12,29 @@ abstract class SalesInvoiceEvent extends Equatable {
 class InitializeTransaction extends SalesInvoiceEvent {
   final String transactionType;
   final String? originalDocumentId;
+  final TransactionConfig? config;
 
-  const InitializeTransaction({required this.transactionType, this.originalDocumentId});
+  const InitializeTransaction({
+    required this.transactionType,
+    this.originalDocumentId,
+    this.config,
+  });
 
   @override
-  List<Object?> get props => [transactionType, originalDocumentId];
+  List<Object?> get props => [transactionType, originalDocumentId, config];
+}
+
+class PrepareReversalCreditNote extends SalesInvoiceEvent {
+  final List<CartItem> items;
+  final String originalInvoiceId;
+
+  const PrepareReversalCreditNote({
+    required this.items,
+    required this.originalInvoiceId,
+  });
+
+  @override
+  List<Object?> get props => [items, originalInvoiceId];
 }
 
 class SetCustomer extends SalesInvoiceEvent {
@@ -59,6 +78,8 @@ class SetDeliveryDate extends SalesInvoiceEvent {
   List<Object?> get props => [date];
 }
 
+class ConvertToCreditNote extends SalesInvoiceEvent {}
+
 class ClearCart extends SalesInvoiceEvent {}
 
 class SubmitTransaction extends SalesInvoiceEvent {
@@ -69,4 +90,21 @@ class SubmitTransaction extends SalesInvoiceEvent {
 
   @override
   List<Object?> get props => [paymentMode, deliveryDate];
+}
+
+class RestoreOriginalInvoice extends SalesInvoiceEvent {
+  final List<CartItem> cartItems;
+  final String transactionType;
+  final TransactionConfig config;
+  final String? originalDocumentId;
+
+  const RestoreOriginalInvoice({
+    required this.cartItems,
+    required this.transactionType,
+    required this.config,
+    this.originalDocumentId,
+  });
+
+  @override
+  List<Object?> get props => [cartItems, transactionType, config, originalDocumentId];
 }

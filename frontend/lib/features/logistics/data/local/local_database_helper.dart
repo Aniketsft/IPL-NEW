@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 83;
+  static const _databaseVersion = 84;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -261,6 +261,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 84) {
+      debugPrint('DB Upgrade: Adding barcode to tbl_si_item_stock_details (v84)');
+      try {
+        await db.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN barcode TEXT DEFAULT ""');
+      } catch (e) {
+        debugPrint('Migration error v84 (barcode): $e');
+      }
+    }
+
     if (oldVersion < 83) {
       debugPrint('DB Upgrade: Adding orderNumber to tbl_si_sales_orders (v83)');
       try {
@@ -1504,6 +1513,7 @@ class LocalDatabaseHelper {
         taxLevel TEXT,
         cce0 TEXT,
         salesUnit TEXT,
+        barcode TEXT DEFAULT "",
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,

@@ -94,15 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
             letterSpacing: 2,
           ),
         ).animate().fadeIn(delay: 200.ms),
-        Text(
-          'INDUSTRIAL ACCESS SYSTEM',
-          style: TextStyle(
-            color: isDark ? Colors.white38 : Colors.black38,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.5,
-          ),
-        ).animate().fadeIn(delay: 400.ms),
       ],
     );
   }

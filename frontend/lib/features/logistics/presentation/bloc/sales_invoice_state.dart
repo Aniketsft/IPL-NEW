@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'sales_invoice_cart_cubit.dart'; // To reuse CartItem
+import '../../domain/models/transaction_config.dart';
 
 abstract class SalesInvoiceState extends Equatable {
   const SalesInvoiceState();
@@ -18,14 +19,16 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
   final String transactionType; // 'INVOICE', 'SALES_ORDER', 'CREDIT_NOTE', etc.
   final String? originalDocumentId; // Used when reversing or loading from existing
   final DateTime? deliveryDate;
+  final TransactionConfig config;
 
-  const SalesInvoiceLoaded({
+  SalesInvoiceLoaded({
     this.customer,
     this.cartItems = const [],
     this.transactionType = 'INVOICE',
     this.originalDocumentId,
     this.deliveryDate,
-  });
+    TransactionConfig? config,
+  }) : config = config ?? TransactionConfig.forType(transactionType);
 
   SalesInvoiceLoaded copyWith({
     Map<String, dynamic>? customer,
@@ -33,13 +36,16 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
     String? transactionType,
     String? originalDocumentId,
     DateTime? deliveryDate,
+    TransactionConfig? config,
   }) {
+    final newType = transactionType ?? this.transactionType;
     return SalesInvoiceLoaded(
       customer: customer ?? this.customer,
       cartItems: cartItems ?? this.cartItems,
-      transactionType: transactionType ?? this.transactionType,
+      transactionType: newType,
       originalDocumentId: originalDocumentId ?? this.originalDocumentId,
       deliveryDate: deliveryDate ?? this.deliveryDate,
+      config: config ?? (transactionType != null ? TransactionConfig.forType(newType) : this.config),
     );
   }
 
@@ -50,7 +56,7 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
   double get totalAmount => grandTotal;
 
   @override
-  List<Object?> get props => [customer, cartItems, transactionType, originalDocumentId, deliveryDate];
+  List<Object?> get props => [customer, cartItems, transactionType, originalDocumentId, deliveryDate, config];
 }
 
 class SalesInvoiceError extends SalesInvoiceState {

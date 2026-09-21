@@ -14,4 +14,6 @@ class AppRoutes {
   static const String productSelection = '/product-selection';
   static const String transactionHistory = '/transaction-history';
   static const String paymentProcessing = '/payment-processing';
+  
+  // Settings Module
 }

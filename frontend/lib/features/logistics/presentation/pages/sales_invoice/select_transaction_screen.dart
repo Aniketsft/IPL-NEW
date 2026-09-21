@@ -15,6 +15,8 @@ import '../../bloc/sales_invoice_event.dart';
 import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 
+import '../../../domain/models/transaction_config.dart';
+
 class SelectTransactionScreen extends StatefulWidget {
   final List<String> permissions;
 
@@ -283,6 +285,12 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                   title: const Text('Create New'),
                   onTap: () {
                     Navigator.pop(context); // close bottom sheet
+                    final bloc = context.read<SalesInvoiceBloc>();
+                    bloc.add(ClearCart());
+                    bloc.add(InitializeTransaction(
+                      transactionType: txType,
+                      config: TransactionConfig.forType(txType),
+                    ));
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CustomerSelectionScreen()),
@@ -403,7 +411,10 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
                   onTap: () {
                     Navigator.pop(ctx);
                     context.read<SalesInvoiceBloc>().add(ClearCart());
-                    context.read<SalesInvoiceBloc>().add(const InitializeTransaction(transactionType: 'STANDALONE_CREDIT_NOTE'));
+                    context.read<SalesInvoiceBloc>().add(InitializeTransaction(
+                      transactionType: 'STANDALONE_CREDIT_NOTE',
+                      config: TransactionConfig.forType('STANDALONE_CREDIT_NOTE'),
+                    ));
                     Navigator.push(
                       context,
                       MaterialPageRoute(

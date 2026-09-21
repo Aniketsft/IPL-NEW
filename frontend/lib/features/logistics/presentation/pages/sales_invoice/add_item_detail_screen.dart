@@ -13,6 +13,7 @@ import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../../../core/network_service.dart';
 import '../../../domain/services/vat_calculator_service.dart';
 import '../../../domain/services/pricing_engine_service.dart';
+import '../../../domain/models/transaction_config.dart';
 import 'lot_selection_screen.dart';
 
 class AddItemDetailScreen extends StatefulWidget {
@@ -76,14 +77,18 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   double _originalInvoicedQty = 0.0;
 
-  bool get _isCreditNote {
+  TransactionConfig get _txConfig {
     try {
       final state = context.read<SalesInvoiceBloc>().state;
-      return state is SalesInvoiceLoaded && state.transactionType == 'CREDIT_NOTE';
-    } catch (_) {
-      return false;
-    }
+      if (state is SalesInvoiceLoaded) {
+        return state.config;
+      }
+    } catch (_) {}
+    return TransactionConfig.forType('INVOICE');
   }
+
+  bool get _isReturnMode => _txConfig.isReturnOrCreditNote;
+  bool get _enforceLimit => _txConfig.enforceOriginalQtyLimit;
 
   @override
   void initState() {
@@ -110,18 +115,18 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _locationType = widget.existingItem!.locationType.isNotEmpty
           ? widget.existingItem!.locationType
           : _locationType;
-      if (!_isCreditNote) {
+      if (!_isReturnMode) {
         _loadSpecificLotStock();
       }
     } else {
-      if (!_isCreditNote) {
+      if (!_isReturnMode) {
         _loadItemStocks().then((_) => _resolvePrice());
       }
     }
   }
 
   Future<void> _resolvePrice() async {
-    if (_isCreditNote) return;
+    if (_isReturnMode) return;
 
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () async {
@@ -325,7 +330,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   }
 
   double get _maxValidQty {
-    if (_isCreditNote) return _originalInvoicedQty;
+    if (_enforceLimit) return _originalInvoicedQty;
 
     double maxQty = _lotTotalQty;
     if (widget.existingItem != null &&
@@ -343,7 +348,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       if (newQty < 1) newQty = 1;
 
       // Strict validation against maximum valid quantity
-      if (_isCreditNote) {
+      if (_enforceLimit) {
         if (newQty > _maxValidQty) {
           _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
           return;
@@ -409,7 +414,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Add Item Detail',
+          widget.existingItem != null
+              ? 'Edit Item [${_txConfig.abbreviation}]'
+              : 'Add Item Detail [${_txConfig.abbreviation}]',
           style: TextStyle(
             color: theme.primaryColor,
             fontWeight: FontWeight.bold,
@@ -457,13 +464,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: _isSalesOrder
-                                    ? Colors.blue.withOpacity(0.15)
-                                    : theme.primaryColor.withOpacity(0.15),
+                                color: _txConfig.badgeColor.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                _isCreditNote
+                                _enforceLimit
                                     ? 'Original Qty: ${_originalInvoicedQty.toInt()}'
                                     : _isSalesOrder
                                         ? 'Stock: ${actualTotalStock.toInt()} | Order (No Limit)'
@@ -471,9 +476,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: _isSalesOrder
-                                      ? Colors.blue
-                                      : theme.primaryColor,
+                                  color: _txConfig.badgeColor,
                                 ),
                               ),
                             ),
@@ -501,7 +504,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         : (_isSalesOrder ? 'Not Assigned (Sales Order)' : 'None'),
                     isDark,
                     trailingIcon: Icons.chevron_right,
-                    onTap: _isCreditNote ? null : () async {
+                    onTap: _isReturnMode ? null : () async {
                       final selectedLot = await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -650,17 +653,18 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                 ),
               ],
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Quantity Stepper
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
+                    // Left side: Total
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Total:',
@@ -670,135 +674,190 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                             color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(height: 4),
                         Text(
                           _currencyFormat.format((_priceAfterDiscount + _vatAmount)),
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: theme.primaryColor,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Quantity',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.grey[300] : Colors.grey[800],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 48,
-                      width: 144, // Fixed width for nice proportions
-                      decoration: BoxDecoration(
-                        color: isDark 
-                            ? (isFocLocked ? Colors.grey[900]!.withOpacity(0.5) : Colors.grey[800]) 
-                            : (isFocLocked ? Colors.grey[200] : Colors.grey[100]),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isDark 
-                              ? (isFocLocked ? Colors.grey[850]! : Colors.grey[700]!) 
-                              : (isFocLocked ? Colors.grey[300]! : Colors.grey[300]!),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          _buildStepperButton(
-                            Icons.remove,
-                            isFocLocked ? null : () => _updateQuantity(-1),
-                            isDark,
-                            disabled: isFocLocked,
-                            isLeft: true,
+                    
+                    // Right side: Quantity and Stepper
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Quantity',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.grey[300] : Colors.grey[800],
                           ),
-                          Expanded(
-                            child: TextField(
-                              controller: _qtyController,
-                              textAlign: TextAlign.center,
-                              keyboardType: TextInputType.number,
-                              enabled: !isFocLocked,
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                disabledBorder: InputBorder.none,
-                                isDense: true,
-                                filled: false,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: isFocLocked ? Colors.grey : (isDark ? Colors.white : Colors.black),
-                              ),
-                              onChanged: (val) {
-                                final parsed = int.tryParse(val);
-                                if (parsed != null && parsed > 0) {
-                                  int updatedQty = parsed;
-                                  if (_isCreditNote) {
-                                    if (updatedQty > _maxValidQty) {
-                                      _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
-                                      _qtyController.text = _quantity.toString();
-                                      return;
-                                    }
-                                  } else if (!_isSalesOrder &&
-                                      _maxValidQty > 0 &&
-                                      updatedQty > _maxValidQty) {
-                                    _showStockErrorDialog(
-                                      'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
-                                    );
-                                    _qtyController.text = _quantity.toString();
-                                    return;
-                                  }
-                                  setState(() => _quantity = updatedQty);
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 48,
+                          width: 144, // Restored width since MAX button is gone
+                          decoration: BoxDecoration(
+                            color: isDark 
+                                ? (isFocLocked ? Colors.grey[900]!.withOpacity(0.5) : Colors.grey[800]) 
+                                : (isFocLocked ? Colors.grey[200] : Colors.grey[100]),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark 
+                                  ? (isFocLocked ? Colors.grey[850]! : Colors.grey[700]!) 
+                                  : (isFocLocked ? Colors.grey[300]! : Colors.grey[300]!),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              _buildStepperButton(
+                                Icons.remove,
+                                isFocLocked ? null : () => _updateQuantity(-1),
+                                isDark,
+                                onLongPress: isFocLocked ? null : () {
+                                  setState(() {
+                                    _quantity = 1;
+                                    _qtyController.text = '1';
+                                  });
                                   _resolvePrice();
-                                }
-                              },
-                            ),
-                          ),
-                          _buildStepperButton(
-                            Icons.add,
-                            isFocLocked ? null : () => _updateQuantity(1),
-                            isDark,
-                            disabled: isFocLocked,
-                            isLeft: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (isFocLocked)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Row(
-                          children: [
-                            Icon(Icons.lock_outline, size: 12, color: Colors.orange[400]),
-                            const SizedBox(width: 4),
-                            Text(
-                              'FOC Locked',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange[400],
+                                },
+                                disabled: isFocLocked,
+                                isLeft: true,
                               ),
-                            ),
-                          ],
+                              Expanded(
+                                child: TextField(
+                                  controller: _qtyController,
+                                  textAlign: TextAlign.center,
+                                  keyboardType: TextInputType.number,
+                                  enabled: !isFocLocked,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    isDense: true,
+                                    filled: false,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: isFocLocked ? Colors.grey : (isDark ? Colors.white : Colors.black),
+                                  ),
+                                  onChanged: (val) {
+                                    final parsed = int.tryParse(val);
+                                    if (parsed != null && parsed > 0) {
+                                      int updatedQty = parsed;
+                                      if (_enforceLimit) {
+                                        if (updatedQty > _maxValidQty) {
+                                          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
+                                          _qtyController.text = _quantity.toString();
+                                          return;
+                                        }
+                                      } else if (!_isSalesOrder &&
+                                          _maxValidQty > 0 &&
+                                          updatedQty > _maxValidQty) {
+                                        _showStockErrorDialog(
+                                          'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
+                                        );
+                                        _qtyController.text = _quantity.toString();
+                                        return;
+                                      }
+                                      setState(() => _quantity = updatedQty);
+                                      _resolvePrice();
+                                    }
+                                  },
+                                ),
+                              ),
+                              _buildStepperButton(
+                                Icons.add,
+                                isFocLocked ? null : () => _updateQuantity(1),
+                                isDark,
+                                onLongPress: isFocLocked ? null : () {
+                                  if (_maxValidQty > 0) {
+                                    setState(() {
+                                      _quantity = _maxValidQty.toInt();
+                                      _qtyController.text = _quantity.toString();
+                                    });
+                                    _resolvePrice();
+                                  }
+                                },
+                                disabled: isFocLocked,
+                                isLeft: false,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        if (isFocLocked)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_outline, size: 12, color: Colors.orange[400]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'FOC Locked',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.orange[400],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(width: 12),
-
+                const SizedBox(height: 16),
+                
                 // Add/Cancel Buttons
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            if (widget.editingIndex != null) {
+                              Navigator.of(context).pop();
+                            } else {
+                              Navigator.of(context)
+                                ..pop()
+                                ..pop();
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () async {
@@ -901,6 +960,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                             if (widget.editingIndex != null) {
                               bloc.add(UpdateCartItem(widget.editingIndex!, item));
+                              if (_isReturnMode && state.transactionType == 'PREVIEW_INVOICE' && _quantity > 0) {
+                                bloc.add(ConvertToCreditNote());
+                              }
                               
                               if (focItem != null) {
                                 bool? confirmFoc = await showDialog<bool>(
@@ -968,9 +1030,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                             elevation: 0,
                           ),
                           child: Text(
-                            widget.editingIndex != null
-                                ? 'Update Order'
-                                : 'Add to Order',
+                            _isReturnMode
+                                ? 'Confirm Return Qty'
+                                : widget.editingIndex != null
+                                    ? 'Update Order'
+                                    : 'Add to Order',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -979,38 +1043,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            if (widget.editingIndex != null) {
-                              Navigator.of(context).pop();
-                            } else {
-                              Navigator.of(context)
-                                ..pop()
-                                ..pop();
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: Colors.grey.withOpacity(0.3),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1024,6 +1058,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     IconData icon,
     VoidCallback? onPressed,
     bool isDark, {
+    VoidCallback? onLongPress,
     bool disabled = false,
     bool isLeft = false,
   }) {
@@ -1031,6 +1066,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: disabled ? null : onPressed,
+        onLongPress: disabled ? null : onLongPress,
         borderRadius: BorderRadius.horizontal(
           left: isLeft ? const Radius.circular(11) : Radius.zero,
           right: !isLeft ? const Radius.circular(11) : Radius.zero,

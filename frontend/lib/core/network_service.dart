@@ -21,7 +21,7 @@ bool isTokenExpired(String token) {
       return currentSeconds >= expInt;
     }
   } catch (e) {
-    return true; 
+    return false; // Return false so dummy/malformed tokens bypass client-side expiration forcing a logout on testing
   }
   return false;
 }

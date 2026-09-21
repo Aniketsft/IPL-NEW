@@ -5,6 +5,7 @@ class SalesInvoiceProductModel {
   final String warehouse;
   final String salesUnit;
   final String cce0;
+  final String barcode;
 
   SalesInvoiceProductModel({
     required this.sku,
@@ -13,6 +14,7 @@ class SalesInvoiceProductModel {
     required this.warehouse,
     required this.salesUnit,
     this.cce0 = '',
+    this.barcode = '',
   });
 
   factory SalesInvoiceProductModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class SalesInvoiceProductModel {
       warehouse: (json['warehouse'] ?? '').toString(),
       salesUnit: (json['salesUnit'] ?? '').toString(),
       cce0: (json['cce0'] ?? '').toString(),
+      barcode: (json['barcode'] ?? '').toString(),
     );
   }
 }

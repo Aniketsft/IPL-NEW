@@ -75,8 +75,6 @@ class _InactivityWatcherState extends State<InactivityWatcher> with WidgetsBindi
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: _handleInteraction,
-      onPointerMove: _handleInteraction,
-      onPointerUp: _handleInteraction,
       child: widget.child,
     );
   }

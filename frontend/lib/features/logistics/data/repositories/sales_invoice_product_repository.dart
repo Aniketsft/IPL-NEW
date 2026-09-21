@@ -74,6 +74,7 @@ class SalesInvoiceProductRepository {
         SUM(S.totalQty) AS stockQty, 
         MAX(S.warehouse) AS warehouse,
         MAX(S.cce0) AS cce0,
+        MAX(S.barcode) AS barcode,
         MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
@@ -100,6 +101,7 @@ class SalesInvoiceProductRepository {
                 ? (e['salesUnit'] as String).trim()
                 : 'UN',
             cce0: (e['cce0'] as String?) ?? '',
+            barcode: (e['barcode'] as String?) ?? '',
           ),
         )
         .toList();
@@ -115,6 +117,7 @@ class SalesInvoiceProductRepository {
         SUM(S.totalQty) AS stockQty, 
         MAX(S.warehouse) AS warehouse,
         MAX(S.cce0) AS cce0,
+        MAX(S.barcode) AS barcode,
         MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
@@ -136,6 +139,7 @@ class SalesInvoiceProductRepository {
             ? (e['salesUnit'] as String).trim()
             : 'UN',
         cce0: (e['cce0'] as String?) ?? '',
+        barcode: (e['barcode'] as String?) ?? '',
       );
     }
     return null;
@@ -205,7 +209,7 @@ class SalesInvoiceProductRepository {
     // 0. Ensure all unsynced lots exist in stock details (with 0 initial qty) so we can deduct/add from them.
     await txn.rawInsert('''
       INSERT OR IGNORE INTO ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-        (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, isSynced, createdAt, updatedAt, deviceId)
+        (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, barcode, isSynced, createdAt, updatedAt, deviceId)
       SELECT DISTINCT 
         L.sku, 
         COALESCE((SELECT itemName FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = L.sku LIMIT 1), ''),
@@ -217,6 +221,7 @@ class SalesInvoiceProductRepository {
         0.0, 
         '', 
         '', 
+        '',
         1, 
         datetime('now'), 
         datetime('now'), 

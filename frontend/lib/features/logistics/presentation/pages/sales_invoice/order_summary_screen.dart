@@ -6,7 +6,6 @@ import '../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import '../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart';
 import '../../../../../core/network_service.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
-import 'package:provider/provider.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
@@ -16,8 +15,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/navigation/app_routes.dart';
 import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
-import 'payment_processing_screen.dart';
 import 'invoice_preview_screen.dart';
+import '../../../domain/models/transaction_config.dart';
 
 class OrderSummaryScreen extends StatefulWidget {
   const OrderSummaryScreen({super.key});
@@ -33,6 +32,64 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   );
 
   bool _isProcessingScan = false;
+  final Map<int, double> _selectedReversalQuantities = {};
+
+  void _showQtyInputDialog(BuildContext context, int index, double maxQty) {
+    final currentQty = _selectedReversalQuantities[index] ?? maxQty;
+    final controller = TextEditingController(
+      text: currentQty % 1 == 0 ? currentQty.toInt().toString() : currentQty.toStringAsFixed(2),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Adjust Reversal Quantity'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter quantity to reverse (Max: ${maxQty % 1 == 0 ? maxQty.toInt() : maxQty}):'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: 'Quantity',
+                helperText: 'Must be between 1 and ${maxQty % 1 == 0 ? maxQty.toInt() : maxQty}',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = double.tryParse(controller.text.trim());
+              if (parsed == null || parsed < 1 || parsed > maxQty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Please enter a valid quantity between 1 and ${maxQty % 1 == 0 ? maxQty.toInt() : maxQty}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              setState(() {
+                _selectedReversalQuantities[index] = parsed;
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('SET QUANTITY'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void onHardwareScan(String data) async {
@@ -125,8 +182,13 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         final cartState = state;
+        final isPreviewInvoice = cartState.transactionType == 'PREVIEW_INVOICE';
+        final effectiveAbbreviation = (isPreviewInvoice && _selectedReversalQuantities.isNotEmpty)
+            ? 'CN'
+            : cartState.config.abbreviation;
+
         return IndustrialModuleLayout(
-          title: 'Order Summary',
+          title: 'Order Summary [$effectiveAbbreviation]',
           body: Column(
             children: [
               Expanded(
@@ -148,6 +210,28 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         ),
                       ),
                       const SizedBox(height: 12),
+
+                      if (cartState.transactionType == 'CREDIT_NOTE')
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Converting to Partial Credit Note',
+                                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
 
                       // Line Items List
                       if (cartState.cartItems.isEmpty)
@@ -174,12 +258,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                               item,
                               index,
                               isDark,
-                              cartState.transactionType,
+                              cartState,
                             );
                           },
                         ),
 
-                      if (cartState.transactionType != 'VIEW_SI_SALES_ORDER') ...[
+                      if (cartState.config.allowCatalogProductAddition) ...[
                         const SizedBox(height: 16),
                         Center(
                           child: TextButton.icon(
@@ -250,6 +334,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         builder: (context) {
                           final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE' || cartState.transactionType == 'CREDIT_NOTE';
                           final isZeroAmount = cartState.grandTotal <= 0;
+                          final bool showConfirmButton = !cartState.config.requireItemSelectionForAction || _selectedReversalQuantities.isNotEmpty;
+
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -267,53 +353,97 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                     ),
                                   ),
                                 ),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: ElevatedButton.icon(
-                                  onPressed: (cartState.cartItems.isEmpty || isZeroAmount)
-                                      ? null
-                                      : () {
-                                      final missingLotItems = cartState.cartItems.where((i) => i.isFoc && i.lotNumber.isEmpty);
-                                      if (missingLotItems.isNotEmpty) {
-                                        showDialog(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            title: const Text('Missing Lot Number'),
-                                            content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(ctx),
-                                                child: const Text('OK'),
-                                              ),
-                                            ],
-                                          ),
+                              if (showConfirmButton)
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: ElevatedButton.icon(
+                                    onPressed: (cartState.cartItems.isEmpty || isZeroAmount)
+                                        ? null
+                                        : () async {
+                                        final missingLotItems = cartState.cartItems.where((i) => i.isFoc && i.lotNumber.isEmpty);
+                                        if (missingLotItems.isNotEmpty) {
+                                          showDialog(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text('Missing Lot Number'),
+                                              content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(ctx),
+                                                  child: const Text('OK'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        if (cartState.config.requireItemSelectionForAction) {
+                                          final selectedItems = _selectedReversalQuantities.entries.map((e) {
+                                            final originalItem = cartState.cartItems[e.key];
+                                            return CartItem(
+                                              product: originalItem.product,
+                                              lotNumber: originalItem.lotNumber,
+                                              quantity: e.value,
+                                              basePrice: originalItem.basePrice,
+                                              discountAmountFlat: originalItem.discountAmountFlat,
+                                              taxRule: originalItem.taxRule,
+                                              vatRatePercent: originalItem.vatRatePercent,
+                                              pricingSource: originalItem.pricingSource,
+                                              isFoc: originalItem.isFoc,
+                                              warehouse: originalItem.warehouse,
+                                            );
+                                          }).toList();
+
+                                          final originalCartItems = List<CartItem>.from(cartState.cartItems);
+                                          final originalTxType = cartState.transactionType;
+                                          final originalConfig = cartState.config;
+                                          final originalDocId = cartState.originalDocumentId;
+
+                                          context.read<SalesInvoiceBloc>().add(PrepareReversalCreditNote(
+                                            items: selectedItems,
+                                            originalInvoiceId: cartState.originalDocumentId ?? '',
+                                          ));
+
+                                          await context.push(
+                                            AppRoutes.paymentProcessing,
+                                            extra: true, // isCreditNoteRefund
+                                          );
+
+                                          if (context.mounted) {
+                                            context.read<SalesInvoiceBloc>().add(RestoreOriginalInvoice(
+                                              cartItems: originalCartItems,
+                                              transactionType: originalTxType,
+                                              config: originalConfig,
+                                              originalDocumentId: originalDocId,
+                                            ));
+                                          }
+                                          return;
+                                        }
+
+                                        if (cartState.transactionType == 'SI_SALES_ORDER') {
+                                          _saveSalesOrder(context, cartState);
+                                          return;
+                                        }
+
+                                        if (cartState.transactionType == 'VIEW_SI_SALES_ORDER') {
+                                          _handleOrderConversion(context, cartState);
+                                          return;
+                                        }
+
+                                        context.push(
+                                          AppRoutes.paymentProcessing,
+                                          extra: isCreditNote,
                                         );
-                                        return;
-                                      }
-
-                                      if (cartState.transactionType == 'SI_SALES_ORDER') {
-                                        _saveSalesOrder(context, cartState);
-                                        return;
-                                      }
-
-                                      if (cartState.transactionType == 'VIEW_SI_SALES_ORDER') {
-                                        _handleOrderConversion(context, cartState);
-                                        return;
-                                      }
-
-                                      context.push(
-                                        AppRoutes.paymentProcessing,
-                                        extra: isCreditNote,
-                                      );
-                                    },
+                                      },
                                     icon: Icon(
-                                      _getConfirmIcon(cartState.transactionType),
+                                      _getConfirmIcon(cartState.config),
                                       color: Colors.white,
                                       size: 18,
                                     ),
                                     label: Text(
-                                      _getConfirmText(cartState.transactionType),
+                                      _getConfirmText(cartState.config, _selectedReversalQuantities.length),
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -330,9 +460,56 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                     ),
                                   ),
                                 ),
+                              if (cartState.config.showReprintButton) ...[
+                                if (showConfirmButton) const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => InvoicePreviewScreen(
+                                            invoiceId: cartState.originalDocumentId ?? 'N/A',
+                                            customer: cartState.customer ?? {},
+                                            subtotal: cartState.subtotal,
+                                            discountAmount: cartState.totalDiscount,
+                                            vatAmount: cartState.totalVat,
+                                            grandTotal: cartState.grandTotal,
+                                            paymentMethod: 'INVOICE',
+                                            paymentStatus: 'PAID',
+                                            items: cartState.cartItems,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: Icon(
+                                      Icons.print_rounded,
+                                      color: theme.primaryColor,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Reprint Invoice Receipt',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.primaryColor,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(color: theme.primaryColor),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
-                            );
-                          },
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -345,19 +522,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     );
   }
 
-  IconData _getConfirmIcon(String transactionType) {
-    if (transactionType == 'SI_SALES_ORDER') return Icons.save;
-    if (transactionType == 'VIEW_SI_SALES_ORDER') return Icons.transform;
-    if (transactionType == 'STANDALONE_CREDIT_NOTE' || transactionType == 'CREDIT_NOTE') return Icons.assignment_return;
-    return Icons.check_circle;
+  IconData _getConfirmIcon(TransactionConfig config) {
+    return config.confirmIcon;
   }
 
-  String _getConfirmText(String transactionType) {
-    if (transactionType == 'SI_SALES_ORDER') return 'Save Sales Order';
-    if (transactionType == 'VIEW_SI_SALES_ORDER') return 'Convert to Invoice';
-    if (transactionType == 'STANDALONE_CREDIT_NOTE') return 'Proceed to Refund';
-    if (transactionType == 'CREDIT_NOTE') return 'Confirm Reversal';
-    return 'Confirm';
+  String _getConfirmText(TransactionConfig config, int selectedCount) {
+    if (config.requireItemSelectionForAction && selectedCount > 0) {
+      return 'Reverse Invoice ($selectedCount ${selectedCount == 1 ? "item" : "items"})';
+    }
+    return config.confirmButtonText;
   }
 
   Future<void> _saveSalesOrder(BuildContext context, SalesInvoiceLoaded cartState) async {
@@ -584,69 +757,137 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     CartItem item,
     int index,
     bool isDark,
-    String transactionType,
+    SalesInvoiceLoaded cartState,
   ) {
     final theme = Theme.of(context);
+    final config = cartState.config;
     final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty;
-    final isViewOnly = transactionType == 'VIEW_SI_SALES_ORDER';
+    final isSelected = _selectedReversalQuantities.containsKey(index);
+    final selectedQty = _selectedReversalQuantities[index] ?? item.quantity;
+    final isViewOnly = !config.canRemoveItems;
 
     return Material(
-      color: isDark ? Colors.grey[900] : Colors.white,
+      color: isSelected
+          ? (isDark ? theme.primaryColor.withOpacity(0.15) : theme.primaryColor.withOpacity(0.06))
+          : (isDark ? Colors.grey[900] : Colors.white),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: Colors.grey.withOpacity(0.2),
-          width: 1,
+          color: isSelected ? theme.primaryColor : Colors.grey.withOpacity(0.2),
+          width: isSelected ? 2 : 1,
         ),
       ),
       elevation: isDark ? 0 : 0.5,
       shadowColor: Colors.black.withOpacity(0.05),
       child: InkWell(
-        onTap: isViewOnly ? null : () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddItemDetailScreen(
-                product: item.product,
-                existingItem: item,
-                editingIndex: index,
-              ),
-            ),
-          );
-        },
-        onLongPress: isViewOnly ? null : () {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Remove Product'),
-              content: Text(
-                'Are you sure you want to remove ${item.product.name} from the order?',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('CANCEL'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    context.read<SalesInvoiceBloc>().add(RemoveCartItem(index));
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    'REMOVE',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+        onTap: config.requireItemSelectionForAction
+            ? () {
+                if (isSelected) {
+                  _showQtyInputDialog(context, index, item.quantity);
+                } else {
+                  setState(() {
+                    _selectedReversalQuantities[index] = item.quantity;
+                  });
+                }
+              }
+            : (isViewOnly
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddItemDetailScreen(
+                          product: item.product,
+                          existingItem: item,
+                          editingIndex: index,
+                        ),
+                      ),
+                    );
+                  }),
+        onLongPress: config.requireItemSelectionForAction
+            ? () {
+                setState(() {
+                  if (_selectedReversalQuantities.containsKey(index)) {
+                    _selectedReversalQuantities.remove(index);
+                  } else {
+                    _selectedReversalQuantities[index] = item.quantity;
+                  }
+                });
+              }
+            : (isViewOnly
+                ? null
+                : () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Remove Product'),
+                        content: Text(
+                          'Are you sure you want to remove ${item.product.name} from the order?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('CANCEL'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              context.read<SalesInvoiceBloc>().add(RemoveCartItem(index));
+                              Navigator.pop(ctx);
+                            },
+                            child: const Text(
+                              'REMOVE',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check, size: 12, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'Selected for Reversal',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'Tap to edit qty',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -724,53 +965,149 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                   ),
                 ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Qty: ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+              if (config.requireItemSelectionForAction && isSelected) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Qty: ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                        ),
-                        TextSpan(
-                          text: '${item.quantity}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            color: selectedQty > 1 ? theme.primaryColor : Colors.grey,
+                            onPressed: selectedQty > 1
+                                ? () {
+                                    setState(() {
+                                      _selectedReversalQuantities[index] = selectedQty - 1;
+                                    });
+                                  }
+                                : null,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => _showQtyInputDialog(context, index, item.quantity),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: theme.primaryColor),
+                                borderRadius: BorderRadius.circular(4),
+                                color: theme.primaryColor.withOpacity(0.12),
+                              ),
+                              child: Text(
+                                selectedQty % 1 == 0 ? selectedQty.toInt().toString() : selectedQty.toStringAsFixed(2),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.primaryColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            color: selectedQty < item.quantity ? theme.primaryColor : Colors.grey,
+                            onPressed: selectedQty < item.quantity
+                                ? () {
+                                    setState(() {
+                                      _selectedReversalQuantities[index] = selectedQty + 1;
+                                    });
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(Max: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity})',
+                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Total: ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                    const SizedBox(width: 4),
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Total: ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                        ),
-                        TextSpan(
-                          text: _currencyFormat.format(item.total),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: theme.primaryColor,
+                          TextSpan(
+                            text: _currencyFormat.format(item.basePrice * selectedQty),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.primaryColor,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ] else ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Qty: ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          TextSpan(
+                            text: '${item.quantity}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Total: ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          TextSpan(
+                            text: _currencyFormat.format(item.total),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -783,6 +1120,102 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     ThemeData theme,
     bool isDark,
   ) {
+    if (cart.config.requireItemSelectionForAction && _selectedReversalQuantities.isNotEmpty) {
+      double revSubtotal = 0.0;
+      double revDiscount = 0.0;
+      double revVat = 0.0;
+      for (final entry in _selectedReversalQuantities.entries) {
+        if (entry.key < cart.cartItems.length) {
+          final item = cart.cartItems[entry.key];
+          final ratio = item.quantity > 0 ? entry.value / item.quantity : 1.0;
+          revSubtotal += item.basePrice * entry.value;
+          revDiscount += item.discountAmount * ratio;
+          revVat += item.vatAmount * ratio;
+        }
+      }
+      final revGrandTotal = revSubtotal - revDiscount + revVat;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[900] : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.primaryColor.withOpacity(0.5)),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.assignment_return_rounded, size: 16, color: theme.primaryColor),
+                const SizedBox(width: 6),
+                Text(
+                  'Reversal Summary (${_selectedReversalQuantities.length} selected)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _buildCalcRow(
+              'Reversal Subtotal',
+              _currencyFormat.format(revSubtotal),
+              isDark: isDark,
+            ),
+            const SizedBox(height: 4),
+            _buildCalcRow(
+              'Reversal Discount',
+              '-${_currencyFormat.format(revDiscount)}',
+              isRed: true,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 4),
+            _buildCalcRow(
+              'Reversal VAT',
+              _currencyFormat.format(revVat),
+              isDark: isDark,
+            ),
+            const SizedBox(height: 6),
+            Divider(color: Colors.grey.withOpacity(0.2), height: 1),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Reversal Total',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                Text(
+                  _currencyFormat.format(revGrandTotal),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(

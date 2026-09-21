@@ -11,7 +11,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart'; // for CartItem
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'order_summary_screen.dart';
-import 'transaction_preview_screen.dart';
+
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String transactionType; // To support launching with a default filter, though the class might manage its own.
@@ -272,93 +272,98 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 ],
                               ),
                               onTap: () async {
-                                if (widget.isForReversal) {
-                                  // Show loading overlay
-                                  showDialog(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (_) => const Center(child: CircularProgressIndicator()),
-                                  );
+                                // Show loading overlay
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                                );
 
-                                  try {
-                                    final lines = await _repository.getTransactionLines(tx.id);
+                                try {
+                                  final lines = await _repository.getTransactionLines(tx.id);
+                                  
+                                  if (context.mounted) {
+                                    Navigator.pop(context); // Dismiss loading
                                     
-                                    if (context.mounted) {
-                                      Navigator.pop(context); // Dismiss loading
-                                      
-                                      final customerMap = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(tx.customerCode);
-                                      
-                                      context.read<SalesInvoiceBloc>().add(ClearCart());
-                                      
-                                      if (customerMap != null) {
-                                        context.read<SalesInvoiceBloc>().add(SetCustomer(customerMap));
-                                      } else {
-                                        context.read<SalesInvoiceBloc>().add(SetCustomer({
-                                          'code': tx.customerCode,
-                                          'name': tx.customerName,
-                                          'statusFlag': '1',
-                                          'creditLimit': '0',
-                                          'outstandingBalance': '0'
-                                        }));
-                                      }
+                                    final customerMap = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(tx.customerCode);
+                                    
+                                    context.read<SalesInvoiceBloc>().add(ClearCart());
+                                    
+                                    if (customerMap != null) {
+                                      context.read<SalesInvoiceBloc>().add(SetCustomer(customerMap));
+                                    } else {
+                                      context.read<SalesInvoiceBloc>().add(SetCustomer({
+                                        'code': tx.customerCode,
+                                        'name': tx.customerName,
+                                        'statusFlag': '1',
+                                        'creditLimit': '0',
+                                        'outstandingBalance': '0'
+                                      }));
+                                    }
 
-                                      context.read<SalesInvoiceBloc>().add(
-                                        InitializeTransaction(
-                                          transactionType: 'CREDIT_NOTE',
-                                          originalDocumentId: tx.id, // Or documentNumber if available
-                                        )
-                                      );
+                                    final isCreditNote = tx.type == 'CREDIT_NOTE' || tx.id.startsWith('CN-');
+                                    String type = widget.isForReversal 
+                                        ? 'CREDIT_NOTE' 
+                                        : (isCreditNote ? 'PREVIEW_CREDIT_NOTE' : 'PREVIEW_INVOICE');
 
-                                      for (var item in lines) {
-                                        final originalQty = (item['quantity'] as num?)?.toDouble() ?? 0.0;
-                                        final reversedQty = (item['reversedQty'] as num?)?.toDouble() ?? 0.0;
-                                        final effectiveQty = (originalQty - reversedQty).clamp(0.0, double.infinity);
-                                        
-                                        if (effectiveQty > 0) {
-                                          context.read<SalesInvoiceBloc>().add(
-                                            AddCartItem(
-                                              CartItem(
-                                                product: SalesInvoiceProductModel(
-                                                  sku: item['sku'] ?? '',
-                                                  name: item['name'] ?? '',
-                                                  stockQty: 0.0,
-                                                  warehouse: item['warehouse'] ?? '',
-                                                  salesUnit: item['salesUnit'] ?? '',
-                                                ),
-                                                lotNumber: item['lotNumber'] ?? '',
-                                                quantity: effectiveQty,
-                                                basePrice: (item['basePrice'] as num?)?.toDouble() ?? 0.0,
-                                                discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
-                                                taxRule: item['taxRule'] ?? '',
-                                                vatRatePercent: 0.0,
-                                              )
+                                    context.read<SalesInvoiceBloc>().add(
+                                      InitializeTransaction(
+                                        transactionType: type,
+                                        originalDocumentId: tx.id,
+                                      )
+                                    );
+
+                                    for (var item in lines) {
+                                      final originalQty = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                                      final reversedQty = (item['reversedQty'] as num?)?.toDouble() ?? 0.0;
+                                      final effectiveQty = widget.isForReversal
+                                          ? (originalQty - reversedQty).clamp(0.0, double.infinity)
+                                          : originalQty; // Show original items in preview
+                                      
+                                      if (effectiveQty > 0) {
+                                        context.read<SalesInvoiceBloc>().add(
+                                          AddCartItem(
+                                            CartItem(
+                                              product: SalesInvoiceProductModel(
+                                                sku: item['sku'] ?? '',
+                                                name: item['name'] ?? '',
+                                                stockQty: 0.0,
+                                                warehouse: item['warehouse'] ?? '',
+                                                salesUnit: item['salesUnit'] ?? '',
+                                              ),
+                                              lotNumber: item['lotNumber'] ?? '',
+                                              quantity: effectiveQty,
+                                              basePrice: (item['basePrice'] as num?)?.toDouble() ?? 0.0,
+                                              discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
+                                              taxRule: item['taxRule'] ?? '',
+                                              vatRatePercent: 0.0,
                                             )
-                                          );
-                                        }
+                                          )
+                                        );
                                       }
+                                    }
 
+                                    if (widget.isForReversal) {
                                       Navigator.pushReplacement(
                                         context,
                                         MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
                                       );
-                                    }
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      Navigator.pop(context); // Dismiss loading
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Failed to load transaction lines: $e')),
+                                    } else {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
                                       );
+                                      if (result == true) {
+                                        _loadTransactions();
+                                      }
                                     }
                                   }
-                                } else {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => TransactionPreviewScreen(transaction: tx),
-                                    ),
-                                  );
-                                  if (result == true) {
-                                    _loadTransactions();
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    Navigator.pop(context); // Dismiss loading
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed to load transaction lines: $e')),
+                                    );
                                   }
                                 }
                               },
