@@ -13,5 +13,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string TaxLevel { get; set; } = string.Empty;
         public string Cce0 { get; set; } = string.Empty;
         public string SalesUnit { get; set; } = string.Empty;
+        public string Barcode { get; set; } = string.Empty;
     }
 }

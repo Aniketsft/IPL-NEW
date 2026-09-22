@@ -102,7 +102,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(stk.LOT_0)) AS LotNumber,
                     LTRIM(RTRIM(itm.VACITM_0)) AS TaxLevel,
                     LTRIM(RTRIM(itm.CCE_0)) AS Cce0,
-                    LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit
+                    LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit,
+                    LTRIM(RTRIM(itm.EANCOD_0)) AS Barcode
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
                     ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
@@ -114,7 +115,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                 GROUP BY 
                     stk.STOFCY_0, zlw.WRHNAM_0, stk.LOC_0, zlw.LOCTYPNAM_0,
-                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0
+                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0
                 ORDER BY 
                     stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0";
 

@@ -63,7 +63,46 @@ class OfflineBarcodeProcessor {
       if (results.isNotEmpty) product = results.first;
     }
 
-    // 2. Critical: If no product found in Master Table, fail here
+    if (product == null) {
+      // Fallback: Check Sales Invoice Item Stock Details
+      if (cleanedBarcode.startsWith('2') || (cleanedBarcode.startsWith('02') && cleanedBarcode.length >= 7)) {
+        final searchCode = cleanedBarcode.startsWith('2') 
+            ? "0${cleanedBarcode.substring(0, 6)}" 
+            : cleanedBarcode.substring(0, 7);
+        
+        final fallbackResults = await db.query(
+          LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+          where: 'itemCode = ? OR barcode = ?',
+          whereArgs: [searchCode, searchCode],
+        );
+        if (fallbackResults.isNotEmpty) {
+          final p = fallbackResults.first;
+          product = {
+            LocalDatabaseHelper.colProdCode: p['itemCode'],
+            LocalDatabaseHelper.colProdSau: p['salesUnit'],
+            LocalDatabaseHelper.colProdStandardWeight: 1.0,
+            LocalDatabaseHelper.colProdDesc: p['itemName'],
+          };
+        }
+      } else {
+        final fallbackResults = await db.query(
+          LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+          where: 'barcode = ? OR itemCode = ? OR barcode = ? OR itemCode = ?',
+          whereArgs: [cleanedBarcode, cleanedBarcode, rawBarcode, rawBarcode],
+        );
+        if (fallbackResults.isNotEmpty) {
+          final p = fallbackResults.first;
+          product = {
+            LocalDatabaseHelper.colProdCode: p['itemCode'],
+            LocalDatabaseHelper.colProdSau: p['salesUnit'],
+            LocalDatabaseHelper.colProdStandardWeight: 1.0,
+            LocalDatabaseHelper.colProdDesc: p['itemName'],
+          };
+        }
+      }
+    }
+
+    // 2. Critical: If no product found in Master Table or Fallback Table, fail here
     if (product == null) return null;
 
     final String itemCode = product[LocalDatabaseHelper.colProdCode] as String;
