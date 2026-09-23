@@ -11,20 +11,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
     public class EfUserRepository : IUserRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor;
 
-        public EfUserRepository(ApplicationDbContext context)
+        public EfUserRepository(ApplicationDbContext context, Microsoft.AspNetCore.Http.IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private string GetCurrentUserSiteCode()
+        {
+            return _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value ?? "ALL";
         }
 
         public async Task<User?> GetByIdAsync(Guid id)
         {
+            var siteCode = GetCurrentUserSiteCode();
             return await _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
                 .Include(u => u.Permissions)
                 .AsSplitQuery()
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .FirstOrDefaultAsync(u => u.Id == id && (siteCode == "ALL" || u.SiteCode == siteCode));
         }
 
         public async Task<User?> GetByEmailAsync(string email)
@@ -49,12 +57,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<User>> GetAllAsync()
         {
-            return await _context.Users
+            var siteCode = GetCurrentUserSiteCode();
+            var query = _context.Users
                 .Include(u => u.Roles)
                 .ThenInclude(r => r.Permissions)
                 .Include(u => u.Permissions)
-                .AsSplitQuery()
-                .ToListAsync();
+                .AsSplitQuery();
+
+            if (siteCode != "ALL")
+            {
+                query = query.Where(u => u.SiteCode == siteCode || u.SiteCode == "ALL");
+            }
+
+            return await query.ToListAsync();
         }
 
         public async Task AddAsync(User user)

@@ -9,6 +9,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public List<PermissionDto> Permissions { get; set; } = new List<PermissionDto>();
+        public string? SiteCode { get; set; }
     }
 
     public class PermissionDto

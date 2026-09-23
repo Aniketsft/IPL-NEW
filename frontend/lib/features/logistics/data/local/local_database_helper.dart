@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 84;
+  static const _databaseVersion = 85;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -167,6 +167,7 @@ class LocalDatabaseHelper {
   static const colUserPermissions = 'permissionsJson';
   static const colUserEmail = 'email';
   static const colUserId = 'userId';
+  static const colUserSiteCode = 'siteCode';
   static const colLastSyncTime = 'last_sync_time';
 
   // tbl_sync_history columns
@@ -261,6 +262,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 85) {
+      debugPrint('DB Upgrade: Adding siteCode to tbl_cached_users (v85)');
+      try {
+        await db.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
+      } catch (e) {
+        debugPrint('Migration error v85 (siteCode): $e');
+      }
+    }
+
     if (oldVersion < 84) {
       debugPrint('DB Upgrade: Adding barcode to tbl_si_item_stock_details (v84)');
       try {

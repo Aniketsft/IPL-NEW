@@ -4,6 +4,8 @@ using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -23,12 +25,20 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            
             var roles = await _roleRepository.GetAllAsync();
+            
+            if (!string.IsNullOrEmpty(currentUserSiteCode))
+            {
+                roles = roles.Where(r => r.SiteCode == currentUserSiteCode);
+            }
             var dtos = roles.Select(r => new RoleDto
             {
                 Id = r.Id,
                 Name = r.Name,
                 Description = r.Description,
+                SiteCode = r.SiteCode,
                 Permissions = r.Permissions.Select(p => new PermissionDto
                 {
                     Id = p.Id,
@@ -45,11 +55,18 @@ namespace EnterpriseAuth.Api.Controllers
             var r = await _roleRepository.GetByIdAsync(id);
             if (r == null) return NotFound();
             
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && r.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+            
             var dto = new RoleDto
             {
                 Id = r.Id,
                 Name = r.Name,
                 Description = r.Description,
+                SiteCode = r.SiteCode,
                 Permissions = r.Permissions.Select(p => new PermissionDto
                 {
                     Id = p.Id,
@@ -63,11 +80,15 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] RoleDto roleDto)
         {
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            var assignedSiteCode = string.IsNullOrEmpty(currentUserSiteCode) ? roleDto.SiteCode : currentUserSiteCode;
+
             var role = new Role
             {
                 Id = roleDto.Id != Guid.Empty ? roleDto.Id : Guid.NewGuid(),
                 Name = roleDto.Name,
                 Description = roleDto.Description,
+                SiteCode = assignedSiteCode,
                 Permissions = new List<Permission>()
             };
 
@@ -95,8 +116,19 @@ namespace EnterpriseAuth.Api.Controllers
             var existingRole = await _roleRepository.GetByIdAsync(id);
             if (existingRole == null) return NotFound();
 
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && existingRole.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+
             existingRole.Name = roleDto.Name;
             existingRole.Description = roleDto.Description;
+            
+            if (string.IsNullOrEmpty(currentUserSiteCode))
+            {
+                existingRole.SiteCode = roleDto.SiteCode;
+            }
 
             // Safe update of permissions collection
             existingRole.Permissions.Clear();
@@ -119,6 +151,15 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
+            var existingRole = await _roleRepository.GetByIdAsync(id);
+            if (existingRole == null) return NotFound();
+
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && existingRole.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+
             await _roleRepository.DeleteAsync(id);
             return NoContent();
         }

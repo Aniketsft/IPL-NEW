@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
-
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
@@ -26,8 +26,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly EodSettings _eodSettings;
         private readonly IStagingService _stagingService;
         private readonly IX3SchemaProvider _schemaProvider;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IOptions<EodSettings> eodSettings, IStagingService stagingService, IX3SchemaProvider schemaProvider)
+        public EfLogisticsRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IOptions<EodSettings> eodSettings, IStagingService stagingService, IX3SchemaProvider schemaProvider, IHttpContextAccessor httpContextAccessor)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new System.ArgumentNullException("Innodis connection string is missing");
@@ -37,6 +38,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _eodSettings = eodSettings.Value;
             _stagingService = stagingService;
             _schemaProvider = schemaProvider;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<IEnumerable<ProductionTrackingDto>> GetProductionTrackingAsync(string? siteCode)
@@ -311,15 +313,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<CustomerLookupDto>> GetCustomerLookupAsync()
         {
+            var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value ?? "ALL";
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT DISTINCT 
-                    LTRIM(RTRIM(BPCNUM_0)) as Code, 
-                    LTRIM(RTRIM(ZFULLBUSNAM_0)) as Name 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER
-                WHERE ZFULLBUSNAM_0 IS NOT NULL AND ZFULLBUSNAM_0 <> ''
+                    LTRIM(RTRIM(c.BPCNUM_0)) as Code, 
+                    LTRIM(RTRIM(c.ZFULLBUSNAM_0)) as Name 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
+                WHERE c.ZFULLBUSNAM_0 IS NOT NULL AND c.ZFULLBUSNAM_0 <> ''
+                  AND (@SiteCode = 'ALL' OR c.FCY_0 = @SiteCode OR b.FCY_0 = @SiteCode OR c.BPCSHO_0 = @SiteCode)
                 ORDER BY Name";
-            return await db.QueryAsync<CustomerLookupDto>(sql);
+            return await db.QueryAsync<CustomerLookupDto>(sql, new { SiteCode = userSiteCode });
         }
 
         public async Task<IEnumerable<SalesRepLookupDto>> GetSalesRepLookupAsync()

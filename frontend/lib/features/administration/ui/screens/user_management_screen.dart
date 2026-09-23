@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/widgets/industrial_module_layout.dart';
 import '../../data/models/user_management.dart';
 import '../../data/repositories/user_management_repository.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../../../features/auth/presentation/bloc/auth_state.dart';
+import '../../../../core/network_service.dart';
 
 class PermissionNode {
   final String label;
@@ -28,7 +32,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
 
   // Selected state
   UserRole? _selectedRole;
-  final UserManagementRepository _repository = UserManagementRepository();
+  late final UserManagementRepository _repository;
 
   // Local state for editing roles
   List<UserRole> _localRoles = [];
@@ -42,6 +46,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
 
   // Selected state for User Creation
   UserRole? _selectedCreationRole;
+  String? _selectedCreationSite;
 
   // State for Managing Existing Users
   List<User> _allUsers = [];
@@ -66,21 +71,35 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'Sales Invoice', moduleId: 'logistics.sales_invoice'),
     ];
 
+  List<Site> _availableSites = [];
+  bool _isInit = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      _repository = UserManagementRepository(dio: context.read<NetworkService>().dio);
+      _loadData();
+      _isInit = true;
+    }
   }
 
   Future<void> _loadData() async {
     try {
       final roles = await _repository.getRoles();
       final users = await _repository.getUsers();
+      final sites = await _repository.getSites();
       if (mounted) {
         setState(() {
           _localRoles = roles;
           _allUsers = users;
+          _availableSites = sites;
           _isLoading = false;
         });
       }
@@ -782,7 +801,15 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   void _showCreateRoleDialog(bool isDark) {
     final nameController = TextEditingController();
     final descController = TextEditingController();
+    String? selectedSite = 'ALL';
     List<ModuleAccess> newRolePermissions = [];
+
+    final authState = context.read<AuthBloc>().state;
+    final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
+    final isAdmin = currentUserSite == 'ALL' || currentUserSite == null;
+    if (!isAdmin) {
+      selectedSite = currentUserSite;
+    }
 
     showDialog(
       context: context,
@@ -842,6 +869,20 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                                 hintText: 'e.g. IT administrators with full settings access',
                               ),
                             ),
+                            if (isAdmin) ...[
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                value: selectedSite,
+                                decoration: const InputDecoration(labelText: 'Site Code'),
+                                items: _availableSites.map((site) => DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'))).toList()
+                                  ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+                                onChanged: (val) {
+                                  setStateDialog(() {
+                                    selectedSite = val;
+                                  });
+                                },
+                              ),
+                            ],
                             const SizedBox(height: 32),
                             _buildPermissionMatrixLayout(
                               permissions: newRolePermissions,
@@ -885,7 +926,9 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                                 final newRole = UserRole(
                                   id: '', 
                                   name: name,
+                                  description: descController.text.trim(),
                                   permissions: newRolePermissions,
+                                  siteCode: selectedSite ?? 'ALL',
                                 );
                                 await _repository.createRole(newRole);
                                 await _loadData();
@@ -1000,7 +1043,56 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             ),
           ),
           const SizedBox(height: 16),
-/*
+          
+          Builder(builder: (context) {
+            final authState = context.read<AuthBloc>().state;
+            final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
+            final isAdmin = currentUserSite == 'ALL' || currentUserSite == null;
+            
+            final displaySite = isAdmin ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Assign Site Code',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: displaySite,
+                        hint: const Text('Select Site'),
+                        isExpanded: true,
+                        dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                        items: _availableSites.map((site) {
+                          return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
+                        }).toList()
+                          ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+                        onChanged: isAdmin ? (val) {
+                          setState(() {
+                            _selectedCreationSite = val;
+                          });
+                        } : null, // Disabled for non-admins
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              );
+          }),
+          
+          const SizedBox(height: 32),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
@@ -1038,7 +1130,6 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               onUpdate: _updateCreationUserPermissions,
             ),
           ],
-          */
           const SizedBox(height: 32),
           _buildActionFooter('CREATE USER', _isCreatingUser, _handleCreateUser),
         ],
@@ -1098,6 +1189,15 @@ class _UserManagementScreenState extends State<UserManagementScreen>
 
     setState(() => _isCreatingUser = true);
     try {
+      final authState = context.read<AuthBloc>().state;
+      final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
+      final finalSite = (currentUserSite == 'ALL' || currentUserSite == null) ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
+
+      // Note: The backend UsersController POST doesn't directly take siteCode currently (it assumes what we send in the payload).
+      // Wait, in user_management_repository.dart we pass siteCode!
+      // But we need to make sure we pass it down to `createUser`. Let's update `createUser` signature to accept `siteCode`.
+      // I will update that call.
+
       await _repository.createUser(
         fullName: _fullNameController.text,
         username: _usernameController.text,
@@ -1105,6 +1205,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         password: _passwordController.text,
         roleId: _selectedCreationRole?.id,
         permissions: _useCustomPermissions ? _selectedUserPermissions : [],
+        siteCode: finalSite == 'ALL' ? null : finalSite,
       );
 
       if (mounted) {
@@ -1114,6 +1215,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         _passwordController.clear();
         setState(() {
           _selectedCreationRole = null;
+          _selectedCreationSite = null;
           _selectedUserPermissions = [];
           _useCustomPermissions = false;
         });

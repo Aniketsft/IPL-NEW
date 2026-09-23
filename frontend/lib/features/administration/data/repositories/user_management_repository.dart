@@ -18,23 +18,7 @@ class UserManagementRepository {
 
   static String get _baseUrl => ApiConfig.baseUrl;
 
-  UserManagementRepository()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: _baseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 15),
-        ),
-      ) {
-    if (kDebugMode && !kIsWeb) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) => true;
-        return client;
-      };
-    }
-  }
+  UserManagementRepository({required Dio dio}) : _dio = dio;
 
   // Roles
   Future<List<UserRole>> getRoles() async {
@@ -55,7 +39,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update role: $e';
+      throw 'Failed to update role: $e. Response: ${e is DioException ? e.response?.data : ""}';
     }
   }
 
@@ -105,6 +89,7 @@ class UserManagementRepository {
     required String email,
     required String password,
     required String? roleId,
+    required String? siteCode,
     List<ModuleAccess> permissions = const [],
   }) async {
     try {
@@ -126,6 +111,7 @@ class UserManagementRepository {
           'roleId': roleId,
           'isActive': true,
           'permissions': permStrings,
+          'siteCode': siteCode,
         },
         options: Options(contentType: Headers.jsonContentType),
       );
@@ -144,6 +130,7 @@ class UserManagementRepository {
           'email': user.email,
           'isActive': user.isActive,
           'roleId': user.roleId,
+          'siteCode': user.siteCode,
         },
         options: Options(contentType: Headers.jsonContentType),
       );
@@ -229,6 +216,7 @@ class UserManagementRepository {
           })
           .values
           .toList(),
+      siteCode: json['siteCode'],
     );
   }
 
@@ -259,7 +247,9 @@ class UserManagementRepository {
     return UserRole(
       id: json['id'],
       name: json['name'],
+      description: json['description'] ?? '',
       permissions: moduleAccessList,
+      siteCode: json['siteCode'],
     );
   }
 
@@ -275,10 +265,34 @@ class UserManagementRepository {
       if (access.canDelete)
         permissions.add({'name': '${access.moduleId}.delete'});
     }
-    final map = {'name': role.name, 'permissions': permissions};
+    final map = {
+      'name': role.name,
+      'description': role.description,
+      'permissions': permissions,
+      'siteCode': role.siteCode
+    };
     if (role.id.isNotEmpty) {
       map['id'] = role.id;
     }
     return map;
+  }
+
+  // Sites
+  Future<List<Site>> getSites() async {
+    try {
+      final response = await _dio.get('Sites');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => Site(
+              siteCode: json['siteCode'],
+              siteName: json['siteName'],
+              isSalesSite: json['isSalesSite'],
+            ),
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch sites: $e';
+    }
   }
 }

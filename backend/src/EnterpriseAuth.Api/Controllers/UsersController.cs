@@ -4,6 +4,8 @@ using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -25,13 +27,22 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            
             var users = await _userRepository.GetAllAsync();
+            
+            if (!string.IsNullOrEmpty(currentUserSiteCode))
+            {
+                users = users.Where(u => u.SiteCode == currentUserSiteCode);
+            }
+            
             var dtos = users.Select(u => new UserDto
             {
                 Id = u.Id,
                 Username = u.Username,
                 Email = u.Email,
                 IsActive = u.IsActive,
+                SiteCode = u.SiteCode,
                 RoleId = u.Roles.FirstOrDefault()?.Id,
                 Permissions = u.Roles.SelectMany(r => r.Permissions).Concat(u.Permissions).Select(p => p.Name).Distinct().ToList()
             });
@@ -44,12 +55,19 @@ namespace EnterpriseAuth.Api.Controllers
             var user = await _userRepository.GetByIdAsync(id);
             if (user == null) return NotFound();
             
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+            
             var dto = new UserDto
             {
                 Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
                 IsActive = user.IsActive,
+                SiteCode = user.SiteCode,
                 RoleId = user.Roles.FirstOrDefault()?.Id,
                 Permissions = user.Roles.SelectMany(r => r.Permissions).Concat(user.Permissions).Select(p => p.Name).Distinct().ToList()
             };
@@ -61,6 +79,9 @@ namespace EnterpriseAuth.Api.Controllers
         {
             var passwordHash = _passwordHasher.HashPassword(request.Password, out string salt);
             
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            var assignedSiteCode = string.IsNullOrEmpty(currentUserSiteCode) ? request.SiteCode : currentUserSiteCode;
+            
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -69,6 +90,7 @@ namespace EnterpriseAuth.Api.Controllers
                 PasswordHash = passwordHash,
                 Salt = salt,
                 IsActive = true,
+                SiteCode = assignedSiteCode,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -109,9 +131,21 @@ namespace EnterpriseAuth.Api.Controllers
             var user = await _userRepository.GetByIdAsync(id);
             if (user == null) return NotFound();
 
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+
             user.Username = dto.Username;
             user.Email = dto.Email;
             user.IsActive = dto.IsActive;
+            
+            if (string.IsNullOrEmpty(currentUserSiteCode))
+            {
+                user.SiteCode = dto.SiteCode;
+            }
+            
             user.UpdatedAt = DateTime.UtcNow;
 
             // Handle standard role update
@@ -146,6 +180,15 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null) return NotFound();
+
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
+
             await _userRepository.DeleteAsync(id);
             return NoContent();
         }
@@ -158,6 +201,12 @@ namespace EnterpriseAuth.Api.Controllers
                 .FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null) return NotFound();
+
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            {
+                return Forbid();
+            }
 
             var normalizedRequestPermissions = permissionNames.Select(p => p.ToLowerInvariant()).ToList();
             

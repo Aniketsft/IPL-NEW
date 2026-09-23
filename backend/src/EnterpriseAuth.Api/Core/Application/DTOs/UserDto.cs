@@ -10,6 +10,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public bool IsActive { get; set; }
         public Guid? RoleId { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
+        public string? SiteCode { get; set; }
     }
 
     public class UserCreateRequest
@@ -19,5 +20,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Password { get; set; } = string.Empty;
         public Guid? RoleId { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
+        public string? SiteCode { get; set; }
     }
 }

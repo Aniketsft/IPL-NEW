@@ -88,7 +88,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZCONSORDERS sdh WITH (NOLOCK) ON f0.SOHNUM_0 = sdh.SOHNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))
+                WHERE (@Site = 'ALL' OR f0.STOFCY_0 = @Site) AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))
                 ORDER BY f0.ORDDAT_0 DESC", new { Site = site });
 
             var detailsTask = FetchFromInnodisAsync<SalesOrderDetailDto>($@"
@@ -117,11 +117,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
-                WHERE f0.STOFCY_0 = @Site AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))", new { Site = site });
+                WHERE (@Site = 'ALL' OR f0.STOFCY_0 = @Site) AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))", new { Site = site });
 
-            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($"SELECT DISTINCT BPCNUM_0 as Code, ZFULLBUSNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER WITH (NOLOCK)");
-            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($"SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)");
-            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.FACILITY WITH (NOLOCK)");
+            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($@"
+                SELECT DISTINCT c.BPCNUM_0 as Code, c.ZFULLBUSNAM_0 as Name 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
+                WHERE (@Site = 'ALL' OR c.FCY_0 = @Site OR b.FCY_0 = @Site OR c.BPCSHO_0 = @Site)", new { Site = site });
+            
+            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($@"
+                SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)"); // Typically reps are global or don't have straightforward facility filtering unless they have FCY_0
+            
+            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($@"
+                SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.FACILITY WITH (NOLOCK)
+                WHERE (@Site = 'ALL' OR FCY_0 = @Site)", new { Site = site });
             
             var locSql = $@"
                 SELECT 
@@ -133,7 +144,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.[ATEXTRA] ATRA WITH (NOLOCK) on T1.STOFCY_0 = ATRA.IDENT1_0 
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' and ATRA.LANGUE_0 = 'BRI' and ATRA.ZONE_0 = 'TYPDESAXX'
-                WHERE T1.STOFCY_0 = @Site";
+                WHERE (@Site = 'ALL' OR T1.STOFCY_0 = @Site)";
             var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
 
             var productsSql = $@"
@@ -151,14 +162,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f0 WITH (NOLOCK)
                     JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
                 ) AS T1
-                WHERE T1.Site = @Site
+                WHERE (@Site = 'ALL' OR T1.Site = @Site)
                   AND T1.Category NOT IN ('ADMIN','CONSU','TECHN')";
             var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
 
             var lotsSql = $@"
                 SELECT DISTINCT ITMREF_0 as ItemCode, STOFCY_0 as SiteCode, LOT_0 as Lot
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK WITH (NOLOCK)
-                WHERE STOFCY_0 = @Site AND QTYPCU_0 > 0";
+                WHERE (@Site = 'ALL' OR STOFCY_0 = @Site) AND QTYPCU_0 > 0";
             var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
 
             var taxMatrixSql = $@"

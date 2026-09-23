@@ -33,6 +33,9 @@ class AuthRepository implements IAuthRepository {
       // 1. Storage Service (Session tokens)
       await _storageService.saveToken(dto.token);
       await _storageService.saveUsername(dto.username);
+      if (dto.siteCode != null) {
+        await _storageService.saveSiteCode(dto.siteCode!);
+      }
 
       // 2. Local DB (Offline caching)
       final db = await LocalDatabaseHelper.instance.database;
@@ -46,6 +49,7 @@ class AuthRepository implements IAuthRepository {
           LocalDatabaseHelper.colUserPermissions: jsonEncode(dto.permissions),
           LocalDatabaseHelper.colUserEmail: dto.email,
           LocalDatabaseHelper.colUserId: dto.id,
+          LocalDatabaseHelper.colUserSiteCode: dto.siteCode,
           LocalDatabaseHelper.colLastSyncTime: DateTime.now().toIso8601String(),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
@@ -102,6 +106,7 @@ class AuthRepository implements IAuthRepository {
         id: row[LocalDatabaseHelper.colUserId] as String,
         username: row[LocalDatabaseHelper.colUserUsername] as String,
         email: row[LocalDatabaseHelper.colUserEmail] as String,
+        siteCode: row[LocalDatabaseHelper.colUserSiteCode] as String?,
         permissions: permissions
             .map((p) => (p as String).toLowerCase())
             .toList(),

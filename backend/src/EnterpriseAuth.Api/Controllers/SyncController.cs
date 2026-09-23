@@ -25,6 +25,12 @@ namespace EnterpriseAuth.Api.Controllers
             [FromQuery] string site = "IPL",
             [FromHeader(Name = "X-Device-Id")] string? deviceId = null)
         {
+            var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
+            if (userSiteCode != "ALL")
+            {
+                site = userSiteCode;
+            }
+
             var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value;
             string performedBy = usernameClaim ?? User.Identity?.Name ?? "system-sync";
             var package = await _syncRepository.GetRefreshPackageAsync(site, deviceId, performedBy);

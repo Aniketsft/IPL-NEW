@@ -6,9 +6,9 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
 {
     public interface ISalesInvoiceRepository
     {
-        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto>> GetCustomersAsync();
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode);
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceProductDto>> GetProductsAsync(string sitecode);
-        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceItemStockDto>> GetItemStockDetailsAsync();
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceItemStockDto>> GetItemStockDetailsAsync(string sitecode);
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.TaxMatrixDto>> GetTaxDeterminationsAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.TaxRateDto>> GetTaxRatesAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.PriceListDto>> GetPriceListsAsync();

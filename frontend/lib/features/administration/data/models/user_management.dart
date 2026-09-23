@@ -45,12 +45,16 @@ class ModuleAccess extends Equatable {
 class UserRole extends Equatable {
   final String id;
   final String name;
+  final String description;
   final List<ModuleAccess> permissions;
+  final String? siteCode;
 
   const UserRole({
     required this.id,
     required this.name,
+    this.description = '',
     required this.permissions,
+    this.siteCode,
   });
 
   @override
@@ -65,6 +69,7 @@ class User extends Equatable {
   final bool isActive;
   final String? roleId;
   final List<ModuleAccess> permissions;
+  final String? siteCode;
 
   const User({
     required this.id,
@@ -73,6 +78,7 @@ class User extends Equatable {
     required this.isActive,
     this.roleId,
     this.permissions = const [],
+    this.siteCode,
   });
 
   @override
@@ -89,4 +95,20 @@ class UserGroup extends Equatable {
 
   @override
   List<Object?> get props => [id];
+}
+
+/// Represents a site/facility in the system.
+class Site extends Equatable {
+  final String siteCode;
+  final String siteName;
+  final int isSalesSite;
+
+  const Site({
+    required this.siteCode,
+    required this.siteName,
+    required this.isSalesSite,
+  });
+
+  @override
+  List<Object?> get props => [siteCode];
 }

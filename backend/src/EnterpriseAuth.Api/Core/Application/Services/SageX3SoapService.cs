@@ -346,7 +346,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string dueDate = (invoice.DueDate ?? "").Replace("-", "").Replace(" ", "").Replace(":", "").PadRight(8, ' ').Substring(0, 8).Trim();
 
                 // Ensure default values from plan
-                string site = string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite;
+                var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
+                string site = !string.IsNullOrWhiteSpace(userSiteCode) 
+                    ? userSiteCode 
+                    : (string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite);
                 string pricingRule = invoice.PricingRule ?? "";
 
                 // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
@@ -480,7 +483,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 string dueDate = creditNoteDate;
 
-                string site = string.IsNullOrWhiteSpace(creditNote.SalesSite) ? "SCG" : creditNote.SalesSite;
+                var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
+                string site = !string.IsNullOrWhiteSpace(userSiteCode) 
+                    ? userSiteCode 
+                    : (string.IsNullOrWhiteSpace(creditNote.SalesSite) ? "SCG" : creditNote.SalesSite);
                 string crnType = string.IsNullOrWhiteSpace(creditNote.X3CreditNoteType) ? "CRN" : creditNote.X3CreditNoteType;
 
                 // Position 15 rule: 

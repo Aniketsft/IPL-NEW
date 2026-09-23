@@ -31,7 +31,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _schemaProvider = schemaProvider;
         }
 
-        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync()
+        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
@@ -57,9 +57,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
-                WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''";
+                WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''
+                  AND (@SiteCode = 'ALL' OR c.FCY_0 = @SiteCode OR b.FCY_0 = @SiteCode OR c.BPCSHO_0 = @SiteCode)";
 
-            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
+            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql, new { SiteCode = sitecode });
         }
 
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
@@ -79,15 +80,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE 
                     itm.ITMSTA_0 = 1
                     AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                    AND (@SiteCode = 'ALL' OR stk.STOFCY_0 = @SiteCode OR sl.STOFCY_0 = @SiteCode)
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
                     LTRIM(RTRIM(itm.ZFULLDES_0)),
                     LTRIM(RTRIM(itm.SAU_0));";
 
-            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { sitecode });
+            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = sitecode });
         }
 
-        public async Task<IEnumerable<SalesInvoiceItemStockDto>> GetItemStockDetailsAsync()
+        public async Task<IEnumerable<SalesInvoiceItemStockDto>> GetItemStockDetailsAsync(string sitecode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
@@ -113,13 +115,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE itm.ITMSTA_0 = 1 
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                  AND (@SiteCode = 'ALL' OR stk.STOFCY_0 = @SiteCode)
                 GROUP BY 
                     stk.STOFCY_0, zlw.WRHNAM_0, stk.LOC_0, zlw.LOCTYPNAM_0,
                     itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0
                 ORDER BY 
                     stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0";
 
-            return await db.QueryAsync<SalesInvoiceItemStockDto>(sql);
+            return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = sitecode });
         }
 
         public async Task<IEnumerable<TaxMatrixDto>> GetTaxDeterminationsAsync()

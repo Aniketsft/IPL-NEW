@@ -28,6 +28,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Console.WriteLine("[DbInitializer] TokenVersion column warning: " + ex.Message);
             }
 
+            // FORCE SCHEMA CREATION: Ensure SiteCode column exists
+            try {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Users' AND COLUMN_NAME = 'SiteCode')
+                    BEGIN
+                        ALTER TABLE [Users] ADD [SiteCode] nvarchar(max) NULL;
+                    END
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Roles' AND COLUMN_NAME = 'SiteCode')
+                    BEGIN
+                        ALTER TABLE [Roles] ADD [SiteCode] nvarchar(max) NULL;
+                    END
+                ");
+            } catch (Exception ex) {
+                Console.WriteLine("[DbInitializer] SiteCode column warning: " + ex.Message);
+            }
+
             // FORCE SCHEMA CREATION: Create UserPermissions table if missing
             try {
                 await context.Database.ExecuteSqlRawAsync(@"

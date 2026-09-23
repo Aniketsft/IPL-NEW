@@ -31,6 +31,14 @@ class SecureStorageService {
     return await _storage.read(key: _schemaKey);
   }
 
+  Future<void> saveSiteCode(String siteCode) async {
+    await _storage.write(key: 'site_code', value: siteCode);
+  }
+
+  Future<String?> getSiteCode() async {
+    return await _storage.read(key: 'site_code');
+  }
+
   Future<void> deleteAll() async {
     await _storage.deleteAll();
   }

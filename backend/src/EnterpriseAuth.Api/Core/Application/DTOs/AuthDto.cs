@@ -19,8 +19,11 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
 
     public class AuthResponse
     {
+        public Guid Id { get; set; }
         public string Token { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
+        public string? SiteCode { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
     }
 
