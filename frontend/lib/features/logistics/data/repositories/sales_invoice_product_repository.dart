@@ -162,9 +162,14 @@ class SalesInvoiceProductRepository {
     return result.map((e) => e['code'] as String).toList();
   }
 
-  Future<void> syncSalesInvoiceItemStockDetails() async {
+  Future<void> syncSalesInvoiceItemStockDetails([String? siteCode]) async {
     try {
-      final response = await _dio.get('SalesInvoice/itemstockdetails');
+      final response = await _dio.get(
+        'SalesInvoice/itemstockdetails',
+        queryParameters: (siteCode != null && siteCode.isNotEmpty)
+            ? {'sitecode': siteCode}
+            : null,
+      );
       final List<dynamic> rawData = response.data;
       
       // Parse in background to prevent UI freeze

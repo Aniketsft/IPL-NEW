@@ -125,7 +125,7 @@ class SalesInvoiceSyncRepository {
       debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
 
       // 3. Fetch Sales Invoice Item Stock Details
-      await _productRepository.syncSalesInvoiceItemStockDetails();
+      await _productRepository.syncSalesInvoiceItemStockDetails(siteCode);
       
       // 4. Fetch Tax Matrix and Tax Rates
       final taxMatrixResponse = await _dio.get('SalesInvoice/tax-determinations');

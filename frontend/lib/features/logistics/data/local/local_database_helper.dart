@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 85;
+  static const _databaseVersion = 86;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -204,6 +204,11 @@ class LocalDatabaseHelper {
       LocalDatabaseHelper._privateConstructor();
   static Database? _database;
 
+  @visibleForTesting
+  static void setTestDatabase(Database? db) {
+    _database = db;
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
@@ -246,6 +251,9 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN orderNumber TEXT');
     } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
+    } catch (_) {}
     
     return _database!;
   }
@@ -262,12 +270,12 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 85) {
-      debugPrint('DB Upgrade: Adding siteCode to tbl_cached_users (v85)');
+    if (oldVersion < 86) {
+      debugPrint('DB Upgrade: Adding siteCode to tbl_cached_users (v86)');
       try {
         await db.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
       } catch (e) {
-        debugPrint('Migration error v85 (siteCode): $e');
+        debugPrint('Migration error v86 (siteCode): $e');
       }
     }
 
@@ -1880,6 +1888,7 @@ class LocalDatabaseHelper {
         $colUserPermissions TEXT,
         $colUserEmail TEXT,
         $colUserId TEXT,
+        $colUserSiteCode TEXT,
         $colLastSyncTime TEXT
       )
     ''');
