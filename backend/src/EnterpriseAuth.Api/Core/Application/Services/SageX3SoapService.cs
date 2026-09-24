@@ -209,7 +209,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 foreach (var line in lines)
                 {
                     string qty = line.ZQTY_0.ToString("F3"); // 3 decimal places
-                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty}|");
+                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty};{line.LotNumber}|");
                 }
 
                 fileBuilder.Append("END");
