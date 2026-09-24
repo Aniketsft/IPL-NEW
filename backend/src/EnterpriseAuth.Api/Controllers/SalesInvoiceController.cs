@@ -42,8 +42,8 @@ namespace EnterpriseAuth.Api.Controllers
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
-                if (userSiteCode != "ALL")
+                var userSiteCode = User.FindFirst("SiteCode")?.Value;
+                if (!string.IsNullOrEmpty(userSiteCode))
                 {
                     payload.SalesSite = userSiteCode;
                 }
@@ -139,8 +139,8 @@ namespace EnterpriseAuth.Api.Controllers
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
-                if (userSiteCode != "ALL")
+                var userSiteCode = User.FindFirst("SiteCode")?.Value;
+                if (!string.IsNullOrEmpty(userSiteCode))
                 {
                     payload.SalesSite = userSiteCode;
                 }
@@ -258,9 +258,8 @@ namespace EnterpriseAuth.Api.Controllers
         {
             try
             {
-                var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
                 // Fetch directly from X3
-                var customers = await _repository.GetCustomersAsync(userSiteCode);
+                var customers = await _repository.GetCustomersAsync();
                 
                 return Ok(customers);
             }
@@ -272,15 +271,20 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("Products")]
-        public async Task<IActionResult> GetProducts([FromQuery] string sitecode)
+        public async Task<IActionResult> GetProducts([FromQuery] string? sitecode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
-            if (userSiteCode != "ALL")
+            var userSiteCode = User.FindFirst("SiteCode")?.Value;
+
+            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            {
+                sitecode = userSiteCode;
+            }
+            else if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
             {
                 sitecode = userSiteCode;
             }
 
-            if (string.IsNullOrEmpty(sitecode) || sitecode == "ALL")
+            if (string.IsNullOrWhiteSpace(sitecode))
             {
                 return BadRequest("A specific sitecode is required to fetch products.");
             }
@@ -297,15 +301,20 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         [HttpGet("itemstockdetails")]
-        public async Task<IActionResult> GetItemStockDetails([FromQuery] string sitecode)
+        public async Task<IActionResult> GetItemStockDetails([FromQuery] string? sitecode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value ?? "ALL";
-            if (userSiteCode != "ALL")
+            var userSiteCode = User.FindFirst("SiteCode")?.Value;
+
+            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            {
+                sitecode = userSiteCode;
+            }
+            else if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
             {
                 sitecode = userSiteCode;
             }
 
-            if (string.IsNullOrEmpty(sitecode) || sitecode == "ALL")
+            if (string.IsNullOrWhiteSpace(sitecode))
             {
                 return BadRequest("A specific sitecode is required to fetch item stock details.");
             }

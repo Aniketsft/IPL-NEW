@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="SyncCalculatedDataTests.cs" />
+    <None Include="SyncCalculatedDataTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\EnterpriseAuth.Api\EnterpriseAuth.Api.csproj" />
   </ItemGroup>
 
