@@ -203,13 +203,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string delDate = header?.ZDLVDAT_0?.ToString("yyyyMMdd") ?? "";
 
                 // Header Record: H;Template;SalesSite;StockSite;;Customer;Currency;ShipDate;DelDate;2(fixed);LorryNo;LorryShortCode;Location
-                fileBuilder.Append($"H;{header?.ZSDHTYP_0};{header?.ZSALFCY_0};{header?.ZSTOFCY_0};;{header?.ZBPCORD_0};{header?.ZSUR_0};{shiDate};{delDate};2;{header?.ZLOCFCY_0};{header?.ZLORSHORT_0};{header?.ZLOC_0}|");
+                fileBuilder.Append($"H;{header?.ZSDHTYP_0};{header?.ZSALFCY_0};{header?.ZSTOFCY_0};;{header?.ZBPCORD_0};{header?.ZSUR_0};{shiDate};{delDate};2;{header?.ZLORSHORT_0};{header?.ZLOC_0};{header?.ZLOCFCY_0}|");
 
                 // Line Records: L;SONo;LineNo;ItemCode;Description;Unit;Qty
                 foreach (var line in lines)
                 {
                     string qty = line.ZQTY_0.ToString("F3"); // 3 decimal places
-                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty};{line.LotNumber}|");
+                    fileBuilder.Append($"L;{line.ZSOHNUM_0};{line.ZSOPLIN_0};{line.ZITMREF_0};{line.ZITMDES_0};{line.ZSAU_0};{qty}|");
                 }
 
                 fileBuilder.Append("END");
