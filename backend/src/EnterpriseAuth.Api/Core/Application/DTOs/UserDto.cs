@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EnterpriseAuth.Api.Core.Application.DTOs
 {
@@ -8,6 +9,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Email { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public bool IsActive { get; set; }
+        public string? SiteCode { get; set; }
         public Guid? RoleId { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
     }
@@ -17,6 +19,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Email { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string? SiteCode { get; set; }
         public Guid? RoleId { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
     }

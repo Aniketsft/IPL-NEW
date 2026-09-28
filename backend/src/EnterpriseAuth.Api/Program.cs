@@ -71,6 +71,7 @@ builder.Services.AddDbContext<ScanProductionDbContext>(options =>
 // Dependency Injection
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();
+builder.Services.AddScoped<ISitesRepository, EfSitesRepository>();
 
 builder.Services.AddScoped<ILogisticsRepository, EfLogisticsRepository>();
 builder.Services.AddScoped<ILogisticsService, LogisticsService>();

@@ -222,6 +222,7 @@ class SalesDeliveryPdfGenerator {
         7: pw.Alignment.centerRight,
       },
       columnWidths: {
+        
         0: const pw.FlexColumnWidth(2),
         1: const pw.FlexColumnWidth(4),
         2: const pw.FlexColumnWidth(2),

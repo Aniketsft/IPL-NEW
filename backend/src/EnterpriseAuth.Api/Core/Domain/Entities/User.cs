@@ -14,6 +14,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public Guid TokenVersion { get; set; } = Guid.NewGuid();
+        public string SiteCode { get; set; } = string.Empty;
 
         public ICollection<Role> Roles { get; set; } = new List<Role>();
         public ICollection<Permission> Permissions { get; set; } = new List<Permission>();

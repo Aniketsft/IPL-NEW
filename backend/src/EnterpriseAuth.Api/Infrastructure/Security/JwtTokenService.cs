@@ -31,6 +31,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Security
                 new Claim("TokenVersion", user.TokenVersion.ToString())
             };
 
+            if (!string.IsNullOrEmpty(user.SiteCode))
+            {
+                claims.Add(new Claim("SiteCode", user.SiteCode));
+            }
+
             // Add Permissions as claims
             var permissions = user.Roles
                 .SelectMany(r => r.Permissions)

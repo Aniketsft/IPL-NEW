@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 64;
+  static const _databaseVersion = 65;
 
 
   static const tableScans = 'tbl_scans';
@@ -154,6 +154,7 @@ class LocalDatabaseHelper {
   static const colUserEmail = 'email';
   static const colUserId = 'userId';
   static const colLastSyncTime = 'last_sync_time';
+  static const colUserSiteCode = 'siteCode';
 
   // tbl_sync_history columns
   static const colSyncTimestamp = 'timestamp';
@@ -960,6 +961,17 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v64: $e");
       }
     }
+    if (oldVersion < 65) {
+      debugPrint('DB Upgrade: Adding siteCode to tableCachedUsers (v65)');
+      try {
+        var columns = await db.rawQuery('PRAGMA table_info($tableCachedUsers)');
+        if (!columns.any((c) => c['name'] == colUserSiteCode)) {
+          await db.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
+        }
+      } catch (e) {
+        debugPrint("Migration error v65 (siteCode): $e");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -1089,7 +1101,8 @@ class LocalDatabaseHelper {
         $colUserPermissions TEXT,
         $colUserEmail TEXT,
         $colUserId TEXT,
-        $colLastSyncTime TEXT
+        $colLastSyncTime TEXT,
+        $colUserSiteCode TEXT
       )
     ''');
 

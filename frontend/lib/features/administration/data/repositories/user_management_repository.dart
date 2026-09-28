@@ -4,36 +4,60 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/user_management.dart';
 import 'package:enterprise_auth_mobile/core/config/api_config.dart';
-import 'package:enterprise_auth_mobile/core/error/api_error_handler.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 
 class UserManagementRepository {
   final Dio _dio;
-  // The following lines from the user's provided "Code Edit" are syntactically incorrect
-  // if placed directly after the _dio initialization.
-  // The original _baseUrl getter is kept as it is syntactically correct and functional.
-  // if (!kIsWeb && Platform.isAndroid) {
-  //     return 'http://10.0.2.2:5004/api';
-  //   }
-  //   return 'https://localhost:7176/api';
-  // }
 
   static String get _baseUrl => ApiConfig.baseUrl;
 
-  UserManagementRepository()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: _baseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 15),
-        ),
-      ) {
+  UserManagementRepository({Dio? dio}) : _dio = dio ?? _createDefaultDio();
+
+  static Dio _createDefaultDio() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: _baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
+
     if (kDebugMode && !kIsWeb) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         client.badCertificateCallback =
             (X509Certificate cert, String host, int port) => true;
         return client;
       };
+    }
+
+    final storageService = SecureStorageService();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await storageService.getToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          final schema = await storageService.getSchema() ?? 'INLDRYRUN';
+          options.headers['X-X3-Schema'] = schema;
+          return handler.next(options);
+        },
+      ),
+    );
+
+    return dio;
+  }
+
+  Future<void> changePassword(String userId, String newPassword) async {
+    try {
+      await _dio.put(
+        'Users/$userId/password',
+        data: {'password': newPassword},
+        options: Options(contentType: Headers.jsonContentType),
+      );
+    } catch (e) {
+      throw 'Failed to change password: $e';
     }
   }
 
@@ -44,7 +68,7 @@ class UserManagementRepository {
       final data = response.data as List;
       return data.map((json) => _mapJsonToRole(json)).toList();
     } catch (e) {
-      throw 'Failed to fetch roles: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to fetch roles: $e';
     }
   }
 
@@ -56,7 +80,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update role: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to update role: $e. Response: ${e is DioException ? e.response?.data : ""}';
     }
   }
 
@@ -64,7 +88,7 @@ class UserManagementRepository {
     try {
       await _dio.delete('Roles/$roleId');
     } catch (e) {
-      throw 'Failed to delete role: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to delete role: $e';
     }
   }
 
@@ -83,7 +107,7 @@ class UserManagementRepository {
           )
           .toList();
     } catch (e) {
-      throw 'Failed to fetch groups: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to fetch groups: $e';
     }
   }
 
@@ -95,7 +119,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update group: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to update group: $e';
     }
   }
 
@@ -106,6 +130,7 @@ class UserManagementRepository {
     required String email,
     required String password,
     required String? roleId,
+    required String? siteCode,
     List<ModuleAccess> permissions = const [],
   }) async {
     try {
@@ -127,11 +152,12 @@ class UserManagementRepository {
           'roleId': roleId,
           'isActive': true,
           'permissions': permStrings,
+          'siteCode': siteCode,
         },
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to create user: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to create user: $e';
     }
   }
 
@@ -145,23 +171,12 @@ class UserManagementRepository {
           'email': user.email,
           'isActive': user.isActive,
           'roleId': user.roleId,
+          'siteCode': user.siteCode,
         },
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update user: ${ApiErrorHandler.getErrorMessage(e)}';
-    }
-  }
-
-  Future<void> changePassword(String userId, String newPassword) async {
-    try {
-      await _dio.put(
-        'Users/$userId/password',
-        data: {'password': newPassword},
-        options: Options(contentType: Headers.jsonContentType),
-      );
-    } catch (e) {
-      throw 'Failed to change password: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to update user: $e';
     }
   }
 
@@ -173,7 +188,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to create role: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to create role: $e';
     }
   }
 
@@ -185,7 +200,7 @@ class UserManagementRepository {
           .map((json) => _mapJsonToUser(json))
           .toList();
     } catch (e) {
-      throw 'Failed to fetch users: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to fetch users: $e';
     }
   }
 
@@ -209,7 +224,7 @@ class UserManagementRepository {
         options: Options(contentType: Headers.jsonContentType),
       );
     } catch (e) {
-      throw 'Failed to update user permissions: ${ApiErrorHandler.getErrorMessage(e)}';
+      throw 'Failed to update user permissions: $e';
     }
   }
 
@@ -242,6 +257,7 @@ class UserManagementRepository {
           })
           .values
           .toList(),
+      siteCode: json['siteCode'],
     );
   }
 
@@ -272,7 +288,9 @@ class UserManagementRepository {
     return UserRole(
       id: json['id'],
       name: json['name'],
+      description: json['description'] ?? '',
       permissions: moduleAccessList,
+      siteCode: json['siteCode'],
     );
   }
 
@@ -280,18 +298,45 @@ class UserManagementRepository {
     // Generate flat permission list from ModuleAccess
     final List<Map<String, dynamic>> permissions = [];
     for (var access in role.permissions) {
-      if (access.canCreate)
+      if (access.canCreate) {
         permissions.add({'name': '${access.moduleId}.create'});
+      }
       if (access.canRead) permissions.add({'name': '${access.moduleId}.read'});
-      if (access.canUpdate)
+      if (access.canUpdate) {
         permissions.add({'name': '${access.moduleId}.update'});
-      if (access.canDelete)
+      }
+      if (access.canDelete) {
         permissions.add({'name': '${access.moduleId}.delete'});
+      }
     }
-    final map = {'name': role.name, 'permissions': permissions};
+    final map = {
+      'name': role.name,
+      'description': role.description,
+      'permissions': permissions,
+      'siteCode': role.siteCode
+    };
     if (role.id.isNotEmpty) {
       map['id'] = role.id;
     }
     return map;
+  }
+
+  // Sites
+  Future<List<Site>> getSites() async {
+    try {
+      final response = await _dio.get('Sites');
+      final data = response.data as List;
+      return data
+          .map(
+            (json) => Site(
+              siteCode: json['siteCode'],
+              siteName: json['siteName'],
+              isSalesSite: json['isSalesSite'],
+            ),
+          )
+          .toList();
+    } catch (e) {
+      throw 'Failed to fetch sites: $e';
+    }
   }
 }

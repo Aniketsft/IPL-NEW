@@ -64,8 +64,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             return new AuthResponse
             {
+                Id = user.Id,
+                Email = user.Email,
                 Token = token,
                 Username = user.Username,
+                SiteCode = user.SiteCode,
                 Permissions = permissions
             };
         }
@@ -84,8 +87,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             return new AuthResponse
             {
+                Id = user.Id,
+                Email = user.Email,
                 Token = token,
                 Username = user.Username,
+                SiteCode = user.SiteCode,
                 Permissions = permissions
             };
         }

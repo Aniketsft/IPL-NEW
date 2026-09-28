@@ -47,6 +47,7 @@ class AuthRepository implements IAuthRepository {
           LocalDatabaseHelper.colUserEmail: dto.email,
           LocalDatabaseHelper.colUserId: dto.id,
           LocalDatabaseHelper.colLastSyncTime: DateTime.now().toIso8601String(),
+          LocalDatabaseHelper.colUserSiteCode: dto.siteCode,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -103,6 +104,7 @@ class AuthRepository implements IAuthRepository {
         permissions: permissions
             .map((p) => (p as String).toLowerCase())
             .toList(),
+        siteCode: row[LocalDatabaseHelper.colUserSiteCode] as String?,
       );
     }
 
