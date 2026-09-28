@@ -9,9 +9,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         /// <summary>
         /// Source bulk sales order number (e.g. BLK-20261015, CUTS-20261015)
         /// </summary>
-        public string SourceBulkSoNumber { get; set; }
+        public string SourceBulkSoNumber { get; set; } = string.Empty;
         
-        public string ItemCode { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
         
         public DateTime DeliveryDate { get; set; }
         
@@ -25,9 +25,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string? Salesman { get; set; }
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public string CreatedBy { get; set; }
+        public string CreatedBy { get; set; } = string.Empty;
         
         public DateTime? UpdatedAt { get; set; }
-        public string UpdatedBy { get; set; }
+        public string UpdatedBy { get; set; } = string.Empty;
     }
 }

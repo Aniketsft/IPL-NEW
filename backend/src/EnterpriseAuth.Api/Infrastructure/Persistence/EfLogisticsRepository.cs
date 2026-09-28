@@ -66,7 +66,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 SoNumber = s.OrderLine.Order.SourceOrderId,
                 ItemCode = s.OrderLine.ItemCode,
-                Description = s.OrderLine.Description,
+                Description = s.OrderLine.Description ?? string.Empty,
                 Quantity = s.OrderLine.OrderedQuantity,
                 Manufactured = s.TotalManufacturedQty,
                 Remaining = Math.Max(0m, s.OrderLine.OrderedQuantity - s.TotalManufacturedQty),
@@ -107,12 +107,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             if (!string.IsNullOrEmpty(rep0))
             {
-                query = query.Where(o => o.Salesman.Contains(rep0));
+                query = query.Where(o => o.Salesman != null && o.Salesman.Contains(rep0));
             }
 
             if (!string.IsNullOrEmpty(rep1))
             {
-                query = query.Where(o => o.Salesman.Contains(rep1));
+                query = query.Where(o => o.Salesman != null && o.Salesman.Contains(rep1));
             }
 
             var orders = await query
@@ -133,12 +133,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 PoNo = o.PoNumber ?? "",
                 OrderDate = o.OrderDate,
                 DeliveryDate = o.DeliveryDate,
-                CustomerCode = o.CustomerCode,
-                CustomerName = o.CustomerName,
+                CustomerCode = o.CustomerCode ?? string.Empty,
+                CustomerName = o.CustomerName ?? string.Empty,
                 Rep0 = o.Rep0 ?? "",
                 Rep1 = o.Rep1 ?? "",
                 Salesman = o.Salesman ?? "",
-                Site = o.Site,
+                Site = o.Site ?? string.Empty,
                 Status = o.Status,
                 Source = o.SourceSystem,
                 IsPreparedForShipment = shipmentStatuses.Contains(o.SourceOrderId)
@@ -191,7 +191,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     {
                         SoNumber     = latest.OrderLine.Order.SourceOrderId,
                         ItemCode     = itemCode,
-                        Description  = latest.OrderLine.Description,
+                        Description  = latest.OrderLine.Description ?? string.Empty,
                         Quantity     = latest.OrderLine.OrderedQuantity,
                         Manufactured = g.Sum(s => s.ScanAmountKg),
                         EaQuantity   = g.Sum(s => s.EaQuantity ?? 0m),
@@ -297,10 +297,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             {
                 SoNumber = s.OrderLine.Order.SourceOrderId,
                 ItemCode = s.OrderLine.ItemCode,
-                Description = s.OrderLine.Description,
+                Description = s.OrderLine.Description ?? string.Empty,
                 BarcodeType = "Variable Weight",
                 Quantity = s.OrderLine.OrderedQuantity,
-                Site = s.OrderLine.Order.Site,
+                Site = s.OrderLine.Order.Site ?? string.Empty,
                 Salesman = s.OrderLine.Order.Salesman,
                 CustomerCode = s.OrderLine.Order.CustomerCode,
                 CustomerName = s.OrderLine.Order.CustomerName,
@@ -322,7 +322,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
                 WHERE c.ZFULLBUSNAM_0 IS NOT NULL AND c.ZFULLBUSNAM_0 <> ''
-                  AND (@SiteCode = 'ALL' OR c.FCY_0 = @SiteCode OR b.FCY_0 = @SiteCode OR c.BPCSHO_0 = @SiteCode)
+                  AND (@SiteCode = 'ALL' OR @SiteCode = '' OR c.SALFCY_0 = @SiteCode OR c.BPCSHO_0 = @SiteCode)
                 ORDER BY Name";
             return await db.QueryAsync<CustomerLookupDto>(sql, new { SiteCode = userSiteCode });
         }
@@ -331,12 +331,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
-                SELECT DISTINCT 
-                    LTRIM(RTRIM(REPNUM_0)) as Code, 
-                    LTRIM(RTRIM(REPNAM_0)) as Name 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP
-                WHERE REPNAM_0 IS NOT NULL AND REPNAM_0 <> ''
-                ORDER BY Name";
+                SELECT 
+                    LTRIM(RTRIM(T1.REPNUM_0)) AS Code, 
+                    LTRIM(RTRIM(ISNULL(T3.TEXTE_0, T2.BPRNAM_0))) AS Name,
+                    LTRIM(RTRIM(T1.FCY_0)) AS AssignedSite 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP T1 WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER T2 WITH (NOLOCK) 
+                    ON T1.REPNUM_0 = T2.BPRNUM_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ATEXTRA T3 WITH (NOLOCK)
+                    ON T3.CODFIC_0 = 'BPARTNER'
+                    AND T3.ZONE_0 = 'BPRNAM'
+                    AND T3.LANGUE_0 = 'ENG'
+                    AND T3.IDENT1_0 = T2.BPRNUM_0
+                    AND (T3.IDENT2_0 = '' OR T3.IDENT2_0 IS NULL)
+                ORDER BY T1.REPNUM_0";
             return await db.QueryAsync<SalesRepLookupDto>(sql);
         }
 
@@ -656,8 +664,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 var allocations = scans.Where(s => !string.IsNullOrEmpty(s.Location) && s.Location.StartsWith("ALLOC-")).ToList();
                 if (allocations.Any())
                 {
-                    // Group allocations by source pool in case this batch has mixed sources (though unlikely per line 394)
-                    var groupedAllocations = allocations.GroupBy(a => a.Location.Replace("ALLOC-", ""));
+                    var groupedAllocations = allocations
+                        .Where(a => a.Location != null)
+                        .GroupBy(a => a.Location!.Replace("ALLOC-", ""));
                     foreach (var group in groupedAllocations)
                     {
                         var sourceBulkSo = group.Key;

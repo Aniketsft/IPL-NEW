@@ -34,6 +34,7 @@ class SalesInvoiceProductRepository {
 
   Future<List<SalesInvoiceProductModel>> getSalesInvoiceProducts({
     String? warehouse,
+    String? siteCode,
     String query = '',
     String stockFilter = 'all',
     int limit = 20,
@@ -43,6 +44,12 @@ class SalesInvoiceProductRepository {
 
     List<String> conditions = [];
     List<dynamic> whereArgs = [];
+
+    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+      conditions.add('(S.siteCode = ? OR S.warehouse = ?)');
+      whereArgs.add(siteCode);
+      whereArgs.add(siteCode);
+    }
 
     if (warehouse != null && warehouse.isNotEmpty && warehouse != 'ALL') {
       conditions.add('S.warehouse = ?');
@@ -145,13 +152,19 @@ class SalesInvoiceProductRepository {
     return null;
   }
 
-  Future<List<String>> getDistinctWarehouses() async {
+  Future<List<String>> getDistinctWarehouses([String? siteCode]) async {
     final db = await LocalDatabaseHelper.instance.database;
+    final String whereClause = (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL')
+        ? 'WHERE (siteCode = ? OR warehouse = ?) AND warehouse IS NOT NULL AND warehouse != ""'
+        : 'WHERE warehouse IS NOT NULL AND warehouse != ""';
+    final List<dynamic> whereArgs = (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL')
+        ? [siteCode, siteCode]
+        : [];
+
     final result = await db.rawQuery('''SELECT DISTINCT warehouse 
          FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-         WHERE warehouse IS NOT NULL 
-           AND warehouse != "" 
-         ORDER BY warehouse''');
+         $whereClause
+         ORDER BY warehouse''', whereArgs);
 
     return result.map((e) => e['warehouse'] as String).toList();
   }

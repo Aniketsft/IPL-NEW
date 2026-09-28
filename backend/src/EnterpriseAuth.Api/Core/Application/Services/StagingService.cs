@@ -272,7 +272,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
         }
 
-        private async Task<Dictionary<string, string>> GetItemVatLevelsAsync(List<string?> itemCodes)
+        private async Task<Dictionary<string, string>> GetItemVatLevelsAsync(List<string> itemCodes)
         {
             try
             {

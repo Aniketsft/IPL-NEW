@@ -7,6 +7,7 @@ import '../models/sales_invoice_product_model.dart';
 import '../../domain/services/credit_note_service.dart';
 import '../models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 
 class SalesRepository implements ISalesRepository {
   final SalesInvoiceProductRepository _productRepository;
@@ -101,8 +102,11 @@ class SalesRepository implements ISalesRepository {
     required double totalAmount,
     required String refundMethod,
   }) async {
+    final userSite = await SecureStorageService().getSiteCode();
+    final site = (userSite != null && userSite.isNotEmpty && userSite != 'ALL') ? userSite : 'IPL';
+
     await _creditNoteService.createStandaloneCreditNote(
-      salesSite: customer['site'] ?? 'ALL',
+      salesSite: site,
       customerCode: customer['id'] ?? '',
       customerName: customer['name'] ?? '',
       refundMethod: refundMethod,

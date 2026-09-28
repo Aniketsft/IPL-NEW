@@ -11,6 +11,7 @@ class SalesInvoiceItemStockModel {
   final String cce0;
   final String salesUnit;
   final String barcode;
+  final String siteCode;
   final int isSynced;
 
   SalesInvoiceItemStockModel({
@@ -26,6 +27,7 @@ class SalesInvoiceItemStockModel {
     this.cce0 = '',
     this.salesUnit = '',
     this.barcode = '',
+    this.siteCode = '',
     this.isSynced = 1,
   });
 
@@ -42,6 +44,7 @@ class SalesInvoiceItemStockModel {
     String? cce0,
     String? salesUnit,
     String? barcode,
+    String? siteCode,
     int? isSynced,
   }) {
     return SalesInvoiceItemStockModel(
@@ -57,6 +60,7 @@ class SalesInvoiceItemStockModel {
       cce0: cce0 ?? this.cce0,
       salesUnit: salesUnit ?? this.salesUnit,
       barcode: barcode ?? this.barcode,
+      siteCode: siteCode ?? this.siteCode,
       isSynced: isSynced ?? this.isSynced,
     );
   }
@@ -75,6 +79,7 @@ class SalesInvoiceItemStockModel {
       cce0: (json['cce0'] ?? '').toString(),
       salesUnit: (json['salesUnit'] ?? json['unit'] ?? '').toString(),
       barcode: (json['barcode'] ?? '').toString(),
+      siteCode: (json['siteCode'] ?? '').toString(),
     );
   }
 
@@ -92,6 +97,7 @@ class SalesInvoiceItemStockModel {
       cce0: map['cce0'] as String? ?? '',
       salesUnit: (map['salesUnit'] as String?) ?? '',
       barcode: map['barcode'] as String? ?? '',
+      siteCode: (map['siteCode'] as String?) ?? '',
       isSynced: map['isSynced'] as int? ?? 1,
     );
   }
@@ -110,6 +116,7 @@ class SalesInvoiceItemStockModel {
       'cce0': cce0,
       'salesUnit': salesUnit,
       'barcode': barcode,
+      'siteCode': siteCode,
       'isSynced': isSynced,
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

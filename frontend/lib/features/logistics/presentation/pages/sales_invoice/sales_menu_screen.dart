@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_state.dart';
+import '../../widgets/sales_rep_selection_dialog.dart';
+import '../../../data/repositories/sales_invoice_sync_repository.dart';
 import 'select_transaction_screen.dart';
 import 'sales_reports_screen.dart';
 import 'sales_orders_list_screen.dart';
@@ -18,6 +23,28 @@ class SalesMenuScreen extends StatelessWidget {
     IconData icon,
     Widget screen,
   ) {
+    return _buildActionButton(
+      context,
+      title,
+      icon,
+      () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            settings: RouteSettings(name: screen.runtimeType.toString()),
+            builder: (_) => screen,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -25,15 +52,7 @@ class SalesMenuScreen extends StatelessWidget {
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              settings: RouteSettings(name: screen.runtimeType.toString()),
-              builder: (_) => screen,
-            ),
-          );
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
@@ -101,6 +120,29 @@ class SalesMenuScreen extends StatelessWidget {
             'Sales Order',
             Icons.list_alt_rounded,
             const SalesOrdersListScreen(),
+          ),
+          _buildActionButton(
+            context,
+            'Sales Reps',
+            Icons.badge_rounded,
+            () async {
+              final authState = context.read<AuthBloc>().state;
+              final siteCode = (authState is Authenticated &&
+                      authState.siteCode != null &&
+                      authState.siteCode!.isNotEmpty &&
+                      authState.siteCode != 'ALL')
+                  ? authState.siteCode
+                  : null;
+              final username = authState is Authenticated ? authState.username : null;
+              final syncRepo = context.read<SalesInvoiceSyncRepository>();
+              await SalesRepSelectionDialog.show(
+                context,
+                canDismiss: true,
+                userSiteCode: siteCode,
+                syncRepository: syncRepo,
+                username: username,
+              );
+            },
           ),
         ],
       ),

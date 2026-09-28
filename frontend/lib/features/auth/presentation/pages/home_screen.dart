@@ -22,13 +22,20 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/s
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_invoice_sync_overlay.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_rep_selection_dialog.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   final String username;
   final List<String> permissions;
+
+  static String? _promptedSessionUser;
+
+  static void resetSessionPrompt() {
+    _promptedSessionUser = null;
+  }
 
   const HomeScreen({
     super.key,
@@ -42,6 +49,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _lastSyncStr = 'Never';
+  List<Map<String, dynamic>> _selectedSalesReps = [];
 
   bool _hasAccess(String permissionString) {
     return widget.permissions.contains(permissionString);
@@ -51,6 +59,58 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadLastSync();
+    _loadSelectedSalesReps();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndPromptSalesRepSelection();
+    });
+  }
+
+  @override
+  void dispose() {
+    HomeScreen.resetSessionPrompt();
+    super.dispose();
+  }
+
+  Future<void> _loadSelectedSalesReps() async {
+    try {
+      final reps = await LocalDatabaseHelper.instance.getSelectedSalesReps(
+        username: widget.username,
+      );
+      if (mounted) {
+        setState(() {
+          _selectedSalesReps = reps;
+        });
+      }
+    } catch (e) {
+      debugPrint("Home: Error loading selected sales reps: $e");
+    }
+  }
+
+  Future<void> _checkAndPromptSalesRepSelection({bool force = false}) async {
+    await _loadSelectedSalesReps();
+    if (!mounted) return;
+
+    final isNewLoginPrompt = HomeScreen._promptedSessionUser != widget.username;
+    if (_selectedSalesReps.isEmpty || force || isNewLoginPrompt) {
+      HomeScreen._promptedSessionUser = widget.username;
+      final authState = context.read<AuthBloc>().state;
+      final siteCode = (authState is Authenticated &&
+              authState.siteCode != null &&
+              authState.siteCode!.isNotEmpty &&
+              authState.siteCode != 'ALL')
+          ? authState.siteCode
+          : null;
+
+      final syncRepo = context.read<SalesInvoiceSyncRepository>();
+      await SalesRepSelectionDialog.show(
+        context,
+        canDismiss: _selectedSalesReps.isNotEmpty && !force && !isNewLoginPrompt,
+        userSiteCode: siteCode,
+        syncRepository: syncRepo,
+        username: widget.username,
+      );
+      await _loadSelectedSalesReps();
+    }
   }
 
   Future<void> _loadLastSync() async {
@@ -77,9 +137,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _triggerSync() {
-    final selectedSite = context.read<SalesInvoiceCartCubit>().state.site;
     final authState = context.read<AuthBloc>().state;
-    final siteCode = selectedSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
+    final siteCode = (authState is Authenticated &&
+            authState.siteCode != null &&
+            authState.siteCode!.isNotEmpty &&
+            authState.siteCode != 'ALL')
+        ? authState.siteCode
+        : null;
+
+    if (siteCode == null || siteCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot sync: No assigned site code found for logged in user.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     
     context.read<SalesInvoiceSyncBloc>().add(
           StartSalesInvoiceSyncRequested(siteCode: siteCode),
@@ -218,6 +292,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     if (!widget.permissions.any((p) => p.startsWith('app.home.'))) {
       return _buildRestrictedUI(
         context,
@@ -281,13 +358,145 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return GridView.count(
-      padding: const EdgeInsets.all(16),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 0.9,
-      children: menuItems,
+    return Column(
+      children: [
+        _buildSalesRepBanner(context, theme, isDark),
+        Expanded(
+          child: GridView.count(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.9,
+            children: menuItems,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSalesRepBanner(
+    BuildContext context,
+    ThemeData theme,
+    bool isDark,
+  ) {
+    final hasReps = _selectedSalesReps.isNotEmpty;
+    final repText = hasReps
+        ? _selectedSalesReps
+            .map((r) => '${r['code']} (${r['name']})')
+            .join(', ')
+        : 'None selected (Tap to choose active reps)';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      decoration: BoxDecoration(
+        color: hasReps
+            ? (isDark ? Colors.blueGrey.shade900.withOpacity(0.6) : Colors.blue.shade50)
+            : (isDark ? Colors.red.shade900.withOpacity(0.4) : Colors.amber.shade50),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasReps
+              ? theme.primaryColor.withOpacity(0.3)
+              : Colors.amber.withOpacity(0.6),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _checkAndPromptSalesRepSelection(force: true),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: hasReps
+                        ? theme.primaryColor.withOpacity(0.15)
+                        : Colors.amber.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    hasReps
+                        ? Icons.assignment_ind_rounded
+                        : Icons.warning_amber_rounded,
+                    color: hasReps ? theme.primaryColor : Colors.amber.shade800,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Active Sales Reps',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                          if (hasReps) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.primaryColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_selectedSalesReps.length}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.primaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        repText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: hasReps
+                              ? (isDark ? Colors.white : Colors.black87)
+                              : Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _checkAndPromptSalesRepSelection(force: true),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: theme.primaryColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text(
+                    'Change',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -543,7 +752,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            onTap: () => context.read<AuthBloc>().add(LogoutRequested()),
+            onTap: () {
+              HomeScreen.resetSessionPrompt();
+              context.read<AuthBloc>().add(LogoutRequested());
+            },
           ),
           const SizedBox(height: 16),
         ],

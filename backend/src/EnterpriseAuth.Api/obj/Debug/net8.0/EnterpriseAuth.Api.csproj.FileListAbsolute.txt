@@ -444,7 +444,6 @@ D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Enterp
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.runtimeconfig.json
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.pdb
-D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\AutoMapper.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Azure.Core.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Azure.Identity.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\BCrypt.Net-Next.dll

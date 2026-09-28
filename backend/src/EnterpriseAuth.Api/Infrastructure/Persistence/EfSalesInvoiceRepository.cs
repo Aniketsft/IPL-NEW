@@ -58,9 +58,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
                 WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''
-                  AND (@SiteCode = 'ALL' OR c.FCY_0 = @SiteCode OR b.FCY_0 = @SiteCode OR c.BPCSHO_0 = @SiteCode)";
+                ORDER BY LTRIM(RTRIM(c.BPCNAM_0))";
 
-            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql, new { SiteCode = sitecode });
+            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
         }
 
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
@@ -80,7 +80,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE 
                     itm.ITMSTA_0 = 1
                     AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
-                    AND (@SiteCode = 'ALL' OR stk.STOFCY_0 = @SiteCode OR sl.STOFCY_0 = @SiteCode)
+                    AND stk.STOFCY_0 = @SiteCode
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
                     LTRIM(RTRIM(itm.ZFULLDES_0)),
@@ -94,31 +94,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(stk.STOFCY_0)) AS Warehouse, 
-                    LTRIM(RTRIM(zlw.WRHNAM_0)) AS WarehouseName, 
+                    LTRIM(RTRIM(COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0))) AS Warehouse, 
+                    LTRIM(RTRIM(COALESCE(zlw.WRHNAM_0, stk.STOFCY_0))) AS WarehouseName, 
                     LTRIM(RTRIM(stk.LOC_0)) AS Location, 
-                    LTRIM(RTRIM(zlw.LOCTYPNAM_0)) AS LocationType,
+                    LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) AS LocationType,
                     LTRIM(RTRIM(itm.ITMREF_0)) AS ItemCode,
-                    LTRIM(RTRIM(itm.ITMDES1_0)) AS ItemName,  
+                    LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))) AS ItemName,  
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS TotalQty,
-                    LTRIM(RTRIM(stk.LOT_0)) AS LotNumber,
-                    LTRIM(RTRIM(itm.VACITM_0)) AS TaxLevel,
-                    LTRIM(RTRIM(itm.CCE_0)) AS Cce0,
-                    LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit,
-                    LTRIM(RTRIM(itm.EANCOD_0)) AS Barcode
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
-                    ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                    LTRIM(RTRIM(COALESCE(stk.LOT_0, ''))) AS LotNumber,
+                    LTRIM(RTRIM(COALESCE(itm.VACITM_0, 'STD'))) AS TaxLevel,
+                    LTRIM(RTRIM(COALESCE(itm.CCE_0, ''))) AS Cce0,
+                    LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
+                    LTRIM(RTRIM(COALESCE(itm.EANCOD_0, ''))) AS Barcode,
+                    LTRIM(RTRIM(stk.STOFCY_0)) AS SiteCode
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm 
+                    ON stk.ITMREF_0 = itm.ITMREF_0 AND itm.ITMSTA_0 = 1
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw 
                     ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
-                WHERE itm.ITMSTA_0 = 1 
+                WHERE stk.STOFCY_0 = @SiteCode 
+                  AND stk.STA_0 = 'A'
+                  AND stk.QTYSTU_0 > 0
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
-                  AND (@SiteCode = 'ALL' OR stk.STOFCY_0 = @SiteCode)
                 GROUP BY 
-                    stk.STOFCY_0, zlw.WRHNAM_0, stk.LOC_0, zlw.LOCTYPNAM_0,
-                    itm.ITMREF_0, itm.ITMDES1_0, stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0
+                    stk.STOFCY_0, COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0), COALESCE(zlw.WRHNAM_0, stk.STOFCY_0), 
+                    stk.LOC_0, zlw.LOCTYPNAM_0,
+                    itm.ITMREF_0, COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''), stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0
                 ORDER BY 
                     stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0";
 
@@ -195,6 +198,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND (l.PLIENDDAT_0 >= CONVERT(DATE, GETDATE()) OR l.PLIENDDAT_0 IN ('1753-01-01', '1900-01-01'))
             ";
             return await db.QueryAsync<PriceListDto>(sql);
+        }
+
+        public async Task<IEnumerable<SalesRepLookupDto>> GetSalesRepsAsync(string? siteCode = null)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(T1.REPNUM_0)) AS Code, 
+                    LTRIM(RTRIM(ISNULL(T3.TEXTE_0, T2.BPRNAM_0))) AS Name,
+                    LTRIM(RTRIM(T1.FCY_0)) AS AssignedSite 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP T1 WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER T2 WITH (NOLOCK) 
+                    ON T1.REPNUM_0 = T2.BPRNUM_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ATEXTRA T3 WITH (NOLOCK)
+                    ON T3.CODFIC_0 = 'BPARTNER'
+                    AND T3.ZONE_0 = 'BPRNAM'
+                    AND T3.LANGUE_0 = 'ENG'
+                    AND T3.IDENT1_0 = T2.BPRNUM_0
+                    AND (T3.IDENT2_0 = '' OR T3.IDENT2_0 IS NULL)
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR T1.FCY_0 = @SiteCode OR T1.FCY_0 IS NULL OR T1.FCY_0 = '')
+                ORDER BY T1.REPNUM_0;
+            ";
+            return await db.QueryAsync<SalesRepLookupDto>(sql, new { SiteCode = siteCode ?? "" });
         }
     }
 }

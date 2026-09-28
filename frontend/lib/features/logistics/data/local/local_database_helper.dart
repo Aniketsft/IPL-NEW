@@ -11,13 +11,14 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 86;
+  static const _databaseVersion = 87;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
   static const tableDetails = 'tbl_sales_order_details';
   static const tableCustomers = 'tbl_customers';
   static const tableReps = 'tbl_sales_reps';
+  static const tableUserSelectedReps = 'tbl_user_selected_sales_reps';
   static const tableLocations = 'tbl_locations';
   static const tableCachedUsers = 'tbl_cached_users';
   static const tableSyncHistory = 'tbl_sync_history';
@@ -254,6 +255,27 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
     } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN siteCode TEXT DEFAULT ""');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableReps ADD COLUMN assignedSite TEXT');
+    } catch (_) {}
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableUserSelectedReps (
+          code TEXT,
+          name TEXT,
+          assignedSite TEXT,
+          username TEXT DEFAULT "",
+          selectedAt TEXT,
+          PRIMARY KEY (code, username)
+        )
+      ''');
+    } catch (_) {}
+    try {
+      await _database!.execute('ALTER TABLE $tableUserSelectedReps ADD COLUMN username TEXT DEFAULT ""');
+    } catch (_) {}
     
     return _database!;
   }
@@ -270,6 +292,32 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 87) {
+      debugPrint('DB Upgrade: Adding assignedSite to tbl_sales_reps and creating tbl_user_selected_sales_reps (v87)');
+      try {
+        await db.execute('ALTER TABLE $tableReps ADD COLUMN assignedSite TEXT');
+      } catch (e) {
+        debugPrint('Migration error v87 (assignedSite): $e');
+      }
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableUserSelectedReps (
+            code TEXT,
+            name TEXT,
+            assignedSite TEXT,
+            username TEXT DEFAULT "",
+            selectedAt TEXT,
+            PRIMARY KEY (code, username)
+          )
+        ''');
+      } catch (e) {
+        debugPrint('Migration error v87 (user_selected_sales_reps): $e');
+      }
+      try {
+        await db.execute('ALTER TABLE $tableUserSelectedReps ADD COLUMN username TEXT DEFAULT ""');
+      } catch (_) {}
+    }
+
     if (oldVersion < 86) {
       debugPrint('DB Upgrade: Adding siteCode to tbl_cached_users (v86)');
       try {
@@ -1532,6 +1580,7 @@ class LocalDatabaseHelper {
         cce0 TEXT,
         salesUnit TEXT,
         barcode TEXT DEFAULT "",
+        siteCode TEXT DEFAULT "",
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,
@@ -1866,7 +1915,19 @@ class LocalDatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableReps (
         $colCode TEXT PRIMARY KEY,
-        $colName TEXT
+        $colName TEXT,
+        assignedSite TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableUserSelectedReps (
+        code TEXT,
+        name TEXT,
+        assignedSite TEXT,
+        username TEXT DEFAULT "",
+        selectedAt TEXT,
+        PRIMARY KEY (code, username)
       )
     ''');
 
@@ -3429,5 +3490,113 @@ class LocalDatabaseHelper {
       limit: limit,
       offset: offset,
     );
+  }
+
+  // ==========================================
+  // SALES REP METHODS
+  // ==========================================
+
+  Future<void> upsertSalesReps(List<Map<String, dynamic>> reps) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var rep in reps) {
+      batch.insert(
+        tableReps,
+        {
+          'code': (rep['code'] ?? rep['salesRepCode'] ?? rep['SalesRepCode'] ?? '').toString().trim(),
+          'name': (rep['name'] ?? rep['salesRepName'] ?? rep['SalesRepName'] ?? '').toString().trim(),
+          'assignedSite': (rep['assignedSite'] ?? rep['AssignedSite'] ?? '').toString().trim(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Map<String, dynamic>>> getSalesReps({String? siteCode}) async {
+    final db = await database;
+    if (siteCode != null && siteCode.trim().isNotEmpty) {
+      return await db.query(
+        tableReps,
+        where: 'assignedSite = ? OR assignedSite = "" OR assignedSite IS NULL',
+        whereArgs: [siteCode.trim()],
+        orderBy: 'code ASC',
+      );
+    }
+    return await db.query(
+      tableReps,
+      orderBy: 'code ASC',
+    );
+  }
+
+  Future<void> saveSelectedSalesReps(
+    List<Map<String, dynamic>> selectedReps, {
+    String? username,
+  }) async {
+    final db = await database;
+    final user = (username ?? '').trim();
+    await db.transaction((txn) async {
+      if (user.isNotEmpty) {
+        await txn.delete(
+          tableUserSelectedReps,
+          where: 'username = ?',
+          whereArgs: [user],
+        );
+      } else {
+        await txn.delete(tableUserSelectedReps);
+      }
+      for (var rep in selectedReps) {
+        final code = (rep['code'] ?? rep['salesRepCode'] ?? rep['SalesRepCode'] ?? '').toString().trim();
+        final name = (rep['name'] ?? rep['salesRepName'] ?? rep['SalesRepName'] ?? '').toString().trim();
+        final assignedSite = (rep['assignedSite'] ?? rep['AssignedSite'] ?? '').toString().trim();
+        if (code.isNotEmpty) {
+          await txn.insert(
+            tableUserSelectedReps,
+            {
+              'code': code,
+              'name': name,
+              'assignedSite': assignedSite,
+              'username': user,
+              'selectedAt': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getSelectedSalesReps({String? username}) async {
+    final db = await database;
+    final user = (username ?? '').trim();
+    if (user.isNotEmpty) {
+      final userSpecific = await db.query(
+        tableUserSelectedReps,
+        where: 'username = ?',
+        whereArgs: [user],
+        orderBy: 'code ASC',
+      );
+      if (userSpecific.isNotEmpty) {
+        return userSpecific;
+      }
+    }
+    return await db.query(
+      tableUserSelectedReps,
+      orderBy: 'code ASC',
+    );
+  }
+
+  Future<void> clearSelectedSalesReps({String? username}) async {
+    final db = await database;
+    final user = (username ?? '').trim();
+    if (user.isNotEmpty) {
+      await db.delete(
+        tableUserSelectedReps,
+        where: 'username = ?',
+        whereArgs: [user],
+      );
+    } else {
+      await db.delete(tableUserSelectedReps);
+    }
   }
 }

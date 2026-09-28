@@ -7,7 +7,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string Sku { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public double StockQty { get; set; }
-        public string Warehouse { get; set; }
+        public string Warehouse { get; set; } = string.Empty;
         public string SalesUnit { get; set; } = string.Empty;
     }
 }

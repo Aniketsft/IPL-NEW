@@ -5,6 +5,7 @@ using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Application.DTOs;
+using Microsoft.EntityFrameworkCore;
 using System;
 
 namespace EnterpriseAuth.Api.Controllers
@@ -43,9 +44,13 @@ namespace EnterpriseAuth.Api.Controllers
             try
             {
                 var userSiteCode = User.FindFirst("SiteCode")?.Value;
-                if (!string.IsNullOrEmpty(userSiteCode))
+                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
                 {
                     payload.SalesSite = userSiteCode;
+                }
+                else if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
+                {
+                    payload.SalesSite = "IPL";
                 }
 
                 // 1. Insert into Staging
@@ -140,9 +145,13 @@ namespace EnterpriseAuth.Api.Controllers
             try
             {
                 var userSiteCode = User.FindFirst("SiteCode")?.Value;
-                if (!string.IsNullOrEmpty(userSiteCode))
+                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
                 {
                     payload.SalesSite = userSiteCode;
+                }
+                else if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
+                {
+                    payload.SalesSite = "IPL";
                 }
 
                 var stagingHeader = new StagingCreditNoteHeader
@@ -150,7 +159,7 @@ namespace EnterpriseAuth.Api.Controllers
                     CreditNoteId = payload.CreditNoteId,
                     CreditNoteType = payload.CreditNoteType,
                     X3CreditNoteType = !string.IsNullOrEmpty(payload.X3CreditNoteType) ? payload.X3CreditNoteType : "CRN",
-                    SalesSite = !string.IsNullOrEmpty(payload.SalesSite) ? payload.SalesSite : "SCG",
+                    SalesSite = payload.SalesSite,
                     CustomerCode = payload.CustomerCode,
                     CustomerName = payload.CustomerName,
                     Currency = !string.IsNullOrEmpty(payload.Currency) ? payload.Currency : "MUR",
@@ -258,14 +267,11 @@ namespace EnterpriseAuth.Api.Controllers
         {
             try
             {
-                // Fetch directly from X3
-                var customers = await _repository.GetCustomersAsync();
-                
+                var customers = await _repository.GetCustomersAsync(string.Empty);
                 return Ok(customers);
             }
             catch (System.Exception ex)
             {
-                // Dump the exact error to the HTTP response for bug hunting
                 return StatusCode(500, ex.ToString());
             }
         }
@@ -279,14 +285,10 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 sitecode = userSiteCode;
             }
-            else if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                sitecode = userSiteCode;
-            }
 
-            if (string.IsNullOrWhiteSpace(sitecode))
+            if (string.IsNullOrWhiteSpace(sitecode) || string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest("A specific sitecode is required to fetch products.");
+                return BadRequest("A specific sitecode is required to fetch products. 'ALL' is not permitted.");
             }
 
             try
@@ -309,14 +311,10 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 sitecode = userSiteCode;
             }
-            else if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                sitecode = userSiteCode;
-            }
 
-            if (string.IsNullOrWhiteSpace(sitecode))
+            if (string.IsNullOrWhiteSpace(sitecode) || string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest("A specific sitecode is required to fetch item stock details.");
+                return BadRequest("A specific sitecode is required to fetch item stock details. 'ALL' is not permitted.");
             }
 
             try
@@ -364,6 +362,26 @@ namespace EnterpriseAuth.Api.Controllers
             try
             {
                 var data = await _repository.GetPriceListsAsync();
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, ex.ToString());
+            }
+        }
+
+        [HttpGet("salesreps")]
+        public async Task<IActionResult> GetSalesReps([FromQuery] string? sitecode = null)
+        {
+            var userSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            {
+                sitecode = userSiteCode;
+            }
+
+            try
+            {
+                var data = await _repository.GetSalesRepsAsync(sitecode);
                 return Ok(data);
             }
             catch (System.Exception ex)

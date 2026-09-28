@@ -28,15 +28,18 @@ class SalesInvoiceSyncOverlay extends StatelessWidget {
           } else if (syncState is SalesInvoiceSyncSuccess) {
             final successes = syncState.batchResult.successes.length;
             final failures = syncState.batchResult.failures.length;
+            final hasError = syncState.batchResult.errorMessage != null || failures > 0;
             
-            message = "Sync Summary\nSuccesses: $successes | Failures: $failures";
+            message = hasError 
+                ? "Sync Completed with Issues\nSuccesses: $successes | Failures: $failures"
+                : "Sync Summary\nSuccesses: $successes | Failures: $failures";
             details = [
               ...syncState.batchResult.successes.map((s) => "Creation of $s successful"),
               ...syncState.batchResult.failures.map((f) => "Failed: $f")
             ];
             
-            if (failures > 0) {
-              isError = true; // Show error icon if partial failure
+            if (hasError) {
+              isError = true; // Show error icon if failure or exception occurred
             } else {
               isSuccess = true;
             }

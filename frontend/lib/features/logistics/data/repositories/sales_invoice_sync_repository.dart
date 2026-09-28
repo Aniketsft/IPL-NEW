@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../../core/network_service.dart';
 import '../../../../../core/secure_storage_service.dart';
 import '../local/local_database_helper.dart';
+import '../models/sales_rep_model.dart';
 import 'sales_invoice_product_repository.dart';
 
 class SyncBatchResult {
@@ -54,6 +55,7 @@ class SalesInvoiceSyncRepository {
           final payload = {
             "invoiceId": invoiceId,
             "salesSite": invoice['salesSite'] ?? siteCode,
+            "salesRep": invoice['salesRep'] ?? '',
             "customerCode": invoice['customerCode'],
             "pricingRule": invoice['pricingRule'] ?? 'DEFAULT',
             "dueDate": invoice['dueDate'] ?? DateTime.now().toIso8601String(),
@@ -118,7 +120,7 @@ class SalesInvoiceSyncRepository {
         }
       }
 
-      // 2. Fetch Sales Invoice Customers
+      // 2. Fetch Sales Invoice Customers (All customers across all sites)
       final siResponse = await _dio.get('SalesInvoice/customers');
       final siCustomers = siResponse.data as List<dynamic>? ?? [];
       await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
@@ -151,6 +153,20 @@ class SalesInvoiceSyncRepository {
       await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
       debugPrint('Sync: Synced ${priceLists.length} Price Lists.');
 
+      // 6. Fetch Sales Reps
+      try {
+        final repsResponse = await _dio.get(
+          'SalesInvoice/salesreps',
+          queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null,
+        );
+        final rawReps = repsResponse.data as List<dynamic>? ?? [];
+        final repsList = rawReps.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        await LocalDatabaseHelper.instance.upsertSalesReps(repsList);
+        debugPrint('Sync: Synced ${repsList.length} Sales Reps.');
+      } catch (e) {
+        debugPrint('Sync: Failed to fetch sales reps: $e');
+      }
+
       final duration = stopwatch.elapsedMilliseconds;
       debugPrint('Sales Invoice Sync completed in ${duration}ms');
       
@@ -160,10 +176,32 @@ class SalesInvoiceSyncRepository {
       if (e.response != null) {
         debugPrint('DioException Response Data: ${e.response?.data}');
       }
+      final serverError = e.response?.data?.toString() ?? e.message ?? 'Network error';
+      failures.add('Data sync failed: $serverError');
       return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
+      failures.add('Data sync failed: $e');
       return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
+    }
+  }
+
+  Future<List<SalesRepModel>> fetchAndSyncSalesReps({String? siteCode}) async {
+    try {
+      final response = await _dio.get(
+        'SalesInvoice/salesreps',
+        queryParameters: (siteCode != null && siteCode.isNotEmpty) ? {'siteCode': siteCode} : null,
+      );
+      final rawList = response.data as List<dynamic>? ?? [];
+      final reps = rawList
+          .map((item) => SalesRepModel.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+      await LocalDatabaseHelper.instance.upsertSalesReps(reps.map((r) => r.toMap()).toList());
+      return reps;
+    } catch (e) {
+      debugPrint('Failed to fetch and sync sales reps: $e');
+      final localData = await LocalDatabaseHelper.instance.getSalesReps(siteCode: siteCode);
+      return localData.map((m) => SalesRepModel.fromMap(m)).toList();
     }
   }
 }

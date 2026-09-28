@@ -269,6 +269,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final invoiceId =
           'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
+      // Read user assigned site from AuthBloc synchronously before async gaps
+      final authState = context.read<AuthBloc>().state;
+      final userSiteCode = (authState is Authenticated &&
+              authState.siteCode != null &&
+              authState.siteCode!.isNotEmpty &&
+              authState.siteCode != 'ALL')
+          ? authState.siteCode!
+          : 'IPL';
+
       // Fetch audit details
       final secureStorage = SecureStorageService();
       final username = await secureStorage.getUsername() ?? 'Unknown User';
@@ -279,17 +288,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
 
-      // Default to IPL if no site selected
-      final fallbackSite = context.read<AuthBloc>().state is Authenticated 
-          ? (context.read<AuthBloc>().state as Authenticated).siteCode ?? 'IPL' 
-          : 'IPL';
-      final selectedSite = cartState.customer?['site'] ?? fallbackSite;
-
       // Handle Credit Note Refund flow
       if (widget.isCreditNoteRefund) {
         final refundMethod = _payments.isNotEmpty ? _payments.first.method : 'CASH';
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
-          salesSite: selectedSite,
+          salesSite: userSiteCode,
           customerCode: cartState.customer!['code'],
           customerName: cartState.customer!['name'],
           refundMethod: refundMethod,
@@ -340,7 +343,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             .where((s) => s.isNotEmpty && s != 'MANUAL' && !s.contains('discount-only'))
             .firstOrNull ?? '';
 
-      // 1. Insert Invoice
+      // 1. Insert Invoice with Active Selected Sales Rep(s)
+      final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
+      final salesRepString = selectedReps.isNotEmpty
+          ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
+          : username;
+
       batch.insert(LocalDatabaseHelper.tableSiInvoices, {
         'invoiceId': invoiceId,
         'customerCode': cartState.customer!['code'],
@@ -358,8 +366,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'appVersion': appVersion,
         'reference': _referenceController.text.trim(),
         'invoiceType': 'STD',
-        'salesSite': selectedSite,
-        'salesRep': username,
+        'salesSite': userSiteCode,
+        'salesRep': salesRepString,
         'pricingRule': resolvedPricingRule,
         'dueDate': DateTime.now().toIso8601String(),
         'userName': username,
@@ -560,11 +568,19 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   Future<void> _handleHistoricalPrint(SalesInvoiceLoaded cartState) async {
     final isCreditNote = cartState.transactionType == 'PREVIEW_CREDIT_NOTE';
     if (isCreditNote) {
+      final authState = context.read<AuthBloc>().state;
+      final userSite = (authState is Authenticated &&
+              authState.siteCode != null &&
+              authState.siteCode!.isNotEmpty &&
+              authState.siteCode != 'ALL')
+          ? authState.siteCode!
+          : 'IPL';
+
       final creditNote = CreditNoteModel(
         creditNoteId: cartState.originalDocumentId ?? '',
         creditNoteType: CreditNoteType.reversal,
         x3CreditNoteType: 'CRN',
-        salesSite: 'SCG', 
+        salesSite: userSite, 
         customerCode: cartState.customer!['code'],
         customerName: cartState.customer!['name'],
         currency: 'MUR',

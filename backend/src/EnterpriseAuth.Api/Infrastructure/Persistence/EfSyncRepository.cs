@@ -123,11 +123,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SELECT DISTINCT c.BPCNUM_0 as Code, c.ZFULLBUSNAM_0 as Name 
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
-                WHERE (@Site = 'ALL' OR c.FCY_0 = @Site OR b.FCY_0 = @Site OR c.BPCSHO_0 = @Site)", new { Site = site });
+                WHERE (@Site = 'ALL' OR @Site = '' OR c.SALFCY_0 = @Site OR c.BPCSHO_0 = @Site)", new { Site = site });
             
             var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($@"
-                SELECT DISTINCT REPNUM_0 as Code, REPNAM_0 as Name 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP WITH (NOLOCK)"); // Typically reps are global or don't have straightforward facility filtering unless they have FCY_0
+                SELECT 
+                    LTRIM(RTRIM(T1.REPNUM_0)) AS Code, 
+                    LTRIM(RTRIM(ISNULL(T3.TEXTE_0, T2.BPRNAM_0))) AS Name,
+                    LTRIM(RTRIM(T1.FCY_0)) AS AssignedSite 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP T1 WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER T2 WITH (NOLOCK) 
+                    ON T1.REPNUM_0 = T2.BPRNUM_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ATEXTRA T3 WITH (NOLOCK)
+                    ON T3.CODFIC_0 = 'BPARTNER'
+                    AND T3.ZONE_0 = 'BPRNAM'
+                    AND T3.LANGUE_0 = 'ENG'
+                    AND T3.IDENT1_0 = T2.BPRNUM_0
+                    AND (T3.IDENT2_0 = '' OR T3.IDENT2_0 IS NULL)
+                ORDER BY T1.REPNUM_0");
             
             var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($@"
                 SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name 
@@ -210,7 +222,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         PoNo = order.PoNumber ?? "",
                         OrderDate = order.OrderDate,
                         DeliveryDate = order.DeliveryDate,
-                        CustomerCode = order.CustomerCode,
+                        CustomerCode = order.CustomerCode ?? string.Empty,
                         CustomerName = order.CustomerName ?? "",
                         Rep0 = order.Rep0 ?? "",
                         Rep1 = order.Rep1 ?? "",
@@ -227,9 +239,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         {
                             SoNumber = order.SourceOrderId,
                             ItemCode = line.ItemCode,
-                            Description = line.Description,
+                            Description = line.Description ?? string.Empty,
                             Quantity = line.OrderedQuantity,
-                            Unit = line.Unit,
+                            Unit = line.Unit ?? string.Empty,
                             Soplin = line.LineNumber,
                             Site = order.Site ?? "INTERNAL"
                         });
@@ -411,11 +423,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     // Build DTOs for enterprise sync
                     var headerDtos = request.CutBulkEntries.Select(cb => new SalesOrderHeaderDto
                     {
-                        SohNum = cb.EntryNumber,
+                        SohNum = cb.EntryNumber ?? string.Empty,
                         PoNo = cb.PoNumber ?? "",
                         OrderDate = cb.Date,
                         DeliveryDate = cb.Date,
-                        CustomerCode = cb.CustomerCode,
+                        CustomerCode = cb.CustomerCode ?? string.Empty,
                         CustomerName = cb.CustomerName ?? "",
                         Rep0 = cb.Salesman1Code ?? "",
                         Rep1 = cb.Salesman2Code ?? "",
@@ -426,7 +438,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     var detailDtos = request.CutBulkEntries.Select(cb => new SalesOrderDetailDto
                     {
-                        SoNumber = cb.EntryNumber,
+                        SoNumber = cb.EntryNumber ?? string.Empty,
                         ItemCode = cb.ItemCode ?? (cb.Type == "Cuts" ? "PROD-CUT" : "PROD-BLK"),
                         Description = cb.ProductName ?? (cb.Type == "Cuts" ? "Internal Production - Cuts" : "Internal Production - Bulk"),
                         Quantity = cb.AmountKg,
@@ -504,7 +516,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                     foreach (var scanDto in request.Scans)
                     {
-                        if (existingSyncIds.Contains(scanDto.SyncId)) continue;
+                        if (string.IsNullOrEmpty(scanDto.SyncId) || existingSyncIds.Contains(scanDto.SyncId)) continue;
 
                         var line = lines.FirstOrDefault(l => 
                             l.Order.SourceOrderId == scanDto.SoNumber && 
@@ -910,7 +922,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
                         foreach (var excess in activeExcesses)
                         {
-                            string oldVal = updateDto.SettingKey == "ExcessDefaultCustomer" ? excess.CustomerCode : excess.Salesman;
+                            string? oldVal = updateDto.SettingKey == "ExcessDefaultCustomer" ? excess.CustomerCode : excess.Salesman;
                             
                             if (updateDto.SettingKey == "ExcessDefaultCustomer") excess.CustomerCode = updateDto.SettingValue;
                             if (updateDto.SettingKey == "ExcessDefaultSalesman") excess.Salesman = updateDto.SettingValue;
@@ -1315,10 +1327,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             return logs.Where(l => l != null).Select(l => new DeviceSyncLogDto
             {
-                DeviceId = l.EntityIdString,
-                LastSyncedBy = l.PerformedBy,
-                LastSyncTime = l.PerformedAt,
-                ActionType = l.ActionType
+                DeviceId = l?.EntityIdString ?? string.Empty,
+                LastSyncedBy = l?.PerformedBy ?? string.Empty,
+                LastSyncTime = l?.PerformedAt ?? DateTime.MinValue,
+                ActionType = l?.ActionType ?? string.Empty
             }).OrderByDescending(d => d.LastSyncTime);
         }
 

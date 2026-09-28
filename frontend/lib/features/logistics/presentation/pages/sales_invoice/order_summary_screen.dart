@@ -11,6 +11,8 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
+import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_state.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/navigation/app_routes.dart';
 import 'sales_invoice_product_selection_screen.dart';
@@ -268,12 +270,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         Center(
                           child: TextButton.icon(
                             onPressed: () {
+                              final authState = context.read<AuthBloc>().state;
+                              final userSiteCode = (authState is Authenticated &&
+                                      authState.siteCode != null &&
+                                      authState.siteCode!.isNotEmpty &&
+                                      authState.siteCode != 'ALL')
+                                  ? authState.siteCode!
+                                  : 'IPL';
+
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      const SalesInvoiceProductSelectionScreen(
-                                        siteCode: 'IPL',
+                                      SalesInvoiceProductSelectionScreen(
+                                        siteCode: userSiteCode,
                                       ),
                                 ),
                               );

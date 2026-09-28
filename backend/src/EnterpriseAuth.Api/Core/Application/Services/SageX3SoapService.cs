@@ -347,9 +347,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // Ensure default values from plan
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string site = !string.IsNullOrWhiteSpace(userSiteCode) 
+                string site = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL") 
                     ? userSiteCode 
-                    : (string.IsNullOrWhiteSpace(invoice.SalesSite) ? "IPL" : invoice.SalesSite);
+                    : (!string.IsNullOrWhiteSpace(invoice.SalesSite) && invoice.SalesSite != "ALL" ? invoice.SalesSite : "IPL");
                 string pricingRule = invoice.PricingRule ?? "";
 
                 // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
@@ -484,9 +484,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string dueDate = creditNoteDate;
 
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string site = !string.IsNullOrWhiteSpace(userSiteCode) 
+                string site = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL") 
                     ? userSiteCode 
-                    : (string.IsNullOrWhiteSpace(creditNote.SalesSite) ? "SCG" : creditNote.SalesSite);
+                    : (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL" ? creditNote.SalesSite : "IPL");
                 string crnType = string.IsNullOrWhiteSpace(creditNote.X3CreditNoteType) ? "CRN" : creditNote.X3CreditNoteType;
 
                 // Position 15 rule: 
@@ -739,7 +739,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             // "Production reporting on WO : IPLWO260400001 33519"
                             // "IPL Creation of WO tracking IPLTK260500002"
                             var successfulProducts = new HashSet<string>();
-                            string currentProduct = null;
+                            string? currentProduct = null;
                             
                             foreach (var msg in importResult.Messages)
                             {

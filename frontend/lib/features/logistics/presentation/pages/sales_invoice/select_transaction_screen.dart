@@ -5,19 +5,15 @@ import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
 import '../../bloc/sales_invoice_sync_bloc.dart';
 import '../../bloc/sales_invoice_sync_event.dart';
-import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
 import 'amount_only_credit_note_screen.dart';
 import '../../bloc/sales_invoice_bloc.dart';
 import '../../bloc/sales_invoice_event.dart';
-import '../../../../../core/network_service.dart';
-import '../../../data/repositories/sales_invoice_product_repository.dart';
-
 import '../../../domain/models/transaction_config.dart';
 
-class SelectTransactionScreen extends StatefulWidget {
+class SelectTransactionScreen extends StatelessWidget {
   final List<String> permissions;
 
   const SelectTransactionScreen({
@@ -26,44 +22,37 @@ class SelectTransactionScreen extends StatefulWidget {
   });
 
   @override
-  State<SelectTransactionScreen> createState() => _SelectTransactionScreenState();
-}
-
-class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
-  Future<List<String>>? _warehousesFuture;
-  String? _currentSite;
-
-  @override
-  void initState() {
-    super.initState();
-    _warehousesFuture = SalesInvoiceProductRepository(context.read<NetworkService>()).getDistinctWarehouses();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Stack(
       children: [
-        BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
-          listener: (context, state) {
-            if (state is SalesInvoiceSyncSuccess) {
-              setState(() {
-                _warehousesFuture = SalesInvoiceProductRepository(context.read<NetworkService>()).getDistinctWarehouses();
-              });
-            }
-          },
-          child: IndustrialModuleLayout(
-            title: 'Select Transaction',
+        IndustrialModuleLayout(
+          title: 'Select Transaction',
           extraActions: [
             IconButton(
               icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
               tooltip: 'Sync Sales Data',
               onPressed: () {
                 final authState = context.read<AuthBloc>().state;
-                final siteCode = _currentSite ?? (authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL');
-                
+                final siteCode = (authState is Authenticated &&
+                        authState.siteCode != null &&
+                        authState.siteCode!.isNotEmpty &&
+                        authState.siteCode != 'ALL')
+                    ? authState.siteCode
+                    : null;
+
+                if (siteCode == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cannot sync: No assigned site code found for logged in user.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
                 context.read<SalesInvoiceSyncBloc>().add(
                       StartSalesInvoiceSyncRequested(siteCode: siteCode),
                     );
@@ -71,107 +60,60 @@ class _SelectTransactionScreenState extends State<SelectTransactionScreen> {
             ),
           ],
           body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Transaction Type',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose the type of transaction you would like to process.',
-              style: TextStyle(
-                fontSize: 16,
-                color: isDark ? Colors.white70 : Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FutureBuilder<List<String>>(
-              future: _warehousesFuture,
-              builder: (context, snapshot) {
-                final authState = context.read<AuthBloc>().state;
-                final fallbackSite = authState is Authenticated && authState.siteCode?.isNotEmpty == true ? authState.siteCode! : 'ALL';
-                
-                var sitesList = snapshot.data ?? [];
-                if (sitesList.isEmpty) {
-                  sitesList = [fallbackSite];
-                }
-                
-                final sites = ['ALL', ...sitesList].toSet().toList();
-                
-                final currentSite = _currentSite ?? fallbackSite;
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select Transaction Type',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: sites.contains(currentSite) ? currentSite : sites.first,
-                      icon: Icon(Icons.location_on, color: theme.primaryColor),
-                      dropdownColor: theme.cardColor,
-                      items: sites.toSet().toList().map<DropdownMenuItem<String>>((site) {
-                        return DropdownMenuItem<String>(
-                          value: site,
-                          child: Text('Sales Site: $site', style: TextStyle(fontWeight: FontWeight.bold)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _currentSite = val;
-                          });
-                        }
-                      },
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose the type of transaction you would like to process.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.white70 : Colors.black54,
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 24),
+                _buildTransactionCard(
+                  context: context,
+                  title: 'Invoice',
+                  description: 'Standard customer billing and sales processing.',
+                  icon: Icons.receipt_long_rounded,
+                  color: theme.primaryColor,
+                  onTap: () => _showActionPrompt(context, 'Invoice', 'INVOICE'),
+                ),
+                const SizedBox(height: 16),
+                _buildTransactionCard(
+                  context: context,
+                  title: 'Credit Note',
+                  description: 'Issue credit for overpayments or adjustments.',
+                  icon: Icons.description_rounded,
+                  color: theme.primaryColor,
+                  onTap: () => _showCreditNotePrompt(context),
+                ),
+                const SizedBox(height: 16),
+                _buildTransactionCard(
+                  context: context,
+                  title: 'Customer Return',
+                  description: 'Process inventory returns and customer refunds.',
+                  icon: Icons.assignment_return_rounded,
+                  color: theme.primaryColor,
+                  onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            _buildTransactionCard(
-              context: context,
-              title: 'Invoice',
-              description: 'Standard customer billing and sales processing.',
-              icon: Icons.receipt_long_rounded,
-              color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Invoice', 'INVOICE'),
-            ),
-            const SizedBox(height: 16),
-            _buildTransactionCard(
-              context: context,
-              title: 'Credit Note',
-              description: 'Issue credit for overpayments or adjustments.',
-              icon: Icons.description_rounded,
-              color: theme.primaryColor,
-              onTap: () => _showCreditNotePrompt(context),
-            ),
-            const SizedBox(height: 16),
-            _buildTransactionCard(
-              context: context,
-              title: 'Customer Return',
-              description: 'Process inventory returns and customer refunds.',
-              icon: Icons.assignment_return_rounded,
-              color: theme.primaryColor,
-              onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
-            ),
-          ],
+          ),
         ),
-        ),
-      ),
-    ),
-    const SalesInvoiceSyncOverlay(),
-  ],
-);
+        const SalesInvoiceSyncOverlay(),
+      ],
+    );
   }
 
   Widget _buildTransactionCard({

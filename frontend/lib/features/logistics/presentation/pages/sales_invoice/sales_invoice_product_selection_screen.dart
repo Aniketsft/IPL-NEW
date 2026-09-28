@@ -164,7 +164,7 @@ class _SalesInvoiceProductSelectionScreenState
   }
 
   Future<void> _loadWarehouses() async {
-    final whs = await _repository.getDistinctWarehouses();
+    final whs = await _repository.getDistinctWarehouses(widget.siteCode);
     setState(() {
       _warehouses = whs;
     });
@@ -202,6 +202,7 @@ class _SalesInvoiceProductSelectionScreenState
     try {
       final newProducts = await _repository.getSalesInvoiceProducts(
         warehouse: _selectedWarehouse,
+        siteCode: widget.siteCode,
         query: _searchController.text.trim().toLowerCase(),
         stockFilter: _stockFilter,
         limit: _limit,

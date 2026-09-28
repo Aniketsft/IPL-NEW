@@ -116,7 +116,6 @@ class CartItem extends Equatable {
 class SalesInvoiceCartState extends Equatable {
   final Map<String, dynamic>? customer;
   final List<CartItem> items;
-  final String? site;
   final String transactionType;
   final int? sourceSalesOrderId;
   final DateTime? deliveryDate;
@@ -124,7 +123,6 @@ class SalesInvoiceCartState extends Equatable {
   const SalesInvoiceCartState({
     this.customer,
     this.items = const [],
-    this.site,
     this.transactionType = 'INVOICE',
     this.sourceSalesOrderId,
     this.deliveryDate,
@@ -138,7 +136,6 @@ class SalesInvoiceCartState extends Equatable {
   SalesInvoiceCartState copyWith({
     Map<String, dynamic>? customer,
     List<CartItem>? items,
-    String? site,
     String? transactionType,
     int? sourceSalesOrderId,
     DateTime? deliveryDate,
@@ -146,7 +143,6 @@ class SalesInvoiceCartState extends Equatable {
     return SalesInvoiceCartState(
       customer: customer ?? this.customer,
       items: items ?? this.items,
-      site: site ?? this.site,
       transactionType: transactionType ?? this.transactionType,
       sourceSalesOrderId: sourceSalesOrderId ?? this.sourceSalesOrderId,
       deliveryDate: deliveryDate ?? this.deliveryDate,
@@ -154,7 +150,7 @@ class SalesInvoiceCartState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [customer, items, site, transactionType, sourceSalesOrderId, deliveryDate];
+  List<Object?> get props => [customer, items, transactionType, sourceSalesOrderId, deliveryDate];
 }
 
 // --- CUBIT ---
@@ -173,10 +169,6 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
 
   void setDeliveryDate(DateTime date) {
     emit(state.copyWith(deliveryDate: date));
-  }
-
-  void setSite(String site) {
-    emit(state.copyWith(site: site));
   }
 
   void setCustomer(Map<String, dynamic> customer) {
