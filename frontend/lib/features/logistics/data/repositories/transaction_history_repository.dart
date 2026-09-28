@@ -24,11 +24,18 @@ class TransactionHistoryRepository {
     String? type,
     String? startDate,
     String? endDate,
-    int limit = 50,
+    String? documentId,
+    String? customerCode,
+    String? productSku,
+    int limit = 100,
     int offset = 0,
   }) async {
     final db = await _database;
     final Map<String, TransactionModel> uniqueMap = {};
+
+    final cleanDocId = documentId?.trim();
+    final cleanCustCode = customerCode?.trim();
+    final cleanSku = productSku?.trim();
 
     // 1. Fetch Invoices
     if (type == null || type.isEmpty || type == 'ALL' || type == 'INVOICE' || type == 'RETURN') {
@@ -48,6 +55,21 @@ class TransactionHistoryRepository {
       if (endDate != null && endDate.isNotEmpty) {
         whereClause += ' AND createdAt <= ?';
         whereArgs.add(endDate);
+      }
+
+      if (cleanDocId != null && cleanDocId.isNotEmpty) {
+        whereClause += ' AND invoiceId LIKE ?';
+        whereArgs.add('%$cleanDocId%');
+      }
+
+      if (cleanCustCode != null && cleanCustCode.isNotEmpty) {
+        whereClause += ' AND customerCode = ?';
+        whereArgs.add(cleanCustCode);
+      }
+
+      if (cleanSku != null && cleanSku.isNotEmpty) {
+        whereClause += ' AND invoiceId IN (SELECT invoiceId FROM ${LocalDatabaseHelper.tableSiInvoiceLines} WHERE sku = ?)';
+        whereArgs.add(cleanSku);
       }
 
       final List<Map<String, dynamic>> maps = await db.query(
@@ -78,6 +100,28 @@ class TransactionHistoryRepository {
       if (endDate != null && endDate.isNotEmpty) {
         cnWhere += ' AND createdAt <= ?';
         cnArgs.add(endDate);
+      }
+
+      if (cleanDocId != null && cleanDocId.isNotEmpty) {
+        cnWhere += ' AND creditNoteId LIKE ?';
+        cnArgs.add('%$cleanDocId%');
+      }
+
+      if (cleanCustCode != null && cleanCustCode.isNotEmpty) {
+        cnWhere += ' AND customerCode = ?';
+        cnArgs.add(cleanCustCode);
+      }
+
+      if (cleanSku != null && cleanSku.isNotEmpty) {
+        cnWhere += ''' AND creditNoteId IN (
+          SELECT cnl.creditNoteId 
+          FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
+          LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il 
+            ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
+          WHERE cnl.standaloneSku = ? OR il.sku = ?
+        )''';
+        cnArgs.add(cleanSku);
+        cnArgs.add(cleanSku);
       }
 
       final List<Map<String, dynamic>> cnMaps = await db.query(
@@ -115,6 +159,55 @@ class TransactionHistoryRepository {
       return results.sublist(0, limit);
     }
     return results;
+  }
+
+  /// Returns distinct customers that have at least one invoice or credit note
+  Future<List<Map<String, String>>> getCustomersWithTransactions() async {
+    final db = await _database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT customerCode, customerName FROM (
+        SELECT customerCode, customerName FROM ${LocalDatabaseHelper.tableSiInvoices}
+        WHERE customerCode IS NOT NULL AND customerCode != ''
+        UNION
+        SELECT customerCode, customerName FROM ${LocalDatabaseHelper.tableSiCreditNotes}
+        WHERE customerCode IS NOT NULL AND customerCode != ''
+      )
+      ORDER BY customerName COLLATE NOCASE ASC
+    ''');
+    return maps.map((m) => {
+      'code': (m['customerCode'] ?? '').toString(),
+      'name': (m['customerName'] ?? '').toString(),
+    }).toList();
+  }
+
+  /// Returns distinct products that have actually been sold/transacted to [customerCode]
+  Future<List<Map<String, String>>> getProductsSoldToCustomer(String customerCode) async {
+    if (customerCode.trim().isEmpty) return [];
+    final db = await _database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT sku, name FROM (
+        SELECT il.sku, il.name
+        FROM ${LocalDatabaseHelper.tableSiInvoiceLines} il
+        JOIN ${LocalDatabaseHelper.tableSiInvoices} i ON il.invoiceId = i.invoiceId
+        WHERE i.customerCode = ?
+        UNION
+        SELECT 
+          COALESCE(cnl.standaloneSku, il2.sku) AS sku,
+          COALESCE(cnl.standaloneName, il2.name) AS name
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
+        JOIN ${LocalDatabaseHelper.tableSiCreditNotes} cn ON cnl.creditNoteId = cn.creditNoteId
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il2 
+          ON cnl.originInvoiceId = il2.invoiceId AND cnl.originLineNo = il2.lineId
+        WHERE cn.customerCode = ?
+      )
+      WHERE sku IS NOT NULL AND sku != ''
+      ORDER BY name COLLATE NOCASE ASC
+    ''', [customerCode.trim(), customerCode.trim()]);
+
+    return maps.map((m) => {
+      'sku': (m['sku'] ?? '').toString(),
+      'name': (m['name'] ?? '').toString(),
+    }).toList();
   }
 
   // Method to get distinct transaction types, if needed
