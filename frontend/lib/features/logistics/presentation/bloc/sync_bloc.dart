@@ -35,7 +35,14 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
       final lastSync = DateTime.now().toString().substring(0, 16);
       emit(SyncSuccess(lastSync));
     } catch (e) {
-      emit(SyncFailure(e.toString()));
+      final errStr = e.toString();
+      final isOffline = errStr.toLowerCase().contains('offline') ||
+          errStr.toLowerCase().contains('connection') ||
+          errStr.toLowerCase().contains('socketexception');
+      final msg = isOffline
+          ? 'Cannot export while offline. Please connect to the network.'
+          : errStr;
+      emit(SyncFailure(msg));
     }
   }
 
@@ -63,7 +70,11 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
 
     _progressSubscription = _synchronizeLogisticsUseCase.executeWithProgress(siteCode: event.siteCode).listen(
       (progress) {
-        add(SyncProgressUpdated(progress.progress, progress.status));
+        if (progress.error != null) {
+          syncError = progress.error;
+        } else {
+          add(SyncProgressUpdated(progress.progress, progress.status));
+        }
       },
       onError: (e) {
         syncError = e.toString();
@@ -78,7 +89,13 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     await _progressSubscription?.cancel();
 
     if (syncError != null) {
-      emit(SyncFailure(syncError!));
+      final isOffline = syncError!.toLowerCase().contains('offline') ||
+          syncError!.toLowerCase().contains('connection') ||
+          syncError!.toLowerCase().contains('socketexception');
+      final msg = isOffline
+          ? 'Cannot sync while offline. All records are safely saved locally.'
+          : syncError!;
+      emit(SyncFailure(msg));
     } else {
       final lastSync = DateTime.now().toString().substring(0, 16);
       emit(SyncSuccess(lastSync));

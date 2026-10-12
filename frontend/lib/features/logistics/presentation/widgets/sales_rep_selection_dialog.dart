@@ -99,24 +99,14 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
           .where((c) => c.isNotEmpty)
           .toSet();
 
-      // 2. Fetch available reps (try online sync repo first if provided, then fallback to local SQLite)
+      // 2. Fetch available reps strictly from local SQLite (Offline-First: zero network on UI open)
       List<SalesRepModel> loadedReps = [];
-      if (widget.syncRepository != null) {
-        try {
-          loadedReps = await widget.syncRepository!.fetchAndSyncSalesReps(
-            siteCode: widget.userSiteCode,
-          );
-        } catch (_) {}
-      }
+      final localData = await LocalDatabaseHelper.instance.getSalesReps(
+        siteCode: widget.userSiteCode,
+      );
+      loadedReps = localData.map((m) => SalesRepModel.fromMap(m)).toList();
 
-      if (loadedReps.isEmpty) {
-        final localData = await LocalDatabaseHelper.instance.getSalesReps(
-          siteCode: widget.userSiteCode,
-        );
-        loadedReps = localData.map((m) => SalesRepModel.fromMap(m)).toList();
-      }
-
-      // If site filter gave 0 reps, fallback to all reps
+      // If site filter gave 0 reps, fallback to all cached reps
       if (loadedReps.isEmpty) {
         final allLocal = await LocalDatabaseHelper.instance.getSalesReps();
         loadedReps = allLocal.map((m) => SalesRepModel.fromMap(m)).toList();

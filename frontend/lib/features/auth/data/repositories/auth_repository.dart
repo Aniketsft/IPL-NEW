@@ -102,7 +102,7 @@ class AuthRepository implements IAuthRepository {
          throw 'No offline credentials found. Please connect to the network to log in.';
       }
 
-      return User(
+      final user = User(
         id: row[LocalDatabaseHelper.colUserId] as String,
         username: row[LocalDatabaseHelper.colUserUsername] as String,
         email: row[LocalDatabaseHelper.colUserEmail] as String,
@@ -111,6 +111,15 @@ class AuthRepository implements IAuthRepository {
             .map((p) => (p as String).toLowerCase())
             .toList(),
       );
+
+      // Persist session metadata in SecureStorageService for offline continuity
+      await _storageService.saveUsername(user.username);
+      if (user.siteCode != null) {
+        await _storageService.saveSiteCode(user.siteCode!);
+      }
+      await _storageService.saveToken('OFFLINE_SESSION_${user.username}');
+
+      return user;
     }
 
     throw 'Cannot reach server and no valid offline credentials found.';

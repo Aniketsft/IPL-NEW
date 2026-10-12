@@ -69,22 +69,26 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
-                    LTRIM(RTRIM(itm.ZFULLDES_0)) AS Name,
-                    LTRIM(RTRIM(itm.SAU_0)) AS SalesUnit,
+                    LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))) AS Name,
+                    LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS StockQty
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk WITH (NOLOCK)
                     ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw WITH (NOLOCK)
+                    ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE 
                     itm.ITMSTA_0 = 1
-                    AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                     AND stk.STOFCY_0 = @SiteCode
+                    AND stk.QTYSTU_0 > 0
+                    AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                    AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
-                    LTRIM(RTRIM(itm.ZFULLDES_0)),
-                    LTRIM(RTRIM(itm.SAU_0));";
+                    LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))),
+                    LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN')));";
 
             return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = sitecode });
         }
@@ -107,17 +111,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
                     LTRIM(RTRIM(COALESCE(itm.EANCOD_0, ''))) AS Barcode,
                     LTRIM(RTRIM(stk.STOFCY_0)) AS SiteCode
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk 
-                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm 
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK)
                     ON stk.ITMREF_0 = itm.ITMREF_0 AND itm.ITMSTA_0 = 1
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw WITH (NOLOCK)
                     ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE stk.STOFCY_0 = @SiteCode 
                   AND stk.STA_0 = 'A'
                   AND stk.QTYSTU_0 > 0
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                  AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
                 GROUP BY 
                     stk.STOFCY_0, COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0), COALESCE(zlw.WRHNAM_0, stk.STOFCY_0), 
                     stk.LOC_0, zlw.LOCTYPNAM_0,

@@ -8,6 +8,7 @@ import 'config/api_config.dart';
 import 'services/device_info_service.dart';
 
 bool isTokenExpired(String token) {
+  if (token.startsWith('OFFLINE_SESSION_')) return false; // Offline session governed by AuthConfig.offlineLoginWindow
   try {
     final parts = token.split('.');
     if (parts.length != 3) return true;
@@ -64,26 +65,24 @@ class NetworkService {
 
           final token = await _storageService.getToken();
           if (!isPublicEndpoint) {
-            if (token == null || token.isEmpty) {
-              // Token is completely missing — cannot proceed, notify AuthBloc to handle
-              debugPrint('Global Auth Interceptor: JWT missing on protected route ($path).');
-              onUnauthorized?.call();
+            if (token == null || token.isEmpty || token.startsWith('OFFLINE_SESSION_')) {
+              // Device is operating in offline mode or token not yet issued — reject network request safely without session eviction.
+              debugPrint('Global Auth Interceptor: Offline session or JWT missing on ($path). Suppressing network request.');
               return handler.reject(DioException(
                 requestOptions: options,
-                error: 'JWT token is missing',
-                type: DioExceptionType.cancel,
+                error: 'Device is operating in offline mode. Connect to network to synchronize.',
+                type: DioExceptionType.connectionError,
               ));
             }
 
-            if (isTokenExpired(token)) {
-              // Token is expired locally — notify AuthBloc so it can attempt a silent refresh.
-              // Do NOT clear storage here; the AuthBloc decides whether to logout or refresh.
-              debugPrint('Global Auth Interceptor: JWT expired locally — notifying AuthBloc for refresh.');
-              onUnauthorized?.call();
+            final isRefreshCall = path.contains('auth/refresh');
+            if (isTokenExpired(token) && !isRefreshCall) {
+              // Token expired locally — reject network call without evicting the offline user.
+              debugPrint('Global Auth Interceptor: JWT expired locally on ($path). Rejecting without session eviction.');
               return handler.reject(DioException(
                 requestOptions: options,
-                error: 'Token expired locally',
-                type: DioExceptionType.cancel,
+                error: 'Token expired locally. Please sync when online.',
+                type: DioExceptionType.connectionError,
               ));
             }
 

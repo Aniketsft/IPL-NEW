@@ -7,6 +7,8 @@ using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
 using System;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -18,15 +20,18 @@ namespace EnterpriseAuth.Api.Controllers
         private readonly ISalesInvoiceRepository _repository;
         private readonly ScanProductionDbContext _dbContext;
         private readonly ISageX3SoapService _soapService;
+        private readonly ILogger<SalesInvoiceController> _logger;
 
         public SalesInvoiceController(
             ISalesInvoiceRepository repository,
             ScanProductionDbContext dbContext,
-            ISageX3SoapService soapService)
+            ISageX3SoapService soapService,
+            ILogger<SalesInvoiceController> logger)
         {
             _repository = repository;
             _dbContext = dbContext;
             _soapService = soapService;
+            _logger = logger;
         }
 
         [HttpPost("sync")]
@@ -279,21 +284,15 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("Products")]
         public async Task<IActionResult> GetProducts([FromQuery] string? sitecode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-
-            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            if (error != null)
             {
-                sitecode = userSiteCode;
-            }
-
-            if (string.IsNullOrWhiteSpace(sitecode) || string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest("A specific sitecode is required to fetch products. 'ALL' is not permitted.");
+                return error;
             }
 
             try
             {
-                var products = await _repository.GetProductsAsync(sitecode);
+                var products = await _repository.GetProductsAsync(effectiveSiteCode!);
                 return Ok(products);
             }
             catch (System.Exception)
@@ -305,21 +304,15 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("itemstockdetails")]
         public async Task<IActionResult> GetItemStockDetails([FromQuery] string? sitecode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-
-            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            if (error != null)
             {
-                sitecode = userSiteCode;
-            }
-
-            if (string.IsNullOrWhiteSpace(sitecode) || string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest("A specific sitecode is required to fetch item stock details. 'ALL' is not permitted.");
+                return error;
             }
 
             try
             {
-                var details = await _repository.GetItemStockDetailsAsync(sitecode);
+                var details = await _repository.GetItemStockDetailsAsync(effectiveSiteCode!);
                 return Ok(details);
             }
             catch (System.Exception)
@@ -374,20 +367,76 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<IActionResult> GetSalesReps([FromQuery] string? sitecode = null)
         {
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (string.IsNullOrWhiteSpace(sitecode) && !string.IsNullOrWhiteSpace(userSiteCode))
+            bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
+                                    || User.IsInRole("Admin") 
+                                    || User.IsInRole("SuperAdmin");
+
+            string? effectiveSite = null;
+            if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
             {
-                sitecode = userSiteCode;
+                if (!string.IsNullOrWhiteSpace(sitecode) && 
+                    !string.Equals(sitecode, userSiteCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Security: User {User} assigned to {UserSite} attempted to query sales reps for unauthorized site {RequestedSite}.",
+                        User.Identity?.Name, userSiteCode, sitecode);
+                }
+                effectiveSite = userSiteCode;
+            }
+            else if (isMultiSiteAdmin)
+            {
+                effectiveSite = string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase) ? null : sitecode;
+            }
+            else
+            {
+                _logger.LogWarning("Security: Unassigned user {User} attempted to access sales reps.", User.Identity?.Name);
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." });
             }
 
             try
             {
-                var data = await _repository.GetSalesRepsAsync(sitecode);
+                var data = await _repository.GetSalesRepsAsync(effectiveSite);
                 return Ok(data);
             }
             catch (System.Exception)
             {
                 return StatusCode(500, new { error = "An internal error occurred while retrieving sales representatives." });
             }
+        }
+
+        private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode)
+        {
+            var userSiteCode = User.FindFirst("SiteCode")?.Value;
+            bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
+                                    || User.IsInRole("Admin") 
+                                    || User.IsInRole("SuperAdmin");
+
+            // Case 1: Standard user bound to a specific site
+            if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(requestedSiteCode) && 
+                    !string.Equals(requestedSiteCode, userSiteCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Security: User {User} assigned to {UserSite} attempted to query unauthorized site {RequestedSite}.",
+                        User.Identity?.Name, userSiteCode, requestedSiteCode);
+                }
+
+                return (userSiteCode, null);
+            }
+
+            // Case 2: Multi-site administrator
+            if (isMultiSiteAdmin)
+            {
+                if (string.IsNullOrWhiteSpace(requestedSiteCode) || string.Equals(requestedSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (null, BadRequest(new { error = "An explicit sitecode is required to fetch records. 'ALL' is not permitted." }));
+                }
+
+                return (requestedSiteCode, null);
+            }
+
+            // Case 3: Unassigned / unauthorized user
+            _logger.LogWarning("Security: Unassigned user {User} attempted to access site-scoped resource.", User.Identity?.Name);
+            return (null, StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." }));
         }
     }
 }

@@ -176,13 +176,26 @@ class SalesInvoiceSyncRepository {
       if (e.response != null) {
         debugPrint('DioException Response Data: ${e.response?.data}');
       }
-      final serverError = e.response?.data?.toString() ?? e.message ?? 'Network error';
-      failures.add('Data sync failed: $serverError');
-      return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
+      final isOffline = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          (e.error != null && e.error.toString().toLowerCase().contains('offline'));
+      final serverError = isOffline
+          ? 'Cannot sync while offline. All records are safely saved locally.'
+          : (e.response?.data?.toString() ?? e.message ?? 'Network error');
+      failures.add(serverError);
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError);
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
-      failures.add('Data sync failed: $e');
-      return SyncBatchResult(successes: successes, failures: failures, errorMessage: e.toString());
+      final errStr = e.toString();
+      final isOffline = errStr.toLowerCase().contains('offline') ||
+          errStr.toLowerCase().contains('socketexception') ||
+          errStr.toLowerCase().contains('connection');
+      final serverError = isOffline
+          ? 'Cannot sync while offline. All records are safely saved locally.'
+          : errStr;
+      failures.add(serverError);
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError);
     }
   }
 

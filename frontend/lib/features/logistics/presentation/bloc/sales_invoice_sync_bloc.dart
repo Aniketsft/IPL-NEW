@@ -24,10 +24,21 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
 
     try {
       final batchResult = await _useCase.execute(siteCode: event.siteCode);
-      final lastSync = DateTime.now().toString().substring(0, 16);
-      emit(SalesInvoiceSyncSuccess(lastSync, batchResult));
+      if (batchResult.errorMessage != null && batchResult.successes.isEmpty) {
+        emit(SalesInvoiceSyncFailure(batchResult.errorMessage!));
+      } else {
+        final lastSync = DateTime.now().toString().substring(0, 16);
+        emit(SalesInvoiceSyncSuccess(lastSync, batchResult));
+      }
     } catch (e) {
-      emit(SalesInvoiceSyncFailure(e.toString()));
+      final errStr = e.toString();
+      final isOffline = errStr.toLowerCase().contains('offline') ||
+          errStr.toLowerCase().contains('connection') ||
+          errStr.toLowerCase().contains('socketexception');
+      final msg = isOffline
+          ? 'Cannot sync while offline. All records are safely saved locally.'
+          : errStr;
+      emit(SalesInvoiceSyncFailure(msg));
     }
   }
 }

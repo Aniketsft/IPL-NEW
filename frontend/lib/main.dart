@@ -159,8 +159,14 @@ class _MyAppState extends State<MyApp> {
                 authRepository: authRepo,
               )..add(AppStarted());
 
-              context.read<NetworkService>().onUnauthorized = () {
-                authBloc.add(LogoutRequested());
+              context.read<NetworkService>().onUnauthorized = () async {
+                final isOfflineValid = await authRepo.isOfflineSessionValid();
+                if (!isOfflineValid) {
+                  debugPrint('Main: Server 401 and offline session invalid. Logging out.');
+                  authBloc.add(LogoutRequested());
+                } else {
+                  debugPrint('Main: Server 401 intercepted, but offline session is valid. Suppressing logout.');
+                }
               };
 
               _appRouter = AppRouter(authBloc);

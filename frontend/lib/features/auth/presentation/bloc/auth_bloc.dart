@@ -132,10 +132,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return;
     }
 
-    // 2. JWT check — if expired, attempt a silent refresh before forcing logout.
-    //    This handles the case where the 15-min refresh timer misfired (e.g. offline).
+    // 2. JWT check — if online JWT is expired, attempt a silent refresh before forcing logout.
+    //    For offline sessions ('OFFLINE_SESSION_'), skip network refresh and keep the session active.
     final token = await _storageService.getToken();
-    if (token == null || token.isEmpty || isTokenExpired(token)) {
+    final isOfflineSession = token != null && token.startsWith('OFFLINE_SESSION_');
+
+    if (!isOfflineSession && (token == null || token.isEmpty || isTokenExpired(token))) {
       print('AuthBloc: JWT expired on interaction — attempting silent refresh.');
       try {
         await _authRepository.refreshToken();
@@ -186,9 +188,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return;
     }
 
-    // JWT may have expired while phone was locked — try a silent refresh.
+    // JWT may have expired while phone was locked — try a silent refresh if not an offline session.
     final token = await _storageService.getToken();
-    if (token == null || token.isEmpty || isTokenExpired(token)) {
+    final isOfflineSession = token != null && token.startsWith('OFFLINE_SESSION_');
+
+    if (!isOfflineSession && (token == null || token.isEmpty || isTokenExpired(token))) {
       print('AuthBloc: JWT expired on resume — attempting silent refresh.');
       try {
         await _authRepository.refreshToken();
@@ -233,6 +237,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     if (state is! Authenticated) return;
+    final token = await _storageService.getToken();
+    if (token == null || token.startsWith('OFFLINE_SESSION_')) {
+      print('AuthBloc: Skipping token refresh for offline session.');
+      return;
+    }
     try {
       await _authRepository.refreshToken();
       await _updateAuthTimer();
@@ -273,13 +282,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _inactivityTimer?.cancel();
     _refreshTimer?.cancel();
     _startInactivityTimer();
-    _startRefreshTimer();
+    _storageService.getToken().then((token) {
+      if (token != null && !token.startsWith('OFFLINE_SESSION_')) {
+        _startRefreshTimer();
+      }
+    });
   }
 
   Future<void> _updateAuthTimer() async {
     _authTimer?.cancel();
     final token = await _storageService.getToken();
-    if (token == null) return;
+    if (token == null || token.startsWith('OFFLINE_SESSION_')) return;
     try {
       final parts = token.split('.');
       if (parts.length != 3) return;
