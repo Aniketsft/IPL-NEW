@@ -8,6 +8,8 @@ import '../../../data/repositories/sales_invoice_sync_repository.dart';
 import 'select_transaction_screen.dart';
 import 'sales_reports_screen.dart';
 import 'sales_orders_list_screen.dart';
+import 'open_invoices_screen.dart';
+import '../../../data/local/local_database_helper.dart';
 
 class SalesMenuScreen extends StatelessWidget {
   final List<String> permissions;
@@ -103,11 +105,61 @@ class SalesMenuScreen extends StatelessWidget {
         crossAxisSpacing: 12,
         childAspectRatio: 0.9,
         children: [
-          _buildMenuButton(
+          _buildActionButton(
             context,
             'Transaction',
             Icons.shopping_cart_checkout_rounded,
-            SelectTransactionScreen(permissions: permissions),
+            () async {
+              final authState = context.read<AuthBloc>().state;
+              final username = authState is Authenticated ? authState.username : null;
+              final siteCode = (authState is Authenticated &&
+                      authState.siteCode != null &&
+                      authState.siteCode!.isNotEmpty &&
+                      authState.siteCode != 'ALL')
+                  ? authState.siteCode
+                  : null;
+              final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
+              if (selectedReps.isEmpty) {
+                final repCount = await LocalDatabaseHelper.instance.getSalesRepsCount();
+                if (repCount == 0) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No sales representatives found. Please perform Data Sync first.'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                if (context.mounted) {
+                  final syncRepo = context.read<SalesInvoiceSyncRepository>();
+                  final picked = await SalesRepSelectionDialog.show(
+                    context,
+                    canDismiss: false,
+                    userSiteCode: siteCode,
+                    syncRepository: syncRepo,
+                    username: username,
+                  );
+                  if (picked == null || picked.isEmpty) return;
+                }
+              }
+              if (context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'SelectTransactionScreen'),
+                    builder: (_) => SelectTransactionScreen(permissions: permissions),
+                  ),
+                );
+              }
+            },
+          ),
+          _buildMenuButton(
+            context,
+            'Open Invoice',
+            Icons.receipt_long_rounded,
+            const OpenInvoicesScreen(),
           ),
           _buildMenuButton(
             context,

@@ -10,8 +10,10 @@ import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
 import 'amount_only_credit_note_screen.dart';
 import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_state.dart';
 import '../../bloc/sales_invoice_event.dart';
 import '../../../domain/models/transaction_config.dart';
+import 'order_summary_screen.dart';
 
 class SelectTransactionScreen extends StatelessWidget {
   final List<String> permissions;
@@ -228,15 +230,26 @@ class SelectTransactionScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context); // close bottom sheet
                     final bloc = context.read<SalesInvoiceBloc>();
+                    final currentCustomer = bloc.state is SalesInvoiceLoaded
+                        ? (bloc.state as SalesInvoiceLoaded).customer
+                        : null;
                     bloc.add(ClearCart());
                     bloc.add(InitializeTransaction(
                       transactionType: txType,
                       config: TransactionConfig.forType(txType),
                     ));
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CustomerSelectionScreen()),
-                    );
+                    if (currentCustomer != null) {
+                      bloc.add(SetCustomer(currentCustomer));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const OrderSummaryScreen()),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CustomerSelectionScreen()),
+                      );
+                    }
                   },
                 ),
                 ListTile(
@@ -382,10 +395,21 @@ class SelectTransactionScreen extends StatelessWidget {
                   subtitle: const Text('Enter refund amount linked to 1 or multiple invoices'),
                   onTap: () {
                     Navigator.pop(ctx);
+                    final bloc = context.read<SalesInvoiceBloc>();
+                    final currentCustomer = bloc.state is SalesInvoiceLoaded
+                        ? (bloc.state as SalesInvoiceLoaded).customer
+                        : null;
+                    final currentCode = currentCustomer?['code']?.toString() ??
+                        currentCustomer?['customerCode']?.toString() ??
+                        currentCustomer?['CustomerNo']?.toString();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AmountOnlyCreditNoteScreen(),
+                        builder: (context) => AmountOnlyCreditNoteScreen(
+                          initialCustomer: currentCustomer,
+                          initialCustomerCode: currentCode,
+                          lockToCustomer: currentCustomer != null,
+                        ),
                       ),
                     );
                   },

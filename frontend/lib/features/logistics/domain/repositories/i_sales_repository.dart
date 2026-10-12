@@ -12,7 +12,7 @@ abstract class ISalesRepository {
   Future<List<Map<String, dynamic>>> getLotsForProduct(String productCode, String warehouse);
 
   /// Sales Orders
-  Future<List<Map<String, dynamic>>> getSalesOrders();
+  Future<List<Map<String, dynamic>>> getSalesOrders({String? customerCode});
   Future<List<Map<String, dynamic>>> getSalesOrderDetails(int orderId);
   Future<void> saveSalesOrder({
     required Map<String, dynamic> customer,

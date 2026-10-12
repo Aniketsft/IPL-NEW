@@ -403,6 +403,57 @@ namespace EnterpriseAuth.Api.Controllers
             }
         }
 
+        [HttpGet("open-invoices")]
+        public async Task<IActionResult> GetOpenInvoices(
+            [FromQuery] string? sitecode = null, 
+            [FromQuery] string? customerno = null,
+            [FromQuery] int daysCutoff = 90)
+        {
+            var (effectiveSite, errorResult) = ResolveEffectiveSiteCode(sitecode);
+            if (errorResult != null) return errorResult;
+
+            try
+            {
+                var data = await _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff);
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving open invoices for site {Site}", effectiveSite);
+                return StatusCode(500, new { error = "An internal error occurred while retrieving open invoices." });
+            }
+        }
+
+        [HttpPost("open-invoices/payments/sync")]
+        public async Task<IActionResult> SyncOpenInvoicePayments([FromBody] List<OpenInvoicePaymentSyncDto> payments)
+        {
+            if (payments == null || payments.Count == 0)
+                return Ok(new { success = true, syncedCount = 0 });
+
+            try
+            {
+                var userSiteCode = User.FindFirst("SiteCode")?.Value;
+                var userName = User.Identity?.Name ?? "MobileUser";
+
+                foreach (var payment in payments)
+                {
+                    if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    {
+                        payment.SiteCode = userSiteCode;
+                    }
+                    payment.UserName = userName;
+                }
+
+                _logger.LogInformation("Received {Count} open invoice payment allocations for synchronization from user {User}.", payments.Count, userName);
+                return Ok(new { success = true, syncedCount = payments.Count, paymentIds = payments.Select(p => p.PaymentId).ToList() });
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error synchronizing open invoice payments");
+                return StatusCode(500, new { error = "An internal error occurred while synchronizing open invoice payments." });
+            }
+        }
+
         private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode)
         {
             var userSiteCode = User.FindFirst("SiteCode")?.Value;

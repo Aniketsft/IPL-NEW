@@ -525,20 +525,29 @@ class CreditNoteService {
 
     final db = await _dbProvider();
 
-    // Check available balance across linked invoices
+    // Check available balance across linked invoices (supporting local invoices and synced open invoices)
     final placeholders = List.filled(linkedInvoiceIds.length, '?').join(',');
     final rows = await db.rawQuery(
       '''
       SELECT invoiceId, grandTotal 
       FROM ${LocalDatabaseHelper.tableSiInvoices} 
       WHERE invoiceId IN ($placeholders)
+      UNION ALL
+      SELECT documentNo AS invoiceId, remainingAmtLCY AS grandTotal
+      FROM ${LocalDatabaseHelper.tableSiOpenInvoices}
+      WHERE documentNo IN ($placeholders)
       ''',
-      linkedInvoiceIds,
+      [...linkedInvoiceIds, ...linkedInvoiceIds],
     );
 
     double totalBalance = 0.0;
+    final Set<String> counted = {};
     for (final r in rows) {
-      totalBalance += (r['grandTotal'] as num?)?.toDouble() ?? 0.0;
+      final id = (r['invoiceId'] ?? '').toString();
+      if (!counted.contains(id)) {
+        counted.add(id);
+        totalBalance += (r['grandTotal'] as num?)?.toDouble() ?? 0.0;
+      }
     }
 
     if (refundAmount > totalBalance) {

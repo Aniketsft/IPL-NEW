@@ -10,6 +10,7 @@ import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_mod
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/sales_menu_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/customer_selection_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
@@ -50,6 +51,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _lastSyncStr = 'Never';
   List<Map<String, dynamic>> _selectedSalesReps = [];
+  bool _syncJustSucceeded = false;
 
   bool _hasAccess(String permissionString) {
     return widget.permissions.contains(permissionString);
@@ -89,6 +91,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkAndPromptSalesRepSelection({bool force = false}) async {
     await _loadSelectedSalesReps();
     if (!mounted) return;
+
+    // Guard: On initial startup or before data sync, SQLite has 0 sales reps.
+    // Never show an empty blocking dialog when no local data exists yet.
+    final repCount = await LocalDatabaseHelper.instance.getSalesRepsCount();
+    if (repCount == 0) {
+      debugPrint("Home: Skipping sales rep prompt - local database has 0 sales reps. Waiting for initial sync.");
+      if (force && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No sales representatives found locally. Please perform Data Sync first.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
     final isNewLoginPrompt = HomeScreen._promptedSessionUser != widget.username;
     if (_selectedSalesReps.isEmpty || force || isNewLoginPrompt) {
@@ -169,81 +187,98 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return BlocBuilder<SyncBloc, SyncState>(
-      builder: (context, syncState) {
-        return BlocBuilder<ManufacturingBloc, ManufacturingState>(
-          builder: (context, mfgState) {
-            return BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
-              builder: (context, salesSyncState) {
-                final isSyncing =
-                    syncState is SyncInProgress ||
-                    mfgState is ManufacturingSyncProgress ||
-                    salesSyncState is SalesInvoiceSyncInProgress;
+    return BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+      listener: (context, salesSyncState) {
+        if (salesSyncState is SalesInvoiceSyncSuccess) {
+          _syncJustSucceeded = true;
+          _loadLastSync();
+        } else if (salesSyncState is SalesInvoiceSyncInitial && _syncJustSucceeded) {
+          _syncJustSucceeded = false;
+          _loadLastSync();
+          // After sync is successfully finished and dismissed, prompt to select sales rep if needed
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _checkAndPromptSalesRepSelection();
+            }
+          });
+        }
+      },
+      child: BlocBuilder<SyncBloc, SyncState>(
+        builder: (context, syncState) {
+          return BlocBuilder<ManufacturingBloc, ManufacturingState>(
+            builder: (context, mfgState) {
+              return BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+                builder: (context, salesSyncState) {
+                  final isSyncing =
+                      syncState is SyncInProgress ||
+                      mfgState is ManufacturingSyncProgress ||
+                      salesSyncState is SalesInvoiceSyncInProgress;
 
-            return PopScope(
-              canPop: false,
-              onPopInvoked: (didPop) async {
-                if (didPop) return;
-                if (isSyncing) return; // Block exiting during sync
-                final bool? shouldExit = await _showExitConfirmation(context);
-                if (shouldExit == true) {
-                  SystemNavigator.pop();
-                }
-              },
-              child: Stack(
-                children: [
-                  Scaffold(
-                    backgroundColor: theme.scaffoldBackgroundColor,
-                    appBar: AppBar(
-                      backgroundColor: theme.colorScheme.surface,
-                      elevation: 0,
-                      leading: Builder(
-                        builder: (context) => IconButton(
-                          icon: Icon(
-                            Icons.menu,
-                            color: isDark ? Colors.white70 : Colors.black87,
+                  return PopScope(
+                    canPop: false,
+                    onPopInvoked: (didPop) async {
+                      if (didPop) return;
+                      if (isSyncing) return; // Block exiting during sync
+                      final bool? shouldExit = await _showExitConfirmation(context);
+                      if (shouldExit == true) {
+                        SystemNavigator.pop();
+                      }
+                    },
+                    child: Stack(
+                      children: [
+                        Scaffold(
+                          backgroundColor: theme.scaffoldBackgroundColor,
+                          appBar: AppBar(
+                            backgroundColor: theme.colorScheme.surface,
+                            elevation: 0,
+                            leading: Builder(
+                              builder: (context) => IconButton(
+                                icon: Icon(
+                                  Icons.menu,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                                onPressed: isSyncing
+                                    ? null
+                                    : () => Scaffold.of(context).openDrawer(),
+                              ),
+                            ),
+                            title: Text(
+                              'HIPO CLOUD',
+                              style: TextStyle(
+                                color: theme.primaryColor,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            actions: [
+                              IconButton(
+                                icon: Icon(
+                                  isDark
+                                      ? Icons.light_mode_rounded
+                                      : Icons.dark_mode_rounded,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                                onPressed: isSyncing
+                                    ? null
+                                    : () => context.read<ThemeCubit>().toggleTheme(),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                           ),
-                          onPressed: isSyncing
-                              ? null
-                              : () => Scaffold.of(context).openDrawer(),
+                          drawer: isSyncing ? null : _buildDrawer(context),
+                          body: _buildBody(context),
                         ),
-                      ),
-                      title: Text(
-                        'HIPO CLOUD',
-                        style: TextStyle(
-                          color: theme.primaryColor,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: Icon(
-                            isDark
-                                ? Icons.light_mode_rounded
-                                : Icons.dark_mode_rounded,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                          onPressed: isSyncing
-                              ? null
-                              : () => context.read<ThemeCubit>().toggleTheme(),
-                        ),
-                        const SizedBox(width: 8),
+                        const SyncOverlay(),
+                        const SalesInvoiceSyncOverlay(),
                       ],
                     ),
-                    drawer: isSyncing ? null : _buildDrawer(context),
-                    body: _buildBody(context),
-                  ),
-                  const SyncOverlay(),
-                  const SalesInvoiceSyncOverlay(),
-                ],
-              ),
-            );
-              },
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -324,7 +359,27 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           'Sales',
           Icons.receipt_long_rounded,
-          SalesMenuScreen(permissions: widget.permissions),
+          null,
+          onTapOverride: () async {
+            if (_selectedSalesReps.isEmpty) {
+              await _checkAndPromptSalesRepSelection(force: true);
+              if (_selectedSalesReps.isEmpty && mounted) {
+                final repCount = await LocalDatabaseHelper.instance.getSalesRepsCount();
+                if (repCount > 0) {
+                  return;
+                }
+              }
+            }
+            if (context.mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CustomerSelectionScreen(),
+                  settings: const RouteSettings(name: '/sales_customer_selection'),
+                ),
+              );
+            }
+          },
         ),
       if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(

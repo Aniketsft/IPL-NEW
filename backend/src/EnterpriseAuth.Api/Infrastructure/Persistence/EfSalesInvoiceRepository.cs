@@ -227,5 +227,57 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             ";
             return await db.QueryAsync<SalesRepLookupDto>(sql, new { SiteCode = siteCode ?? "" });
         }
+
+        public async Task<IEnumerable<OpenInvoiceDto>> GetOpenInvoicesAsync(
+            string? siteCode = null, 
+            string? customerNo = null, 
+            int daysCutoff = 90)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+
+            string sql = $@"
+                SELECT  
+                    BPC.BPCNUM_0                                                         AS CustomerNo,
+                    LTRIM(RTRIM(COALESCE(BPC.BPCNAM_0, '')))                             AS CustomerName,
+                    DUD.NUM_0                                                            AS DocumentNo,
+                    DUD.DUDDAT_0                                                         AS DueDate,
+                    LTRIM(RTRIM(DUD.FCY_0))                                              AS Site,
+                    LTRIM(RTRIM(DUD.CPY_0))                                              AS Company,
+                    CASE 
+                        WHEN SUM((DUD.AMTCUR_0 - DUD.PAYCUR_0) * DUD.SNS_0) < 0 THEN 'CN'
+                        ELSE 'INV'
+                    END                                                                  AS DocType,
+                    SUM((DUD.AMTCUR_0 - DUD.PAYCUR_0) * DUD.SNS_0)                       AS RemainingAmtLCY
+                FROM {_syncSettings.X3DatabaseName}.{schema}.[GACCDUDATE] DUD WITH (NOLOCK),  
+                     {_syncSettings.X3DatabaseName}.{schema}.[COMPANY] CPY WITH (NOLOCK), 
+                     {_syncSettings.X3DatabaseName}.{schema}.[GACM] GCM WITH (NOLOCK), 
+                     {_syncSettings.X3DatabaseName}.{schema}.[BPCUSTOMER] BPC WITH (NOLOCK)
+                WHERE DUD.CPY_0    = CPY.CPY_0
+                  AND GCM.GCM_0    = CPY.ACM_0 
+                  AND DUD.CUR_0    = GCM.CUR_0
+                  AND DUD.BPRPAY_0 = BPC.BPCNUM_0
+                  AND DUD.AMTCUR_0 > DUD.PAYCUR_0 + DUD.TMPCUR_0 
+                  AND DUD.DUDSTA_0 = 2
+                  AND (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
+                  AND DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE))
+                  AND (@CustomerNo = '' OR BPC.BPCNUM_0 = @CustomerNo)
+                GROUP BY  
+                    BPC.BPCNUM_0,
+                    BPC.BPCNAM_0,
+                    DUD.NUM_0,
+                    DUD.DUDDAT_0, 
+                    DUD.FCY_0, 
+                    DUD.CPY_0
+                ORDER BY DUD.DUDDAT_0 ASC, DUD.NUM_0 ASC;
+            ";
+
+            return await db.QueryAsync<OpenInvoiceDto>(sql, new 
+            { 
+                SiteCode = (siteCode ?? "").Trim(),
+                CustomerNo = (customerNo ?? "").Trim(),
+                DaysCutoff = daysCutoff > 0 ? daysCutoff : 90
+            });
+        }
     }
 }

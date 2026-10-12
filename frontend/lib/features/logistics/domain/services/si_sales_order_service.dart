@@ -74,10 +74,13 @@ class SISalesOrderService {
     });
   }
 
-  Future<List<Map<String, dynamic>>> getSalesOrders() async {
+  Future<List<Map<String, dynamic>>> getSalesOrders({String? customerCode}) async {
     final db = await _getDb();
+    final cleanCode = customerCode?.trim();
     final List<Map<String, dynamic>> maps = await db.query(
       LocalDatabaseHelper.tableSiSalesOrders,
+      where: (cleanCode != null && cleanCode.isNotEmpty) ? 'customerCode = ?' : null,
+      whereArgs: (cleanCode != null && cleanCode.isNotEmpty) ? [cleanCode] : null,
       orderBy: 'createdAt DESC',
     );
     return maps;

@@ -199,6 +199,54 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (cartState.customer != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey.shade900 : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark ? Colors.blueGrey.shade800 : Colors.blue.shade200,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: theme.primaryColor.withOpacity(0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.person_outline_rounded, color: theme.primaryColor, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      (cartState.customer!['name'] ?? '').toString().trim(),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Code: ${(cartState.customer!['code'] ?? '').toString().trim()}  •  Terms: ${(cartState.customer!['paymentTerm'] ?? 'STD').toString().trim()}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.white60 : Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (cartState.transactionType == 'SI_SALES_ORDER') ...[
                         _buildDeliveryDateCard(context, cartState, isDark),
                         const SizedBox(height: 16),

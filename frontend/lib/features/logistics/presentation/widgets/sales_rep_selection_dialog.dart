@@ -179,8 +179,10 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final bool canDismissNow = widget.canDismiss || (_allReps.isEmpty && !_isLoading);
+
     return PopScope(
-      canPop: widget.canDismiss,
+      canPop: canDismissNow,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         backgroundColor: theme.colorScheme.surface,
@@ -241,7 +243,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                       ],
                     ),
                   ),
-                  if (widget.canDismiss)
+                  if (canDismissNow)
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.of(context).pop(),
@@ -414,10 +416,28 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                           )
                         : _filteredReps.isEmpty
                             ? Center(
-                                child: Text(
-                                  'No sales representatives found.',
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white54 : Colors.black45,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _allReps.isEmpty ? Icons.cloud_download_outlined : Icons.search_off_rounded,
+                                        size: 40,
+                                        color: isDark ? Colors.white38 : Colors.black38,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _allReps.isEmpty
+                                            ? 'No sales representatives found in local database.\n\nPlease perform Data Sync from the Home screen first.'
+                                            : 'No sales representatives match your search.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: isDark ? Colors.white60 : Colors.black54,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               )
@@ -555,6 +575,21 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                       ),
                     ),
                   ],
+                )
+              else if (_allReps.isEmpty && !_isLoading)
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                    foregroundColor: isDark ? Colors.white : Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  label: const Text(
+                    'CLOSE (PERFORM SYNC FIRST)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
                 )
               else
                 ElevatedButton.icon(

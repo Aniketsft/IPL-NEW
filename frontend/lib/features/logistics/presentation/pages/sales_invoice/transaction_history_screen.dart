@@ -11,6 +11,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invo
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart'; // for CartItem
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'order_summary_screen.dart';
@@ -19,7 +20,18 @@ import 'order_summary_screen.dart';
 class TransactionHistoryScreen extends StatefulWidget {
   final String transactionType; // To support launching with a default filter, though the class might manage its own.
   final bool isForReversal;
-  const TransactionHistoryScreen({super.key, this.transactionType = 'ALL', this.isForReversal = false});
+  final String? initialCustomerCode;
+  final String? initialCustomerName;
+  final bool lockToCustomer;
+
+  const TransactionHistoryScreen({
+    super.key,
+    this.transactionType = 'ALL',
+    this.isForReversal = false,
+    this.initialCustomerCode,
+    this.initialCustomerName,
+    this.lockToCustomer = false,
+  });
 
   @override
   State<TransactionHistoryScreen> createState() => _TransactionHistoryScreenState();
@@ -49,7 +61,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   bool get _hasActiveFilters =>
       _searchController.text.trim().isNotEmpty ||
-      _selectedCustomerCode != null ||
+      (!widget.lockToCustomer && _selectedCustomerCode != null) ||
       _selectedProductSku != null ||
       _selectedDate != null ||
       _selectedType != 'ALL';
@@ -64,6 +76,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   void initState() {
     super.initState();
     _selectedType = widget.transactionType;
+    _selectedCustomerCode = widget.initialCustomerCode;
+    _selectedCustomerName = widget.initialCustomerName;
+    if (_selectedCustomerCode == null || _selectedCustomerCode!.isEmpty) {
+      try {
+        final blocState = context.read<SalesInvoiceBloc>().state;
+        if (blocState is SalesInvoiceLoaded && blocState.customer != null) {
+          _selectedCustomerCode = blocState.customer!['code']?.toString();
+          _selectedCustomerName = blocState.customer!['name']?.toString();
+        }
+      } catch (_) {}
+    }
     _loadTransactions();
   }
 
@@ -112,8 +135,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   void _resetAllFilters() {
     setState(() {
       _searchController.clear();
-      _selectedCustomerCode = null;
-      _selectedCustomerName = null;
+      if (!widget.lockToCustomer) {
+        _selectedCustomerCode = null;
+        _selectedCustomerName = null;
+      }
       _selectedProductSku = null;
       _selectedProductName = null;
       _selectedDate = null;
@@ -134,9 +159,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Transaction History',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          widget.lockToCustomer && _selectedCustomerName != null
+              ? (widget.isForReversal ? 'Select Reversal [${_selectedCustomerCode ?? ''}]' : 'History [${_selectedCustomerCode ?? ''}]')
+              : (widget.isForReversal ? 'Select Invoice to Reverse' : 'Transaction History'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -170,8 +197,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         value: _selectedCustomerName != null
                             ? '$_selectedCustomerName (${_selectedCustomerCode ?? ''})'
                             : _selectedCustomerCode,
-                        icon: Icons.business,
+                        icon: widget.lockToCustomer ? Icons.lock_rounded : Icons.business,
                         onTap: () async {
+                          if (widget.lockToCustomer) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Locked to current customer: $_selectedCustomerName')),
+                            );
+                            return;
+                          }
                           final customers = await _repository.getCustomersWithTransactions();
                           if (customers.isEmpty) {
                             if (context.mounted) {

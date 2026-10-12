@@ -292,9 +292,53 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
               children: [
                 Column(
                   children: [
-                    // Header info
+                    // 1. Customer Context Banner
                     Container(
-                      margin: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.lock_rounded, size: 16, color: Colors.green),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.transaction.customerName,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Customer: ${widget.transaction.customerCode}  •  Source Invoice: ${widget.transaction.id}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.textTheme.bodySmall?.color ?? Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // 2. Header info
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: theme.cardColor,

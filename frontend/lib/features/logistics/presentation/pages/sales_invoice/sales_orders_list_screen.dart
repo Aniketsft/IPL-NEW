@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import '../../../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
 
 class SalesOrdersListScreen extends StatefulWidget {
-  const SalesOrdersListScreen({super.key});
+  final String? customerCode;
+  final String? customerName;
+
+  const SalesOrdersListScreen({
+    super.key,
+    this.customerCode,
+    this.customerName,
+  });
 
   @override
   State<SalesOrdersListScreen> createState() => _SalesOrdersListScreenState();
@@ -23,9 +32,26 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
   List<Map<String, dynamic>> _orders = [];
   bool _isLoading = true;
 
+  String? _effectiveCustomerCode;
+  String? _effectiveCustomerName;
+
   @override
   void initState() {
     super.initState();
+    _effectiveCustomerCode = widget.customerCode;
+    _effectiveCustomerName = widget.customerName;
+    if (_effectiveCustomerCode == null || _effectiveCustomerCode!.isEmpty) {
+      try {
+        final blocState = context.read<SalesInvoiceBloc>().state;
+        if (blocState is SalesInvoiceLoaded && blocState.customer != null) {
+          _effectiveCustomerCode = blocState.customer!['code']?.toString() ??
+              blocState.customer!['customerCode']?.toString() ??
+              blocState.customer!['CustomerNo']?.toString();
+          _effectiveCustomerName = blocState.customer!['name']?.toString() ??
+              blocState.customer!['customerName']?.toString();
+        }
+      } catch (_) {}
+    }
     _loadOrders();
   }
 
@@ -33,7 +59,7 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
     setState(() => _isLoading = true);
     try {
       await _service.ensureHardcodedSalesOrderSeeded();
-      final orders = await _service.getSalesOrders();
+      final orders = await _service.getSalesOrders(customerCode: _effectiveCustomerCode);
       setState(() {
         _orders = orders;
         _isLoading = false;
@@ -52,11 +78,23 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return IndustrialModuleLayout(
-      title: 'Sales Orders',
+      title: _effectiveCustomerName != null && _effectiveCustomerName!.isNotEmpty
+          ? 'Sales Orders [$_effectiveCustomerCode]'
+          : 'Sales Orders',
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _orders.isEmpty
-              ? const Center(child: Text('No Sales Orders found.'))
+              ? Center(
+                  child: Text(
+                    _effectiveCustomerName != null
+                        ? 'No sales orders found for $_effectiveCustomerName.'
+                        : 'No sales orders found.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 14,
+                    ),
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _orders.length,
@@ -299,14 +337,30 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
+        onPressed: () async {
           final bloc = context.read<SalesInvoiceBloc>();
           bloc.add(ClearCart());
           bloc.add(const InitializeTransaction(
             transactionType: 'SI_SALES_ORDER',
             originalDocumentId: null,
           ));
-          context.push(AppRoutes.customerSelection).then((_) => _loadOrders());
+
+          if (_effectiveCustomerCode != null && _effectiveCustomerCode!.isNotEmpty) {
+            final cust = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(_effectiveCustomerCode!);
+            bloc.add(SetCustomer(cust ?? {
+              'code': _effectiveCustomerCode,
+              'name': _effectiveCustomerName ?? _effectiveCustomerCode,
+              'statusFlag': '1',
+              'creditLimit': '0',
+              'outstandingBalance': '0',
+            }));
+            if (context.mounted) {
+              await context.push(AppRoutes.orderSummary);
+              _loadOrders();
+            }
+          } else {
+            context.push(AppRoutes.customerSelection).then((_) => _loadOrders());
+          }
         },
         icon: const Icon(Icons.add),
         label: const Text('New Order'),

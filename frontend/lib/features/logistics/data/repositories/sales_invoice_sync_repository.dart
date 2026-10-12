@@ -167,6 +167,60 @@ class SalesInvoiceSyncRepository {
         debugPrint('Sync: Failed to fetch sales reps: $e');
       }
 
+      // 7. Fetch Open Invoices & Credit Notes (INV / CN) - Filtered only by Site
+      try {
+        final Map<String, dynamic> queryParams = {
+          'daysCutoff': 90,
+        };
+        if (siteCode.isNotEmpty) {
+          queryParams['sitecode'] = siteCode;
+        }
+
+        final openInvResponse = await _dio.get(
+          'SalesInvoice/open-invoices',
+          queryParameters: queryParams,
+        );
+        final rawOpenInvoices = openInvResponse.data as List<dynamic>? ?? [];
+        await LocalDatabaseHelper.instance.refreshOpenInvoices(rawOpenInvoices);
+        debugPrint('Sync: Synced ${rawOpenInvoices.length} Open Invoices & Credit Notes (Site: $siteCode, Cutoff: 90d).');
+      } catch (e) {
+        debugPrint('Sync: Failed to fetch open invoices: $e');
+      }
+
+      // 8. Push Unsynced Open Invoice Payments
+      try {
+        final unsyncedOpenPayments = await LocalDatabaseHelper.instance.getUnsyncedOpenInvoicePayments();
+        if (unsyncedOpenPayments.isNotEmpty) {
+          debugPrint('Sync: Found ${unsyncedOpenPayments.length} unsynced Open Invoice Payments.');
+          final paymentsPayload = unsyncedOpenPayments.map((p) => {
+            'paymentId': p['paymentId'],
+            'documentNo': p['documentNo'],
+            'customerNo': p['customerNo'],
+            'amount': p['amount'],
+            'paymentMethod': p['paymentMethod'],
+            'bankCode': p['bankCode'],
+            'bankName': p['bankName'],
+            'chequeNumber': p['chequeNumber'],
+            'chequeDate': p['chequeDate'],
+            'qrTransactionRef': p['qrTransactionRef'],
+            'siteCode': p['siteCode'] ?? siteCode,
+            'company': p['company'] ?? '',
+            'createdAt': p['createdAt'],
+            'userName': p['userName'],
+            'deviceId': p['deviceId'],
+          }).toList();
+
+          final payResponse = await _dio.post('SalesInvoice/open-invoices/payments/sync', data: paymentsPayload);
+          if (payResponse.statusCode == 200) {
+            final ids = unsyncedOpenPayments.map((p) => p['paymentId'] as String).toList();
+            await LocalDatabaseHelper.instance.markOpenInvoicePaymentsSynced(ids);
+            debugPrint('Sync: Successfully marked ${ids.length} open invoice payments synced.');
+          }
+        }
+      } catch (e) {
+        debugPrint('Sync: Failed to push open invoice payments: $e');
+      }
+
       final duration = stopwatch.elapsedMilliseconds;
       debugPrint('Sales Invoice Sync completed in ${duration}ms');
       

@@ -45,8 +45,8 @@ class SalesRepository implements ISalesRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getSalesOrders() async {
-    return await _salesOrderService.getSalesOrders();
+  Future<List<Map<String, dynamic>>> getSalesOrders({String? customerCode}) async {
+    return await _salesOrderService.getSalesOrders(customerCode: customerCode);
   }
 
   @override

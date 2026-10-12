@@ -7,10 +7,24 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_bloc.dart';
 import '../../bloc/sales_invoice_event.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../core/navigation/app_routes.dart';
+import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
+import 'customer_hub_screen.dart';
+import 'sales_reports_screen.dart';
+import 'sales_invoice_product_selection_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_rep_selection_dialog.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
+import '../../bloc/sales_invoice_sync_bloc.dart';
+import '../../bloc/sales_invoice_sync_event.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
-  const CustomerSelectionScreen({Key? key}) : super(key: key);
+  final bool isPickerMode;
+
+  const CustomerSelectionScreen({
+    Key? key,
+    this.isPickerMode = false,
+  }) : super(key: key);
 
   @override
   State<CustomerSelectionScreen> createState() => _CustomerSelectionScreenState();
@@ -170,19 +184,114 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Select Customer',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          widget.isPickerMode ? 'Select Customer' : 'Sales • Customers',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          if (!widget.isPickerMode) ...[
+            IconButton(
+              icon: const Icon(Icons.sync_rounded),
+              tooltip: 'Sync Sales Data',
+              onPressed: () {
+                final authState = context.read<AuthBloc>().state;
+                final siteCode = (authState is Authenticated &&
+                        authState.siteCode != null &&
+                        authState.siteCode!.isNotEmpty &&
+                        authState.siteCode != 'ALL')
+                    ? authState.siteCode!
+                    : 'IPL';
+                context.read<SalesInvoiceSyncBloc>().add(
+                      StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                    );
+              },
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Route Dispatch Tools',
+              onSelected: (value) async {
+                final authState = context.read<AuthBloc>().state;
+                final siteCode = (authState is Authenticated &&
+                        authState.siteCode != null &&
+                        authState.siteCode!.isNotEmpty &&
+                        authState.siteCode != 'ALL')
+                    ? authState.siteCode!
+                    : 'IPL';
+                final permissions = (authState is Authenticated) ? authState.permissions : <String>[];
+                final username = (authState is Authenticated) ? authState.username : null;
+
+                switch (value) {
+                  case 'stock':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SalesInvoiceProductSelectionScreen(siteCode: siteCode),
+                      ),
+                    );
+                    break;
+                  case 'reports':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SalesReportsScreen(permissions: permissions),
+                      ),
+                    );
+                    break;
+                  case 'reps':
+                    final syncRepo = context.read<SalesInvoiceSyncRepository>();
+                    await SalesRepSelectionDialog.show(
+                      context,
+                      canDismiss: true,
+                      userSiteCode: siteCode,
+                      syncRepository: syncRepo,
+                      username: username,
+                    );
+                    if (mounted) _fetchCustomers();
+                    break;
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'stock',
+                  child: Row(
+                    children: [
+                      Icon(Icons.inventory_2_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Truck Stock Inquiry'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'reports',
+                  child: Row(
+                    children: [
+                      Icon(Icons.analytics_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Daily Reports / EOD'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'reps',
+                  child: Row(
+                    children: [
+                      Icon(Icons.badge_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Active Sales Reps'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
           IconButton(
             icon: Icon(Icons.home_rounded, color: theme.primaryColor, size: 24),
             tooltip: 'Back to Home',
             onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -307,10 +416,21 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
                               onTap: () async {
+                                if (widget.isPickerMode) {
+                                  Navigator.pop(context, customer);
+                                  return;
+                                }
+
                                 context.read<SalesInvoiceBloc>().add(SetCustomer(customer));
-                                final result = await context.push(AppRoutes.orderSummary);
-                                if (result == true && context.mounted) {
-                                  Navigator.pop(context, true);
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CustomerHubScreen(customer: customer),
+                                    settings: const RouteSettings(name: 'CustomerHubScreen'),
+                                  ),
+                                );
+                                if (mounted) {
+                                  _fetchCustomers();
                                 }
                               },
                               child: Padding(

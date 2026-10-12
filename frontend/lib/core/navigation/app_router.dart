@@ -69,12 +69,7 @@ class AppRouter {
       // --- Sales Module Routes ---
       GoRoute(
         path: AppRoutes.salesMenu,
-        builder: (context, state) {
-          final authState = authBloc.state;
-          return SalesMenuScreen(
-            permissions: authState is Authenticated ? authState.permissions : [],
-          );
-        },
+        builder: (context, state) => const CustomerSelectionScreen(),
       ),
       GoRoute(
         path: AppRoutes.selectTransaction,

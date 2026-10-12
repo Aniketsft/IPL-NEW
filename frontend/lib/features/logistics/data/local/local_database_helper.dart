@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 87;
+  static const _databaseVersion = 88;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -51,6 +51,8 @@ class LocalDatabaseHelper {
   static const tableSiSalesOrderDetails = 'tbl_si_sales_order_details';
   /// Tracks per-line reversal history for partial invoice reversals.
   static const tableSiInvoiceLineReversals = 'tbl_si_invoice_line_reversals';
+  static const tableSiOpenInvoices = 'tbl_si_open_invoices';
+  static const tableSiOpenInvoicePayments = 'tbl_si_open_invoice_payments';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -276,6 +278,48 @@ class LocalDatabaseHelper {
     try {
       await _database!.execute('ALTER TABLE $tableUserSelectedReps ADD COLUMN username TEXT DEFAULT ""');
     } catch (_) {}
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiOpenInvoices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          documentNo TEXT NOT NULL,
+          customerNo TEXT NOT NULL,
+          customerName TEXT,
+          dueDate TEXT NOT NULL,
+          site TEXT NOT NULL,
+          company TEXT NOT NULL,
+          docType TEXT NOT NULL,
+          remainingAmtLCY REAL NOT NULL,
+          allocatedAmount REAL DEFAULT 0.0,
+          isPaid INTEGER DEFAULT 0,
+          lastSyncAt TEXT,
+          UNIQUE(documentNo, dueDate)
+        )
+      ''');
+    } catch (_) {}
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiOpenInvoicePayments (
+          paymentId TEXT PRIMARY KEY,
+          documentNo TEXT NOT NULL,
+          customerNo TEXT NOT NULL,
+          amount REAL NOT NULL,
+          paymentMethod TEXT NOT NULL,
+          bankCode TEXT,
+          bankName TEXT,
+          chequeNumber TEXT,
+          chequeDate TEXT,
+          qrTransactionRef TEXT,
+          siteCode TEXT,
+          company TEXT,
+          createdAt TEXT,
+          userName TEXT,
+          deviceId TEXT,
+          isSynced INTEGER DEFAULT 0,
+          syncedAt TEXT
+        )
+      ''');
+    } catch (_) {}
     
     return _database!;
   }
@@ -292,6 +336,60 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 88) {
+      debugPrint('DB Upgrade: Creating Open Invoice tables (v88)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiOpenInvoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            documentNo TEXT NOT NULL,
+            customerNo TEXT NOT NULL,
+            customerName TEXT,
+            dueDate TEXT NOT NULL,
+            site TEXT NOT NULL,
+            company TEXT NOT NULL,
+            docType TEXT NOT NULL,
+            remainingAmtLCY REAL NOT NULL,
+            allocatedAmount REAL DEFAULT 0.0,
+            isPaid INTEGER DEFAULT 0,
+            lastSyncAt TEXT,
+            UNIQUE(documentNo, dueDate)
+          )
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_open_inv_cust ON $tableSiOpenInvoices(customerNo)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_open_inv_site ON $tableSiOpenInvoices(site)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_open_inv_type ON $tableSiOpenInvoices(docType)');
+      } catch (e) {
+        debugPrint('Migration error v88 ($tableSiOpenInvoices): $e');
+      }
+
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiOpenInvoicePayments (
+            paymentId TEXT PRIMARY KEY,
+            documentNo TEXT NOT NULL,
+            customerNo TEXT NOT NULL,
+            amount REAL NOT NULL,
+            paymentMethod TEXT NOT NULL,
+            bankCode TEXT,
+            bankName TEXT,
+            chequeNumber TEXT,
+            chequeDate TEXT,
+            qrTransactionRef TEXT,
+            siteCode TEXT,
+            company TEXT,
+            createdAt TEXT,
+            userName TEXT,
+            deviceId TEXT,
+            isSynced INTEGER DEFAULT 0,
+            syncedAt TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint('Migration error v88 ($tableSiOpenInvoicePayments): $e');
+      }
+    }
+
     if (oldVersion < 87) {
       debugPrint('DB Upgrade: Adding assignedSite to tbl_sales_reps and creating tbl_user_selected_sales_reps (v87)');
       try {
@@ -3529,6 +3627,14 @@ class LocalDatabaseHelper {
     );
   }
 
+  Future<int> getSalesRepsCount() async {
+    final db = await database;
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM $tableReps'),
+    );
+    return count ?? 0;
+  }
+
   Future<void> saveSelectedSalesReps(
     List<Map<String, dynamic>> selectedReps, {
     String? username,
@@ -3598,5 +3704,260 @@ class LocalDatabaseHelper {
     } else {
       await db.delete(tableUserSelectedReps);
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getSalesInvoiceCustomers({String? searchQuery}) async {
+    final db = await database;
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final q = '%${searchQuery.trim().toLowerCase()}%';
+      return await db.query(
+        tableSalesInvoiceCustomers,
+        where: 'LOWER($colCode) LIKE ? OR LOWER($colName) LIKE ?',
+        whereArgs: [q, q],
+        orderBy: '$colName ASC',
+      );
+    }
+    return await db.query(
+      tableSalesInvoiceCustomers,
+      orderBy: '$colName ASC',
+    );
+  }
+
+  // ==========================================
+  // Open Invoices & Credit Notes (INV / CN)
+  // ==========================================
+
+  Future<void> refreshOpenInvoices(List<dynamic> rawList) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Reconcile with pending offline local payments
+      final unsynced = await txn.query(
+        tableSiOpenInvoicePayments,
+        where: 'isSynced = 0',
+      );
+      final Map<String, double> pendingPayments = {};
+      for (final p in unsynced) {
+        final doc = (p['documentNo'] ?? '').toString();
+        final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+        if (doc.isNotEmpty) {
+          pendingPayments[doc] = (pendingPayments[doc] ?? 0.0) + amt;
+        }
+      }
+
+      for (final item in rawList) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final docNo = (map['documentNo'] ?? map['DocumentNo'] ?? '').toString().trim();
+        final custNo = (map['customerNo'] ?? map['CustomerNo'] ?? '').toString().trim();
+        final custName = (map['customerName'] ?? map['CustomerName'] ?? '').toString().trim();
+        final dueDate = (map['dueDate'] ?? map['DueDate'] ?? '').toString().trim();
+        final site = (map['site'] ?? map['Site'] ?? '').toString().trim();
+        final company = (map['company'] ?? map['Company'] ?? '').toString().trim();
+        final docType = (map['docType'] ?? map['DocType'] ?? 'INV').toString().trim();
+        final rawRemaining = (map['remainingAmtLCY'] ?? map['RemainingAmtLCY'] as num?)?.toDouble() ?? 0.0;
+
+        if (docNo.isEmpty || dueDate.isEmpty) continue;
+
+        final pendingDeduction = pendingPayments[docNo] ?? 0.0;
+        double effectiveRemaining = rawRemaining;
+        if (docType == 'INV') {
+          effectiveRemaining = rawRemaining - pendingDeduction;
+        } else if (docType == 'CN') {
+          effectiveRemaining = rawRemaining + pendingDeduction;
+        }
+        effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
+
+        final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
+            (docType == 'CN' && effectiveRemaining >= -0.001)
+            ? 1
+            : 0;
+
+        await txn.insert(
+          tableSiOpenInvoices,
+          {
+            'documentNo': docNo,
+            'customerNo': custNo,
+            'customerName': custName,
+            'dueDate': dueDate,
+            'site': site,
+            'company': company,
+            'docType': docType,
+            'remainingAmtLCY': effectiveRemaining,
+            'allocatedAmount': pendingDeduction,
+            'isPaid': isPaid,
+            'lastSyncAt': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getOpenInvoices({
+    String? siteCode,
+    String? customerNo,
+    String? docType,
+    String? searchQuery,
+  }) async {
+    final db = await database;
+    final whereClauses = <String>['isPaid = 0'];
+    final whereArgs = <dynamic>[];
+
+    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+      whereClauses.add('(site = ? OR site = "" OR site IS NULL)');
+      whereArgs.add(siteCode);
+    }
+
+    if (customerNo != null && customerNo.isNotEmpty) {
+      whereClauses.add('customerNo = ?');
+      whereArgs.add(customerNo);
+    }
+
+    if (docType != null && docType.isNotEmpty && docType != 'ALL') {
+      whereClauses.add('docType = ?');
+      whereArgs.add(docType);
+    }
+
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final q = '%${searchQuery.trim().toLowerCase()}%';
+      whereClauses.add('(LOWER(documentNo) LIKE ? OR LOWER(customerName) LIKE ? OR LOWER(customerNo) LIKE ?)');
+      whereArgs.addAll([q, q, q]);
+    }
+
+    return await db.query(
+      tableSiOpenInvoices,
+      where: whereClauses.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'dueDate ASC, documentNo ASC',
+    );
+  }
+
+  Future<void> recordOpenInvoicePayment(Map<String, dynamic> paymentData) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.insert(
+        tableSiOpenInvoicePayments,
+        paymentData,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      final docNo = (paymentData['documentNo'] ?? '').toString();
+      final paidAmt = (paymentData['amount'] as num?)?.toDouble() ?? 0.0;
+
+      if (docNo.isNotEmpty && paidAmt > 0) {
+        final existing = await txn.query(
+          tableSiOpenInvoices,
+          where: 'documentNo = ?',
+          whereArgs: [docNo],
+        );
+        for (final row in existing) {
+          final id = row['id'] as int;
+          final currentRemaining = (row['remainingAmtLCY'] as num?)?.toDouble() ?? 0.0;
+          final docType = row['docType'] as String? ?? 'INV';
+          double newRemaining = currentRemaining;
+          if (docType == 'INV') {
+            newRemaining = currentRemaining - paidAmt;
+          } else {
+            newRemaining = currentRemaining + paidAmt;
+          }
+          newRemaining = double.parse(newRemaining.toStringAsFixed(2));
+          final isPaid = (docType == 'INV' && newRemaining <= 0.001) ||
+              (docType == 'CN' && newRemaining >= -0.001)
+              ? 1
+              : 0;
+
+          await txn.update(
+            tableSiOpenInvoices,
+            {
+              'remainingAmtLCY': newRemaining,
+              'allocatedAmount': ((row['allocatedAmount'] as num?)?.toDouble() ?? 0.0) + paidAmt,
+              'isPaid': isPaid,
+            },
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+        }
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedOpenInvoicePayments() async {
+    final db = await database;
+    return await db.query(
+      tableSiOpenInvoicePayments,
+      where: 'isSynced = 0',
+      orderBy: 'createdAt ASC',
+    );
+  }
+
+  Future<void> markOpenInvoicePaymentsSynced(List<String> paymentIds) async {
+    if (paymentIds.isEmpty) return;
+    final db = await database;
+    await db.transaction((txn) async {
+      final now = DateTime.now().toIso8601String();
+      for (final id in paymentIds) {
+        await txn.update(
+          tableSiOpenInvoicePayments,
+          {'isSynced': 1, 'syncedAt': now},
+          where: 'paymentId = ?',
+          whereArgs: [id],
+        );
+      }
+    });
+  }
+
+  Future<double> getUnsyncedPaymentsSum(String customerNo) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT SUM(amount) as total FROM $tableSiOpenInvoicePayments WHERE customerNo = ? AND isSynced = 0',
+      [customerNo],
+    );
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return (result.first['total'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  Future<double> getUnsyncedCreditInvoicesSum(String customerCode) async {
+    final db = await database;
+    // 1. Sum CREDIT payments recorded for unsynced, non-reversed invoices
+    final paymentResult = await db.rawQuery(
+      '''
+      SELECT SUM(P.amount) as total 
+      FROM $tableSiPayments P
+      INNER JOIN $tableSiInvoices I ON P.invoiceId = I.invoiceId
+      WHERE I.customerCode = ? 
+        AND I.isSynced = 0 
+        AND (I.isReversed = 0 OR I.isReversed IS NULL)
+        AND P.method = 'CREDIT'
+      ''',
+      [customerCode],
+    );
+    double totalCreditPayments = 0.0;
+    if (paymentResult.isNotEmpty && paymentResult.first['total'] != null) {
+      totalCreditPayments = (paymentResult.first['total'] as num).toDouble();
+    }
+
+    // 2. Defensively sum any unsynced invoices flagged as CREDIT where no payment rows exist
+    final invoiceResult = await db.rawQuery(
+      '''
+      SELECT SUM(I.grandTotal) as total 
+      FROM $tableSiInvoices I
+      WHERE I.customerCode = ? 
+        AND I.isSynced = 0 
+        AND (I.isReversed = 0 OR I.isReversed IS NULL)
+        AND (I.status = 'CREDIT' OR I.status = 'UNPAID')
+        AND NOT EXISTS (
+          SELECT 1 FROM $tableSiPayments P WHERE P.invoiceId = I.invoiceId
+        )
+      ''',
+      [customerCode],
+    );
+    double totalUnpaidInvoices = 0.0;
+    if (invoiceResult.isNotEmpty && invoiceResult.first['total'] != null) {
+      totalUnpaidInvoices = (invoiceResult.first['total'] as num).toDouble();
+    }
+
+    return totalCreditPayments + totalUnpaidInvoices;
   }
 }

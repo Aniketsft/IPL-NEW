@@ -7,12 +7,24 @@ import 'package:enterprise_auth_mobile/features/logistics/data/local/local_datab
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 
 class AmountOnlyCreditNoteScreen extends StatefulWidget {
   final String? initialCustomerCode;
+  final Map<String, dynamic>? initialCustomer;
+  final bool lockToCustomer;
 
-  const AmountOnlyCreditNoteScreen({super.key, this.initialCustomerCode});
+  const AmountOnlyCreditNoteScreen({
+    super.key,
+    this.initialCustomerCode,
+    this.initialCustomer,
+    this.lockToCustomer = false,
+  });
 
   @override
   State<AmountOnlyCreditNoteScreen> createState() => _AmountOnlyCreditNoteScreenState();
@@ -40,6 +52,94 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
     symbol: 'RS ',
     decimalDigits: 2,
   );
+
+  String get _customerCode {
+    if (_selectedCustomer == null) return widget.initialCustomerCode ?? '';
+    return (_selectedCustomer!['code'] ??
+            _selectedCustomer!['customerCode'] ??
+            _selectedCustomer!['CustomerNo'] ??
+            _selectedCustomer!['BPCNUM_0'] ??
+            widget.initialCustomerCode ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  String get _customerName {
+    if (_selectedCustomer == null) return '';
+    return (_selectedCustomer!['name'] ??
+            _selectedCustomer!['customerName'] ??
+            _selectedCustomer!['CustomerName'] ??
+            _selectedCustomer!['BPCNAM_0'] ??
+            _customerCode)
+        .toString()
+        .trim();
+  }
+
+  String get _customerOutstanding {
+    if (_selectedCustomer == null) return '0.00';
+    final raw = _selectedCustomer!['outstandingBalance'] ??
+        _selectedCustomer!['effectiveOutstanding'] ??
+        _selectedCustomer!['balance'] ??
+        0;
+    final parsed = double.tryParse(raw.toString()) ?? 0.0;
+    return currencyFormat.format(parsed);
+  }
+
+  bool get _isCustomerLocked =>
+      widget.lockToCustomer ||
+      widget.initialCustomer != null ||
+      (widget.initialCustomerCode != null && widget.initialCustomerCode!.isNotEmpty);
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Synchronously resolve customer BEFORE the first frame builds!
+    if (widget.initialCustomer != null) {
+      _selectedCustomer = Map<String, dynamic>.from(widget.initialCustomer!);
+    } else {
+      try {
+        final blocState = context.read<SalesInvoiceBloc>().state;
+        if (blocState is SalesInvoiceLoaded && blocState.customer != null) {
+          _selectedCustomer = Map<String, dynamic>.from(blocState.customer!);
+        }
+      } catch (_) {}
+    }
+
+    // 2. Complete asynchronous resolution and fetch linked invoices
+    _initCustomer();
+  }
+
+  Future<void> _initCustomer() async {
+    String code = _customerCode;
+    if (code.isEmpty) {
+      try {
+        final blocState = context.read<SalesInvoiceBloc>().state;
+        if (blocState is SalesInvoiceLoaded && blocState.customer != null) {
+          _selectedCustomer = Map<String, dynamic>.from(blocState.customer!);
+          code = _customerCode;
+        }
+      } catch (_) {}
+    }
+
+    if (code.isNotEmpty) {
+      try {
+        final cust = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(code);
+        if (cust != null) {
+          _selectedCustomer = Map<String, dynamic>.from(cust);
+        }
+      } catch (e) {
+        debugPrint('AmountOnlyCreditNoteScreen._initCustomer error: $e');
+      }
+    }
+
+    if (mounted) {
+      setState(() {});
+      if (_customerCode.isNotEmpty) {
+        await _loadCustomerInvoices(_customerCode);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -123,30 +223,75 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
         _selectedCustomer = picked;
         _selectedInvoiceIds.clear();
       });
-      await _loadCustomerInvoices(picked['code'] as String);
+      await _loadCustomerInvoices(_customerCode);
     }
   }
 
   Future<void> _loadCustomerInvoices(String customerCode) async {
+    if (customerCode.isEmpty) return;
     setState(() => _isLoading = true);
-    final db = await LocalDatabaseHelper.instance.database;
-    final invoices = await db.query(
-      LocalDatabaseHelper.tableSiInvoices,
-      where: 'customerCode = ? AND (isReversed = 0 OR isReversed IS NULL)',
-      whereArgs: [customerCode],
-      orderBy: 'createdAt DESC',
-    );
+    try {
+      final db = await LocalDatabaseHelper.instance.database;
 
-    setState(() {
-      _customerInvoices = invoices;
-      _isLoading = false;
-    });
+      // 1. Fetch local invoices created on device
+      final localInvoices = await db.query(
+        LocalDatabaseHelper.tableSiInvoices,
+        where: 'customerCode = ? AND (isReversed = 0 OR isReversed IS NULL)',
+        whereArgs: [customerCode],
+        orderBy: 'createdAt DESC',
+      );
+
+      // 2. Fetch Sage X3 open invoices synced for this customer
+      final openDocs = await LocalDatabaseHelper.instance.getOpenInvoices(
+        customerNo: customerCode,
+      );
+
+      final Map<String, Map<String, dynamic>> merged = {};
+      for (final inv in localInvoices) {
+        final id = (inv['invoiceId'] ?? '').toString();
+        if (id.isNotEmpty) {
+          merged[id] = {
+            'invoiceId': id,
+            'customerCode': inv['customerCode'] ?? customerCode,
+            'customerName': inv['customerName'] ?? '',
+            'grandTotal': (inv['grandTotal'] as num?)?.toDouble() ?? 0.0,
+            'createdAt': (inv['createdAt'] ?? '').toString(),
+          };
+        }
+      }
+
+      for (final doc in openDocs) {
+        final id = (doc['documentNo'] ?? '').toString();
+        if (id.isNotEmpty && !merged.containsKey(id)) {
+          merged[id] = {
+            'invoiceId': id,
+            'customerCode': doc['customerNo'] ?? customerCode,
+            'customerName': doc['customerName'] ?? '',
+            'grandTotal': (doc['remainingAmtLCY'] as num?)?.toDouble() ?? 0.0,
+            'createdAt': (doc['dueDate'] ?? doc['lastSyncAt'] ?? '').toString(),
+          };
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _customerInvoices = merged.values.toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading customer invoices: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   double _getSelectedInvoicesBalance() {
     double total = 0.0;
     for (final inv in _customerInvoices) {
-      if (_selectedInvoiceIds.contains(inv['invoiceId'])) {
+      final id = (inv['invoiceId'] ?? '').toString();
+      if (_selectedInvoiceIds.contains(id)) {
         total += (inv['grandTotal'] as num?)?.toDouble() ?? 0.0;
       }
     }
@@ -188,13 +333,23 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
     setState(() => _isProcessing = true);
 
     try {
-      final creditNote = await _creditNoteService.createAmountOnlyCreditNote(
-        salesSite: _selectedCustomer!['salesSite'] ?? 'SCG',
-        customerCode: _selectedCustomer!['code'] as String,
-        customerName: _selectedCustomer!['name'] as String,
+      final authState = context.read<AuthBloc>().state;
+      final siteCode = (authState is Authenticated &&
+              authState.siteCode != null &&
+              authState.siteCode!.isNotEmpty &&
+              authState.siteCode != 'ALL')
+          ? authState.siteCode!
+          : 'IPL';
+
+      final username = authState is Authenticated ? authState.username : 'user';
+
+      final creditNote = await _creditNoteService.createCashOnlyCreditNote(
+        salesSite: siteCode,
+        customerCode: _customerCode,
+        customerName: _customerName,
         refundAmount: refundAmount,
         linkedInvoiceIds: _selectedInvoiceIds.toList(),
-        createdBy: 'user',
+        createdBy: username,
         reference: _referenceController.text.trim().isNotEmpty
             ? _referenceController.text.trim()
             : _selectedInvoiceIds.join(', '),
@@ -298,11 +453,31 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                           'CUSTOMER',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey),
                         ),
-                        TextButton.icon(
-                          onPressed: _pickCustomer,
-                          icon: const Icon(Icons.person_search, size: 18),
-                          label: Text(_selectedCustomer == null ? 'Select' : 'Change'),
-                        ),
+                        if (_isCustomerLocked && _selectedCustomer != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_outline, size: 14, color: Colors.green),
+                                SizedBox(width: 4),
+                                Text(
+                                  'ACTIVE CUSTOMER',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: _pickCustomer,
+                            icon: const Icon(Icons.person_search, size: 18),
+                            label: Text(_selectedCustomer == null ? 'Select' : 'Change'),
+                          ),
                       ],
                     ),
                     if (_selectedCustomer == null)
@@ -318,12 +493,12 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _selectedCustomer!['name'] ?? '',
+                            _customerName,
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Code: ${_selectedCustomer!['code']} • Outstanding: RS ${_selectedCustomer!['outstandingBalance'] ?? 0}',
+                            'Code: $_customerCode • Outstanding: $_customerOutstanding',
                             style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
                           ),
                         ],
@@ -439,7 +614,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, idx) {
                           final inv = _customerInvoices[idx];
-                          final id = inv['invoiceId'] as String;
+                          final id = (inv['invoiceId'] ?? '').toString();
                           final total = (inv['grandTotal'] as num?)?.toDouble() ?? 0.0;
                           final isChecked = _selectedInvoiceIds.contains(id);
 
