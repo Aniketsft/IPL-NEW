@@ -270,9 +270,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var customers = await _repository.GetCustomersAsync(string.Empty);
                 return Ok(customers);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving customer records." });
             }
         }
 
@@ -296,9 +296,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var products = await _repository.GetProductsAsync(sitecode);
                 return Ok(products);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving products." });
             }
         }
 
@@ -322,9 +322,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var details = await _repository.GetItemStockDetailsAsync(sitecode);
                 return Ok(details);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving stock details." });
             }
         }
 
@@ -336,9 +336,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var data = await _repository.GetTaxDeterminationsAsync();
                 return Ok(data);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving tax determinations." });
             }
         }
 
@@ -350,9 +350,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var data = await _repository.GetTaxRatesAsync();
                 return Ok(data);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving tax rates." });
             }
         }
 
@@ -364,9 +364,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var data = await _repository.GetPriceListsAsync();
                 return Ok(data);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving price lists." });
             }
         }
 
@@ -384,9 +384,9 @@ namespace EnterpriseAuth.Api.Controllers
                 var data = await _repository.GetSalesRepsAsync(sitecode);
                 return Ok(data);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return StatusCode(500, ex.ToString());
+                return StatusCode(500, new { error = "An internal error occurred while retrieving sales representatives." });
             }
         }
     }

@@ -9,6 +9,9 @@ using EnterpriseAuth.Api.Infrastructure.Security;
 using EnterpriseAuth.Api.Core.Application.Services;
 using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Infrastructure.Features.SchemaManagement;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,10 +45,34 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        // Restricting CORS to a specific frontend domain (example domain)
+        policy.WithOrigins("https://trusted-frontend.example.com")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
+});
+
+// 1. Data Protection API
+builder.Services.AddDataProtection();
+
+// 2. Global & Endpoint Rate Limiting
+builder.Services.AddRateLimiter(options => {
+    options.AddFixedWindowLimiter("FixedPolicy", opt => {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+    options.AddFixedWindowLimiter("AuthPolicy", opt => {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromSeconds(15);
+    });
+});
+
+// 3. Fallback Authorization Policy (Secure by default)
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
 });
 
 // Dynamic Database Selection
@@ -94,6 +121,12 @@ builder.Services.Configure<EodSettings>(builder.Configuration.GetSection("EodSet
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
+var jwtKey = jwtSettings["Key"];
+if (!builder.Environment.IsDevelopment() && (string.IsNullOrEmpty(jwtKey) || jwtKey.Contains("DevelopmentPurposesOnly") || jwtKey.Length < 32))
+{
+    throw new InvalidOperationException("CRITICAL SECURITY VIOLATION: A production-grade cryptographic JWT Key (minimum 256 bits) must be provided via the 'Jwt__Key' environment variable.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -105,7 +138,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSettings["Issuer"],
             ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!))
         };
 
         options.Events = new JwtBearerEvents
@@ -157,12 +190,40 @@ using (var scope = app.Services.CreateScope())
 
 // Configure the HTTP request pipeline.
 // Swagger enabled for all environments (IIS InProcess doesn't reliably detect Development mode)
+// 4. Global Exception Handler
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
+    });
+});
+
+// 5. Security Headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    await next();
+});
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// app.UseHttpsRedirection(); // Causes issues with Android Emulator on HTTP port 5004
+// 6. HSTS & HTTPS Enforcement (in Production)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
 app.UseCors();
+
+// 7. Apply Rate Limiting Pipeline
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

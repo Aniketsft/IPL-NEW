@@ -36,9 +36,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Security
                 claims.Add(new Claim("SiteCode", user.SiteCode));
             }
 
+            // Add Roles as claims for role-based authorization
+            if (user.Roles != null)
+            {
+                foreach (var role in user.Roles)
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, role.Name));
+                }
+            }
+
             // Add Permissions as claims
-            var permissions = user.Roles
-                .SelectMany(r => r.Permissions)
+            var permissions = (user.Roles ?? new List<Role>())
+                .SelectMany(r => r.Permissions ?? new List<Permission>())
                 .Concat(user.Permissions ?? new List<Permission>())
                 .Select(p => p.Name)
                 .Distinct();

@@ -110,16 +110,63 @@ class NetworkService {
       ),
     );
 
-    // Optional: Add logging in debug mode
+    // Secure logging in debug mode: automatically masks passwords and bearer tokens
     if (kDebugMode) {
-      dio.interceptors.add(
-        LogInterceptor(
-          requestHeader: true,
-          requestBody: true,
-          responseHeader: false,
-          responseBody: false, // Turned off to save memory during big syncs
-        ),
-      );
+      dio.interceptors.add(const SanitizedLogInterceptor());
     }
+  }
+}
+
+/// A privacy-preserving HTTP logger that suppresses sensitive data such as
+/// passwords and bearer tokens from terminal and logcat outputs.
+class SanitizedLogInterceptor extends Interceptor {
+  const SanitizedLogInterceptor();
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (kDebugMode) {
+      debugPrint('--> ${options.method} ${options.uri}');
+
+      // Mask sensitive headers (Bearer token)
+      if (options.headers.isNotEmpty) {
+        final sanitizedHeaders = Map<String, dynamic>.from(options.headers);
+        if (sanitizedHeaders.containsKey('Authorization')) {
+          sanitizedHeaders['Authorization'] = 'Bearer [REDACTED]';
+        }
+        debugPrint('Headers: $sanitizedHeaders');
+      }
+
+      // Mask sensitive request body fields (password, tokens)
+      if (options.data != null) {
+        if (options.data is Map) {
+          final sanitizedData = Map<String, dynamic>.from(options.data as Map);
+          for (final key in ['password', 'newPassword', 'oldPassword', 'token']) {
+            if (sanitizedData.containsKey(key)) {
+              sanitizedData[key] = '***REDACTED***';
+            }
+          }
+          debugPrint('Body: $sanitizedData');
+        } else if (options.data is! FormData) {
+          debugPrint('Body: ${options.data}');
+        }
+      }
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (kDebugMode) {
+      debugPrint('<-- [${response.statusCode}] ${response.requestOptions.uri.path}');
+    }
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (kDebugMode) {
+      debugPrint('<-- ERROR [${err.response?.statusCode ?? 'N/A'}] ${err.requestOptions.uri.path}: ${err.message}');
+    }
+    handler.next(err);
   }
 }

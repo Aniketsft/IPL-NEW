@@ -9,6 +9,7 @@ using System.Security.Claims;
 
 namespace EnterpriseAuth.Api.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class RolesController : ControllerBase
@@ -77,6 +78,7 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(dto);
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] RoleDto roleDto)
         {
@@ -108,6 +110,7 @@ namespace EnterpriseAuth.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = role.Id }, new { id = role.Id, name = role.Name });
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] RoleDto roleDto)
         {
@@ -148,6 +151,7 @@ namespace EnterpriseAuth.Api.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {

@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EnterpriseAuth.Api.Controllers;
 
-[ApiController]
-[Route("[controller]")]
+[NonController]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class WeatherForecastController : ControllerBase
 {
     private static readonly string[] Summaries =

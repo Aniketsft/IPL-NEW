@@ -9,6 +9,7 @@ using System.Security.Claims;
 
 namespace EnterpriseAuth.Api.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
@@ -74,6 +75,7 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(dto);
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] UserCreateRequest request)
         {
@@ -120,9 +122,20 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             await _userRepository.AddAsync(user);
-            return CreatedAtAction(nameof(GetById), new { id = user.Id }, user);
+            var responseDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                IsActive = user.IsActive,
+                SiteCode = user.SiteCode,
+                RoleId = user.Roles.FirstOrDefault()?.Id,
+                Permissions = user.Roles.SelectMany(r => r.Permissions).Concat(user.Permissions).Select(p => p.Name).Distinct().ToList()
+            };
+            return CreatedAtAction(nameof(GetById), new { id = user.Id }, responseDto);
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UserDto dto)
         {
@@ -177,6 +190,7 @@ namespace EnterpriseAuth.Api.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
@@ -193,6 +207,7 @@ namespace EnterpriseAuth.Api.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPut("{id}/permissions")]
         public async Task<IActionResult> UpdatePermissions(Guid id, [FromBody] List<string> permissionNames)
         {
@@ -221,6 +236,9 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 user.Permissions.Add(p);
             }
+
+            // Invalidate active JWTs so modified permissions take effect immediately
+            user.TokenVersion = Guid.NewGuid();
 
             await _context.SaveChangesAsync();
             return Ok();

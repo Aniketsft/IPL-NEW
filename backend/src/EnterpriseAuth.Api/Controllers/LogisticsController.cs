@@ -9,6 +9,7 @@ using EnterpriseAuth.Api.Core.Application.Common;
 
 namespace EnterpriseAuth.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class LogisticsController : ControllerBase

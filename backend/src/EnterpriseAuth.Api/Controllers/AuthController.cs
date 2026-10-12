@@ -15,6 +15,8 @@ namespace EnterpriseAuth.Api.Controllers
             _authService = authService;
         }
 
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthPolicy")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -25,6 +27,7 @@ namespace EnterpriseAuth.Api.Controllers
 
         [HttpPost("refresh")]
         [Microsoft.AspNetCore.Authorization.Authorize]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthPolicy")]
         public async Task<IActionResult> Refresh()
         {
             var username = User.FindFirst("username")?.Value;
@@ -35,6 +38,8 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(response);
         }
 
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthPolicy")]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
@@ -43,6 +48,8 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(new { message = "User registered successfully" });
         }
 
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthPolicy")]
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
