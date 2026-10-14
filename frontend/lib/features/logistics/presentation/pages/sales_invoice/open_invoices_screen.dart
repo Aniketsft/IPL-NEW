@@ -8,7 +8,7 @@ import '../../../../auth/presentation/bloc/auth_state.dart';
 import '../../../data/local/local_database_helper.dart';
 import '../../../data/models/open_invoice_model.dart';
 import '../../widgets/open_invoice_card.dart';
-import 'open_invoice_payment_screen.dart';
+import 'payment_processing_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 
@@ -433,10 +433,16 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => OpenInvoicePaymentScreen(
-                                selectedDocuments: selectedDocs,
-                                allocations: Map.from(_selectedAllocations),
-                                netPayable: netPayable,
+                              builder: (_) => PaymentProcessingScreen(
+                                openInvoiceDocuments: selectedDocs,
+                                openInvoiceAllocations: Map.from(_selectedAllocations),
+                                openInvoiceNetPayable: netPayable,
+                                customCustomer: _selectedCustomerNo != null
+                                    ? {
+                                        'code': _selectedCustomerNo,
+                                        'name': _selectedCustomerName ?? '',
+                                      }
+                                    : null,
                               ),
                             ),
                           );

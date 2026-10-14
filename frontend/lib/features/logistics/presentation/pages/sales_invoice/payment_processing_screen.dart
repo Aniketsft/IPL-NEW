@@ -18,6 +18,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_not
 
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart';
 import 'package:printing/printing.dart';
 
 class PaymentEntry {
@@ -44,11 +45,22 @@ class PaymentEntry {
 
 class PaymentProcessingScreen extends StatefulWidget {
   final bool isCreditNoteRefund;
+  final List<OpenInvoiceModel>? openInvoiceDocuments;
+  final Map<String, double>? openInvoiceAllocations;
+  final double? openInvoiceNetPayable;
+  final Map<String, dynamic>? customCustomer;
 
   const PaymentProcessingScreen({
     super.key,
     this.isCreditNoteRefund = false,
+    this.openInvoiceDocuments,
+    this.openInvoiceAllocations,
+    this.openInvoiceNetPayable,
+    this.customCustomer,
   });
+
+  bool get isOpenInvoiceMode =>
+      openInvoiceDocuments != null && openInvoiceDocuments!.isNotEmpty;
 
   @override
   State<PaymentProcessingScreen> createState() =>
@@ -77,12 +89,22 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   List<PaymentEntry> _payments = [];
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isOpenInvoiceMode) {
+      final target = (widget.openInvoiceNetPayable ?? 0.0).abs();
+      if (target <= 0.001) {
+        _selectedMethod = 'CN_OFFSET';
+      }
+    }
+  }
+
   double _getTotalPaid() {
     return _payments.fold(0.0, (sum, item) => sum + item.amount);
   }
 
-  void _addPayment(SalesInvoiceLoaded cartState) {
-    final grandTotal = cartState.grandTotal;
+  void _addPayment({required double grandTotal, Map<String, dynamic>? customer}) {
     if (grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -97,7 +119,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
     if (remaining <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invoice is already fully paid.')),
+        const SnackBar(content: Text('Amount is already fully covered.')),
       );
       return;
     }
@@ -130,9 +152,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
     // Dynamic Validations
     if (_selectedMethod == 'CHEQUE') {
-      if (_bankNameController.text.isEmpty ||
-          _chequeNumController.text.isEmpty ||
-          _chequeDateController.text.isEmpty) {
+      if (_bankNameController.text.trim().isEmpty ||
+          _chequeNumController.text.trim().isEmpty ||
+          _chequeDateController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please fill all required cheque details.'),
@@ -140,35 +162,38 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         );
         return;
       }
-    } else if (_selectedMethod == 'QR CODE') {
-      if (_qrRefController.text.isEmpty) {
+    } else if (_selectedMethod == 'QR CODE' ||
+        _selectedMethod == 'BLINK' ||
+        _selectedMethod == 'MYT MONEY') {
+      if (_qrRefController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Transaction reference is required for QR payments.'),
+            content: Text('Transaction reference is required for digital/QR payments.'),
           ),
         );
         return;
       }
     } else if (_selectedMethod == 'CREDIT') {
-      final customer = cartState.customer!;
-      final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
-      final outstandingStr = customer['outstandingBalance']?.toString() ?? '0';
-      double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
-      double outstanding = double.tryParse(outstandingStr) ?? 0.0;
+      if (customer != null) {
+        final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
+        final outstandingStr = customer['outstandingBalance']?.toString() ?? '0';
+        double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
+        double outstanding = double.tryParse(outstandingStr) ?? 0.0;
 
-      // Calculate existing credit payments in the cart
-      double cartCreditTotal = _payments
-          .where((p) => p.method == 'CREDIT')
-          .fold(0.0, (sum, p) => sum + p.amount);
+        // Calculate existing credit payments in the cart
+        double cartCreditTotal = _payments
+            .where((p) => p.method == 'CREDIT')
+            .fold(0.0, (sum, p) => sum + p.amount);
 
-      if (creditLimit > 0 &&
-          (outstanding + cartCreditTotal + amount) > creditLimit) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This amount exceeds the available credit limit.'),
-          ),
-        );
-        return;
+        if (creditLimit > 0 &&
+            (outstanding + cartCreditTotal + amount) > creditLimit) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This amount exceeds the available credit limit.'),
+            ),
+          );
+          return;
+        }
       }
     }
 
@@ -464,6 +489,180 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     }
   }
 
+  Future<void> _processOpenInvoicePayment() async {
+    if (widget.openInvoiceDocuments == null || widget.openInvoiceDocuments!.isEmpty) return;
+
+    final targetTotal = (widget.openInvoiceNetPayable ?? 0.0).abs();
+    final isZeroOffset = targetTotal <= 0.001;
+    final totalPaid = _getTotalPaid();
+
+    if (!isZeroOffset && totalPaid < targetTotal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Full payment is required to process the settlement.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final authState = context.read<AuthBloc>().state;
+      final userName = authState is Authenticated ? authState.username : 'OfflineUser';
+      final siteCode = authState is Authenticated ? (authState.siteCode ?? '') : '';
+      final deviceId = DeviceInfoService.instance.deviceInfo;
+      final now = DateTime.now().toIso8601String();
+
+      if (isZeroOffset) {
+        for (final doc in widget.openInvoiceDocuments!) {
+          final allocated = widget.openInvoiceAllocations?[doc.documentNo] ?? 0.0;
+          if (allocated <= 0.001) continue;
+
+          final paymentData = {
+            'paymentId': const Uuid().v4(),
+            'documentNo': doc.documentNo,
+            'customerNo': doc.customerNo,
+            'amount': allocated,
+            'paymentMethod': 'CN_OFFSET',
+            'bankCode': '',
+            'bankName': '',
+            'chequeNumber': '',
+            'chequeDate': '',
+            'qrTransactionRef': _referenceController.text.trim(),
+            'siteCode': doc.site.isNotEmpty ? doc.site : siteCode,
+            'company': doc.company,
+            'createdAt': now,
+            'userName': userName,
+            'deviceId': deviceId,
+            'isSynced': 0,
+          };
+
+          await LocalDatabaseHelper.instance.recordOpenInvoicePayment(paymentData);
+        }
+      } else {
+        // Distribute payment entries across allocated documents
+        final remainingDocNeeds = <Map<String, dynamic>>[];
+        for (final doc in widget.openInvoiceDocuments!) {
+          final allocated = widget.openInvoiceAllocations?[doc.documentNo] ?? 0.0;
+          if (allocated > 0.001) {
+            remainingDocNeeds.add({
+              'doc': doc,
+              'remaining': allocated,
+            });
+          }
+        }
+
+        int docIdx = 0;
+        for (final payment in _payments) {
+          double tenderRemaining = payment.amount;
+          while (tenderRemaining > 0.001 && docIdx < remainingDocNeeds.length) {
+            final curDocItem = remainingDocNeeds[docIdx];
+            final doc = curDocItem['doc'] as OpenInvoiceModel;
+            final double docNeed = curDocItem['remaining'] as double;
+
+            final double applyAmount = tenderRemaining < docNeed ? tenderRemaining : docNeed;
+
+            final paymentData = {
+              'paymentId': const Uuid().v4(),
+              'documentNo': doc.documentNo,
+              'customerNo': doc.customerNo,
+              'amount': double.parse(applyAmount.toStringAsFixed(2)),
+              'paymentMethod': payment.method,
+              'bankCode': payment.bankCode,
+              'bankName': payment.bankName,
+              'chequeNumber': payment.chequeNumber,
+              'chequeDate': payment.chequeDate,
+              'qrTransactionRef': payment.qrTransactionRef.isNotEmpty
+                  ? payment.qrTransactionRef
+                  : _referenceController.text.trim(),
+              'siteCode': doc.site.isNotEmpty ? doc.site : siteCode,
+              'company': doc.company,
+              'createdAt': now,
+              'userName': userName,
+              'deviceId': deviceId,
+              'isSynced': 0,
+            };
+
+            await LocalDatabaseHelper.instance.recordOpenInvoicePayment(paymentData);
+
+            tenderRemaining -= applyAmount;
+            curDocItem['remaining'] = docNeed - applyAmount;
+
+            if ((curDocItem['remaining'] as double) <= 0.001) {
+              docIdx++;
+            }
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+              SizedBox(width: 8),
+              Text('Payment Recorded'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Successfully recorded settlement across ${widget.openInvoiceDocuments!.length} document(s).',
+              ),
+              const SizedBox(height: 12),
+              if (!isZeroOffset) ...[
+                Text(
+                  'Payment Methods: ${_payments.map((p) => p.method).toSet().join(", ")}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Total Paid: ${currencyFormat.format(totalPaid)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ] else ...[
+                const Text(
+                  'Offset: Balance cleared via Credit Notes.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+              const SizedBox(height: 8),
+              const Text(
+                'Record saved to local offline database. Will synchronize automatically on next sync.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context, true);
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payment failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
   Widget _buildMethodButton(
     String method,
     IconData icon,
@@ -633,6 +832,33 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isOpenInvoiceMode) {
+      final customer = widget.customCustomer ?? {
+        'code': widget.openInvoiceDocuments!.first.customerNo,
+        'name': widget.openInvoiceDocuments!.first.customerName,
+      };
+      final netPayable = widget.openInvoiceNetPayable ?? 0.0;
+      final isRefund = netPayable < -0.001;
+      final isZeroOffset = netPayable.abs() <= 0.001;
+      final grandTotal = netPayable.abs();
+
+      return _buildScaffold(
+        context: context,
+        title: isRefund ? 'Credit Refund' : 'Invoice Payment',
+        customer: customer,
+        grandTotal: grandTotal,
+        isChequeEnabled: true,
+        isCreditEnabled: false,
+        isZeroOffset: isZeroOffset,
+        onConfirm: _processOpenInvoicePayment,
+        confirmButtonLabel: isZeroOffset
+            ? 'COMPLETE OFFSET'
+            : (isRefund
+                ? 'CONFIRM REFUND OF ${currencyFormat.format(grandTotal)}'
+                : 'CONFIRM PAYMENT OF ${currencyFormat.format(grandTotal)}'),
+      );
+    }
+
     return BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
       builder: (context, state) {
         if (state is! SalesInvoiceLoaded) {
@@ -640,489 +866,592 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         }
         final cartState = state;
         final isPreview = cartState.transactionType.startsWith('PREVIEW');
-        
+
         if (cartState.customer == null && !widget.isCreditNoteRefund) {
           return const Scaffold(body: Center(child: Text('No Customer')));
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.isCreditNoteRefund ? 'Refund Processing' : (isPreview ? 'Transaction Details' : 'Payment Processing')),
-            centerTitle: true,
-            actions: [
-              if (isPreview)
-                IconButton(
-                  icon: const Icon(Icons.print),
-                  tooltip: 'Print',
-                  onPressed: () => _handleHistoricalPrint(cartState),
-                ),
-            ],
-          ),
-          body: Builder(
-            builder: (context) {
+        bool isChequeEnabled = false;
+        bool isCreditEnabled = false;
 
-          bool isChequeEnabled = false;
-          bool isCreditEnabled = false;
+        if (widget.isCreditNoteRefund) {
+          isCreditEnabled = true;
+        } else {
+          final customer = cartState.customer!;
+          final statusStr = customer['statusFlag']?.toString() ?? '1';
+          isChequeEnabled = (statusStr == '1');
 
-          if (widget.isCreditNoteRefund) {
-            // For refunds, we don't care about the customer's payment term status
-            // because we are refunding them money, which adds to their credit balance.
-            isCreditEnabled = true;
-          } else {
-            final customer = cartState.customer!;
-            final statusStr = customer['statusFlag']?.toString() ?? '1';
+          if (statusStr != '3') {
+            final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
+            final outstandingStr = customer['outstandingBalance']?.toString() ?? '0';
+            double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
+            double outstanding = double.tryParse(outstandingStr) ?? 0.0;
+            double cartCreditTotal = _payments
+                .where((p) => p.method == 'CREDIT')
+                .fold(0.0, (sum, p) => sum + p.amount);
 
-            isChequeEnabled = (statusStr == '1');
-
-            if (statusStr != '3') {
-              final creditLimitStr = customer['creditLimit']?.toString() ?? '0';
-              final outstandingStr =
-                  customer['outstandingBalance']?.toString() ?? '0';
-              double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
-              double outstanding = double.tryParse(outstandingStr) ?? 0.0;
-
-              // Calculate existing credit payments in the cart
-              double cartCreditTotal = _payments
-                  .where((p) => p.method == 'CREDIT')
-                  .fold(0.0, (sum, p) => sum + p.amount);
-
-              if (creditLimit > 0 &&
-                  (creditLimit - outstanding - cartCreditTotal) > 0) {
-                isCreditEnabled = true;
-              }
+            if (creditLimit > 0 &&
+                (creditLimit - outstanding - cartCreditTotal) > 0) {
+              isCreditEnabled = true;
             }
           }
+        }
 
-          final grandTotal = cartState.grandTotal;
-          final totalPaid = _getTotalPaid();
-          final remaining = grandTotal - totalPaid;
-          final isFullyPaid = grandTotal > 0 && remaining <= 0;
-          final changeDue = remaining < 0 ? remaining.abs() : 0.0;
+        return _buildScaffold(
+          context: context,
+          title: widget.isCreditNoteRefund
+              ? 'Refund Processing'
+              : (isPreview ? 'Transaction Details' : 'Payment Processing'),
+          customer: cartState.customer ?? {'code': '', 'name': ''},
+          grandTotal: cartState.grandTotal,
+          isChequeEnabled: isChequeEnabled,
+          isCreditEnabled: isCreditEnabled,
+          isZeroOffset: false,
+          isPreview: isPreview,
+          onPrint: isPreview ? () => _handleHistoricalPrint(cartState) : null,
+          onConfirm: () => _processPayment(cartState),
+          confirmButtonLabel: widget.isCreditNoteRefund
+              ? 'CONFIRM CREDIT NOTE REFUND'
+              : 'CONFIRM INVOICE',
+        );
+      },
+    );
+  }
 
-          // Set default amount input if empty and not fully paid
-          if (!isFullyPaid && _amountController.text.isEmpty) {
-            _amountController.text = remaining.toStringAsFixed(2);
-          }
+  Widget _buildScaffold({
+    required BuildContext context,
+    required String title,
+    required Map<String, dynamic> customer,
+    required double grandTotal,
+    required bool isChequeEnabled,
+    required bool isCreditEnabled,
+    required bool isZeroOffset,
+    required VoidCallback onConfirm,
+    required String confirmButtonLabel,
+    bool isPreview = false,
+    VoidCallback? onPrint,
+  }) {
+    final totalPaid = _getTotalPaid();
+    final remaining = grandTotal - totalPaid;
+    final isFullyPaid = isZeroOffset || (grandTotal > 0 && remaining <= 0);
+    final changeDue = remaining < 0 ? remaining.abs() : 0.0;
 
-          return Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _referenceController,
-                        decoration: InputDecoration(
-                          labelText: 'Reference Number (Optional)',
-                          border: const OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.grey.withOpacity(0.05),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (!isFullyPaid) ...[
-                        Text(
-                          widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            _buildMethodButton('CASH', Icons.money, 'CASH'),
-                            if (!widget.isCreditNoteRefund)
-                              _buildMethodButton(
-                                'CHEQUE',
-                                Icons.receipt_long,
-                                'CHEQUE',
-                                isEnabled: isChequeEnabled,
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _buildMethodButton(
-                              'CREDIT',
-                              Icons.account_balance_wallet,
-                              'CREDIT',
-                              isEnabled: isCreditEnabled,
-                            ),
-                            if (!widget.isCreditNoteRefund)
-                              _buildMethodButton(
-                                'QR CODE',
-                                Icons.qr_code_scanner,
-                                'QR PAY',
-                                isEnabled: true,
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
+    // Set default amount input if empty and not fully paid
+    if (!isFullyPaid && _amountController.text.isEmpty && !isZeroOffset) {
+      _amountController.text = remaining.toStringAsFixed(2);
+    }
 
-                        TextField(
-                          controller: _amountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: InputDecoration(
-                            labelText:
-                                'Amount (${currencyFormat.currencySymbol})',
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.grey.withOpacity(0.05),
-                          ),
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Dynamic Fields
-                        if (_selectedMethod == 'CHEQUE') ...[
-                          TextField(
-                            controller: _bankNameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Bank Name *',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _bankCodeController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Bank Code (Optional)',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _chequeNumController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Cheque Number *',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _chequeDateController,
-                            readOnly: true,
-                            onTap: () async {
-                              final pickedDate = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime.now(),
-                                firstDate: DateTime(2000),
-                                lastDate: DateTime(2100),
-                              );
-                              if (pickedDate != null) {
-                                _chequeDateController.text = DateFormat(
-                                  'dd/MM/yyyy',
-                                ).format(pickedDate);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Cheque Date *',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              suffixIcon: Icon(Icons.calendar_today),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (_selectedMethod == 'QR CODE') ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.blueGrey.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.blueGrey.withOpacity(0.2),
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(
-                                  Icons.qr_code_2,
-                                  size: 80,
-                                  color: Colors.blueGrey,
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Scan to Pay',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 16),
-                                TextField(
-                                  controller: _qrRefController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'Transaction Reference *',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    isDense: true,
-                                    filled: true,
-                                    fillColor: Theme.of(context).cardColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        ElevatedButton.icon(
-                          onPressed: () => _addPayment(cartState),
-                          icon: const Icon(Icons.add),
-                          label: Text(widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 16),
-                      if (_payments.isNotEmpty) ...[
-                        const Text(
-                          'PAYMENT ENTRIES',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _payments.length,
-                          itemBuilder: (context, index) {
-                            final p = _payments[index];
-                            String subtitle = '';
-                            if (p.method == 'CHEQUE')
-                              subtitle = '${p.bankName} - ${p.chequeNumber}';
-                            if (p.method == 'QR CODE')
-                              subtitle = 'Ref: ${p.qrTransactionRef}';
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: AppTheme.primaryAmber
-                                      .withOpacity(0.2),
-                                  child: Icon(
-                                    p.method == 'CASH'
-                                        ? Icons.money
-                                        : p.method == 'CHEQUE'
-                                        ? Icons.receipt_long
-                                        : p.method == 'CREDIT'
-                                        ? Icons.account_balance_wallet
-                                        : Icons.qr_code,
-                                    color: AppTheme.primaryAmber,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(
-                                  '${p.method} - ${currencyFormat.format(p.amount)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: subtitle.isNotEmpty
-                                    ? Text(subtitle)
-                                    : null,
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () => _removePayment(p),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // Persistent Bottom Area
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 15,
-                      offset: const Offset(0, -5),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        centerTitle: true,
+        actions: [
+          if (isPreview && onPrint != null)
+            IconButton(
+              icon: const Icon(Icons.print),
+              tooltip: 'Print',
+              onPressed: onPrint,
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    widget.isOpenInvoiceMode
+                        ? 'ALLOCATION SUMMARY'
+                        : (widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (widget.isOpenInvoiceMode && widget.openInvoiceDocuments != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.person_outline, size: 18, color: AppTheme.primaryAmber),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${customer['name']} (${customer['code']})',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${widget.openInvoiceDocuments!.length} Document(s) Allocated',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                'Net: ${currencyFormat.format(grandTotal)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryAmber,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                   ],
-                ),
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  MediaQuery.of(context).padding.bottom + 8,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                  if (widget.isOpenInvoiceMode && isZeroOffset) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.swap_horiz_rounded, color: Colors.green, size: 28),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Invoice and Credit Note amounts match exactly. Balance will be fully cleared with zero cash required.',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextField(
+                    controller: _referenceController,
+                    decoration: InputDecoration(
+                      labelText: 'Reference Number (Optional)',
+                      border: const OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.grey.withOpacity(0.05),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (!isFullyPaid && !isZeroOffset) ...[
+                    Text(
+                      widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'GRAND TOTAL',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.bodySmall?.color,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                        _buildMethodButton('CASH', Icons.payments_outlined, 'CASH'),
+                        if (!widget.isCreditNoteRefund)
+                          _buildMethodButton(
+                            'CHEQUE',
+                            Icons.receipt_long,
+                            'CHEQUE',
+                            isEnabled: isChequeEnabled,
                           ),
-                        ),
-                        Text(
-                          currencyFormat.format(grandTotal),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'TOTAL PAID',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.bodySmall?.color,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                        if (!widget.isCreditNoteRefund && !widget.isOpenInvoiceMode)
+                          _buildMethodButton(
+                            'CREDIT',
+                            Icons.account_balance_wallet,
+                            'CREDIT',
+                            isEnabled: isCreditEnabled,
                           ),
+                        _buildMethodButton(
+                          'BLINK',
+                          Icons.qr_code_2,
+                          'BLINK',
+                          isEnabled: true,
                         ),
-                        Text(
-                          currencyFormat.format(totalPaid),
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+                        _buildMethodButton(
+                          'MYT MONEY',
+                          Icons.phone_android,
+                          'MYT MONEY',
+                          isEnabled: true,
                         ),
                       ],
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(height: 1),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText:
+                            'Amount (${currencyFormat.currencySymbol})',
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.grey.withOpacity(0.05),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          remaining < 0 ? 'CHANGE DUE' : 'REMAINING',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                            color: remaining < 0 ? Colors.blue : Colors.red,
-                          ),
+                    const SizedBox(height: 12),
+
+                    // Dynamic Fields
+                    if (_selectedMethod == 'CHEQUE') ...[
+                      TextField(
+                        controller: _bankNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Bank Name *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
                         ),
-                        Text(
-                          currencyFormat.format(
-                            remaining < 0 ? changeDue : remaining,
-                          ),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: remaining < 0 ? Colors.blue : Colors.red,
-                          ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _bankCodeController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Bank Code (Optional)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
                         ),
-                      ],
-                    ),
-                    if (grandTotal <= 0)
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _chequeNumController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Cheque Number *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _chequeDateController,
+                        readOnly: true,
+                        onTap: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (pickedDate != null) {
+                            _chequeDateController.text = DateFormat(
+                              'dd/MM/yyyy',
+                            ).format(pickedDate);
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Cheque Date *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          suffixIcon: Icon(Icons.calendar_today),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (_selectedMethod == 'QR CODE' ||
+                        _selectedMethod == 'BLINK' ||
+                        _selectedMethod == 'MYT MONEY') ...[
                       Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withOpacity(0.5)),
+                          color: Colors.blueGrey.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.2),
+                          ),
                         ),
-                        child: Row(
+                        child: Column(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                widget.isCreditNoteRefund
-                                    ? 'Credit note amount must be greater than zero.'
-                                    : 'Invoice amount must be greater than zero.',
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                            Icon(
+                              _selectedMethod == 'MYT MONEY'
+                                  ? Icons.phone_android
+                                  : Icons.qr_code_2,
+                              size: 64,
+                              color: AppTheme.primaryAmber,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$_selectedMethod Payment',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _qrRefController,
+                              keyboardType: TextInputType.text,
+                              decoration: InputDecoration(
+                                labelText: 'Transaction Reference *',
+                                hintText: 'Enter receipt / approval code',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
+                                isDense: true,
+                                filled: true,
+                                fillColor: Theme.of(context).cardColor,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
+                    ],
 
-                    ElevatedButton(
-                      onPressed: (!isFullyPaid || grandTotal <= 0 || _isProcessing)
-                          ? null
-                          : () => _processPayment(state),
+                    ElevatedButton.icon(
+                      onPressed: () => _addPayment(grandTotal: grandTotal, customer: customer),
+                      icon: const Icon(Icons.add),
+                      label: Text(widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: _isProcessing
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            )
-                          : Text(
-                              widget.isCreditNoteRefund
-                                  ? 'CONFIRM CREDIT NOTE REFUND'
-                                  : 'CONFIRM INVOICE',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+                  if (_payments.isNotEmpty) ...[
+                    const Text(
+                      'PAYMENT ENTRIES',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _payments.length,
+                      itemBuilder: (context, index) {
+                        final p = _payments[index];
+                        String subtitle = '';
+                        if (p.method == 'CHEQUE')
+                          subtitle = '${p.bankName} - ${p.chequeNumber}';
+                        if (p.method == 'QR CODE' || p.method == 'BLINK' || p.method == 'MYT MONEY')
+                          subtitle = 'Ref: ${p.qrTransactionRef}';
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppTheme.primaryAmber
+                                  .withOpacity(0.2),
+                              child: Icon(
+                                p.method == 'CASH'
+                                    ? Icons.payments_outlined
+                                    : p.method == 'CHEQUE'
+                                    ? Icons.receipt_long
+                                    : p.method == 'CREDIT'
+                                    ? Icons.account_balance_wallet
+                                    : p.method == 'MYT MONEY'
+                                    ? Icons.phone_android
+                                    : Icons.qr_code_2,
+                                color: AppTheme.primaryAmber,
+                                size: 20,
                               ),
                             ),
+                            title: Text(
+                              '${p.method} - ${currencyFormat.format(p.amount)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: subtitle.isNotEmpty
+                                ? Text(subtitle)
+                                : null,
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.red,
+                              ),
+                              onPressed: () => _removePayment(p),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          // Persistent Bottom Area
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 15,
+                  offset: const Offset(0, -5),
+                ),
+              ],
+            ),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              MediaQuery.of(context).padding.bottom + 8,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'GRAND TOTAL',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      currencyFormat.format(grandTotal),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          );
-            },
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'TOTAL PAID',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      currencyFormat.format(isZeroOffset ? grandTotal : totalPaid),
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      remaining < 0 ? 'CHANGE DUE' : 'REMAINING',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        color: remaining < 0 ? Colors.blue : (isZeroOffset ? Colors.green : Colors.red),
+                      ),
+                    ),
+                    Text(
+                      currencyFormat.format(
+                        isZeroOffset ? 0.0 : (remaining < 0 ? changeDue : remaining),
+                      ),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: remaining < 0 ? Colors.blue : (isZeroOffset ? Colors.green : Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+                if (!widget.isOpenInvoiceMode && grandTotal <= 0)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.isCreditNoteRefund
+                                ? 'Credit note amount must be greater than zero.'
+                                : 'Invoice amount must be greater than zero.',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+
+                ElevatedButton(
+                  onPressed: (!isFullyPaid || (!isZeroOffset && grandTotal <= 0) || _isProcessing)
+                      ? null
+                      : onConfirm,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: _isProcessing
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        )
+                      : Text(
+                          confirmButtonLabel,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
