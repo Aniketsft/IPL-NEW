@@ -14,6 +14,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../domain/services/cash_collection_pdf_service.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
   final String? initialCustomerNo;
@@ -970,138 +971,21 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   }
 
   Future<void> _printReceipt(Map<String, dynamic> item) async {
-    final docNo = item['documentNo']?.toString() ?? '';
-    final custNo = item['customerNo']?.toString() ?? '';
-    final amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
-    final method = (item['paymentMethod'] ?? 'CASH').toString().toUpperCase();
-    final createdAt = item['createdAt']?.toString() ?? '';
-    final userName = item['userName']?.toString() ?? '';
-    final chequeNo = item['chequeNumber']?.toString() ?? '';
-    final bankName = item['bankName']?.toString() ?? '';
-    final qrRef = item['qrTransactionRef']?.toString() ?? '';
-    final paymentId = item['paymentId']?.toString() ?? '';
-
-    String dateStr = createdAt;
+    final docNo = item['documentNo']?.toString() ?? 'Receipt';
     try {
-      final dt = DateTime.parse(createdAt);
-      dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
-    } catch (_) {}
-
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async {
-        final pdf = pw.Document();
-        pdf.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat.roll80,
-            build: (pw.Context context) {
-              return pw.Container(
-                padding: const pw.EdgeInsets.all(12),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Center(
-                      child: pw.Text(
-                        'CASH COLLECTION RECEIPT',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                    pw.Center(
-                      child: pw.Text('OFFLINE SETTLEMENT', style: const pw.TextStyle(fontSize: 10)),
-                    ),
-                    pw.Divider(thickness: 1),
-                    pw.SizedBox(height: 6),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Receipt Ref:', style: const pw.TextStyle(fontSize: 9)),
-                        pw.Text(paymentId.length > 12 ? paymentId.substring(0, 12) : paymentId, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Date & Time:', style: const pw.TextStyle(fontSize: 9)),
-                        pw.Text(dateStr, style: const pw.TextStyle(fontSize: 9)),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Customer No:', style: const pw.TextStyle(fontSize: 9)),
-                        pw.Text(custNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Document No:', style: const pw.TextStyle(fontSize: 9)),
-                        pw.Text(docNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      ],
-                    ),
-                    pw.Divider(thickness: 1),
-                    pw.SizedBox(height: 4),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Payment Method:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                        pw.Text(method, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                      ],
-                    ),
-                    if (chequeNo.isNotEmpty) ...[
-                      pw.SizedBox(height: 2),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text('Cheque #:', style: const pw.TextStyle(fontSize: 9)),
-                          pw.Text(chequeNo, style: const pw.TextStyle(fontSize: 9)),
-                        ],
-                      ),
-                    ],
-                    if (bankName.isNotEmpty) ...[
-                      pw.SizedBox(height: 2),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text('Bank:', style: const pw.TextStyle(fontSize: 9)),
-                          pw.Text(bankName, style: const pw.TextStyle(fontSize: 9)),
-                        ],
-                      ),
-                    ],
-                    if (qrRef.isNotEmpty) ...[
-                      pw.SizedBox(height: 2),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text('QR Ref:', style: const pw.TextStyle(fontSize: 9)),
-                          pw.Text(qrRef, style: const pw.TextStyle(fontSize: 9)),
-                        ],
-                      ),
-                    ],
-                    pw.SizedBox(height: 8),
-                    pw.Divider(thickness: 1),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('TOTAL PAID:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                        pw.Text('RS ${amount.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                      ],
-                    ),
-                    pw.Divider(thickness: 1),
-                    pw.SizedBox(height: 6),
-                    if (userName.isNotEmpty)
-                      pw.Text('Collected By: $userName', style: const pw.TextStyle(fontSize: 9)),
-                    pw.SizedBox(height: 12),
-                    pw.Center(
-                      child: pw.Text('Thank you for your business.', style: const pw.TextStyle(fontSize: 9)),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) => CashCollectionPdfService().generateSingleReceiptPdf(
+          pageFormat: format,
+          item: item,
+        ),
+        name: 'Receipt_${docNo}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to print receipt: $e')),
         );
-        return pdf.save();
-      },
-    );
+      }
+    }
   }
 }

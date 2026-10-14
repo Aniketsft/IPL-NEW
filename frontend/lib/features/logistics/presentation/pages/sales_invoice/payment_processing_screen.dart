@@ -18,6 +18,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_not
 
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart';
 import 'package:printing/printing.dart';
 
@@ -598,6 +599,46 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       if (!mounted) return;
 
+      final custCode = widget.customCustomer?['code'] ??
+          (widget.openInvoiceDocuments!.isNotEmpty
+              ? widget.openInvoiceDocuments!.first.customerNo
+              : '');
+      final custName = widget.customCustomer?['name'] ??
+          (widget.openInvoiceDocuments!.isNotEmpty
+              ? widget.openInvoiceDocuments!.first.customerName
+              : '');
+      final docSiteCode = widget.openInvoiceDocuments!.isNotEmpty
+          ? widget.openInvoiceDocuments!.first.site
+          : siteCode;
+      final docCompany = widget.openInvoiceDocuments!.isNotEmpty
+          ? widget.openInvoiceDocuments!.first.company
+          : 'INNODIS LTD';
+
+      final settledDocsData = <Map<String, dynamic>>[];
+      for (final doc in widget.openInvoiceDocuments!) {
+        final allocated = widget.openInvoiceAllocations?[doc.documentNo] ?? 0.0;
+        if (allocated > 0.001) {
+          settledDocsData.add({
+            'documentNo': doc.documentNo,
+            'docType': doc.docType,
+            'originalDue': doc.remainingAmtLCY,
+            'settledAmount': allocated,
+          });
+        }
+      }
+
+      final tendersData = _payments.map((p) => {
+        'method': p.method,
+        'amount': p.amount,
+        'bankCode': p.bankCode,
+        'bankName': p.bankName,
+        'chequeNumber': p.chequeNumber,
+        'chequeDate': p.chequeDate,
+        'reference': p.qrTransactionRef,
+      }).toList();
+
+      final receiptRef = 'REC-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -607,7 +648,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             children: [
               Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
               SizedBox(width: 8),
-              Text('Payment Recorded'),
+              Text('Payment Recorded', style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           content: Column(
@@ -615,17 +656,30 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Successfully recorded settlement across ${widget.openInvoiceDocuments!.length} document(s).',
+                'Successfully recorded settlement across ${settledDocsData.length} document(s).',
+                style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 12),
+              if (custName.isNotEmpty || custCode.isNotEmpty) ...[
+                Text(
+                  'Customer: ${custName.isNotEmpty ? custName : custCode} ($custCode)',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+              ],
               if (!isZeroOffset) ...[
                 Text(
                   'Payment Methods: ${_payments.map((p) => p.method).toSet().join(", ")}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   'Total Paid: ${currencyFormat.format(totalPaid)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.green.shade700,
+                  ),
                 ),
               ] else ...[
                 const Text(
@@ -633,20 +687,74 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ],
-              const SizedBox(height: 8),
-              const Text(
-                'Record saved to local offline database. Will synchronize automatically on next sync.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.orange),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Saved locally offline. Ready to print slip and will synchronize on next sync.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.pop(context, true);
-              },
-              child: const Text('Done'),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await Printing.layoutPdf(
+                        onLayout: (format) => CashCollectionPdfService().generateCollectionReceiptPdf(
+                          pageFormat: format,
+                          receiptRef: receiptRef,
+                          customerCode: custCode,
+                          customerName: custName,
+                          dateTime: DateTime.now(),
+                          salesRep: userName,
+                          siteCode: docSiteCode,
+                          company: docCompany,
+                          settledDocuments: settledDocsData,
+                          paymentTenders: tendersData,
+                          totalCollected: isZeroOffset ? targetTotal : totalPaid,
+                          isZeroOffset: isZeroOffset,
+                        ),
+                        name: 'Receipt_${receiptRef}.pdf',
+                      );
+                    },
+                    icon: const Icon(Icons.print_rounded, size: 18),
+                    label: const Text('Print Receipt Slip'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pop(context, true);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Done'),
+                ),
+              ],
             ),
           ],
         ),
