@@ -14,7 +14,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import '../../domain/services/cash_collection_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
   final String? initialCustomerNo;
