@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/open_invoice_model.dart';
+import '../../data/local/local_database_helper.dart';
 
 class OpenInvoiceCard extends StatelessWidget {
   final OpenInvoiceModel invoice;
@@ -95,6 +96,24 @@ class OpenInvoiceCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (invoice.allocatedAmount > 0.001)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        'PARTIAL',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   if (isOverdue)
                     Container(
                       margin: const EdgeInsets.only(right: 8),
@@ -166,13 +185,70 @@ class OpenInvoiceCard extends StatelessWidget {
               const Divider(height: 16),
 
               // Amount Row
+              if (invoice.allocatedAmount > 0.001) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Original Due:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                    ),
+                    Text(
+                      currencyFormat.format(absRemaining + invoice.allocatedAmount),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textTheme.bodySmall?.color,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded, size: 13, color: Colors.green.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Already Collected:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      currencyFormat.format(invoice.allocatedAmount),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isCN ? 'Available Credit:' : 'Remaining Balance:',
+                    isCN
+                        ? 'Available Credit:'
+                        : (invoice.allocatedAmount > 0.001
+                            ? 'Remaining Due:'
+                            : 'Remaining Balance:'),
                     style: TextStyle(
                       fontSize: 13,
+                      fontWeight: invoice.allocatedAmount > 0.001 ? FontWeight.bold : FontWeight.normal,
                       color: theme.textTheme.bodySmall?.color,
                     ),
                   ),
@@ -188,6 +264,38 @@ class OpenInvoiceCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (invoice.allocatedAmount > 0.001) ...[
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () => _showPaymentHistory(context, invoice.documentNo),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: theme.primaryColor.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.receipt_rounded, size: 14, color: theme.primaryColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          'View Collection Trail',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: theme.primaryColor),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               // Interactive Allocation Controls when selected
               if (isSelected) ...[
@@ -280,6 +388,211 @@ class OpenInvoiceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showPaymentHistory(BuildContext context, String documentNo) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: LocalDatabaseHelper.instance.getOpenInvoicePaymentsForDocument(documentNo),
+              builder: (ctx, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 180,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final payments = snapshot.data ?? [];
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.primaryColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.receipt_long_rounded, color: theme.primaryColor, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Collection History',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  'Document: $documentNo',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.textTheme.bodySmall?.color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 20),
+                    if (payments.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Center(
+                          child: Text(
+                            'No payment records found on this device for this document.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.45,
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: payments.length,
+                          separatorBuilder: (_, __) => const Divider(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final p = payments[i];
+                            final amount = (p['amount'] as num?)?.toDouble() ?? 0.0;
+                            final method = (p['paymentMethod'] ?? 'CASH').toString().toUpperCase();
+                            final createdAt = p['createdAt']?.toString() ?? '';
+                            final userName = p['userName']?.toString() ?? '';
+                            final isSynced = (p['isSynced'] ?? 0) == 1;
+                            final chequeNo = p['chequeNumber']?.toString() ?? '';
+                            final qrRef = p['qrTransactionRef']?.toString() ?? '';
+
+                            String dateStr = createdAt;
+                            try {
+                              final dt = DateTime.parse(createdAt);
+                              dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+                            } catch (_) {}
+
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: method == 'CASH'
+                                    ? Colors.green.withOpacity(0.12)
+                                    : (method == 'CHEQUE'
+                                        ? Colors.blue.withOpacity(0.12)
+                                        : Colors.purple.withOpacity(0.12)),
+                                child: Icon(
+                                  method == 'CASH'
+                                      ? Icons.payments_rounded
+                                      : (method == 'CHEQUE'
+                                          ? Icons.account_balance_rounded
+                                          : Icons.qr_code_rounded),
+                                  color: method == 'CASH'
+                                      ? Colors.green
+                                      : (method == 'CHEQUE' ? Colors.blue : Colors.purple),
+                                  size: 18,
+                                ),
+                              ),
+                              title: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    method,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  Text(
+                                    currencyFormat.format(amount),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (chequeNo.isNotEmpty)
+                                    Text('Cheque #: $chequeNo', style: const TextStyle(fontSize: 11)),
+                                  if (qrRef.isNotEmpty)
+                                    Text('Ref: $qrRef', style: const TextStyle(fontSize: 11)),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Text(dateStr, style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
+                                      if (userName.isNotEmpty) ...[
+                                        const Text(' • ', style: TextStyle(fontSize: 11)),
+                                        Text(userName, style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
+                                      ],
+                                      const Spacer(),
+                                      Icon(
+                                        isSynced ? Icons.cloud_done_rounded : Icons.cloud_upload_outlined,
+                                        size: 14,
+                                        color: isSynced ? Colors.green : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isSynced ? 'Synced' : 'Pending',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSynced ? Colors.green : Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

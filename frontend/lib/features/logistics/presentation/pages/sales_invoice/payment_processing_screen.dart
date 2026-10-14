@@ -844,7 +844,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       return _buildScaffold(
         context: context,
-        title: isRefund ? 'Credit Refund' : 'Invoice Payment',
+        title: isRefund ? 'Credit Refund' : 'Receipt (Cash Collection)',
         customer: customer,
         grandTotal: grandTotal,
         isChequeEnabled: true,
@@ -964,7 +964,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 children: [
                   Text(
                     widget.isOpenInvoiceMode
-                        ? 'ALLOCATION SUMMARY'
+                        ? 'RECEIPT / COLLECTION SUMMARY'
                         : (widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS'),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,

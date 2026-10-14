@@ -3918,6 +3918,49 @@ class LocalDatabaseHelper {
     return 0.0;
   }
 
+  Future<List<Map<String, dynamic>>> getOpenInvoicePaymentsForDocument(String documentNo) async {
+    final db = await database;
+    return await db.query(
+      tableSiOpenInvoicePayments,
+      where: 'documentNo = ?',
+      whereArgs: [documentNo],
+      orderBy: 'createdAt DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getOpenInvoicePaymentHistory({
+    String? customerNo,
+    String? siteCode,
+    String? searchQuery,
+  }) async {
+    final db = await database;
+    final whereClauses = <String>[];
+    final whereArgs = <dynamic>[];
+
+    if (customerNo != null && customerNo.isNotEmpty) {
+      whereClauses.add('customerNo = ?');
+      whereArgs.add(customerNo);
+    }
+
+    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+      whereClauses.add('(siteCode = ? OR siteCode = "" OR siteCode IS NULL)');
+      whereArgs.add(siteCode);
+    }
+
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final q = '%${searchQuery.trim().toLowerCase()}%';
+      whereClauses.add('(LOWER(documentNo) LIKE ? OR LOWER(customerNo) LIKE ? OR LOWER(paymentMethod) LIKE ? OR LOWER(chequeNumber) LIKE ? OR LOWER(qrTransactionRef) LIKE ?)');
+      whereArgs.addAll([q, q, q, q, q]);
+    }
+
+    return await db.query(
+      tableSiOpenInvoicePayments,
+      where: whereClauses.isEmpty ? null : whereClauses.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      orderBy: 'createdAt DESC',
+    );
+  }
+
   Future<double> getUnsyncedCreditInvoicesSum(String customerCode) async {
     final db = await database;
     // 1. Sum CREDIT payments recorded for unsynced, non-reversed invoices

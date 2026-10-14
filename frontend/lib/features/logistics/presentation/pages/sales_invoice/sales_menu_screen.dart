@@ -157,8 +157,8 @@ class SalesMenuScreen extends StatelessWidget {
           ),
           _buildMenuButton(
             context,
-            'Open Invoice',
-            Icons.receipt_long_rounded,
+            'Receipt (Cash Collection)',
+            Icons.payments_rounded,
             const OpenInvoicesScreen(),
           ),
           _buildMenuButton(

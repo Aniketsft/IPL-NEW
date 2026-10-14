@@ -11,6 +11,9 @@ import '../../widgets/open_invoice_card.dart';
 import 'payment_processing_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class OpenInvoicesScreen extends StatefulWidget {
   final String? initialCustomerNo;
@@ -43,6 +46,10 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   bool _isLoading = true;
   final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
 
+  int _selectedTab = 0; // 0: Pending Collections, 1: Collection History
+  List<Map<String, dynamic>> _paymentHistory = [];
+  bool _isLoadingHistory = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +65,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       } catch (_) {}
     }
     _loadData();
+    _loadHistoryData();
     _searchController.addListener(_filterData);
   }
 
@@ -85,12 +93,13 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
 
       final list = rawList.map((m) => OpenInvoiceModel.fromMap(m)).toList();
 
-      if (mounted) {
+        if (mounted) {
         setState(() {
           _allInvoices = list;
           _isLoading = false;
         });
         _filterData();
+        _loadHistoryData();
       }
     } catch (e) {
       if (mounted) {
@@ -102,7 +111,41 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     }
   }
 
+  Future<void> _loadHistoryData() async {
+    setState(() => _isLoadingHistory = true);
+    try {
+      final authState = context.read<AuthBloc>().state;
+      final siteCode = (authState is Authenticated &&
+              authState.siteCode != null &&
+              authState.siteCode!.isNotEmpty &&
+              authState.siteCode != 'ALL')
+          ? authState.siteCode
+          : null;
+
+      final history = await LocalDatabaseHelper.instance.getOpenInvoicePaymentHistory(
+        customerNo: _selectedCustomerNo,
+        siteCode: siteCode,
+        searchQuery: _searchController.text.trim().isNotEmpty ? _searchController.text.trim() : null,
+      );
+
+      if (mounted) {
+        setState(() {
+          _paymentHistory = history;
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingHistory = false);
+      }
+    }
+  }
+
   void _filterData() {
+    if (_selectedTab == 1) {
+      _loadHistoryData();
+      return;
+    }
     final query = _searchController.text.trim().toLowerCase();
     setState(() {
       _filteredInvoices = _allInvoices.where((doc) {
@@ -223,10 +266,101 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
 
     return IndustrialModuleLayout(
       title: widget.lockToCustomer && _selectedCustomerName != null
-          ? 'Open Invoices [${_selectedCustomerNo ?? ''}]'
-          : 'Open Invoice',
+          ? 'Receipt (Cash Collection) [${_selectedCustomerNo ?? ''}]'
+          : 'Receipt (Cash Collection)',
       body: Column(
         children: [
+          // Top Segmented Control Tab Bar
+          Container(
+            color: theme.cardColor,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedTab = 0);
+                      _filterData();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _selectedTab == 0 ? theme.primaryColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _selectedTab == 0
+                              ? theme.primaryColor
+                              : (isDark ? Colors.white12 : Colors.black12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long_rounded,
+                            size: 16,
+                            color: _selectedTab == 0 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Pending Collections (${_allInvoices.length})',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedTab == 0 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedTab = 1);
+                      _loadHistoryData();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _selectedTab == 1 ? theme.primaryColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _selectedTab == 1
+                              ? theme.primaryColor
+                              : (isDark ? Colors.white12 : Colors.black12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.history_rounded,
+                            size: 16,
+                            color: _selectedTab == 1 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Collection History (${_paymentHistory.length})',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedTab == 1 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Search & Customer Filter Bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -236,12 +370,17 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: widget.lockToCustomer ? 'Search Document No...' : 'Search Document No or Customer...',
+                    hintText: _selectedTab == 0
+                        ? (widget.lockToCustomer ? 'Search Document No...' : 'Search Document No or Customer...')
+                        : 'Search Document No, Tender or Customer...',
                     prefixIcon: const Icon(Icons.search_rounded),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear_rounded),
-                            onPressed: () => _searchController.clear(),
+                            onPressed: () {
+                              _searchController.clear();
+                              _filterData();
+                            },
                           )
                         : null,
                     isDense: true,
@@ -331,64 +470,67 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                       ],
                     ],
                   ),
-                const SizedBox(height: 6),
-
-                // Type Segmented Filter Chips
-                Row(
-                  children: [
-                    _buildFilterChip('ALL', 'All (${_allInvoices.length})'),
-                    const SizedBox(width: 6),
-                    _buildFilterChip('INV', 'Invoices (${_allInvoices.where((d) => d.isInvoice).length})'),
-                    const SizedBox(width: 6),
-                    _buildFilterChip('CN', 'Credit Notes (${_allInvoices.where((d) => d.isCreditNote).length})'),
-                  ],
-                ),
+                if (_selectedTab == 0) ...[
+                  const SizedBox(height: 6),
+                  // Type Segmented Filter Chips
+                  Row(
+                    children: [
+                      _buildFilterChip('ALL', 'All (${_allInvoices.length})'),
+                      const SizedBox(width: 6),
+                      _buildFilterChip('INV', 'Invoices (${_allInvoices.where((d) => d.isInvoice).length})'),
+                      const SizedBox(width: 6),
+                      _buildFilterChip('CN', 'Credit Notes (${_allInvoices.where((d) => d.isCreditNote).length})'),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
 
-          // Invoice / CN Cards List
+          // Body Content: Tab 0 (Pending Collections) or Tab 1 (Collection History)
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredInvoices.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No open invoices or credit notes found.',
-                              style: TextStyle(fontSize: 16, color: Colors.grey),
+            child: _selectedTab == 0
+                ? (_isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredInvoices.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No open invoices or credit notes found for cash collection.',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: _filteredInvoices.length,
-                          itemBuilder: (context, index) {
-                            final doc = _filteredInvoices[index];
-                            final isSelected = _selectedAllocations.containsKey(doc.documentNo);
-                            final allocated = _selectedAllocations[doc.documentNo] ?? 0.0;
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadData,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: _filteredInvoices.length,
+                              itemBuilder: (context, index) {
+                                final doc = _filteredInvoices[index];
+                                final isSelected = _selectedAllocations.containsKey(doc.documentNo);
+                                final allocated = _selectedAllocations[doc.documentNo] ?? 0.0;
 
-                            return OpenInvoiceCard(
-                              invoice: doc,
-                              isSelected: isSelected,
-                              selectedAmount: allocated,
-                              onToggleSelect: (sel) => _toggleSelect(doc, sel),
-                              onAmountChanged: (amt) => _updateAmount(doc, amt),
-                            );
-                          },
-                        ),
-                      ),
+                                return OpenInvoiceCard(
+                                  invoice: doc,
+                                  isSelected: isSelected,
+                                  selectedAmount: allocated,
+                                  onToggleSelect: (sel) => _toggleSelect(doc, sel),
+                                  onAmountChanged: (amt) => _updateAmount(doc, amt),
+                                );
+                              },
+                            ),
+                          ))
+                : _buildHistoryList(),
           ),
 
-          // Bottom Checkout / Allocation Bar
-          if (selectedDocs.isNotEmpty)
+          // Bottom Checkout / Allocation Bar (Only for Tab 0)
+          if (_selectedTab == 0 && selectedDocs.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -505,6 +647,461 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHistoryList() {
+    if (_isLoadingHistory) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_paymentHistory.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_rounded, size: 64, color: Colors.grey.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            const Text(
+              'No collections recorded on this device yet.',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadHistoryData,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _paymentHistory.length,
+        itemBuilder: (context, index) {
+          final item = _paymentHistory[index];
+          return _buildHistoryItem(item);
+        },
+      ),
+    );
+  }
+
+  Widget _buildHistoryItem(Map<String, dynamic> item) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
+    final docNo = item['documentNo']?.toString() ?? '';
+    final custNo = item['customerNo']?.toString() ?? '';
+    final method = (item['paymentMethod'] ?? 'CASH').toString().toUpperCase();
+    final createdAt = item['createdAt']?.toString() ?? '';
+    final userName = item['userName']?.toString() ?? '';
+    final isSynced = (item['isSynced'] ?? 0) == 1;
+    final chequeNo = item['chequeNumber']?.toString() ?? '';
+    final bankName = item['bankName']?.toString() ?? '';
+    final qrRef = item['qrTransactionRef']?.toString() ?? '';
+
+    String formattedDate = createdAt;
+    try {
+      final dt = DateTime.parse(createdAt);
+      formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+    } catch (_) {}
+
+    final Color tenderColor = method == 'CASH'
+        ? Colors.green
+        : (method == 'CHEQUE' ? Colors.blue : Colors.purple);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _showReceiptDetailsModal(item),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tenderColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: tenderColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          method == 'CASH'
+                              ? Icons.payments_rounded
+                              : (method == 'CHEQUE'
+                                  ? Icons.account_balance_rounded
+                                  : Icons.qr_code_rounded),
+                          color: tenderColor,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          method,
+                          style: TextStyle(
+                            color: tenderColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      docNo,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    currencyFormat.format(amount),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.person_outline_rounded, size: 14, color: theme.textTheme.bodySmall?.color),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Customer: $custNo',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.textTheme.bodyMedium?.color),
+                  ),
+                  const Spacer(),
+                  Text(
+                    formattedDate,
+                    style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                  ),
+                ],
+              ),
+              if (chequeNo.isNotEmpty || qrRef.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    if (chequeNo.isNotEmpty)
+                      Text(
+                        'Cheque: $chequeNo ${bankName.isNotEmpty ? "($bankName)" : ""}',
+                        style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                      ),
+                    if (qrRef.isNotEmpty)
+                      Text(
+                        'Ref: $qrRef',
+                        style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                      ),
+                  ],
+                ),
+              ],
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(
+                    isSynced ? Icons.cloud_done_rounded : Icons.cloud_upload_outlined,
+                    size: 14,
+                    color: isSynced ? Colors.green : Colors.orange,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isSynced ? 'Synced to Sage X3' : 'Offline • Pending Sync',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isSynced ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (userName.isNotEmpty)
+                    Text(
+                      'Collected by $userName',
+                      style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showReceiptDetailsModal(Map<String, dynamic> item) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
+    final docNo = item['documentNo']?.toString() ?? '';
+    final custNo = item['customerNo']?.toString() ?? '';
+    final method = (item['paymentMethod'] ?? 'CASH').toString().toUpperCase();
+    final createdAt = item['createdAt']?.toString() ?? '';
+    final userName = item['userName']?.toString() ?? '';
+    final isSynced = (item['isSynced'] ?? 0) == 1;
+    final chequeNo = item['chequeNumber']?.toString() ?? '';
+    final bankName = item['bankName']?.toString() ?? '';
+    final qrRef = item['qrTransactionRef']?.toString() ?? '';
+    final paymentId = item['paymentId']?.toString() ?? '';
+
+    String formattedDate = createdAt;
+    try {
+      final dt = DateTime.parse(createdAt);
+      formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+    } catch (_) {}
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Receipt Settlement Details',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Divider(height: 16),
+                _buildReceiptRow('Receipt ID', paymentId.length > 16 ? paymentId.substring(0, 16) : paymentId),
+                _buildReceiptRow('Document No', docNo),
+                _buildReceiptRow('Customer', custNo),
+                _buildReceiptRow('Date & Time', formattedDate),
+                _buildReceiptRow('Payment Method', method),
+                if (chequeNo.isNotEmpty) _buildReceiptRow('Cheque Number', chequeNo),
+                if (bankName.isNotEmpty) _buildReceiptRow('Bank', bankName),
+                if (qrRef.isNotEmpty) _buildReceiptRow('QR / Payment Ref', qrRef),
+                if (userName.isNotEmpty) _buildReceiptRow('Collected By', userName),
+                _buildReceiptRow('Sync Status', isSynced ? 'Synced to Sage X3' : 'Pending Sync'),
+                const Divider(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total Amount Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text(
+                      currencyFormat.format(amount),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _printReceipt(item);
+                    },
+                    icon: const Icon(Icons.print_rounded),
+                    label: const Text('Reprint / Share Receipt Slip'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printReceipt(Map<String, dynamic> item) async {
+    final docNo = item['documentNo']?.toString() ?? '';
+    final custNo = item['customerNo']?.toString() ?? '';
+    final amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
+    final method = (item['paymentMethod'] ?? 'CASH').toString().toUpperCase();
+    final createdAt = item['createdAt']?.toString() ?? '';
+    final userName = item['userName']?.toString() ?? '';
+    final chequeNo = item['chequeNumber']?.toString() ?? '';
+    final bankName = item['bankName']?.toString() ?? '';
+    final qrRef = item['qrTransactionRef']?.toString() ?? '';
+    final paymentId = item['paymentId']?.toString() ?? '';
+
+    String dateStr = createdAt;
+    try {
+      final dt = DateTime.parse(createdAt);
+      dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+    } catch (_) {}
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async {
+        final pdf = pw.Document();
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.roll80,
+            build: (pw.Context context) {
+              return pw.Container(
+                padding: const pw.EdgeInsets.all(12),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Center(
+                      child: pw.Text(
+                        'CASH COLLECTION RECEIPT',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    pw.Center(
+                      child: pw.Text('OFFLINE SETTLEMENT', style: const pw.TextStyle(fontSize: 10)),
+                    ),
+                    pw.Divider(thickness: 1),
+                    pw.SizedBox(height: 6),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Receipt Ref:', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text(paymentId.length > 12 ? paymentId.substring(0, 12) : paymentId, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Date & Time:', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text(dateStr, style: const pw.TextStyle(fontSize: 9)),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Customer No:', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text(custNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Document No:', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text(docNo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      ],
+                    ),
+                    pw.Divider(thickness: 1),
+                    pw.SizedBox(height: 4),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Payment Method:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                        pw.Text(method, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      ],
+                    ),
+                    if (chequeNo.isNotEmpty) ...[
+                      pw.SizedBox(height: 2),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Cheque #:', style: const pw.TextStyle(fontSize: 9)),
+                          pw.Text(chequeNo, style: const pw.TextStyle(fontSize: 9)),
+                        ],
+                      ),
+                    ],
+                    if (bankName.isNotEmpty) ...[
+                      pw.SizedBox(height: 2),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Bank:', style: const pw.TextStyle(fontSize: 9)),
+                          pw.Text(bankName, style: const pw.TextStyle(fontSize: 9)),
+                        ],
+                      ),
+                    ],
+                    if (qrRef.isNotEmpty) ...[
+                      pw.SizedBox(height: 2),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('QR Ref:', style: const pw.TextStyle(fontSize: 9)),
+                          pw.Text(qrRef, style: const pw.TextStyle(fontSize: 9)),
+                        ],
+                      ),
+                    ],
+                    pw.SizedBox(height: 8),
+                    pw.Divider(thickness: 1),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('TOTAL PAID:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                        pw.Text('RS ${amount.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                    pw.Divider(thickness: 1),
+                    pw.SizedBox(height: 6),
+                    if (userName.isNotEmpty)
+                      pw.Text('Collected By: $userName', style: const pw.TextStyle(fontSize: 9)),
+                    pw.SizedBox(height: 12),
+                    pw.Center(
+                      child: pw.Text('Thank you for your business.', style: const pw.TextStyle(fontSize: 9)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+        return pdf.save();
+      },
     );
   }
 }

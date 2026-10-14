@@ -160,103 +160,318 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
     }
   }
 
-  void _showNewTransactionSheet() {
+  void _showNewTransactionSheet() => _showTransactionsSheet();
+
+  void _showTransactionsSheet() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: theme.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Transaction Type',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 4),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Creating for $_customerName [$_customerCode]',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.primaryColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                const Divider(),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Transactions',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$_customerName [$_customerCode]',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: theme.primaryColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(ctx),
+                          tooltip: 'Close',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
 
-                // Invoice
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: theme.primaryColor.withOpacity(0.12),
-                    child: Icon(Icons.receipt_long_rounded, color: theme.primaryColor),
-                  ),
-                  title: const Text('Standard Invoice', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('New sales order and delivery billing'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (_isOnHold) {
-                      _showHoldWarningDialog(onProceedCashOnly: () {
+                  // 1. Sales Invoice
+                  _buildTransactionOptionCard(
+                    context: context,
+                    theme: theme,
+                    isDark: isDark,
+                    title: 'Sales Invoice',
+                    description: 'Billing and sales order processing',
+                    icon: Icons.receipt_long_rounded,
+                    accentColor: theme.primaryColor,
+                    newActionLabel: 'New Invoice',
+                    onNewAction: () {
+                      Navigator.pop(ctx);
+                      if (_isOnHold) {
+                        _showHoldWarningDialog(onProceedCashOnly: () {
+                          _startTransaction('INVOICE');
+                        });
+                      } else {
                         _startTransaction('INVOICE');
-                      });
-                    } else {
-                      _startTransaction('INVOICE');
-                    }
-                  },
-                ),
-
-                // Credit Note
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.orange.withOpacity(0.12),
-                    child: const Icon(Icons.description_rounded, color: Colors.orange),
+                      }
+                    },
+                    previousActionLabel: 'Previous Invoices',
+                    onPreviousAction: () async {
+                      Navigator.pop(ctx);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TransactionHistoryScreen(
+                            transactionType: 'INVOICE',
+                            initialCustomerCode: _customerCode,
+                            initialCustomerName: _customerName,
+                            lockToCustomer: true,
+                          ),
+                        ),
+                      );
+                      _loadFinancials();
+                    },
                   ),
-                  title: const Text('Credit Note', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Issue credit balance adjustment or reversal'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showCreditNoteOptionsSheet();
-                  },
-                ),
 
-                // Customer Return
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue.withOpacity(0.12),
-                    child: const Icon(Icons.assignment_return_rounded, color: Colors.blue),
+                  // 2. Credit Note
+                  _buildTransactionOptionCard(
+                    context: context,
+                    theme: theme,
+                    isDark: isDark,
+                    title: 'Credit Note',
+                    description: 'Balance adjustment or item reversal',
+                    icon: Icons.description_rounded,
+                    accentColor: Colors.orange,
+                    newActionLabel: 'New Credit Note',
+                    onNewAction: () {
+                      Navigator.pop(ctx);
+                      _showCreditNoteOptionsSheet();
+                    },
+                    previousActionLabel: 'Previous Credit Notes',
+                    onPreviousAction: () async {
+                      Navigator.pop(ctx);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TransactionHistoryScreen(
+                            transactionType: 'CREDIT_NOTE',
+                            initialCustomerCode: _customerCode,
+                            initialCustomerName: _customerName,
+                            lockToCustomer: true,
+                          ),
+                        ),
+                      );
+                      _loadFinancials();
+                    },
                   ),
-                  title: const Text('Customer Return', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Process inventory items return and refund'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _startTransaction('RETURN');
-                  },
-                ),
-              ],
+
+                  // 3. Customer Return
+                  _buildTransactionOptionCard(
+                    context: context,
+                    theme: theme,
+                    isDark: isDark,
+                    title: 'Customer Return',
+                    description: 'Inventory return and customer refund',
+                    icon: Icons.assignment_return_rounded,
+                    accentColor: Colors.blue,
+                    newActionLabel: 'New Return',
+                    onNewAction: () {
+                      Navigator.pop(ctx);
+                      _startTransaction('RETURN');
+                    },
+                    previousActionLabel: 'Previous Returns',
+                    onPreviousAction: () async {
+                      Navigator.pop(ctx);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TransactionHistoryScreen(
+                            transactionType: 'RETURN',
+                            initialCustomerCode: _customerCode,
+                            initialCustomerName: _customerName,
+                            lockToCustomer: true,
+                          ),
+                        ),
+                      );
+                      _loadFinancials();
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTransactionOptionCard({
+    required BuildContext context,
+    required ThemeData theme,
+    required bool isDark,
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color accentColor,
+    required String newActionLabel,
+    required VoidCallback onNewAction,
+    required String previousActionLabel,
+    required VoidCallback onPreviousAction,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E222B) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onNewAction,
+                  icon: Icon(Icons.add_rounded, size: 18, color: accentColor),
+                  label: Text(
+                    newActionLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: accentColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: accentColor.withOpacity(0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    backgroundColor: accentColor.withOpacity(0.06),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onPreviousAction,
+                  icon: Icon(Icons.history_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black87),
+                  label: Text(
+                    previousActionLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -722,7 +937,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Credit invoices are blocked. Process Cash sales or settle Open Invoices.',
+                  'Credit invoices are blocked. Process Cash sales or settle Receipts (Cash Collection).',
                   style: TextStyle(fontSize: 11),
                 ),
               ],
@@ -742,26 +957,26 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
       mainAxisSpacing: 12,
       childAspectRatio: 1.05,
       children: [
-        // 1. New Transaction
+        // 1. Transactions
         _buildActionTile(
           theme: theme,
-          title: 'New Transaction',
+          title: 'Transactions',
           subtitle: 'Invoice, Credit Note, Return',
-          icon: Icons.shopping_cart_checkout_rounded,
+          icon: Icons.receipt_long_rounded,
           color: theme.primaryColor,
-          onTap: _showNewTransactionSheet,
+          onTap: _showTransactionsSheet,
         ),
 
-        // 2. Open Invoices
+        // 2. Receipt (Cash Collection)
         _buildActionTile(
           theme: theme,
-          title: 'Open Invoices',
+          title: 'Receipt (Cash Collection)',
           subtitle: 'Settle dues, Cash / Cheque / QR',
           badgeText: _openInvoicesCount > 0
               ? '$_openInvoicesCount Docs'
               : '0 Open',
           badgeColor: _openInvoicesCount > 0 ? Colors.green.shade700 : Colors.grey,
-          icon: Icons.receipt_long_rounded,
+          icon: Icons.payments_rounded,
           color: Colors.green.shade600,
           onTap: () async {
             await Navigator.push(
