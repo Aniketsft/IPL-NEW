@@ -206,8 +206,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final deviceIdCtrl = TextEditingController(text: existing?.deviceId ?? _currentDeviceId);
     final deviceNameCtrl = TextEditingController(text: existing?.deviceName ?? (existing == null ? _currentDeviceId : ''));
     final macCtrl = TextEditingController(text: existing?.macAddress ?? (existing == null ? _currentDeviceMac : ''));
-    String selectedLocation = existing?.locationCode ?? (_availableLocations.isNotEmpty ? _availableLocations.first['location'] ?? '' : '');
+    final locationCtrl = TextEditingController(text: existing?.locationCode ?? _currentDeviceLocation ?? '');
     String? selectedWarehouse = existing?.warehouseCode;
+
+    // Deduplicate locations safely by code to prevent Dropdown crash
+    final Map<String, Map<String, dynamic>> uniqueLocations = {};
+    for (final loc in _availableLocations) {
+      final code = loc['location']?.toString().trim() ?? '';
+      if (code.isNotEmpty && !uniqueLocations.containsKey(code)) {
+        uniqueLocations[code] = loc;
+      }
+    }
+    final locList = uniqueLocations.values.toList();
 
     showModalBottomSheet(
       context: context,
@@ -283,11 +293,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      IconButton.filled(
-                        style: IconButton.styleFrom(backgroundColor: primary),
-                        icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                        tooltip: 'Scan Barcode / QR on Device',
-                        onPressed: () async {
+                      InkWell(
+                        onTap: () async {
                           final scanned = await _scanBarcode(context);
                           if (scanned != null && scanned.isNotEmpty) {
                             setModalState(() {
@@ -295,62 +302,99 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             });
                           }
                         },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: primary,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 22),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   const Text('ASSIGN WAREHOUSE LOCATION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                   const SizedBox(height: 8),
-                  if (_availableLocations.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.withOpacity(0.4)),
+
+                  TextField(
+                    controller: locationCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Location Code *',
+                      hintText: 'e.g. REC, ST01, QUAI...',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: locList.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.arrow_drop_down_circle_outlined),
+                              tooltip: 'Select from available locations',
+                              onPressed: () => _showLocationSelector(
+                                ctx,
+                                locList,
+                                locationCtrl,
+                                (wrh) => setModalState(() => selectedWarehouse = wrh),
+                              ),
+                            )
+                          : null,
+                    ),
+                    onChanged: (val) {
+                      final match = locList.firstWhere(
+                        (l) => l['location']?.toString().toUpperCase() == val.trim().toUpperCase(),
+                        orElse: () => {},
+                      );
+                      selectedWarehouse = match['warehouse']?.toString();
+                    },
+                  ),
+
+                  if (selectedWarehouse != null && selectedWarehouse!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4.0),
+                      child: Text(
+                        'Assigned Warehouse: $selectedWarehouse',
+                        style: TextStyle(fontSize: 11, color: primary, fontWeight: FontWeight.w600),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline, color: Colors.amber, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'No local locations found for site $_userSiteCode. Enter location manually.',
-                              style: TextStyle(color: Colors.amber.shade200, fontSize: 12),
+                    ),
+                  ],
+
+                  if (locList.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text('QUICK SELECT:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ...locList.take(6).map((loc) {
+                          final code = loc['location']?.toString() ?? '';
+                          final wrh = loc['warehouse']?.toString() ?? '';
+                          return ActionChip(
+                            label: Text('$code${wrh.isNotEmpty ? ' ($wrh)' : ''}', style: const TextStyle(fontSize: 11)),
+                            backgroundColor: locationCtrl.text == code ? primary.withOpacity(0.2) : null,
+                            side: BorderSide(color: locationCtrl.text == code ? primary : Colors.grey.withOpacity(0.3)),
+                            onPressed: () {
+                              setModalState(() {
+                                locationCtrl.text = code;
+                                selectedWarehouse = wrh.isNotEmpty ? wrh : null;
+                              });
+                            },
+                          );
+                        }),
+                        if (locList.length > 6)
+                          ActionChip(
+                            avatar: const Icon(Icons.search, size: 14),
+                            label: Text('All (${locList.length})...', style: const TextStyle(fontSize: 11)),
+                            onPressed: () => _showLocationSelector(
+                              ctx,
+                              locList,
+                              locationCtrl,
+                              (wrh) => setModalState(() => selectedWarehouse = wrh),
                             ),
                           ),
-                        ],
-                      ),
-                    )
-                  else
-                    DropdownButtonFormField<String>(
-                      value: _availableLocations.any((l) => l['location'] == selectedLocation) ? selectedLocation : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Select Location Code',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                      items: _availableLocations.map((loc) {
-                        final code = loc['location']?.toString() ?? '';
-                        final wrh = loc['warehouse']?.toString() ?? '';
-                        final type = loc['locationType']?.toString() ?? '';
-                        return DropdownMenuItem<String>(
-                          value: code,
-                          child: Text('$code ($wrh${type.isNotEmpty ? ' - $type' : ''})'),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setModalState(() {
-                            selectedLocation = val;
-                            final match = _availableLocations.firstWhere(
-                              (l) => l['location'] == val,
-                              orElse: () => {},
-                            );
-                            selectedWarehouse = match['warehouse']?.toString();
-                          });
-                        }
-                      },
+                      ],
                     ),
+                  ],
+
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -367,11 +411,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         final devId = deviceIdCtrl.text.trim();
                         final devName = deviceNameCtrl.text.trim();
                         final devMac = macCtrl.text.trim();
+                        final loc = locationCtrl.text.trim();
                         if (devId.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Device Identifier cannot be empty.')));
                           return;
                         }
-                        if (selectedLocation.isEmpty) {
+                        if (loc.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select or enter a location.')));
                           return;
                         }
@@ -383,7 +428,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           macAddress: devMac.isNotEmpty ? devMac : null,
                           siteCode: _userSiteCode,
                           warehouseCode: selectedWarehouse,
-                          locationCode: selectedLocation,
+                          locationCode: loc,
                         );
                       },
                     ),
@@ -394,6 +439,97 @@ class _DevicesScreenState extends State<DevicesScreen> {
           );
         },
       ),
+    );
+  }
+
+  void _showLocationSelector(
+    BuildContext context,
+    List<Map<String, dynamic>> locations,
+    TextEditingController locationCtrl,
+    Function(String?) onWarehouseSelected,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (pickerCtx) {
+        String filter = '';
+        return StatefulBuilder(
+          builder: (pCtx, setPickerState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final primary = Theme.of(context).primaryColor;
+            final filtered = filter.isEmpty
+                ? locations
+                : locations.where((l) {
+                    final c = (l['location']?.toString() ?? '').toLowerCase();
+                    final w = (l['warehouse']?.toString() ?? '').toLowerCase();
+                    return c.contains(filter.toLowerCase()) || w.contains(filter.toLowerCase());
+                  }).toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Select Location (${locations.length})',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(pickerCtx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search location or warehouse...',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onChanged: (val) => setPickerState(() => filter = val),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(child: Text('No matching locations found', style: TextStyle(color: Colors.grey)))
+                        : ListView.separated(
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final item = filtered[i];
+                              final code = item['location']?.toString() ?? '';
+                              final wrh = item['warehouse']?.toString() ?? '';
+                              final type = item['locationType']?.toString() ?? '';
+                              return ListTile(
+                                dense: true,
+                                title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text('$wrh${type.isNotEmpty ? ' • $type' : ''}'),
+                                trailing: const Icon(Icons.chevron_right, size: 16),
+                                onTap: () {
+                                  locationCtrl.text = code;
+                                  onWarehouseSelected(wrh.isNotEmpty ? wrh : null);
+                                  Navigator.pop(pickerCtx);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -425,6 +561,29 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         Navigator.pop(bContext, code.trim());
                       }
                     }
+                  },
+                  errorBuilder: (context, error) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.camera_alt_outlined, color: Colors.orange, size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Camera initialization failed: ${error.errorCode}',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(bContext),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -736,6 +895,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primary,
                   foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 34),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                 ),
                 onPressed: () => _openAssignDialog(),
