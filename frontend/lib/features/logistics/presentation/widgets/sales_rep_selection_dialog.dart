@@ -187,11 +187,11 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         backgroundColor: theme.colorScheme.surface,
         elevation: 16,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Container(
           width: double.maxFinite,
           constraints: const BoxConstraints(maxWidth: 520, maxHeight: 680),
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -200,7 +200,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: theme.primaryColor.withOpacity(0.12),
                       shape: BoxShape.circle,
@@ -208,10 +208,10 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                     child: Icon(
                       Icons.badge_outlined,
                       color: theme.primaryColor,
-                      size: 26,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,7 +223,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                                   : 'Verify Sales Representative')
                               : 'Sales Representative',
                           style: TextStyle(
-                            fontSize: 19,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: isDark ? Colors.white : Colors.black87,
                           ),
@@ -236,7 +236,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                                   : 'Active sales reps already selected. Verify to ensure no mistake.')
                               : 'Select one or multiple reps for transactions',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             color: isDark ? Colors.white60 : Colors.black54,
                           ),
                         ),
@@ -245,21 +245,21 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                   ),
                   if (canDismissNow)
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, size: 20),
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: 'Close',
                     ),
                 ],
               ),
               if (_hasInitialSelection) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: _isSelectionModified
                         ? Colors.amber.withOpacity(0.12)
                         : Colors.blue.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: _isSelectionModified
                           ? Colors.amber.withOpacity(0.4)
@@ -321,7 +321,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
 
               // Search Bar
               TextField(
@@ -339,7 +339,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                   fillColor: isDark
                       ? Colors.grey.shade900
                       : Colors.grey.shade100,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -356,7 +356,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               // Selection Toolbar
               Row(
@@ -532,7 +532,7 @@ class _SalesRepSelectionDialogState extends State<SalesRepSelectionDialog> {
                               ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
 
               // Action Buttons
               if (_hasInitialSelection && _isSelectionModified)

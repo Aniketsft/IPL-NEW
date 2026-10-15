@@ -321,6 +321,8 @@ class LocalDatabaseHelper {
           syncedAt TEXT
         )
       ''');
+    } catch (_) {}
+
     try {
       await _database!.execute('''
         CREATE TABLE IF NOT EXISTS $tableX3HistoryHeader (
