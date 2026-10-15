@@ -14,5 +14,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.PriceListDto>> GetPriceListsAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesRepLookupDto>> GetSalesRepsAsync(string? siteCode = null);
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.OpenInvoiceDto>> GetOpenInvoicesAsync(string? siteCode = null, string? customerNo = null, int daysCutoff = 90);
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.X3HistoryDocumentDto>> GetX3HistoryAsync(string siteCode, string? customerCode = null, int months = 6);
     }
 }

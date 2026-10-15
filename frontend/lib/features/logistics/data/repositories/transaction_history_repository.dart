@@ -4,18 +4,23 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/transactio
 import 'package:enterprise_auth_mobile/features/logistics/data/models/eod_report_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:intl/intl.dart';
 
 
 class TransactionHistoryRepository {
   final LocalDatabaseHelper _dbHelper;
   final Future<Database> Function()? _dbProvider;
+  final NetworkService? _networkService;
 
   TransactionHistoryRepository({
     LocalDatabaseHelper? dbHelper,
     Future<Database> Function()? dbProvider,
+    NetworkService? networkService,
   })  : _dbHelper = dbHelper ?? LocalDatabaseHelper.instance,
-        _dbProvider = dbProvider;
+        _dbProvider = dbProvider,
+        _networkService = networkService;
 
   Future<Database> get _database async =>
       _dbProvider != null ? await _dbProvider!() : await _dbHelper.database;
@@ -280,7 +285,106 @@ class TransactionHistoryRepository {
       final cnLines = await db.rawQuery(query, [invoiceId]);
       if (cnLines.isNotEmpty) return cnLines;
     }
+    if (lines.isEmpty) {
+      final x3Lines = await getX3TransactionLines(invoiceId);
+      if (x3Lines.isNotEmpty) return x3Lines;
+    }
     return lines;
+  }
+
+  Future<List<TransactionModel>> getX3HistoryTransactions({
+    required String customerCode,
+    String? type,
+    String? startDate,
+    String? endDate,
+    String? searchQuery,
+    String? siteCode,
+  }) async {
+    // 1. Try remote fetch if networkService is available
+    if (_networkService != null) {
+      try {
+        final queryParams = <String, dynamic>{
+          'customercode': customerCode.trim(),
+          'months': 6,
+        };
+        if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+          queryParams['sitecode'] = siteCode.trim();
+        }
+
+        final response = await _networkService!.dio.get(
+          'SalesInvoice/x3-history',
+          queryParameters: queryParams,
+        );
+
+        if (response.statusCode == 200 && response.data is List) {
+          await _dbHelper.saveX3HistoryDocuments(response.data as List<dynamic>);
+        }
+      } catch (e) {
+        debugPrint('getX3HistoryTransactions: Remote sync failed: $e (Falling back to local SQLite)');
+      }
+    }
+
+    // 2. Query from local SQLite
+    final rows = await _dbHelper.getX3HistoryHeaders(
+      customerCode: customerCode,
+      type: type,
+      searchQuery: searchQuery,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    return rows.map((r) {
+      final flag = (r['invoiceTypeFlag'] as num?)?.toInt() ?? 1;
+      final docType = flag == 2 ? 'CREDIT_NOTE' : 'INVOICE';
+      final total = (r['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0;
+      final invNum = r['invoiceNumber']?.toString() ?? '';
+      final docDate = r['invoiceDate']?.toString() ?? '';
+      final cust = r['billToCustomer']?.toString() ?? customerCode;
+      final user = r['creationUser']?.toString() ?? 'X3';
+
+      return TransactionModel(
+        id: invNum,
+        type: docType,
+        customerCode: cust,
+        customerName: cust,
+        grandTotal: total,
+        createdAt: docDate,
+        status: 'POSTED',
+        isSynced: 1,
+        isReversed: 0,
+        isPartiallyReversed: 0,
+        auditMetadata: AuditMetadata(
+          createdByUserName: user,
+        ),
+      );
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getX3TransactionLines(String invoiceNumber) async {
+    final rows = await _dbHelper.getX3HistoryLines(invoiceNumber);
+    return rows.map((line) {
+      final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+      final netPrice = (line['netPrice'] as num?)?.toDouble() ?? 0.0;
+      final grossPrice = (line['grossPrice'] as num?)?.toDouble() ?? 0.0;
+      final effectivePrice = netPrice > 0 ? netPrice : grossPrice;
+      final amtNot = (line['lineAmountNotTax'] as num?)?.toDouble() ?? 0.0;
+      final amtInc = (line['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0;
+
+      return {
+        'sku': line['productCode'] ?? '',
+        'name': line['productDescription'] ?? '',
+        'quantity': qty,
+        'salesUnit': line['salesUOM'] ?? 'EA',
+        'basePrice': effectivePrice,
+        'discountAmountFlat': (line['discountValue1'] as num?)?.toDouble() ?? 0.0,
+        'total': amtInc > 0 ? amtInc : amtNot,
+        'taxRule': '',
+        'lotNumber': '',
+        'warehouse': '',
+        'lineAmountNotTax': amtNot,
+        'lineAmountIncTax': amtInc,
+      };
+    }).toList();
   }
 
   Future<CreditNoteModel> cancelInvoice(TransactionModel transaction) async {

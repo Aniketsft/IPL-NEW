@@ -13,7 +13,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart'; // for CartItem
-import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'order_summary_screen.dart';
 
 
@@ -23,6 +23,7 @@ class TransactionHistoryScreen extends StatefulWidget {
   final String? initialCustomerCode;
   final String? initialCustomerName;
   final bool lockToCustomer;
+  final bool isX3History;
 
   const TransactionHistoryScreen({
     super.key,
@@ -31,6 +32,7 @@ class TransactionHistoryScreen extends StatefulWidget {
     this.initialCustomerCode,
     this.initialCustomerName,
     this.lockToCustomer = false,
+    this.isX3History = false,
   });
 
   @override
@@ -38,7 +40,7 @@ class TransactionHistoryScreen extends StatefulWidget {
 }
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
-  final TransactionHistoryRepository _repository = TransactionHistoryRepository();
+  late final TransactionHistoryRepository _repository;
   List<TransactionModel> _transactions = [];
   bool _isLoading = true;
   String _selectedType = 'ALL';
@@ -75,6 +77,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    _repository = TransactionHistoryRepository(
+      networkService: context.read<NetworkService>(),
+    );
     _selectedType = widget.transactionType;
     _selectedCustomerCode = widget.initialCustomerCode;
     _selectedCustomerName = widget.initialCustomerName;
@@ -103,15 +108,26 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     });
 
     try {
-      final transactions = await _repository.getTransactions(
-        type: _selectedType == 'ALL' ? null : _selectedType,
-        startDate: _startDate,
-        endDate: _endDate,
-        documentId: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
-        customerCode: _selectedCustomerCode,
-        productSku: _selectedProductSku,
-        limit: 100, // Fetch up to 100 recent transactions
-      );
+      final List<TransactionModel> transactions;
+      if (widget.isX3History && _selectedCustomerCode != null && _selectedCustomerCode!.isNotEmpty) {
+        transactions = await _repository.getX3HistoryTransactions(
+          customerCode: _selectedCustomerCode!,
+          type: _selectedType == 'ALL' ? null : _selectedType,
+          startDate: _startDate,
+          endDate: _endDate,
+          searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+        );
+      } else {
+        transactions = await _repository.getTransactions(
+          type: _selectedType == 'ALL' ? null : _selectedType,
+          startDate: _startDate,
+          endDate: _endDate,
+          documentId: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+          customerCode: _selectedCustomerCode,
+          productSku: _selectedProductSku,
+          limit: 100, // Fetch up to 100 recent transactions
+        );
+      }
       if (mounted) {
         setState(() {
           _transactions = transactions;
@@ -160,9 +176,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
-          widget.lockToCustomer && _selectedCustomerName != null
-              ? (widget.isForReversal ? 'Select Reversal [${_selectedCustomerCode ?? ''}]' : 'History [${_selectedCustomerCode ?? ''}]')
-              : (widget.isForReversal ? 'Select Invoice to Reverse' : 'Transaction History'),
+          widget.isX3History
+              ? 'X3 History [${_selectedCustomerCode ?? ''}]'
+              : widget.lockToCustomer && _selectedCustomerName != null
+                  ? (widget.isForReversal ? 'Select Reversal [${_selectedCustomerCode ?? ''}]' : 'History [${_selectedCustomerCode ?? ''}]')
+                  : (widget.isForReversal ? 'Select Invoice to Reverse' : 'Transaction History'),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -175,7 +193,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           // 1. StandardFilter matching ViewSalesOrderScreen
           StandardFilter(
             searchController: _searchController,
-            searchHint: 'Search INV or CN ID...',
+            searchHint: widget.isX3History ? 'Search X3 Doc or Product...' : 'Search INV or CN ID...',
             onApply: _loadTransactions,
             onSearchChanged: (_) {
               _searchDebounce?.cancel();
@@ -623,8 +641,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                       final effectiveQty = widget.isForReversal
                                           ? (originalQty - reversedQty).clamp(0.0, double.infinity)
                                           : originalQty; // Show original items in preview
+                                      final totalAmount = (item['total'] as num?)?.toDouble() ?? 0.0;
+                                      final lineAmtInc = (item['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0;
+                                      final basePrice = (item['basePrice'] as num?)?.toDouble() ?? 0.0;
+                                      final effectivePrice = basePrice.abs() > 0.0001
+                                          ? basePrice
+                                          : (totalAmount.abs() > 0.0001 ? totalAmount : lineAmtInc);
                                       
-                                      if (effectiveQty > 0) {
+                                      // Support standard quantity lines as well as amount-only credit notes
+                                      if (effectiveQty > 0 || effectivePrice.abs() > 0.0001) {
                                         context.read<SalesInvoiceBloc>().add(
                                           AddCartItem(
                                             CartItem(
@@ -633,11 +658,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                 name: item['name'] ?? '',
                                                 stockQty: 0.0,
                                                 warehouse: item['warehouse'] ?? '',
-                                                salesUnit: item['salesUnit'] ?? '',
+                                                salesUnit: (item['salesUnit'] != null && (item['salesUnit'] as String).isNotEmpty)
+                                                    ? item['salesUnit']
+                                                    : 'EA',
                                               ),
                                               lotNumber: item['lotNumber'] ?? '',
-                                              quantity: effectiveQty,
-                                              basePrice: (item['basePrice'] as num?)?.toDouble() ?? 0.0,
+                                              quantity: effectiveQty > 0 ? effectiveQty : 1.0,
+                                              basePrice: effectivePrice,
                                               discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
                                               taxRule: item['taxRule'] ?? '',
                                               vatRatePercent: 0.0,

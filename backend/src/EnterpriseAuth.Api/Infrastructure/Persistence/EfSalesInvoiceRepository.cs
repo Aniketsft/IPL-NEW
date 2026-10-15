@@ -279,5 +279,90 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 DaysCutoff = daysCutoff > 0 ? daysCutoff : 90
             });
         }
+
+        public async Task<IEnumerable<X3HistoryDocumentDto>> GetX3HistoryAsync(string siteCode, string? customerCode = null, int months = 6)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var dbName = _syncSettings.X3DatabaseName;
+            var schema = _schemaProvider.GetSchemaName();
+
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(H.CPY_0))         AS Company,
+                    LTRIM(RTRIM(D.SALFCY_0))      AS SalesSite,
+                    LTRIM(RTRIM(H.NUM_0))         AS InvoiceNumber,
+                    H.INVTYP_0                    AS InvoiceTypeFlag,
+                    LTRIM(RTRIM(D.BPCINV_0))      AS BillToCustomer,
+                    D.INVDAT_0                    AS InvoiceDate,
+                    LTRIM(RTRIM(D.CREUSR_0))      AS CreationUser,
+                    D.SIDLIN_0                    AS LineNumber,
+                    LTRIM(RTRIM(D.ITMREF_0))      AS ProductCode,
+                    LTRIM(RTRIM(D.ITMDES_0))      AS ProductDescription,
+                    D.QTY_0                       AS Quantity,
+                    LTRIM(RTRIM(D.SAU_0))         AS SalesUOM,
+                    D.GROPRI_0                    AS GrossPrice,
+                    D.NETPRI_0                    AS NetPrice,
+                    D.AMTNOTLIN_0                 AS LineAmountNotTax,
+                    D.AMTATILIN_0                 AS LineAmountIncTax,
+                    D.DISCRGVAL1_0                AS DiscountValue1,
+                    D.DISCRGVAL2_0                AS DiscountValue2
+                FROM {dbName}.{schema}.SINVOICED D WITH (NOLOCK)
+                INNER JOIN {dbName}.{schema}.SINVOICE H WITH (NOLOCK) ON D.NUM_0 = H.NUM_0
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(D.SALFCY_0)) = @SiteCode)
+                  AND D.INVDAT_0 >= DATEADD(month, -@Months, GETDATE())
+                  AND H.INVTYP_0 IN (1, 2)
+                  AND (@CustomerCode = '' OR LTRIM(RTRIM(D.BPCINV_0)) = @CustomerCode)
+                ORDER BY D.INVDAT_0 DESC, H.NUM_0 DESC, D.SIDLIN_0 ASC;
+            ";
+
+            var rows = await db.QueryAsync<X3HistoryRawRowDto>(sql, new 
+            { 
+                SiteCode = (siteCode ?? "").Trim(),
+                CustomerCode = (customerCode ?? "").Trim(),
+                Months = months > 0 ? months : 6
+            });
+
+            var grouped = new Dictionary<string, X3HistoryDocumentDto>();
+            foreach (var r in rows)
+            {
+                if (!grouped.TryGetValue(r.InvoiceNumber, out var doc))
+                {
+                    doc = new X3HistoryDocumentDto
+                    {
+                        Company = r.Company,
+                        SalesSite = r.SalesSite,
+                        InvoiceNumber = r.InvoiceNumber,
+                        InvoiceTypeFlag = r.InvoiceTypeFlag,
+                        BillToCustomer = r.BillToCustomer,
+                        InvoiceDate = r.InvoiceDate,
+                        CreationUser = r.CreationUser,
+                        TotalAmountNotTax = 0,
+                        TotalAmountIncTax = 0,
+                        Lines = new List<X3HistoryLineDto>()
+                    };
+                    grouped[r.InvoiceNumber] = doc;
+                }
+
+                doc.TotalAmountNotTax += r.LineAmountNotTax;
+                doc.TotalAmountIncTax += r.LineAmountIncTax;
+
+                doc.Lines.Add(new X3HistoryLineDto
+                {
+                    LineNumber = r.LineNumber,
+                    ProductCode = r.ProductCode,
+                    ProductDescription = r.ProductDescription,
+                    Quantity = r.Quantity,
+                    SalesUOM = r.SalesUOM,
+                    GrossPrice = r.GrossPrice,
+                    NetPrice = r.NetPrice,
+                    LineAmountNotTax = r.LineAmountNotTax,
+                    LineAmountIncTax = r.LineAmountIncTax,
+                    DiscountValue1 = r.DiscountValue1,
+                    DiscountValue2 = r.DiscountValue2
+                });
+            }
+
+            return grouped.Values;
+        }
     }
 }

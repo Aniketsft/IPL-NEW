@@ -996,8 +996,8 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
         // 3. Transaction History
         _buildActionTile(
           theme: theme,
-          title: 'History',
-          subtitle: 'Past invoices, reprints, returns',
+          title: 'X3 History',
+          subtitle: 'Past 6 months invoices & credit notes',
           icon: Icons.history_rounded,
           color: Colors.indigoAccent,
           onTap: () async {
@@ -1008,6 +1008,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                   initialCustomerCode: _customerCode,
                   initialCustomerName: _customerName,
                   lockToCustomer: true,
+                  isX3History: true,
                 ),
               ),
             );

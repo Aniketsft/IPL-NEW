@@ -424,6 +424,27 @@ namespace EnterpriseAuth.Api.Controllers
             }
         }
 
+        [HttpGet("x3-history")]
+        public async Task<IActionResult> GetX3History(
+            [FromQuery] string? sitecode = null,
+            [FromQuery] string? customercode = null,
+            [FromQuery] int months = 6)
+        {
+            var (effectiveSite, errorResult) = ResolveEffectiveSiteCode(sitecode);
+            if (errorResult != null) return errorResult;
+
+            try
+            {
+                var data = await _repository.GetX3HistoryAsync(effectiveSite ?? "", customercode, months);
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving X3 history for site {Site}, customer {Customer}", effectiveSite, customercode);
+                return StatusCode(500, new { error = "An internal error occurred while retrieving X3 history." });
+            }
+        }
+
         [HttpPost("open-invoices/payments/sync")]
         public async Task<IActionResult> SyncOpenInvoicePayments([FromBody] List<OpenInvoicePaymentSyncDto> payments)
         {

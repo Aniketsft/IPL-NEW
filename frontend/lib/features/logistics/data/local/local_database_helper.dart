@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 88;
+  static const _databaseVersion = 89;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -53,6 +53,8 @@ class LocalDatabaseHelper {
   static const tableSiInvoiceLineReversals = 'tbl_si_invoice_line_reversals';
   static const tableSiOpenInvoices = 'tbl_si_open_invoices';
   static const tableSiOpenInvoicePayments = 'tbl_si_open_invoice_payments';
+  static const tableX3HistoryHeader = 'tbl_x3_history_header';
+  static const tableX3HistoryLines = 'tbl_x3_history_lines';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -319,6 +321,45 @@ class LocalDatabaseHelper {
           syncedAt TEXT
         )
       ''');
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableX3HistoryHeader (
+          invoiceNumber TEXT PRIMARY KEY,
+          company TEXT,
+          salesSite TEXT NOT NULL,
+          invoiceTypeFlag INTEGER NOT NULL,
+          billToCustomer TEXT NOT NULL,
+          invoiceDate TEXT NOT NULL,
+          creationUser TEXT,
+          totalAmountNotTax REAL DEFAULT 0.0,
+          totalAmountIncTax REAL DEFAULT 0.0,
+          lastSyncAt TEXT
+        )
+      ''');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_customer ON $tableX3HistoryHeader(billToCustomer, invoiceDate DESC)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_site ON $tableX3HistoryHeader(salesSite)');
+    } catch (_) {}
+
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableX3HistoryLines (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          invoiceNumber TEXT NOT NULL,
+          lineNumber INTEGER NOT NULL,
+          productCode TEXT,
+          productDescription TEXT,
+          quantity REAL DEFAULT 0.0,
+          salesUOM TEXT,
+          grossPrice REAL DEFAULT 0.0,
+          netPrice REAL DEFAULT 0.0,
+          lineAmountNotTax REAL DEFAULT 0.0,
+          lineAmountIncTax REAL DEFAULT 0.0,
+          discountValue1 REAL DEFAULT 0.0,
+          discountValue2 REAL DEFAULT 0.0,
+          UNIQUE(invoiceNumber, lineNumber)
+        )
+      ''');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3l_invoice ON $tableX3HistoryLines(invoiceNumber)');
     } catch (_) {}
     
     return _database!;
@@ -336,6 +377,50 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 89) {
+      debugPrint('DB Upgrade: Creating X3 History tables (v89)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableX3HistoryHeader (
+            invoiceNumber TEXT PRIMARY KEY,
+            company TEXT,
+            salesSite TEXT NOT NULL,
+            invoiceTypeFlag INTEGER NOT NULL,
+            billToCustomer TEXT NOT NULL,
+            invoiceDate TEXT NOT NULL,
+            creationUser TEXT,
+            totalAmountNotTax REAL DEFAULT 0.0,
+            totalAmountIncTax REAL DEFAULT 0.0,
+            lastSyncAt TEXT
+          )
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS ix_x3h_customer ON $tableX3HistoryHeader(billToCustomer, invoiceDate DESC)');
+        await db.execute('CREATE INDEX IF NOT EXISTS ix_x3h_site ON $tableX3HistoryHeader(salesSite)');
+
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableX3HistoryLines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoiceNumber TEXT NOT NULL,
+            lineNumber INTEGER NOT NULL,
+            productCode TEXT,
+            productDescription TEXT,
+            quantity REAL DEFAULT 0.0,
+            salesUOM TEXT,
+            grossPrice REAL DEFAULT 0.0,
+            netPrice REAL DEFAULT 0.0,
+            lineAmountNotTax REAL DEFAULT 0.0,
+            lineAmountIncTax REAL DEFAULT 0.0,
+            discountValue1 REAL DEFAULT 0.0,
+            discountValue2 REAL DEFAULT 0.0,
+            UNIQUE(invoiceNumber, lineNumber)
+          )
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS ix_x3l_invoice ON $tableX3HistoryLines(invoiceNumber)');
+      } catch (e) {
+        debugPrint('Migration error v89 ($tableX3HistoryHeader): $e');
+      }
+    }
+
     if (oldVersion < 88) {
       debugPrint('DB Upgrade: Creating Open Invoice tables (v88)');
       try {
@@ -4002,5 +4087,117 @@ class LocalDatabaseHelper {
     }
 
     return totalCreditPayments + totalUnpaidInvoices;
+  }
+
+  Future<void> saveX3HistoryDocuments(List<dynamic> documents) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final doc in documents) {
+        if (doc is! Map) continue;
+        final invNum = (doc['invoiceNumber'] ?? '').toString();
+        if (invNum.isEmpty) continue;
+
+        await txn.insert(
+          tableX3HistoryHeader,
+          {
+            'invoiceNumber': invNum,
+            'company': doc['company']?.toString() ?? '',
+            'salesSite': doc['salesSite']?.toString() ?? '',
+            'invoiceTypeFlag': (doc['invoiceTypeFlag'] as num?)?.toInt() ?? 1,
+            'billToCustomer': doc['billToCustomer']?.toString() ?? '',
+            'invoiceDate': doc['invoiceDate']?.toString() ?? '',
+            'creationUser': doc['creationUser']?.toString() ?? '',
+            'totalAmountNotTax': (doc['totalAmountNotTax'] as num?)?.toDouble() ?? 0.0,
+            'totalAmountIncTax': (doc['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0,
+            'lastSyncAt': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        final lines = doc['lines'];
+        if (lines is List) {
+          await txn.delete(
+            tableX3HistoryLines,
+            where: 'invoiceNumber = ?',
+            whereArgs: [invNum],
+          );
+
+          for (final line in lines) {
+            if (line is! Map) continue;
+            await txn.insert(
+              tableX3HistoryLines,
+              {
+                'invoiceNumber': invNum,
+                'lineNumber': (line['lineNumber'] as num?)?.toInt() ?? 0,
+                'productCode': line['productCode']?.toString() ?? '',
+                'productDescription': line['productDescription']?.toString() ?? '',
+                'quantity': (line['quantity'] as num?)?.toDouble() ?? 0.0,
+                'salesUOM': line['salesUOM']?.toString() ?? '',
+                'grossPrice': (line['grossPrice'] as num?)?.toDouble() ?? 0.0,
+                'netPrice': (line['netPrice'] as num?)?.toDouble() ?? 0.0,
+                'lineAmountNotTax': (line['lineAmountNotTax'] as num?)?.toDouble() ?? 0.0,
+                'lineAmountIncTax': (line['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0,
+                'discountValue1': (line['discountValue1'] as num?)?.toDouble() ?? 0.0,
+                'discountValue2': (line['discountValue2'] as num?)?.toDouble() ?? 0.0,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getX3HistoryHeaders({
+    required String customerCode,
+    String? type,
+    String? searchQuery,
+    String? startDate,
+    String? endDate,
+  }) async {
+    final db = await database;
+    final whereClauses = <String>['billToCustomer = ?'];
+    final whereArgs = <dynamic>[customerCode.trim()];
+
+    if (type != null && type.isNotEmpty && type != 'ALL') {
+      if (type == 'INVOICE') {
+        whereClauses.add('invoiceTypeFlag = 1');
+      } else if (type == 'CREDIT_NOTE') {
+        whereClauses.add('invoiceTypeFlag = 2');
+      }
+    }
+
+    if (startDate != null && startDate.isNotEmpty) {
+      whereClauses.add('invoiceDate >= ?');
+      whereArgs.add(startDate);
+    }
+
+    if (endDate != null && endDate.isNotEmpty) {
+      whereClauses.add('invoiceDate <= ?');
+      whereArgs.add(endDate);
+    }
+
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final q = '%${searchQuery.trim().toLowerCase()}%';
+      whereClauses.add('(LOWER(invoiceNumber) LIKE ? OR invoiceNumber IN (SELECT invoiceNumber FROM $tableX3HistoryLines WHERE LOWER(productCode) LIKE ? OR LOWER(productDescription) LIKE ?))');
+      whereArgs.addAll([q, q, q]);
+    }
+
+    return await db.query(
+      tableX3HistoryHeader,
+      where: whereClauses.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'invoiceDate DESC, invoiceNumber DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getX3HistoryLines(String invoiceNumber) async {
+    final db = await database;
+    return await db.query(
+      tableX3HistoryLines,
+      where: 'invoiceNumber = ?',
+      whereArgs: [invoiceNumber],
+      orderBy: 'lineNumber ASC',
+    );
   }
 }

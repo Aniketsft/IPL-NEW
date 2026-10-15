@@ -4,6 +4,7 @@ public class SyncSettings
 {
     public int SyncWindowDays { get; set; } = 7;
     public string X3DatabaseName { get; set; } = "x3";
+    public string X3SchemaName { get; set; } = "INLDRYRUN";
     public string AppDatabaseName { get; set; } = "Hipo";
     /// <summary>
     /// X3 company code used to filter SPRICCONF by PLICPY_0 (e.g. "INL").
