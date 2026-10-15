@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 89;
+  static const _databaseVersion = 90;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -55,6 +55,7 @@ class LocalDatabaseHelper {
   static const tableSiOpenInvoicePayments = 'tbl_si_open_invoice_payments';
   static const tableX3HistoryHeader = 'tbl_x3_history_header';
   static const tableX3HistoryLines = 'tbl_x3_history_lines';
+  static const tableDeviceLocations = 'tbl_device_locations';
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -355,6 +356,26 @@ class LocalDatabaseHelper {
 
     try {
       await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableDeviceLocations (
+          deviceId TEXT PRIMARY KEY,
+          macAddress TEXT,
+          deviceName TEXT NOT NULL,
+          siteCode TEXT NOT NULL,
+          warehouseCode TEXT,
+          locationCode TEXT NOT NULL,
+          assignedUserId TEXT,
+          assignedUserName TEXT,
+          isActive INTEGER NOT NULL DEFAULT 1,
+          updatedAt TEXT,
+          updatedBy TEXT
+        )
+      ''');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_site ON $tableDeviceLocations(siteCode)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_mac ON $tableDeviceLocations(macAddress)');
+    } catch (_) {}
+
+    try {
+      await _database!.execute('''
         CREATE TABLE IF NOT EXISTS $tableX3HistoryLines (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           invoiceNumber TEXT NOT NULL,
@@ -390,6 +411,31 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 90) {
+      debugPrint('DB Upgrade: Creating Device Locations table (v90)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableDeviceLocations (
+            deviceId TEXT PRIMARY KEY,
+            macAddress TEXT,
+            deviceName TEXT NOT NULL,
+            siteCode TEXT NOT NULL,
+            warehouseCode TEXT,
+            locationCode TEXT NOT NULL,
+            assignedUserId TEXT,
+            assignedUserName TEXT,
+            isActive INTEGER NOT NULL DEFAULT 1,
+            updatedAt TEXT,
+            updatedBy TEXT
+          )
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_devloc_site ON $tableDeviceLocations(siteCode)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_devloc_mac ON $tableDeviceLocations(macAddress)');
+      } catch (e) {
+        debugPrint('Migration error v90 ($tableDeviceLocations): $e');
+      }
+    }
+
     if (oldVersion < 89) {
       debugPrint('DB Upgrade: Creating X3 History tables (v89)');
       try {
@@ -4225,5 +4271,88 @@ class LocalDatabaseHelper {
       whereArgs: [invoiceNumber],
       orderBy: 'lineNumber ASC',
     );
+  }
+
+  // --- DEVICE LOCATIONS (Offline Replication & Local Mapping) ---
+
+  Future<int> insertOrUpdateDeviceLocation(Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.insert(
+      tableDeviceLocations,
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> saveDeviceLocationsBatch(List<Map<String, dynamic>> items) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final item in items) {
+      batch.insert(
+        tableDeviceLocations,
+        item,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<Map<String, dynamic>?> getDeviceLocation(String deviceId) async {
+    final db = await database;
+    final results = await db.query(
+      tableDeviceLocations,
+      where: 'deviceId = ?',
+      whereArgs: [deviceId],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getDeviceLocationByMac(String mac) async {
+    final db = await database;
+    final results = await db.query(
+      tableDeviceLocations,
+      where: 'macAddress = ?',
+      whereArgs: [mac],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>> getDeviceLocationsBySite(String siteCode) async {
+    final db = await database;
+    if (siteCode.isEmpty || siteCode == 'ALL') {
+      return await db.query(tableDeviceLocations, orderBy: 'deviceName ASC');
+    }
+    return await db.query(
+      tableDeviceLocations,
+      where: 'siteCode = ?',
+      whereArgs: [siteCode],
+      orderBy: 'deviceName ASC',
+    );
+  }
+
+  Future<int> deleteDeviceLocation(String deviceId) async {
+    final db = await database;
+    return await db.delete(
+      tableDeviceLocations,
+      where: 'deviceId = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getLocations({String? siteCode}) async {
+    final db = await database;
+    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+      return await db.query(
+        tableLocations,
+        where: '$colLocSite = ?',
+        whereArgs: [siteCode],
+        orderBy: '$colLocCode ASC',
+      );
+    }
+    return await db.query(tableLocations, orderBy: '$colLocCode ASC');
   }
 }

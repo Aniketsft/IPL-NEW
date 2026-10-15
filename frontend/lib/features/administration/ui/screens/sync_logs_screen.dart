@@ -13,12 +13,14 @@ class SyncLog {
   final String lastSyncedBy;
   final DateTime lastSyncTime;
   final String actionType;
+  final String site;
 
   SyncLog({
     required this.deviceId,
     required this.lastSyncedBy,
     required this.lastSyncTime,
     required this.actionType,
+    this.site = '',
   });
 
   factory SyncLog.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class SyncLog {
       lastSyncedBy: json['lastSyncedBy'] ?? '',
       lastSyncTime: DateTime.parse(safeTimeStr).toLocal(),
       actionType: json['actionType'] ?? '',
+      site: json['site'] ?? '',
     );
   }
 }
@@ -188,12 +191,35 @@ class _SyncLogsScreenState extends State<SyncLogsScreen> {
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(
-                                      'Action: ${isPush ? 'PUSH (Sent Data)' : 'PULL (Refresh)'}',
-                                      style: TextStyle(
-                                        color: statusColor,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                    Wrap(
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      spacing: 8,
+                                      children: [
+                                        if (log.site.isNotEmpty)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: teal.withOpacity(0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: teal.withOpacity(0.4)),
+                                            ),
+                                            child: Text(
+                                              log.site,
+                                              style: TextStyle(
+                                                color: teal,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        Text(
+                                          'Action: ${isPush ? 'PUSH (Sent Data)' : 'PULL (Refresh)'}',
+                                          style: TextStyle(
+                                            color: statusColor,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

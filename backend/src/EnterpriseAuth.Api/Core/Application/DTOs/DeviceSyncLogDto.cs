@@ -8,5 +8,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string LastSyncedBy { get; set; } = string.Empty;
         public DateTime LastSyncTime { get; set; }
         public string ActionType { get; set; } = string.Empty;
+        public string Site { get; set; } = string.Empty;
     }
 }

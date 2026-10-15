@@ -28,6 +28,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<Staging> StagingRecords { get; set; }
         public DbSet<X3SoapAudit> X3SoapAudits { get; set; }
         public DbSet<EodProcessAudit> EodProcessAudits { get; set; }
+        public DbSet<DeviceLocation> DeviceLocations { get; set; }
 
         // --- SALES INVOICE STAGING ---
         public DbSet<StagingSalesInvoiceHeader> StagingSalesInvoiceHeaders { get; set; }

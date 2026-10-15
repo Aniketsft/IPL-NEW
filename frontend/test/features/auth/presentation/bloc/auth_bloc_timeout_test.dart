@@ -17,6 +17,7 @@ class FakeSecureStorageService implements SecureStorageService {
   String? token;
   String? username;
   String? schema;
+  String? siteCode;
 
   @override
   Future<void> saveToken(String t) async => token = t;
@@ -37,10 +38,17 @@ class FakeSecureStorageService implements SecureStorageService {
   Future<String?> getSchema() async => schema;
 
   @override
+  Future<void> saveSiteCode(String s) async => siteCode = s;
+
+  @override
+  Future<String?> getSiteCode() async => siteCode;
+
+  @override
   Future<void> deleteAll() async {
     token = null;
     username = null;
     schema = null;
+    siteCode = null;
   }
 }
 

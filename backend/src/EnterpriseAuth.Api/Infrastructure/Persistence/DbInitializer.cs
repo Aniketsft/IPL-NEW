@@ -71,7 +71,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ( "logistics", new[] { "receipt", "delivery", "transfer", "sales_invoice" } ),
                 ( "manufacturing", new[] { "all" } ),
                 ( "inventory", new[] { "stock_control", "picking", "by_identifier" } ),
-                ( "administration", new[] { "user_management", "sync_logs" } ),
+                ( "administration", new[] { "user_management", "sync_logs", "devices" } ),
                 ( "settings", new[] { "general", "printer" } )
             };
             
@@ -1022,6 +1022,33 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             ALTER TABLE [dbo].[AuditLogs] ADD [DeviceId] NVARCHAR(100) NULL;
                             PRINT 'Added DeviceId column to AuditLogs';
                         END
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AuditLogs' AND COLUMN_NAME = 'Site')
+                        BEGIN
+                            ALTER TABLE [dbo].[AuditLogs] ADD [Site] NVARCHAR(50) NULL;
+                            CREATE INDEX IX_AuditLogs_Site ON [dbo].[AuditLogs]([Site]);
+                            PRINT 'Added Site column to AuditLogs';
+                        END
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeviceLocations]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[DeviceLocations] (
+                            [DeviceId] NVARCHAR(100) NOT NULL PRIMARY KEY,
+                            [MacAddress] NVARCHAR(50) NULL,
+                            [DeviceName] NVARCHAR(150) NOT NULL,
+                            [SiteCode] NVARCHAR(20) NOT NULL,
+                            [WarehouseCode] NVARCHAR(20) NULL,
+                            [LocationCode] NVARCHAR(30) NOT NULL,
+                            [AssignedUserId] UNIQUEIDENTIFIER NULL,
+                            [AssignedUserName] NVARCHAR(100) NULL,
+                            [IsActive] BIT NOT NULL DEFAULT 1,
+                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                            [UpdatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                            [UpdatedBy] NVARCHAR(100) NOT NULL DEFAULT 'SYSTEM'
+                        );
+                        CREATE INDEX [IX_DeviceLocations_Site] ON [dbo].[DeviceLocations] ([SiteCode]);
+                        CREATE INDEX [IX_DeviceLocations_Mac] ON [dbo].[DeviceLocations] ([MacAddress]);
+                        PRINT 'Created DeviceLocations table';
                     END
 
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[X3SoapAudits]') AND type in (N'U'))

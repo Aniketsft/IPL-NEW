@@ -8,6 +8,10 @@ import 'package:enterprise_auth_mobile/features/auth/domain/usecases/login_use_c
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/register_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/forgot_password_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:http/http.dart' as http;
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -73,6 +77,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           siteCode: user.siteCode,
         ),
       );
+
+      // On Login: Resolve and map device location from SQLite & Backend Heartbeat
+      unawaited(_syncDeviceLocationOnLogin(user.siteCode ?? 'IPL'));
     } catch (e) {
       emit(AuthFailure(e.toString()));
     }
@@ -316,6 +323,68 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     } catch (e) {
       // Ignore malformed tokens
+    }
+  }
+
+  Future<void> _syncDeviceLocationOnLogin(String siteCode) async {
+    try {
+      final deviceService = DeviceInfoService.instance;
+      final devId = deviceService.deviceId;
+      final mac = deviceService.macAddress;
+      final db = LocalDatabaseHelper.instance;
+
+      // 1. Immediately read local SQLite mapping if available
+      var localMapping = await db.getDeviceLocation(devId);
+      if (localMapping == null && mac.isNotEmpty) {
+        localMapping = await db.getDeviceLocationByMac(mac);
+      }
+      if (localMapping != null && localMapping['locationCode'] != null) {
+        await deviceService.setAssignedLocation(
+          siteCode: localMapping['siteCode'] ?? siteCode,
+          warehouseCode: localMapping['warehouseCode'],
+          locationCode: localMapping['locationCode'],
+        );
+      }
+
+      // 2. Online Heartbeat: auto-register and replicate assigned location
+      final token = await _storageService.getToken();
+      final url = Uri.parse('${ApiConfig.baseUrl}Devices/heartbeat');
+      final resp = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+          'X-Device-Id': devId,
+        },
+        body: jsonEncode({
+          'deviceId': devId,
+          'macAddress': mac.isNotEmpty ? mac : null,
+          'deviceName': devId,
+          'siteCode': siteCode,
+        }),
+      ).timeout(const Duration(seconds: 5));
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data != null && data['locationCode'] != null) {
+          final loc = data['locationCode'].toString();
+          final wrh = data['warehouseCode']?.toString();
+          final site = data['siteCode']?.toString() ?? siteCode;
+          final returnedMac = data['macAddress']?.toString();
+
+          if (returnedMac != null && returnedMac.isNotEmpty) {
+            await deviceService.setMacAddress(returnedMac);
+          }
+          await deviceService.setAssignedLocation(
+            siteCode: site,
+            warehouseCode: wrh,
+            locationCode: loc,
+          );
+          await db.insertOrUpdateDeviceLocation(Map<String, dynamic>.from(data));
+        }
+      }
+    } catch (e) {
+      print('AuthBloc: Device location sync error (offline fallback used): $e');
     }
   }
 }

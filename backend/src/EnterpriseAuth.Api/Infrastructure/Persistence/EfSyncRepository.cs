@@ -48,6 +48,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     EntityName = "DeviceSync",
                     EntityIdString = deviceId,
                     ActionType = "SYNC_PULL",
+                    Site = site,
                     Payload = $"{{\"Site\": \"{site}\"}}",
                     PerformedBy = performedBy ?? "system",
                     PerformedAt = DateTime.UtcNow,
@@ -1306,6 +1307,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     EntityName = "DeviceSync",
                     EntityIdString = request.DeviceId,
                     ActionType = "SYNC_PUSH",
+                    Site = request.Site ?? "ALL",
                     Payload = $"{{\"TotalItems\": {totalCount}}}",
                     PerformedBy = performedBy,
                     PerformedAt = DateTime.UtcNow,
@@ -1317,10 +1319,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return totalCount;
         }
 
-        public async Task<IEnumerable<DeviceSyncLogDto>> GetLatestDeviceSyncsAsync()
+        public async Task<IEnumerable<DeviceSyncLogDto>> GetLatestDeviceSyncsAsync(string? siteCode = null)
         {
-            var logs = await _scanContext.AuditLogs
-                .Where(a => a.EntityName == "DeviceSync")
+            var query = _scanContext.AuditLogs
+                .Where(a => a.EntityName == "DeviceSync");
+
+            if (!string.IsNullOrEmpty(siteCode) && siteCode != "ALL")
+            {
+                query = query.Where(a => a.Site == siteCode);
+            }
+
+            var logs = await query
                 .GroupBy(a => a.EntityIdString)
                 .Select(g => g.OrderByDescending(a => a.PerformedAt).FirstOrDefault())
                 .ToListAsync();
@@ -1330,7 +1339,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 DeviceId = l?.EntityIdString ?? string.Empty,
                 LastSyncedBy = l?.PerformedBy ?? string.Empty,
                 LastSyncTime = l?.PerformedAt ?? DateTime.MinValue,
-                ActionType = l?.ActionType ?? string.Empty
+                ActionType = l?.ActionType ?? string.Empty,
+                Site = l?.Site ?? string.Empty
             }).OrderByDescending(d => d.LastSyncTime);
         }
 

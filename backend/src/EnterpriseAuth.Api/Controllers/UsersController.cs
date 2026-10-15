@@ -150,6 +150,25 @@ namespace EnterpriseAuth.Api.Controllers
                 return Forbid();
             }
 
+            // Security Rule: Only User Admin can modify administrative accounts
+            bool isTargetAdmin = user.Roles.Any(r => r.Name.Equals("Admin", StringComparison.OrdinalIgnoreCase) 
+                                                  || r.Name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                                 || user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+            if (isTargetAdmin)
+            {
+                var callerUsername = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
+                                     ?? User.Identity?.Name 
+                                     ?? string.Empty;
+                var isCallerSuperAdmin = User.IsInRole("SuperAdmin");
+                var isCallerRootAdmin = callerUsername.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+                if (!isCallerSuperAdmin && !isCallerRootAdmin)
+                {
+                    return StatusCode(403, "Only User Administrator can modify administrative accounts.");
+                }
+            }
+
             user.Username = dto.Username;
             user.Email = dto.Email;
             user.IsActive = dto.IsActive;
@@ -213,6 +232,7 @@ namespace EnterpriseAuth.Api.Controllers
         {
             var user = await _context.Users
                 .Include(u => u.Permissions)
+                .Include(u => u.Roles)
                 .FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null) return NotFound();
@@ -221,6 +241,25 @@ namespace EnterpriseAuth.Api.Controllers
             if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
             {
                 return Forbid();
+            }
+
+            // Security Rule: Only User Admin can update permissions for User Admin
+            bool isTargetAdmin = user.Roles.Any(r => r.Name.Equals("Admin", StringComparison.OrdinalIgnoreCase) 
+                                                  || r.Name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                                 || user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+            if (isTargetAdmin)
+            {
+                var callerUsername = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
+                                     ?? User.Identity?.Name 
+                                     ?? string.Empty;
+                var isCallerSuperAdmin = User.IsInRole("SuperAdmin");
+                var isCallerRootAdmin = callerUsername.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+                if (!isCallerSuperAdmin && !isCallerRootAdmin)
+                {
+                    return StatusCode(403, "Only User Administrator can update permissions for administrative accounts.");
+                }
             }
 
             var normalizedRequestPermissions = permissionNames.Select(p => p.ToLowerInvariant()).ToList();

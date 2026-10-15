@@ -32,6 +32,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public List<GlobalSettingUpdateDto>? GlobalSettingsUpdates { get; set; }
         public List<StagingEodDto> StagingEodEntries { get; set; } = new();
         public string DeviceId { get; set; } = string.Empty;
+        public string? Site { get; set; }
         public List<OfflineAuditDto> OfflineAudits { get; set; } = new();
         public List<EodProcessAuditDto> EodProcessAudits { get; set; } = new();
     }

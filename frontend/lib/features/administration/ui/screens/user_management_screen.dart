@@ -63,6 +63,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
       PermissionNode(label: 'Settings', moduleId: 'settings.general'),
       PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
+      PermissionNode(label: 'Devices', moduleId: 'administration.devices'),
       PermissionNode(label: 'Sync Logs', moduleId: 'administration.sync_logs'),
       PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
       PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
@@ -72,6 +73,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     ];
 
   List<Site> _availableSites = [];
+  String? _currentLoggedInUsername;
   bool _isInit = false;
 
   @override
@@ -95,11 +97,13 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       final roles = await _repository.getRoles();
       final users = await _repository.getUsers();
       final sites = await _repository.getSites();
+      final currentUsername = await SecureStorageService().getUsername();
       if (mounted) {
         setState(() {
           _localRoles = roles;
           _allUsers = users;
           _availableSites = sites;
+          _currentLoggedInUsername = currentUsername;
           _isLoading = false;
         });
       }
@@ -523,6 +527,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return Icons.home_outlined;
       case 'Settings':         return Icons.settings_outlined;
       case 'Administration':   return Icons.admin_panel_settings_outlined;
+      case 'Devices':          return Icons.devices_other_rounded;
       case 'Sync Logs':        return Icons.sync_alt;
       case 'Delivery':         return Icons.local_shipping_outlined;
       case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
@@ -538,6 +543,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return const Color(0xFFFF9800);
       case 'Settings':         return const Color(0xFF9C27B0);
       case 'Administration':   return const Color(0xFFF44336);
+      case 'Devices':          return const Color(0xFF00897B);
       case 'Sync Logs':        return const Color(0xFF009688);
       case 'Delivery':         return const Color(0xFF2196F3);
       case 'Manufacturing':    return Theme.of(context).primaryColor;
@@ -553,6 +559,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Home Screen':      return 'Dashboard & data sync';
       case 'Settings':         return 'App configuration';
       case 'Administration':   return 'User & role management';
+      case 'Devices':          return 'Assign locations to handheld devices by MAC address';
       case 'Sync Logs':        return 'Real-time device sync tracking';
       case 'Delivery':         return 'EOD, scanning & manifests';
       case 'Manufacturing':    return 'Sales orders & tracking';
@@ -1247,33 +1254,69 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           child: _buildUserSelector(isDark),
         ),
         if (_selectedManagementUser != null)
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'ASSIGNED ROLE',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+          Builder(
+            builder: (context) {
+              final isSelectedAdmin = _selectedManagementUser!.username.toLowerCase() == 'admin' ||
+                  _localRoles.any((r) =>
+                      r.id == _selectedManagementUser!.roleId &&
+                      (r.name.toLowerCase() == 'admin' || r.name.toLowerCase() == 'superadmin'));
+              final isCallerRootAdmin = _currentLoggedInUsername?.toLowerCase() == 'admin';
+              final bool isLocked = isSelectedAdmin && !isCallerRootAdmin;
+
+              return Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isLocked) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.shield_rounded, color: Colors.amber, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Only the primary User Administrator can modify permissions for administrative accounts.',
+                                  style: TextStyle(
+                                    color: Colors.amber.shade200,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const Text(
+                        'ASSIGNED ROLE',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      AbsorbPointer(
+                        absorbing: isLocked,
+                        child: Opacity(
+                          opacity: isLocked ? 0.6 : 1.0,
+                          child: _buildUserRoleSelector(isDark),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  _buildUserRoleSelector(isDark),
-                  /*
-                  const SizedBox(height: 24),
-                  _buildPermissionMatrixLayout(
-                    permissions: _selectedManagementUser!.permissions,
-                    isDark: isDark,
-                    onUpdate: _updateExistingUserPermissions,
-                  ),
-                  */
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           )
         else
           const Expanded(
@@ -1284,35 +1327,40 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               ),
             ),
           ),
-        _buildActionFooter('SAVE CHANGES', _isSavingUserPermissions, () async {
-          if (_selectedManagementUser == null) return;
-          setState(() => _isSavingUserPermissions = true);
-          try {
-            // Update User details (like roleId)
-            await _repository.updateUser(_selectedManagementUser!);
-            // Update User permissions
-            /*
-            await _repository.updateUserPermissions(
-              _selectedManagementUser!.id,
-              _selectedManagementUser!.permissions,
-            );
-            */
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User details updated!')),
-              );
-              await _loadData();
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
-            }
-          } finally {
-            if (mounted) setState(() => _isSavingUserPermissions = false);
-          }
-        }),
+        Builder(
+          builder: (context) {
+            final isSelectedAdmin = _selectedManagementUser != null &&
+                (_selectedManagementUser!.username.toLowerCase() == 'admin' ||
+                    _localRoles.any((r) =>
+                        r.id == _selectedManagementUser!.roleId &&
+                        (r.name.toLowerCase() == 'admin' || r.name.toLowerCase() == 'superadmin')));
+            final isCallerRootAdmin = _currentLoggedInUsername?.toLowerCase() == 'admin';
+            final bool isLocked = isSelectedAdmin && !isCallerRootAdmin;
+
+            return _buildActionFooter('SAVE CHANGES', _isSavingUserPermissions || isLocked, isLocked ? () {} : () async {
+              if (_selectedManagementUser == null) return;
+              setState(() => _isSavingUserPermissions = true);
+              try {
+                // Update User details (like roleId)
+                await _repository.updateUser(_selectedManagementUser!);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('User details updated!')),
+                  );
+                  await _loadData();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+                }
+              } finally {
+                if (mounted) setState(() => _isSavingUserPermissions = false);
+              }
+            });
+          },
+        ),
       ],
     );
   }

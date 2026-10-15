@@ -13,6 +13,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sal
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/customer_selection_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
+import 'package:enterprise_auth_mobile/features/administration/ui/screens/devices_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/sync_logs_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
@@ -790,6 +791,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const SyncLogsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                if (_hasAccess('administration.devices.read'))
+                  ListTile(
+                    leading: Icon(
+                      Icons.devices_other_rounded,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    title: Text(
+                      'Devices',
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DevicesScreen(),
                         ),
                       );
                     },

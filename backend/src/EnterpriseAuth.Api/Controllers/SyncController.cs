@@ -53,7 +53,8 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("devices/latest")]
         public async Task<ActionResult<IEnumerable<DeviceSyncLogDto>>> GetLatestDeviceSyncs()
         {
-            var logs = await _syncRepository.GetLatestDeviceSyncsAsync();
+            var userSiteCode = User.FindFirst("SiteCode")?.Value;
+            var logs = await _syncRepository.GetLatestDeviceSyncsAsync(userSiteCode);
             return Ok(logs);
         }
     }

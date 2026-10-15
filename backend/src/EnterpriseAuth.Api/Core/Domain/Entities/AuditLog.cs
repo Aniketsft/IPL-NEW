@@ -39,5 +39,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(100)]
         [Column("DeviceId")]
         public string? DeviceId { get; set; }
+
+        [MaxLength(50)]
+        [Column("Site")]
+        public string? Site { get; set; }
     }
 }
