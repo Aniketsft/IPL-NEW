@@ -338,6 +338,7 @@ class TransactionHistoryRepository {
       final docType = flag == 2 ? 'CREDIT_NOTE' : 'INVOICE';
       final total = (r['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0;
       final invNum = r['invoiceNumber']?.toString() ?? '';
+      final docDate = r['invoiceDate']?.toString() ?? '';
       final cust = (r['customerCode'] != null && (r['customerCode'] as String).isNotEmpty)
           ? r['customerCode'].toString()
           : (r['billToCustomer']?.toString() ?? customerCode);
