@@ -287,31 +287,87 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var schema = _schemaProvider.GetSchemaName();
 
             string sql = $@"
+                WITH CustMap AS (
+                    SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0,
+                           ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY ORISOCUST_0) AS rn
+                    FROM (
+                        SELECT LTRIM(RTRIM(SONO_0)) AS MapKey, 
+                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
+                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
+                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
+                        WHERE SONO_0 IS NOT NULL AND SONO_0 <> ''
+                        
+                        UNION ALL
+                        
+                        SELECT LTRIM(RTRIM(ORISONO_0)) AS MapKey, 
+                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
+                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
+                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
+                        WHERE ORISONO_0 IS NOT NULL AND ORISONO_0 <> ''
+                        
+                        UNION ALL
+                        
+                        SELECT LTRIM(RTRIM(DELIVERYNO_0)) AS MapKey, 
+                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
+                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
+                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
+                        WHERE DELIVERYNO_0 IS NOT NULL AND DELIVERYNO_0 <> ''
+                    ) t
+                )
                 SELECT 
-                    LTRIM(RTRIM(H.CPY_0))         AS Company,
-                    LTRIM(RTRIM(D.SALFCY_0))      AS SalesSite,
-                    LTRIM(RTRIM(H.NUM_0))         AS InvoiceNumber,
-                    H.INVTYP_0                    AS InvoiceTypeFlag,
-                    LTRIM(RTRIM(D.BPCINV_0))      AS BillToCustomer,
-                    D.INVDAT_0                    AS InvoiceDate,
-                    LTRIM(RTRIM(D.CREUSR_0))      AS CreationUser,
-                    D.SIDLIN_0                    AS LineNumber,
-                    LTRIM(RTRIM(D.ITMREF_0))      AS ProductCode,
-                    LTRIM(RTRIM(D.ITMDES_0))      AS ProductDescription,
-                    D.QTY_0                       AS Quantity,
-                    LTRIM(RTRIM(D.SAU_0))         AS SalesUOM,
-                    D.GROPRI_0                    AS GrossPrice,
-                    D.NETPRI_0                    AS NetPrice,
-                    D.AMTNOTLIN_0                 AS LineAmountNotTax,
-                    D.AMTATILIN_0                 AS LineAmountIncTax,
-                    D.DISCRGVAL1_0                AS DiscountValue1,
-                    D.DISCRGVAL2_0                AS DiscountValue2
+                    LTRIM(RTRIM(H.CPY_0))                             AS Company,
+                    LTRIM(RTRIM(D.SALFCY_0))                          AS SalesSite,
+                    LTRIM(RTRIM(H.NUM_0))                             AS InvoiceNumber,
+                    H.INVTYP_0                                        AS InvoiceTypeFlag,
+                    LTRIM(RTRIM(D.BPCINV_0))                          AS BillToCustomer,
+                    COALESCE(
+                        NULLIF(m_so.ORISOCUST_0, ''), 
+                        NULLIF(m_dlv.ORISOCUST_0, ''), 
+                        LTRIM(RTRIM(D.BPCINV_0))
+                    ) COLLATE DATABASE_DEFAULT                        AS CustomerCode,
+                    COALESCE(
+                        NULLIF(m_so.ORISOCUSTNAM_0, ''), 
+                        NULLIF(m_dlv.ORISOCUSTNAM_0, ''), 
+                        LTRIM(RTRIM(c.ZFULLBUSNAM_0)), 
+                        LTRIM(RTRIM(c.BPCNAM_0)), 
+                        ''
+                    ) COLLATE DATABASE_DEFAULT                        AS CustomerName,
+                    D.INVDAT_0                                        AS InvoiceDate,
+                    LTRIM(RTRIM(D.CREUSR_0))                          AS CreationUser,
+                    LTRIM(RTRIM(D.SOHNUM_0))                          AS SoNumber,
+                    LTRIM(RTRIM(D.SDHNUM_0))                          AS DeliveryNumber,
+                    D.SIDLIN_0                                        AS LineNumber,
+                    LTRIM(RTRIM(D.ITMREF_0))                          AS ProductCode,
+                    LTRIM(RTRIM(D.ITMDES_0))                          AS ProductDescription,
+                    D.QTY_0                                           AS Quantity,
+                    LTRIM(RTRIM(D.SAU_0))                             AS SalesUOM,
+                    D.GROPRI_0                                        AS GrossPrice,
+                    D.NETPRI_0                                        AS NetPrice,
+                    D.AMTNOTLIN_0                                     AS LineAmountNotTax,
+                    D.AMTATILIN_0                                     AS LineAmountIncTax,
+                    D.DISCRGVAL1_0                                    AS DiscountValue1,
+                    D.DISCRGVAL2_0                                    AS DiscountValue2
                 FROM {dbName}.{schema}.SINVOICED D WITH (NOLOCK)
-                INNER JOIN {dbName}.{schema}.SINVOICE H WITH (NOLOCK) ON D.NUM_0 = H.NUM_0
+                INNER JOIN {dbName}.{schema}.SINVOICE H WITH (NOLOCK) 
+                    ON D.NUM_0 = H.NUM_0
+                LEFT JOIN CustMap m_so 
+                    ON D.SOHNUM_0 = m_so.MapKey 
+                   AND m_so.rn = 1 
+                   AND D.SOHNUM_0 <> ''
+                LEFT JOIN CustMap m_dlv 
+                    ON D.SDHNUM_0 = m_dlv.MapKey 
+                   AND m_dlv.rn = 1 
+                   AND D.SDHNUM_0 <> ''
+                LEFT JOIN {dbName}.{schema}.BPCUSTOMER c WITH (NOLOCK) 
+                    ON c.BPCNUM_0 = COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), D.BPCINV_0)
                 WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(D.SALFCY_0)) = @SiteCode)
                   AND D.INVDAT_0 >= DATEADD(month, -@Months, GETDATE())
                   AND H.INVTYP_0 IN (1, 2)
-                  AND (@CustomerCode = '' OR LTRIM(RTRIM(D.BPCINV_0)) = @CustomerCode)
+                  AND (
+                        @CustomerCode = '' 
+                        OR COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), D.BPCINV_0) = @CustomerCode
+                        OR LTRIM(RTRIM(D.BPCINV_0)) = @CustomerCode
+                      )
                 ORDER BY D.INVDAT_0 DESC, H.NUM_0 DESC, D.SIDLIN_0 ASC;
             ";
 
@@ -334,6 +390,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         InvoiceNumber = r.InvoiceNumber,
                         InvoiceTypeFlag = r.InvoiceTypeFlag,
                         BillToCustomer = r.BillToCustomer,
+                        CustomerCode = r.CustomerCode,
+                        CustomerName = r.CustomerName,
+                        SoNumber = r.SoNumber,
+                        DeliveryNumber = r.DeliveryNumber,
                         InvoiceDate = r.InvoiceDate,
                         CreationUser = r.CreationUser,
                         TotalAmountNotTax = 0,

@@ -338,15 +338,19 @@ class TransactionHistoryRepository {
       final docType = flag == 2 ? 'CREDIT_NOTE' : 'INVOICE';
       final total = (r['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0;
       final invNum = r['invoiceNumber']?.toString() ?? '';
-      final docDate = r['invoiceDate']?.toString() ?? '';
-      final cust = r['billToCustomer']?.toString() ?? customerCode;
+      final cust = (r['customerCode'] != null && (r['customerCode'] as String).isNotEmpty)
+          ? r['customerCode'].toString()
+          : (r['billToCustomer']?.toString() ?? customerCode);
+      final custName = (r['customerName'] != null && (r['customerName'] as String).isNotEmpty)
+          ? r['customerName'].toString()
+          : cust;
       final user = r['creationUser']?.toString() ?? 'X3';
 
       return TransactionModel(
         id: invNum,
         type: docType,
         customerCode: cust,
-        customerName: cust,
+        customerName: custName,
         grandTotal: total,
         createdAt: docDate,
         status: 'POSTED',

@@ -331,6 +331,10 @@ class LocalDatabaseHelper {
           salesSite TEXT NOT NULL,
           invoiceTypeFlag INTEGER NOT NULL,
           billToCustomer TEXT NOT NULL,
+          customerCode TEXT,
+          customerName TEXT,
+          soNumber TEXT,
+          deliveryNumber TEXT,
           invoiceDate TEXT NOT NULL,
           creationUser TEXT,
           totalAmountNotTax REAL DEFAULT 0.0,
@@ -339,7 +343,14 @@ class LocalDatabaseHelper {
         )
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_customer ON $tableX3HistoryHeader(billToCustomer, invoiceDate DESC)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_custcode ON $tableX3HistoryHeader(customerCode, invoiceDate DESC)');
       await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_site ON $tableX3HistoryHeader(salesSite)');
+
+      // Safe column additions for existing local DBs
+      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN customerCode TEXT'); } catch (_) {}
+      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN customerName TEXT'); } catch (_) {}
+      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN soNumber TEXT'); } catch (_) {}
+      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN deliveryNumber TEXT'); } catch (_) {}
     } catch (_) {}
 
     try {
@@ -389,6 +400,10 @@ class LocalDatabaseHelper {
             salesSite TEXT NOT NULL,
             invoiceTypeFlag INTEGER NOT NULL,
             billToCustomer TEXT NOT NULL,
+            customerCode TEXT,
+            customerName TEXT,
+            soNumber TEXT,
+            deliveryNumber TEXT,
             invoiceDate TEXT NOT NULL,
             creationUser TEXT,
             totalAmountNotTax REAL DEFAULT 0.0,
@@ -397,6 +412,7 @@ class LocalDatabaseHelper {
           )
         ''');
         await db.execute('CREATE INDEX IF NOT EXISTS ix_x3h_customer ON $tableX3HistoryHeader(billToCustomer, invoiceDate DESC)');
+        await db.execute('CREATE INDEX IF NOT EXISTS ix_x3h_custcode ON $tableX3HistoryHeader(customerCode, invoiceDate DESC)');
         await db.execute('CREATE INDEX IF NOT EXISTS ix_x3h_site ON $tableX3HistoryHeader(salesSite)');
 
         await db.execute('''
@@ -4099,6 +4115,9 @@ class LocalDatabaseHelper {
         final invNum = (doc['invoiceNumber'] ?? '').toString();
         if (invNum.isEmpty) continue;
 
+        final custCode = (doc['customerCode'] ?? doc['billToCustomer'] ?? '').toString();
+        final custName = (doc['customerName'] ?? '').toString();
+
         await txn.insert(
           tableX3HistoryHeader,
           {
@@ -4107,6 +4126,10 @@ class LocalDatabaseHelper {
             'salesSite': doc['salesSite']?.toString() ?? '',
             'invoiceTypeFlag': (doc['invoiceTypeFlag'] as num?)?.toInt() ?? 1,
             'billToCustomer': doc['billToCustomer']?.toString() ?? '',
+            'customerCode': custCode.isNotEmpty ? custCode : (doc['billToCustomer']?.toString() ?? ''),
+            'customerName': custName,
+            'soNumber': doc['soNumber']?.toString() ?? '',
+            'deliveryNumber': doc['deliveryNumber']?.toString() ?? '',
             'invoiceDate': doc['invoiceDate']?.toString() ?? '',
             'creationUser': doc['creationUser']?.toString() ?? '',
             'totalAmountNotTax': (doc['totalAmountNotTax'] as num?)?.toDouble() ?? 0.0,
@@ -4158,8 +4181,9 @@ class LocalDatabaseHelper {
     String? endDate,
   }) async {
     final db = await database;
-    final whereClauses = <String>['billToCustomer = ?'];
-    final whereArgs = <dynamic>[customerCode.trim()];
+    final cleanCust = customerCode.trim();
+    final whereClauses = <String>['(customerCode = ? OR billToCustomer = ?)'];
+    final whereArgs = <dynamic>[cleanCust, cleanCust];
 
     if (type != null && type.isNotEmpty && type != 'ALL') {
       if (type == 'INVOICE') {

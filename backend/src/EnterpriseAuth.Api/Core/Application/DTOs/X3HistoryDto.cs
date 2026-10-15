@@ -11,8 +11,12 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public int InvoiceTypeFlag { get; set; } // 1 = Invoice, 2 = Credit Note
         public string DocType => InvoiceTypeFlag == 2 ? "CREDIT_NOTE" : "INVOICE";
         public string BillToCustomer { get; set; } = string.Empty;
+        public string CustomerCode { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
         public DateTime InvoiceDate { get; set; }
         public string CreationUser { get; set; } = string.Empty;
+        public string SoNumber { get; set; } = string.Empty;
+        public string DeliveryNumber { get; set; } = string.Empty;
         public decimal TotalAmountNotTax { get; set; }
         public decimal TotalAmountIncTax { get; set; }
         public List<X3HistoryLineDto> Lines { get; set; } = new List<X3HistoryLineDto>();
@@ -40,8 +44,12 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string InvoiceNumber { get; set; } = string.Empty;
         public int InvoiceTypeFlag { get; set; }
         public string BillToCustomer { get; set; } = string.Empty;
+        public string CustomerCode { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
         public DateTime InvoiceDate { get; set; }
         public string CreationUser { get; set; } = string.Empty;
+        public string SoNumber { get; set; } = string.Empty;
+        public string DeliveryNumber { get; set; } = string.Empty;
         public int LineNumber { get; set; }
         public string ProductCode { get; set; } = string.Empty;
         public string ProductDescription { get; set; } = string.Empty;
