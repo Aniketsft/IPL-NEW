@@ -40,7 +40,7 @@ namespace EnterpriseAuth.Api.Controllers
             if (payload == null || string.IsNullOrWhiteSpace(payload.InvoiceId))
                 return BadRequest(new { success = false, error = "Invalid payload." });
 
-            var totalAmount = payload.Lines.Sum(l => l.Total);
+            var totalAmount = payload.Lines.Sum(l => l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount));
             if (payload.Lines.Count == 0 || totalAmount <= 0)
                 return BadRequest(new { success = false, error = "Invoice with zero or negative total amount cannot be created." });
 
@@ -78,6 +78,7 @@ namespace EnterpriseAuth.Api.Controllers
 
                 foreach(var l in payload.Lines)
                 {
+                    var lineTotal = l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount);
                     stagingHeader.Lines.Add(new StagingSalesInvoiceLine
                     {
                         InvoiceId = payload.InvoiceId,
@@ -88,6 +89,7 @@ namespace EnterpriseAuth.Api.Controllers
                         BasePrice = (double)l.BasePrice,
                         DiscountAmount = (double)l.DiscountAmount,
                         VatAmount = (double)l.VatAmount,
+                        Total = (double)lineTotal,
                         LotNumber = l.LotNumber,
                         Warehouse = l.Warehouse,
                         SalesUnit = l.SalesUnit,

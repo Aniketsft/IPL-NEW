@@ -72,6 +72,10 @@ class SalesInvoiceSyncRepository {
               "basePrice": l['basePrice'] ?? 0.0,
               "discountAmount": l['discountAmount'] ?? 0.0,
               "vatAmount": l['vatAmount'] ?? 0.0,
+              "total": (l['total'] as num?)?.toDouble() ??
+                  (((l['quantity'] as num?)?.toDouble() ?? 0.0) * ((l['basePrice'] as num?)?.toDouble() ?? 0.0) -
+                      ((l['discountAmount'] as num?)?.toDouble() ?? 0.0) +
+                      ((l['vatAmount'] as num?)?.toDouble() ?? 0.0)),
               "lotNumber": l['lotNumber'] ?? '',
               "warehouse": l['warehouse'] ?? '',
               "salesUnit": l['salesUnit'] ?? 'EA',
