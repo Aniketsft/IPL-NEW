@@ -27,7 +27,7 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(50)]
         public string? DueDate { get; set; }
 
-        [MaxLength(50)]
+        [NotMapped]
         public string? PaymentTerm { get; set; }
 
         [MaxLength(200)]

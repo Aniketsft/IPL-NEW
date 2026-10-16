@@ -105,7 +105,7 @@ class SalesInvoiceSyncRepository {
              failures.add('$invoiceId: ${response.data}');
           }
         } catch (e) {
-          if (e is DioException && e.response?.statusCode == 400) {
+          if (e is DioException && e.response != null) {
             // Include backend X3 error message directly
             final data = e.response?.data;
             if (data is Map) {
@@ -118,10 +118,10 @@ class SalesInvoiceSyncRepository {
               } else if (data.containsKey('error')) {
                 failures.add('$invoiceId: ${data['error']}');
               } else {
-                failures.add('$invoiceId: $data');
+                failures.add('$invoiceId: [HTTP ${e.response?.statusCode}] $data');
               }
             } else {
-              failures.add('$invoiceId: $data');
+              failures.add('$invoiceId: [HTTP ${e.response?.statusCode}] $data');
             }
           } else {
             failures.add('$invoiceId: Failed to sync ($e)');
