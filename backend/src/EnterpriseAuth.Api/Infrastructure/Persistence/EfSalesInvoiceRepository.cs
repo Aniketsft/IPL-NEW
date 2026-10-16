@@ -376,7 +376,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SiteCode = (siteCode ?? "").Trim(),
                 CustomerCode = (customerCode ?? "").Trim(),
                 Months = months > 0 ? months : 6
-            });
+            }, commandTimeout: 120);
 
             var grouped = new Dictionary<string, X3HistoryDocumentDto>();
             foreach (var r in rows)

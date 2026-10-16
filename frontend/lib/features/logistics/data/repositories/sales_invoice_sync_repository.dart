@@ -120,71 +120,96 @@ class SalesInvoiceSyncRepository {
         }
       }
 
-      // 2. Fetch Sales Invoice Customers (All customers across all sites)
-      final siResponse = await _dio.get('SalesInvoice/customers');
-      final siCustomers = siResponse.data as List<dynamic>? ?? [];
-      await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
-      debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
+      // Helper to safely execute a network request without failing sibling requests
+      Future<Response?> safeGet(String path, {Map<String, dynamic>? queryParameters, Options? options, String? label}) async {
+        try {
+          return await _dio.get(path, queryParameters: queryParameters, options: options);
+        } catch (e) {
+          debugPrint('Sync: Failed to fetch $label ($path): $e');
+          return null;
+        }
+      }
 
-      // 3. Fetch Sales Invoice Item Stock Details
-      await _productRepository.syncSalesInvoiceItemStockDetails(siteCode);
-      
-      // 4. Fetch Tax Matrix and Tax Rates
-      final taxMatrixResponse = await _dio.get('SalesInvoice/tax-determinations');
-      final taxRatesResponse = await _dio.get('SalesInvoice/tax-rates');
-      final taxMatrix = taxMatrixResponse.data as List<dynamic>? ?? [];
-      final taxRates = taxRatesResponse.data as List<dynamic>? ?? [];
-      await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
-      debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
-      
-      // 5. Fetch Price Lists (fallback to INLDRYRUN if no schema is selected)
       final schemaStr = await SecureStorageService().getSchema();
       final schema = (schemaStr == null || schemaStr.isEmpty) ? 'INLDRYRUN' : schemaStr;
-      
       if (schema == 'INLDRYRUN') {
         debugPrint('⚠️ WARNING: Fetching price lists from INLDRYRUN schema. Ensure the correct schema is configured in app settings. Prices may not reflect production rules.');
       }
-      
-      final priceListResponse = await _dio.get(
-        'SalesInvoice/price-lists',
-        queryParameters: {'schema': schema},
-      );
-      final priceLists = priceListResponse.data as List<dynamic>? ?? [];
-      await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
-      debugPrint('Sync: Synced ${priceLists.length} Price Lists.');
 
-      // 6. Fetch Sales Reps
-      try {
-        final repsResponse = await _dio.get(
-          'SalesInvoice/salesreps',
-          queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null,
-        );
-        final rawReps = repsResponse.data as List<dynamic>? ?? [];
+      final openInvParams = <String, dynamic>{'daysCutoff': 90};
+      if (siteCode.isNotEmpty) openInvParams['sitecode'] = siteCode;
+
+      final x3Params = <String, dynamic>{'months': 6};
+      if (siteCode.isNotEmpty && siteCode != 'ALL') x3Params['sitecode'] = siteCode;
+
+      debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
+      final results = await Future.wait([
+        safeGet('SalesInvoice/customers', label: 'Customers'),
+        safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
+        safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
+        safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists'),
+        safeGet('SalesInvoice/salesreps', queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null, label: 'Sales Reps'),
+        safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices'),
+        safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History'),
+        _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) => null).catchError((e) {
+          debugPrint('Sync: Failed to fetch stock details: $e');
+          return null;
+        }),
+      ]);
+
+      final custResp = results[0];
+      final taxMatrixResp = results[1];
+      final taxRatesResp = results[2];
+      final priceListResp = results[3];
+      final repsResp = results[4];
+      final openInvResp = results[5];
+      final x3Resp = results[6];
+
+      // Ingest Customers
+      if (custResp != null && custResp.data is List) {
+        final siCustomers = custResp.data as List<dynamic>;
+        await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
+        debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
+      }
+
+      // Ingest Tax Matrix & Rates
+      if (taxMatrixResp != null && taxRatesResp != null) {
+        final taxMatrix = taxMatrixResp.data as List<dynamic>? ?? [];
+        final taxRates = taxRatesResp.data as List<dynamic>? ?? [];
+        await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
+        debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
+      }
+
+      // Ingest Price Lists
+      if (priceListResp != null && priceListResp.data is List) {
+        final priceLists = priceListResp.data as List<dynamic>;
+        await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
+        debugPrint('Sync: Synced ${priceLists.length} Price Lists.');
+      }
+
+      // Ingest Sales Reps
+      if (repsResp != null && repsResp.data is List) {
+        final rawReps = repsResp.data as List<dynamic>;
         final repsList = rawReps.map((item) => Map<String, dynamic>.from(item as Map)).toList();
         await LocalDatabaseHelper.instance.upsertSalesReps(repsList);
         debugPrint('Sync: Synced ${repsList.length} Sales Reps.');
-      } catch (e) {
-        debugPrint('Sync: Failed to fetch sales reps: $e');
       }
 
-      // 7. Fetch Open Invoices & Credit Notes (INV / CN) - Filtered only by Site
-      try {
-        final Map<String, dynamic> queryParams = {
-          'daysCutoff': 90,
-        };
-        if (siteCode.isNotEmpty) {
-          queryParams['sitecode'] = siteCode;
-        }
-
-        final openInvResponse = await _dio.get(
-          'SalesInvoice/open-invoices',
-          queryParameters: queryParams,
-        );
-        final rawOpenInvoices = openInvResponse.data as List<dynamic>? ?? [];
+      // Ingest Open Invoices
+      if (openInvResp != null && openInvResp.data is List) {
+        final rawOpenInvoices = openInvResp.data as List<dynamic>;
         await LocalDatabaseHelper.instance.refreshOpenInvoices(rawOpenInvoices);
         debugPrint('Sync: Synced ${rawOpenInvoices.length} Open Invoices & Credit Notes (Site: $siteCode, Cutoff: 90d).');
-      } catch (e) {
-        debugPrint('Sync: Failed to fetch open invoices: $e');
+      }
+
+      // Ingest 6-Month X3 History
+      if (x3Resp != null && x3Resp.data is List) {
+        final rawX3Docs = x3Resp.data as List<dynamic>;
+        if (rawX3Docs.isNotEmpty) {
+          await LocalDatabaseHelper.instance.pruneX3HistoryOlderThan(months: 6);
+          await LocalDatabaseHelper.instance.saveX3HistoryDocuments(rawX3Docs);
+          debugPrint('Sync: Synced ${rawX3Docs.length} X3 History Documents (Site: $siteCode, 6 months).');
+        }
       }
 
       // 8. Push Unsynced Open Invoice Payments

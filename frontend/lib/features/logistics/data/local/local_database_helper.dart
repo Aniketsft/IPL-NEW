@@ -4154,69 +4154,110 @@ class LocalDatabaseHelper {
   }
 
   Future<void> saveX3HistoryDocuments(List<dynamic> documents) async {
+    if (documents.isEmpty) return;
     final db = await database;
-    await db.transaction((txn) async {
-      for (final doc in documents) {
-        if (doc is! Map) continue;
-        final invNum = (doc['invoiceNumber'] ?? '').toString();
-        if (invNum.isEmpty) continue;
 
-        final custCode = (doc['customerCode'] ?? doc['billToCustomer'] ?? '').toString();
-        final custName = (doc['customerName'] ?? '').toString();
+    const chunkSize = 500;
+    for (int i = 0; i < documents.length; i += chunkSize) {
+      final end = (i + chunkSize < documents.length) ? i + chunkSize : documents.length;
+      final chunk = documents.sublist(i, end);
 
-        await txn.insert(
-          tableX3HistoryHeader,
-          {
-            'invoiceNumber': invNum,
-            'company': doc['company']?.toString() ?? '',
-            'salesSite': doc['salesSite']?.toString() ?? '',
-            'invoiceTypeFlag': (doc['invoiceTypeFlag'] as num?)?.toInt() ?? 1,
-            'billToCustomer': doc['billToCustomer']?.toString() ?? '',
-            'customerCode': custCode.isNotEmpty ? custCode : (doc['billToCustomer']?.toString() ?? ''),
-            'customerName': custName,
-            'soNumber': doc['soNumber']?.toString() ?? '',
-            'deliveryNumber': doc['deliveryNumber']?.toString() ?? '',
-            'invoiceDate': doc['invoiceDate']?.toString() ?? '',
-            'creationUser': doc['creationUser']?.toString() ?? '',
-            'totalAmountNotTax': (doc['totalAmountNotTax'] as num?)?.toDouble() ?? 0.0,
-            'totalAmountIncTax': (doc['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0,
-            'lastSyncAt': DateTime.now().toIso8601String(),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+        for (final doc in chunk) {
+          if (doc is! Map) continue;
+          final invNum = (doc['invoiceNumber'] ?? '').toString();
+          if (invNum.isEmpty) continue;
 
-        final lines = doc['lines'];
-        if (lines is List) {
-          await txn.delete(
-            tableX3HistoryLines,
-            where: 'invoiceNumber = ?',
-            whereArgs: [invNum],
+          final custCode = (doc['customerCode'] ?? doc['billToCustomer'] ?? '').toString();
+          final custName = (doc['customerName'] ?? '').toString();
+
+          batch.insert(
+            tableX3HistoryHeader,
+            {
+              'invoiceNumber': invNum,
+              'company': doc['company']?.toString() ?? '',
+              'salesSite': doc['salesSite']?.toString() ?? '',
+              'invoiceTypeFlag': (doc['invoiceTypeFlag'] as num?)?.toInt() ?? 1,
+              'billToCustomer': doc['billToCustomer']?.toString() ?? '',
+              'customerCode': custCode.isNotEmpty ? custCode : (doc['billToCustomer']?.toString() ?? ''),
+              'customerName': custName,
+              'soNumber': doc['soNumber']?.toString() ?? '',
+              'deliveryNumber': doc['deliveryNumber']?.toString() ?? '',
+              'invoiceDate': doc['invoiceDate']?.toString() ?? '',
+              'creationUser': doc['creationUser']?.toString() ?? '',
+              'totalAmountNotTax': (doc['totalAmountNotTax'] as num?)?.toDouble() ?? 0.0,
+              'totalAmountIncTax': (doc['totalAmountIncTax'] as num?)?.toDouble() ?? 0.0,
+              'lastSyncAt': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
           );
 
-          for (final line in lines) {
-            if (line is! Map) continue;
-            await txn.insert(
+          final lines = doc['lines'];
+          if (lines is List) {
+            batch.delete(
               tableX3HistoryLines,
-              {
-                'invoiceNumber': invNum,
-                'lineNumber': (line['lineNumber'] as num?)?.toInt() ?? 0,
-                'productCode': line['productCode']?.toString() ?? '',
-                'productDescription': line['productDescription']?.toString() ?? '',
-                'quantity': (line['quantity'] as num?)?.toDouble() ?? 0.0,
-                'salesUOM': line['salesUOM']?.toString() ?? '',
-                'grossPrice': (line['grossPrice'] as num?)?.toDouble() ?? 0.0,
-                'netPrice': (line['netPrice'] as num?)?.toDouble() ?? 0.0,
-                'lineAmountNotTax': (line['lineAmountNotTax'] as num?)?.toDouble() ?? 0.0,
-                'lineAmountIncTax': (line['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0,
-                'discountValue1': (line['discountValue1'] as num?)?.toDouble() ?? 0.0,
-                'discountValue2': (line['discountValue2'] as num?)?.toDouble() ?? 0.0,
-              },
-              conflictAlgorithm: ConflictAlgorithm.replace,
+              where: 'invoiceNumber = ?',
+              whereArgs: [invNum],
             );
+
+            for (final line in lines) {
+              if (line is! Map) continue;
+              batch.insert(
+                tableX3HistoryLines,
+                {
+                  'invoiceNumber': invNum,
+                  'lineNumber': (line['lineNumber'] as num?)?.toInt() ?? 0,
+                  'productCode': line['productCode']?.toString() ?? '',
+                  'productDescription': line['productDescription']?.toString() ?? '',
+                  'quantity': (line['quantity'] as num?)?.toDouble() ?? 0.0,
+                  'salesUOM': line['salesUOM']?.toString() ?? '',
+                  'grossPrice': (line['grossPrice'] as num?)?.toDouble() ?? 0.0,
+                  'netPrice': (line['netPrice'] as num?)?.toDouble() ?? 0.0,
+                  'lineAmountNotTax': (line['lineAmountNotTax'] as num?)?.toDouble() ?? 0.0,
+                  'lineAmountIncTax': (line['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0,
+                  'discountValue1': (line['discountValue1'] as num?)?.toDouble() ?? 0.0,
+                  'discountValue2': (line['discountValue2'] as num?)?.toDouble() ?? 0.0,
+                },
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+            }
           }
         }
+        await batch.commit(noResult: true);
+      });
+
+      // Yield event loop between chunks so UI renders and won't stutter
+      if (end < documents.length) {
+        await Future.delayed(Duration.zero);
       }
-    });
+    }
+  }
+
+  Future<void> pruneX3HistoryOlderThan({int months = 6}) async {
+    try {
+      final db = await database;
+      final cutoffDate = DateTime.now().subtract(Duration(days: months * 31)).toIso8601String();
+      await db.transaction((txn) async {
+        // Delete lines belonging to invoices before cutoff
+        await txn.rawDelete('''
+          DELETE FROM $tableX3HistoryLines 
+          WHERE invoiceNumber IN (
+            SELECT invoiceNumber FROM $tableX3HistoryHeader WHERE invoiceDate < ?
+          )
+        ''', [cutoffDate]);
+        
+        // Delete headers before cutoff
+        await txn.delete(
+          tableX3HistoryHeader,
+          where: 'invoiceDate < ?',
+          whereArgs: [cutoffDate],
+        );
+      });
+      debugPrint('Pruned X3 historical invoices older than $months months (< $cutoffDate).');
+    } catch (e) {
+      debugPrint('pruneX3HistoryOlderThan error: $e');
+    }
   }
 
   Future<List<Map<String, dynamic>>> getX3HistoryHeaders({
@@ -4277,9 +4318,13 @@ class LocalDatabaseHelper {
 
   Future<int> insertOrUpdateDeviceLocation(Map<String, dynamic> row) async {
     final db = await database;
+    final sanitized = Map<String, dynamic>.from(row);
+    if (sanitized.containsKey('isActive')) {
+      sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
+    }
     return await db.insert(
       tableDeviceLocations,
-      row,
+      sanitized,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -4288,9 +4333,13 @@ class LocalDatabaseHelper {
     final db = await database;
     final batch = db.batch();
     for (final item in items) {
+      final sanitized = Map<String, dynamic>.from(item);
+      if (sanitized.containsKey('isActive')) {
+        sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
+      }
       batch.insert(
         tableDeviceLocations,
-        item,
+        sanitized,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }

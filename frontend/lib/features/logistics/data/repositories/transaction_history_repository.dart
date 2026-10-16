@@ -299,8 +299,23 @@ class TransactionHistoryRepository {
     String? endDate,
     String? searchQuery,
     String? siteCode,
+    bool forceRefresh = false,
   }) async {
-    // 1. Try remote fetch if networkService is available
+    // 1. Check local SQLite first for instant 0ms offline presentation
+    final localRows = await _dbHelper.getX3HistoryHeaders(
+      customerCode: customerCode,
+      type: type,
+      searchQuery: searchQuery,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    // If local records already exist and forceRefresh is false, return immediately
+    if (localRows.isNotEmpty && !forceRefresh) {
+      return _mapX3RowsToTransactions(localRows, customerCode);
+    }
+
+    // 2. Try remote fetch if networkService is available (when local is empty or refresh forced)
     if (_networkService != null) {
       try {
         final queryParams = <String, dynamic>{
@@ -324,7 +339,7 @@ class TransactionHistoryRepository {
       }
     }
 
-    // 2. Query from local SQLite
+    // 3. Query from local SQLite again to include newly downloaded records
     final rows = await _dbHelper.getX3HistoryHeaders(
       customerCode: customerCode,
       type: type,
@@ -333,6 +348,10 @@ class TransactionHistoryRepository {
       endDate: endDate,
     );
 
+    return _mapX3RowsToTransactions(rows, customerCode);
+  }
+
+  List<TransactionModel> _mapX3RowsToTransactions(List<Map<String, dynamic>> rows, String customerCode) {
     return rows.map((r) {
       final flag = (r['invoiceTypeFlag'] as num?)?.toInt() ?? 1;
       final docType = flag == 2 ? 'CREDIT_NOTE' : 'INVOICE';

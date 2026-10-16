@@ -103,7 +103,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     super.dispose();
   }
 
-  Future<void> _loadTransactions() async {
+  Future<void> _loadTransactions({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
@@ -117,6 +117,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           startDate: _startDate,
           endDate: _endDate,
           searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+          forceRefresh: forceRefresh,
         );
       } else {
         transactions = await _repository.getTransactions(
@@ -481,36 +482,45 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           const Divider(height: 12),
           // List view
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _transactions.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.search_off, size: 48, color: Colors.grey.withOpacity(0.5)),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'No transactions found matching the criteria.',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
-                              ),
-                              if (_hasActiveFilters) ...[
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: _resetAllFilters,
-                                  icon: const Icon(Icons.refresh, size: 16),
-                                  label: const Text('Reset All Filters'),
+            child: RefreshIndicator(
+              onRefresh: () => _loadTransactions(forceRefresh: true),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _transactions.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.search_off, size: 48, color: Colors.grey.withOpacity(0.5)),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'No transactions found matching the criteria.',
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    if (_hasActiveFilters) ...[
+                                      const SizedBox(height: 12),
+                                      OutlinedButton.icon(
+                                        onPressed: _resetAllFilters,
+                                        icon: const Icon(Icons.refresh, size: 16),
+                                        label: const Text('Reset All Filters'),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _transactions.length,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _transactions.length,
                         itemBuilder: (context, index) {
                           final tx = _transactions[index];
                           
@@ -703,6 +713,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           );
                         },
                       ),
+            ),
           ),
         ],
       ),
