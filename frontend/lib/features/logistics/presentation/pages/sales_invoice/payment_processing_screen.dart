@@ -369,6 +369,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             .where((s) => s.isNotEmpty && s != 'MANUAL' && !s.contains('discount-only'))
             .firstOrNull ?? '';
 
+      // Safe defensive schema verification for paymentTerm before inserting
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN paymentTerm TEXT');
+      } catch (_) {}
+
       // 1. Insert Invoice with Active Selected Sales Rep(s)
       final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
       final salesRepString = selectedReps.isNotEmpty

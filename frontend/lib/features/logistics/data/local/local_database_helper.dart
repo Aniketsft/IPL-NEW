@@ -216,10 +216,18 @@ class LocalDatabaseHelper {
   }
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
+    if (_database != null) {
+      try {
+        await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
+      } catch (_) {}
+      return _database!;
+    }
     _database = await _initDatabase();
     
     // FORCE SCHEMA UPDATE HACK FOR HOT RELOAD/RESTART ISSUES
+    try {
+      await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
+    } catch (_) {}
     try {
       await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN reasonType INTEGER DEFAULT 0');
     } catch (_) {}
@@ -407,6 +415,11 @@ class LocalDatabaseHelper {
       version: _databaseVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        try {
+          await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
+        } catch (_) {}
+      },
     );
   }
 
@@ -1914,6 +1927,7 @@ class LocalDatabaseHelper {
         salesRep TEXT,
         pricingRule TEXT,
         dueDate TEXT,
+        paymentTerm TEXT,
         userName TEXT,
         createdBy TEXT,
         isReversed INTEGER DEFAULT 0,
