@@ -64,6 +64,7 @@ class SalesInvoiceSyncRepository {
             "reference": invoice['reference'] ?? '',
             "invoiceType": invoice['invoiceType'] ?? 'STD',
             "transactionalId": invoice['transactionalId'] ?? invoiceId,
+            "paymentTerm": invoice['paymentTerm'] ?? '',
             "lines": lines.map((l) => {
               "sku": l['sku'],
               "name": l['name'],
@@ -71,6 +72,10 @@ class SalesInvoiceSyncRepository {
               "quantity": l['quantity'] ?? 0.0,
               "basePrice": l['basePrice'] ?? 0.0,
               "discountAmount": l['discountAmount'] ?? 0.0,
+              "discountAmountFlat": l['discountAmountFlat'] ?? 0.0,
+              "discount1": (l['discountAmount'] as num?)?.toDouble() ?? 0.0,
+              "discount2": (l['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
+              "discount3": 0.0,
               "vatAmount": l['vatAmount'] ?? 0.0,
               "total": (l['total'] as num?)?.toDouble() ??
                   (((l['quantity'] as num?)?.toDouble() ?? 0.0) * ((l['basePrice'] as num?)?.toDouble() ?? 0.0) -
@@ -78,12 +83,12 @@ class SalesInvoiceSyncRepository {
                       ((l['vatAmount'] as num?)?.toDouble() ?? 0.0)),
               "lotNumber": l['lotNumber'] ?? '',
               "warehouse": l['warehouse'] ?? '',
+              "location": l['location'] ?? '',
               "salesUnit": l['salesUnit'] ?? 'EA',
               "cce0": l['cce0'] ?? '',
               "taxRule": l['taxRule'] ?? '',
               "isFoc": (l['isFoc'] ?? 0) == 1,
               "pricingSource": l['pricingSource'] ?? '',
-              "discountAmountFlat": l['discountAmountFlat'] ?? 0.0,
               "priceListCode": l['priceListCode'] ?? '',
               "reasonType": l['reasonType'] ?? 0
             }).toList()

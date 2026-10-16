@@ -17,6 +17,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Reference { get; set; }
         public string InvoiceType { get; set; } = "STD";
         public string? TransactionalId { get; set; }
+        public string? PaymentTerm { get; set; }
 
         public List<SalesInvoiceLineDto> Lines { get; set; } = new List<SalesInvoiceLineDto>();
     }
@@ -29,10 +30,14 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public double Quantity { get; set; }
         public double BasePrice { get; set; }
         public double DiscountAmount { get; set; }
+        public double DiscountAmountFlat { get; set; }
+        public double Discount2 { get; set; }
+        public double Discount3 { get; set; }
         public double VatAmount { get; set; }
         public double Total { get; set; }
         public string? LotNumber { get; set; }
         public string? Warehouse { get; set; }
+        public string? Location { get; set; }
         public string? SalesUnit { get; set; }
         public string? Cce0 { get; set; }
         public string? TaxRule { get; set; }

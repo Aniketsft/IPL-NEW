@@ -352,8 +352,32 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     : (!string.IsNullOrWhiteSpace(invoice.SalesSite) && invoice.SalesSite != "ALL" ? invoice.SalesSite : "IPL");
                 string pricingRule = invoice.PricingRule ?? "";
 
-                // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;;MUR;DueDate;;|
-                fileBuilder.Append($"V;{site};{invoice.InvoiceType};{site};1;;{invoice.CustomerCode};{invoiceDate};{invoice.Reference ?? ""};2;;MUR;{dueDate};;|");
+                // Resolve Sales Rep and Customer Payment Term
+                string salesRep = (invoice.SalesRep ?? "").Trim();
+                string paymentTerm = invoice.PaymentTerm ?? "";
+                if (string.IsNullOrWhiteSpace(paymentTerm) && !string.IsNullOrWhiteSpace(invoice.CustomerCode))
+                {
+                    try
+                    {
+                        string schema = "INLPROD";
+                        var httpContext = _httpContextAccessor.HttpContext;
+                        if (httpContext != null && httpContext.Request.Headers.TryGetValue("X-X3-Schema", out var schemaHeader) && !string.IsNullOrWhiteSpace(schemaHeader))
+                        {
+                            schema = schemaHeader.ToString().Trim();
+                        }
+
+                        using var connection = new SqlConnection(_innodisConnectionString);
+                        string sql = $"SELECT TOP 1 LTRIM(RTRIM(PTE_0)) FROM x3.{schema}.BPCUSTOMER WHERE BPCNUM_0 = @CustomerCode";
+                        paymentTerm = (await connection.QueryFirstOrDefaultAsync<string>(sql, new { CustomerCode = invoice.CustomerCode })) ?? "";
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SageX3SoapService] Warning: Failed to query customer payment term: {ex.Message}");
+                    }
+                }
+
+                // Header Record: V;SalesSite;InvoiceType;SalesSite;1;;CustomerCode;InvoiceDate;Reference;2;SalesRep;MUR;PaymentTerm;;|
+                fileBuilder.Append($"V;{site};{invoice.InvoiceType};{site};1;;{invoice.CustomerCode};{invoiceDate};{invoice.Reference ?? ""};2;{salesRep};MUR;{paymentTerm};;|");
 
                 // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER)
                 var itemMetadata = await GetItemMetadataAsync(invoice.Lines.Select(l => l.Sku));
@@ -381,10 +405,15 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                     string qty = line.Quantity.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
                     string basePrice = line.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-                    string discount = line.DiscountAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    string disc1 = line.DiscountAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    string disc2 = (line.Discount2 > 0 ? line.Discount2 : line.DiscountAmountFlat).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    string disc3 = line.Discount3.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    string warehouse = line.Warehouse ?? "";
+                    string location = line.Location ?? "";
+                    string lotNumber = line.LotNumber ?? "";
 
-                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;Price;Disc1;Disc2;Disc3;TaxRule;;0;|
-                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{unit};{qty};{basePrice};{discount};0;0;{taxRule};;0;|");
+                    // Line Record: D;LineNo;Sku;Name;SalesUnit;Quantity;Price;Disc1;Disc2;Disc3;TaxRule;;;Warehouse;Location;LotNumber;|
+                    fileBuilder.Append($"D;{lineMultiplier};{line.Sku};{line.Name};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;;{warehouse};{location};{lotNumber};|");
                     
                     // Analytical Record: A;DPT;Cce0|
                     string cce0 = string.IsNullOrWhiteSpace(line.Cce0) ? "COMMERCIAL" : line.Cce0;

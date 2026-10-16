@@ -396,6 +396,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'salesRep': salesRepString,
         'pricingRule': resolvedPricingRule,
         'dueDate': DateTime.now().toIso8601String(),
+        'paymentTerm': (cartState.customer?['paymentTerm'] ?? '').toString().trim(),
         'userName': username,
         'createdBy': username,
         'transactionalId': invoiceId,

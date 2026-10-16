@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 90;
+  static const _databaseVersion = 91;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -411,6 +411,15 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 91) {
+      debugPrint('DB Upgrade: Adding paymentTerm to tableSiInvoices (v91)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
+      } catch (e) {
+        debugPrint('Migration error v91 ($tableSiInvoices): $e');
+      }
+    }
+
     if (oldVersion < 90) {
       debugPrint('DB Upgrade: Creating Device Locations table (v90)');
       try {
@@ -831,6 +840,7 @@ class LocalDatabaseHelper {
           salesRep TEXT,
           pricingRule TEXT,
           dueDate TEXT,
+          paymentTerm TEXT,
           userName TEXT,
           createdBy TEXT,
           deviceId TEXT,

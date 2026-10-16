@@ -27,6 +27,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(50)]
         public string? DueDate { get; set; }
 
+        [MaxLength(50)]
+        public string? PaymentTerm { get; set; }
+
         [MaxLength(200)]
         public string? UserName { get; set; }
 

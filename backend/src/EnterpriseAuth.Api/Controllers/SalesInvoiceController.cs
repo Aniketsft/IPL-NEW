@@ -73,12 +73,14 @@ namespace EnterpriseAuth.Api.Controllers
                     SyncedAt = DateTime.UtcNow,
                     UserName = payload.UserName,
                     SalesRep = payload.SalesRep,
+                    PaymentTerm = payload.PaymentTerm,
                     TransactionalId = payload.TransactionalId
                 };
 
                 foreach(var l in payload.Lines)
                 {
                     var lineTotal = l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount);
+                    var disc2 = l.Discount2 > 0 ? l.Discount2 : l.DiscountAmountFlat;
                     stagingHeader.Lines.Add(new StagingSalesInvoiceLine
                     {
                         InvoiceId = payload.InvoiceId,
@@ -88,10 +90,14 @@ namespace EnterpriseAuth.Api.Controllers
                         Quantity = (double)l.Quantity,
                         BasePrice = (double)l.BasePrice,
                         DiscountAmount = (double)l.DiscountAmount,
+                        DiscountAmountFlat = (double)l.DiscountAmountFlat,
+                        Discount2 = (double)disc2,
+                        Discount3 = (double)l.Discount3,
                         VatAmount = (double)l.VatAmount,
                         Total = (double)lineTotal,
                         LotNumber = l.LotNumber,
                         Warehouse = l.Warehouse,
+                        Location = l.Location,
                         SalesUnit = l.SalesUnit,
                         Cce0 = l.Cce0,
                         TaxRule = l.TaxRule

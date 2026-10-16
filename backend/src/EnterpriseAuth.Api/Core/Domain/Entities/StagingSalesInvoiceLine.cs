@@ -27,6 +27,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public double Quantity { get; set; }
         public double BasePrice { get; set; }
         public double DiscountAmount { get; set; }
+        public double DiscountAmountFlat { get; set; }
+        public double Discount2 { get; set; }
+        public double Discount3 { get; set; }
         public double VatAmount { get; set; }
         public double Total { get; set; }
 
@@ -35,6 +38,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [MaxLength(50)]
         public string? Warehouse { get; set; }
+
+        [MaxLength(50)]
+        public string? Location { get; set; }
 
         [MaxLength(20)]
         public string? SalesUnit { get; set; }
