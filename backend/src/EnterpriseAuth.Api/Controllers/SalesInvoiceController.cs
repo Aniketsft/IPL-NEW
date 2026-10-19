@@ -71,10 +71,12 @@ namespace EnterpriseAuth.Api.Controllers
                     InvoiceType = !string.IsNullOrEmpty(payload.InvoiceType) ? payload.InvoiceType : "STD",
                     IsProcessedByX3 = false,
                     SyncedAt = DateTime.UtcNow,
-                    UserName = payload.UserName,
+                    UserName = !string.IsNullOrWhiteSpace(payload.UserName) ? payload.UserName : (User.Identity?.Name ?? "system"),
+                    CreatedBy = !string.IsNullOrWhiteSpace(payload.CreatedBy) ? payload.CreatedBy : (!string.IsNullOrWhiteSpace(payload.UserName) ? payload.UserName : (User.Identity?.Name ?? "system")),
+                    DeviceId = !string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.DeviceId : User.FindFirst("DeviceId")?.Value,
                     SalesRep = payload.SalesRep,
                     PaymentTerm = payload.PaymentTerm,
-                    TransactionalId = payload.TransactionalId
+                    TransactionalId = !string.IsNullOrWhiteSpace(payload.TransactionalId) ? payload.TransactionalId : payload.InvoiceId
                 };
 
                 foreach(var l in payload.Lines)
@@ -167,62 +169,69 @@ namespace EnterpriseAuth.Api.Controllers
                     payload.SalesSite = "IPL";
                 }
 
-                var stagingHeader = new StagingCreditNoteHeader
+                // Resolve real Sage X3 Document ID from HIPO Staging table if linked to an invoice
+                string resolvedOriginX3Id = payload.OriginalInvoiceId ?? "";
+                if (!string.IsNullOrWhiteSpace(payload.OriginalInvoiceId))
                 {
-                    CreditNoteId = payload.CreditNoteId,
-                    CreditNoteType = payload.CreditNoteType,
-                    X3CreditNoteType = !string.IsNullOrEmpty(payload.X3CreditNoteType) ? payload.X3CreditNoteType : "CRN",
+                    var matchingInvoice = await _dbContext.StagingSalesInvoiceHeaders
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(h => h.InvoiceId == payload.OriginalInvoiceId 
+                                               || h.TransactionalId == payload.OriginalInvoiceId
+                                               || h.X3DocumentId == payload.OriginalInvoiceId);
+
+                    if (matchingInvoice != null && !string.IsNullOrWhiteSpace(matchingInvoice.X3DocumentId))
+                    {
+                        resolvedOriginX3Id = matchingInvoice.X3DocumentId;
+                    }
+                }
+
+                // Map to normalized StagingSalesInvoiceHeader
+                string categoryStr = payload.Category > 0 ? payload.Category.ToString() : (payload.CreditNoteType == "RETURN" ? "3" : "2");
+                var stagingHeader = new StagingSalesInvoiceHeader
+                {
+                    InvoiceId = payload.CreditNoteId,
+                    InvoiceType = categoryStr, // "2" for Credit Note, "3" for Return
                     SalesSite = payload.SalesSite,
                     CustomerCode = payload.CustomerCode,
                     CustomerName = payload.CustomerName,
-                    Currency = !string.IsNullOrEmpty(payload.Currency) ? payload.Currency : "MUR",
-                    GrandTotal = payload.GrandTotal,
-                    OriginalInvoiceId = payload.OriginalInvoiceId,
-                    LinkedInvoiceIds = payload.LinkedInvoiceIds != null && payload.LinkedInvoiceIds.Count > 0 ? string.Join(",", payload.LinkedInvoiceIds) : null,
-                    SettlementType = payload.SettlementType,
-                    Reference = payload.Reference,
+                    SalesRep = payload.SalesRep,
+                    DueDate = payload.DueDate ?? payload.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd"),
                     CreatedAt = payload.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd"),
-                    CreatedBy = payload.CreatedBy ?? "system",
-                    DeviceId = payload.DeviceId,
+                    CreatedBy = !string.IsNullOrWhiteSpace(payload.CreatedBy) ? payload.CreatedBy : (User.Identity?.Name ?? "system"),
+                    UserName = !string.IsNullOrWhiteSpace(payload.UserName) ? payload.UserName : (!string.IsNullOrWhiteSpace(payload.CreatedBy) ? payload.CreatedBy : (User.Identity?.Name ?? "system")),
+                    DeviceId = !string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.DeviceId : User.FindFirst("DeviceId")?.Value,
+                    TransactionalId = !string.IsNullOrWhiteSpace(payload.TransactionalId) ? payload.TransactionalId : payload.CreditNoteId,
+                    Reference = payload.Reference ?? "",
+                    OriginInvoiceId = resolvedOriginX3Id,
+                    Reason = payload.Reason,
+                    TransactionMode = payload.TransactionMode ?? (string.IsNullOrEmpty(resolvedOriginX3Id) ? "1" : "4"),
                     IsProcessedByX3 = false,
                     SyncedAt = DateTime.UtcNow
                 };
 
                 foreach (var line in payload.Lines)
                 {
-                    stagingHeader.Lines.Add(new StagingCreditNoteLine
+                    stagingHeader.Lines.Add(new StagingSalesInvoiceLine
                     {
-                        CreditNoteId = payload.CreditNoteId,
+                        InvoiceId = payload.CreditNoteId,
                         LineNo = line.LineNo,
+                        Sku = line.Sku ?? line.StandaloneSku,
+                        Name = line.Name ?? line.StandaloneName,
                         Quantity = line.Quantity,
-                        OriginInvoiceId = line.OriginInvoiceId,
-                        OriginLineNo = line.OriginLineNo,
-                        StandaloneSku = line.StandaloneSku,
-                        StandaloneName = line.StandaloneName,
-                        StandaloneSalesUnit = line.StandaloneSalesUnit,
-                        StandalonePrice = line.StandalonePrice,
-                        StandaloneTaxRule = line.StandaloneTaxRule,
-                        StandaloneLot = line.StandaloneLot,
-                        StandaloneWarehouse = line.StandaloneWarehouse,
-                        StandaloneCce0 = line.StandaloneCce0
+                        BasePrice = line.BasePrice ?? line.StandalonePrice ?? 0.0,
+                        DiscountAmount = line.DiscountAmount ?? 0.0,
+                        Discount2 = line.Discount2 ?? 0.0,
+                        Discount3 = line.Discount3 ?? 0.0,
+                        TaxRule = line.TaxRule ?? line.StandaloneTaxRule ?? "VAT0",
+                        SalesUnit = line.SalesUnit ?? line.StandaloneSalesUnit ?? "UN",
+                        Warehouse = line.Warehouse ?? line.StandaloneWarehouse ?? "",
+                        LotNumber = line.LotNumber ?? line.StandaloneLot ?? "",
+                        Cce0 = line.Cce0 ?? line.StandaloneCce0 ?? "COMMERCIAL",
+                        OriginLineNo = line.OriginLineNo
                     });
                 }
 
-                foreach (var refund in payload.Refunds)
-                {
-                    stagingHeader.Refunds.Add(new StagingCreditNoteRefund
-                    {
-                        CreditNoteId = payload.CreditNoteId,
-                        Method = refund.Method,
-                        Amount = refund.Amount,
-                        BankCode = refund.BankCode,
-                        BankName = refund.BankName,
-                        ChequeNumber = refund.ChequeNumber,
-                        ChequeDate = refund.ChequeDate
-                    });
-                }
-
-                _dbContext.StagingCreditNoteHeaders.Add(stagingHeader);
+                _dbContext.StagingSalesInvoiceHeaders.Add(stagingHeader);
                 await _dbContext.SaveChangesAsync();
 
                 // 2. Invoke Sage X3 SOAP
@@ -450,6 +459,21 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 _logger.LogError(ex, "Error retrieving X3 history for site {Site}, customer {Customer}", effectiveSite, customercode);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving X3 history." });
+            }
+        }
+
+        [HttpGet("credit-note-reasons")]
+        public async Task<IActionResult> GetCreditNoteReasons()
+        {
+            try
+            {
+                var data = await _repository.GetCreditNoteReasonsAsync();
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving Sage X3 credit note reasons (Table 8)");
+                return StatusCode(500, new { error = "An internal error occurred while retrieving credit note reasons." });
             }
         }
 

@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'invoice_preview_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
@@ -73,6 +74,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       'CASH'; // 'CASH', 'CHEQUE', 'CREDIT', 'MYT MONEY', 'BLINK'
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
+  final _reasonController = TextEditingController();
 
   // Dynamic Fields
   final _bankCodeController = TextEditingController();
@@ -80,6 +82,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   final _chequeNumController = TextEditingController();
   final _chequeDateController = TextEditingController();
   final _qrRefController = TextEditingController();
+  final _reasonFocusNode = FocusNode();
+  String? _reasonErrorText;
+  List<Map<String, String>> _availableReasons = [];
+  String? _selectedReasonCode;
+  String? _selectedReasonDesc;
 
   final currencyFormat = NumberFormat.currency(
     locale: 'en_US',
@@ -99,6 +106,41 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         _selectedMethod = 'CN_OFFSET';
       }
     }
+    if (widget.isCreditNoteRefund) {
+      _loadCreditNoteReasons();
+    }
+  }
+
+  Future<void> _loadCreditNoteReasons() async {
+    final reasons = await LocalDatabaseHelper.instance.getCreditNoteReasons();
+    if (!mounted) return;
+    setState(() {
+      _availableReasons = reasons;
+      if (reasons.isNotEmpty) {
+        final currentText = _reasonController.text.trim();
+        final match = reasons.firstWhere(
+          (r) => r['code'] == currentText,
+          orElse: () => reasons.first,
+        );
+        _selectedReasonCode = match['code'];
+        _selectedReasonDesc = match['description'];
+        _reasonController.text = match['code']!;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _referenceController.dispose();
+    _reasonController.dispose();
+    _bankCodeController.dispose();
+    _bankNameController.dispose();
+    _chequeNumController.dispose();
+    _chequeDateController.dispose();
+    _qrRefController.dispose();
+    _reasonFocusNode.dispose();
+    super.dispose();
   }
 
   double _getTotalPaid() {
@@ -258,7 +300,32 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   }
 
   Future<void> _processPayment(SalesInvoiceLoaded cartState) async {
-    if (cartState.customer == null || cartState.cartItems.isEmpty) return;
+    Map<String, dynamic>? customer = cartState.customer;
+    if (customer == null && cartState.originalDocumentId != null) {
+      final db = await LocalDatabaseHelper.instance.database;
+      final invRows = await db.query(
+        LocalDatabaseHelper.tableSiInvoices,
+        where: 'invoiceId = ?',
+        whereArgs: [cartState.originalDocumentId!],
+        limit: 1,
+      );
+      if (invRows.isNotEmpty) {
+        customer = {
+          'code': invRows.first['customerCode'] ?? '',
+          'name': invRows.first['customerName'] ?? '',
+        };
+      }
+    }
+
+    if (customer == null || (cartState.cartItems.isEmpty && !widget.isOpenInvoiceMode)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot process: Customer or item information is missing.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     final grandTotal = cartState.grandTotal;
     if (grandTotal <= 0) {
@@ -275,12 +342,46 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
 
-    final totalPaid = _getTotalPaid();
+    if (!widget.isCreditNoteRefund) {
+      final totalPaid = _getTotalPaid();
 
-    if (totalPaid < grandTotal) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Full payment is required to process the invoice.'),
+      if (totalPaid < grandTotal) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Full payment is required to process the invoice.'),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (widget.isCreditNoteRefund && _reasonController.text.trim().isEmpty) {
+      setState(() {
+        _reasonErrorText = 'Credit note reason is mandatory to proceed';
+      });
+      _reasonFocusNode.requestFocus();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Reason Required'),
+            ],
+          ),
+          content: const Text(
+            'Credit Note Reason is mandatory in Sage X3.\n\nPlease input a credit note reason to proceed with this refund.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _reasonFocusNode.requestFocus();
+              },
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
       return;
@@ -316,16 +417,24 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       // Handle Credit Note Refund flow
       if (widget.isCreditNoteRefund) {
-        final refundMethod = _payments.isNotEmpty ? _payments.first.method : 'CASH';
+        const refundMethod = 'CASH';
+        final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
+        final salesRepString = selectedReps.isNotEmpty
+            ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
+            : username;
+
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
           salesSite: userSiteCode,
-          customerCode: cartState.customer!['code'],
-          customerName: cartState.customer!['name'],
+          customerCode: customer['code'],
+          customerName: customer['name'],
           refundMethod: refundMethod,
           refundAmount: grandTotal,
           createdBy: username,
           deviceId: deviceId,
           reference: _referenceController.text.trim(),
+          reason: _reasonController.text.trim(),
+          salesRep: salesRepString,
+          originInvoiceId: cartState.originalDocumentId,
           items: cartState.cartItems.map((item) => CreditNoteLineModel(
             creditNoteId: '',
             lineNo: 1000,
@@ -342,23 +451,37 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         );
 
         if (!mounted) return;
+
+        final cartItems = List<CartItem>.from(cartState.cartItems);
+        final subtotal = cartState.subtotal;
+        final totalDiscount = cartState.totalDiscount;
+        final totalVat = cartState.totalVat;
+        final reasonCode = _reasonController.text.trim();
+        final reasonDisplay = _selectedReasonDesc != null && _selectedReasonDesc!.isNotEmpty
+            ? '$_selectedReasonDesc ($reasonCode)'
+            : reasonCode;
+
         context.read<SalesInvoiceBloc>().add(ClearCart());
 
-        // Print thermal receipt
-        await Printing.layoutPdf(
-          onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
-            pageFormat: format,
-            creditNote: creditNote,
-            resolvedLines: cartState.cartItems.map((i) => {
-              'sku': i.product.sku,
-              'name': i.product.name,
-              'quantity': i.quantity,
-              'basePrice': i.basePrice,
-            }).toList(),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InvoicePreviewScreen(
+              invoiceId: creditNote.creditNoteId,
+              customer: customer!,
+              subtotal: subtotal,
+              discountAmount: totalDiscount,
+              vatAmount: totalVat,
+              grandTotal: grandTotal,
+              paymentMethod: 'CASH REFUND',
+              paymentStatus: 'REFUNDED',
+              items: cartItems,
+              isCreditNote: true,
+              creditNoteReason: reasonDisplay,
+              creditNoteModel: creditNote,
+            ),
           ),
         );
-
-        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
@@ -1045,13 +1168,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     bool isPreview = false,
     VoidCallback? onPrint,
   }) {
-    final totalPaid = _getTotalPaid();
-    final remaining = grandTotal - totalPaid;
-    final isFullyPaid = isZeroOffset || (grandTotal > 0 && remaining <= 0);
+    final isCreditNote = widget.isCreditNoteRefund;
+    final totalPaid = isCreditNote ? grandTotal : _getTotalPaid();
+    final remaining = isCreditNote ? 0.0 : (grandTotal - totalPaid);
+    final isFullyPaid = isCreditNote || isZeroOffset || (grandTotal > 0 && remaining <= 0);
     final changeDue = remaining < 0 ? remaining.abs() : 0.0;
 
     // Set default amount input if empty and not fully paid
-    if (!isFullyPaid && _amountController.text.isEmpty && !isZeroOffset) {
+    if (!isCreditNote && !isFullyPaid && _amountController.text.isEmpty && !isZeroOffset) {
       _amountController.text = remaining.toStringAsFixed(2);
     }
 
@@ -1166,6 +1290,103 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (widget.isCreditNoteRefund) ...[
+                    DropdownButtonFormField<String>(
+                      value: _selectedReasonCode,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Credit Note Reason *',
+                        hintText: 'Select credit note reason',
+                        errorText: _reasonErrorText,
+                        prefixIcon: const Icon(Icons.rule_rounded, color: AppTheme.primaryAmber),
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.grey.withOpacity(0.05),
+                      ),
+                      items: _availableReasons.map((r) {
+                        final code = r['code'] ?? '';
+                        final desc = r['description'] ?? code;
+                        return DropdownMenuItem<String>(
+                          value: code,
+                          child: Text(
+                            '$desc ($code)',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedReasonCode = val;
+                            final match = _availableReasons.firstWhere(
+                              (r) => r['code'] == val,
+                              orElse: () => {'code': val, 'description': val},
+                            );
+                            _selectedReasonDesc = match['description'];
+                            _reasonController.text = val;
+                            _reasonErrorText = null;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryAmber.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.primaryAmber.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryAmber.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.payments_outlined, color: AppTheme.primaryAmber, size: 28),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'REFUND METHOD: CASH',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.green.withOpacity(0.5)),
+                                      ),
+                                      child: const Text(
+                                        'CASH ONLY',
+                                        style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Credit note refund of ${currencyFormat.format(grandTotal)} is disbursed in Cash.',
+                                  style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (!isFullyPaid && !isZeroOffset) ...[
                     Text(
                       widget.isCreditNoteRefund ? 'ADD REFUND METHOD' : 'ADD PAYMENT',
@@ -1197,18 +1418,20 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                             'CREDIT',
                             isEnabled: isCreditEnabled,
                           ),
-                        _buildMethodButton(
-                          'BLINK',
-                          Icons.qr_code_2,
-                          'BLINK',
-                          isEnabled: true,
-                        ),
-                        _buildMethodButton(
-                          'MYT MONEY',
-                          Icons.phone_android,
-                          'MYT MONEY',
-                          isEnabled: true,
-                        ),
+                        if (!widget.isCreditNoteRefund)
+                          _buildMethodButton(
+                            'BLINK',
+                            Icons.qr_code_2,
+                            'BLINK',
+                            isEnabled: true,
+                          ),
+                        if (!widget.isCreditNoteRefund)
+                          _buildMethodButton(
+                            'MYT MONEY',
+                            Icons.phone_android,
+                            'MYT MONEY',
+                            isEnabled: true,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1463,7 +1686,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'TOTAL PAID',
+                      widget.isCreditNoteRefund ? 'TOTAL REFUND (CASH)' : 'TOTAL PAID',
                       style: TextStyle(
                         color: Theme.of(context).textTheme.bodySmall?.color,
                         fontSize: 14,
@@ -1472,7 +1695,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                       ),
                     ),
                     Text(
-                      currencyFormat.format(isZeroOffset ? grandTotal : totalPaid),
+                      currencyFormat.format(isZeroOffset || widget.isCreditNoteRefund ? grandTotal : totalPaid),
                       style: const TextStyle(
                         color: Colors.green,
                         fontWeight: FontWeight.bold,
@@ -1494,17 +1717,17 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
-                        color: remaining < 0 ? Colors.blue : (isZeroOffset ? Colors.green : Colors.red),
+                        color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
                       ),
                     ),
                     Text(
                       currencyFormat.format(
-                        isZeroOffset ? 0.0 : (remaining < 0 ? changeDue : remaining),
+                        (isZeroOffset || widget.isCreditNoteRefund) ? 0.0 : (remaining < 0 ? changeDue : remaining),
                       ),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: remaining < 0 ? Colors.blue : (isZeroOffset ? Colors.green : Colors.red),
+                        color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
                       ),
                     ),
                   ],

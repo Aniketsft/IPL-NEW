@@ -6,6 +6,9 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 
 class InvoicePreviewScreen extends StatefulWidget {
   final String invoiceId;
@@ -17,6 +20,12 @@ class InvoicePreviewScreen extends StatefulWidget {
   final String paymentMethod;
   final String paymentStatus;
   final List<CartItem> items;
+  final bool isCreditNote;
+  final String? creditNoteReason;
+  final CreditNoteModel? creditNoteModel;
+  final bool isPartiallyReversed;
+  final double totalCreditedAmount;
+  final double netBalanceDue;
 
   const InvoicePreviewScreen({
     super.key,
@@ -29,6 +38,12 @@ class InvoicePreviewScreen extends StatefulWidget {
     required this.paymentMethod,
     required this.paymentStatus,
     required this.items,
+    this.isCreditNote = false,
+    this.creditNoteReason,
+    this.creditNoteModel,
+    this.isPartiallyReversed = false,
+    this.totalCreditedAmount = 0.0,
+    this.netBalanceDue = 0.0,
   });
 
   @override
@@ -41,27 +56,62 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   Future<void> _handlePrint() async {
     setState(() => _isPrinting = true);
     try {
-      final pdfService = SalesInvoicePdfService();
-      
-      await Printing.layoutPdf(
-        dynamicLayout: true,
-        onLayout: (PdfPageFormat format) async {
-          final pdfBytes = await pdfService.generateInvoicePdf(
+      if (widget.isCreditNote) {
+        final creditNote = widget.creditNoteModel ??
+            CreditNoteModel(
+              creditNoteId: widget.invoiceId,
+              creditNoteType: CreditNoteType.reversal,
+              x3CreditNoteType: 'CRN',
+              salesSite: 'IPL',
+              customerCode: widget.customer['code']?.toString() ?? '',
+              customerName: widget.customer['name']?.toString() ?? '',
+              currency: 'MUR',
+              grandTotal: widget.grandTotal,
+              settlementType: 'REFUND',
+              reference: '',
+              reason: widget.creditNoteReason,
+              createdAt: DateTime.now().toIso8601String(),
+              createdBy: 'USER',
+            );
+
+        await Printing.layoutPdf(
+          onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
             pageFormat: format,
-            invoiceId: widget.invoiceId,
-            customer: widget.customer,
-            items: widget.items,
-            subtotal: widget.subtotal,
-            discountAmount: widget.discountAmount,
-            vatAmount: widget.vatAmount,
-            grandTotal: widget.grandTotal,
-            paymentMethod: widget.paymentMethod,
-            paymentStatus: widget.paymentStatus,
-          );
-          return pdfBytes;
-        },
-        name: 'Invoice_${widget.invoiceId}.pdf',
-      );
+            creditNote: creditNote,
+            resolvedLines: widget.items.map((i) => {
+              'sku': i.product.sku,
+              'name': i.product.name,
+              'quantity': i.quantity,
+              'basePrice': i.basePrice,
+            }).toList(),
+          ),
+          name: 'CreditNote_${widget.invoiceId}.pdf',
+        );
+      } else {
+        final pdfService = SalesInvoicePdfService();
+        await Printing.layoutPdf(
+          dynamicLayout: true,
+          onLayout: (PdfPageFormat format) async {
+            final pdfBytes = await pdfService.generateInvoicePdf(
+              pageFormat: format,
+              invoiceId: widget.invoiceId,
+              customer: widget.customer,
+              items: widget.items,
+              subtotal: widget.subtotal,
+              discountAmount: widget.discountAmount,
+              vatAmount: widget.vatAmount,
+              grandTotal: widget.grandTotal,
+              paymentMethod: widget.paymentMethod,
+              paymentStatus: widget.paymentStatus,
+              isPartiallyReversed: widget.isPartiallyReversed,
+              creditedAmount: widget.totalCreditedAmount,
+              netBalanceDue: widget.netBalanceDue,
+            );
+            return pdfBytes;
+          },
+          name: 'Invoice_${widget.invoiceId}.pdf',
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,7 +145,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return IndustrialModuleLayout(
-      title: 'Invoice Preview',
+      title: widget.isCreditNote ? 'Credit Note Preview' : 'Invoice Preview',
       showHome: false,
       extraActions: [
         _isPrinting
@@ -134,7 +184,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'INVOICE NUMBER',
+                          widget.isCreditNote ? 'CREDIT NOTE NUMBER' : 'INVOICE NUMBER',
                           style: TextStyle(
                             color: isDark ? Colors.white54 : Colors.grey[600],
                             fontSize: 10,
@@ -142,12 +192,35 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          invoiceId,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              invoiceId,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (widget.isPartiallyReversed) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.orange),
+                                ),
+                                child: const Text(
+                                  'PARTIAL REV',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -168,15 +241,17 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: paymentStatus == 'PAID'
-                            ? Colors.green
-                            : Colors.orange,
+                        color: widget.isPartiallyReversed
+                            ? Colors.orange.shade700
+                            : ((paymentStatus == 'PAID' || paymentStatus == 'REFUNDED')
+                                ? Colors.green
+                                : Colors.orange),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            paymentStatus == 'PAID'
+                            (paymentStatus == 'PAID' || paymentStatus == 'REFUNDED') && !widget.isPartiallyReversed
                                 ? Icons.check_circle
                                 : Icons.schedule,
                             color: Colors.white,
@@ -184,7 +259,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            paymentStatus,
+                            widget.isPartiallyReversed ? 'PARTIAL REV' : paymentStatus,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -199,7 +274,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Billed To
+            // Billed To / Credited To
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -216,7 +291,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                   child: const Icon(Icons.business),
                 ),
                 title: Text(
-                  'BILLED TO',
+                  widget.isCreditNote ? 'CREDITED TO' : 'BILLED TO',
                   style: TextStyle(color: isDark ? Colors.white54 : Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
@@ -229,12 +304,81 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                 ),
               ),
             ),
+
+            // Credit Note Reason card
+            if (widget.isCreditNote && (widget.creditNoteReason?.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 16),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.assignment_return_outlined, color: Colors.orange),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CREDIT NOTE REASON',
+                              style: TextStyle(
+                                color: isDark ? Colors.white54 : Colors.grey[600],
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Builder(
+                              builder: (context) {
+                                final rawReason = widget.creditNoteReason ?? '';
+                                String display = rawReason;
+                                if (rawReason.isNotEmpty && !rawReason.contains('(')) {
+                                  final match = LocalDatabaseHelper.defaultCreditNoteReasons.firstWhere(
+                                    (r) => r['code'] == rawReason,
+                                    orElse: () => {'code': rawReason, 'description': rawReason},
+                                  );
+                                  if (match['description'] != rawReason) {
+                                    display = '${match['description']} ($rawReason)';
+                                  }
+                                }
+                                return Text(
+                                  display,
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white : Colors.black87,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 24),
 
             // Line Items
-            const Text(
-              'Line Items',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            Text(
+              widget.isCreditNote ? 'Returned Line Items' : 'Line Items',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             const SizedBox(height: 12),
             Card(
@@ -294,7 +438,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Payment Method
+            // Payment / Refund Method
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -307,20 +451,23 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PAYMENT METHOD',
+                      widget.isCreditNote ? 'REFUND METHOD' : 'PAYMENT METHOD',
                       style: TextStyle(color: isDark ? Colors.white54 : Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(
-                          paymentMethod == 'CHEQUE'
+                          widget.isCreditNote
+                              ? Icons.assignment_return
+                              : paymentMethod == 'CHEQUE'
                               ? Icons.receipt_long
                               : paymentMethod == 'CREDIT'
                               ? Icons.account_balance_wallet
                               : paymentMethod == 'QR'
                               ? Icons.qr_code
                               : Icons.money,
+                          color: widget.isCreditNote ? AppTheme.primaryAmber : null,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -378,21 +525,36 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                         Text(currencyFormat.format(vatAmount)),
                       ],
                     ),
+                    if (widget.isPartiallyReversed) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Less Credited', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
+                          Text(
+                            '-${currencyFormat.format(widget.totalCreditedAmount)}',
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     const Divider(),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Grand Total',
-                          style: TextStyle(
+                        Text(
+                          widget.isCreditNote
+                              ? 'Total Refund'
+                              : (widget.isPartiallyReversed ? 'Net Balance Due' : 'Grand Total'),
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          currencyFormat.format(grandTotal),
+                          currencyFormat.format(widget.isPartiallyReversed ? widget.netBalanceDue : grandTotal),
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -437,7 +599,11 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.print),
-                label: Text(_isPrinting ? 'GENERATING PDF...' : 'PRINT INVOICE'),
+                label: Text(
+                  _isPrinting
+                      ? 'GENERATING PDF...'
+                      : (widget.isCreditNote ? 'PRINT CREDIT NOTE' : 'PRINT INVOICE'),
+                ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   backgroundColor: AppTheme.primaryAmber,

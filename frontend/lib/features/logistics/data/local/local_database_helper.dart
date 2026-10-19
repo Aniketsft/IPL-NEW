@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 91;
+  static const _databaseVersion = 92;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -56,6 +56,19 @@ class LocalDatabaseHelper {
   static const tableX3HistoryHeader = 'tbl_x3_history_header';
   static const tableX3HistoryLines = 'tbl_x3_history_lines';
   static const tableDeviceLocations = 'tbl_device_locations';
+  static const tableSiCreditNoteReasons = 'tbl_si_credit_note_reasons';
+
+  static const defaultCreditNoteReasons = [
+    {'code': 'RET', 'description': 'Delivery return'},
+    {'code': 'DEF', 'description': 'Faulty equipment'},
+    {'code': 'MIS', 'description': 'Miscellaneous'},
+    {'code': 'DNC', 'description': 'Not Compliant with shipment'},
+    {'code': 'PRI', 'description': 'Incorrect price'},
+    {'code': 'QTY', 'description': 'Quantity error'},
+    {'code': 'LTE', 'description': 'Late delivery'},
+    {'code': 'NOD', 'description': 'Not ordered'},
+    {'code': 'DSC', 'description': 'Discount'},
+  ];
 
   // tbl_tax_matrix columns
   static const colTaxMatrixCustomerRule = 'customerTaxRule';
@@ -216,33 +229,70 @@ class LocalDatabaseHelper {
   }
 
   Future<Database> get database async {
-    if (_database != null) {
-      try {
-        await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
-      } catch (_) {}
-      return _database!;
-    }
+    if (_database != null) return _database!;
     _database = await _initDatabase();
-    
-    // FORCE SCHEMA UPDATE HACK FOR HOT RELOAD/RESTART ISSUES
+    return _database!;
+  }
+
+  Future<void> _safeAddColumn(Database db, String table, String column, String type) async {
     try {
-      await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
+      final info = await db.rawQuery('PRAGMA table_info($table)');
+      final exists = info.any((row) => (row['name'] as String?)?.toLowerCase() == column.toLowerCase());
+      if (!exists) {
+        await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+      }
     } catch (_) {}
+  }
+
+  Future<Database> _initDatabase() async {
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final path = join(documentsDirectory.path, _databaseName);
+
+    _database = await openDatabase(
+      path,
+      version: _databaseVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+
+    // Schema updates and healing
+    await _safeAddColumn(_database!, tableSiInvoices, 'paymentTerm', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'reason', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'salesRep', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'transactionMode', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'x3DocumentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiInvoices, 'x3DocumentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiInvoices, 'isPartiallyReversed', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiSalesOrders, 'deliveryDate', 'TEXT');
+    await _safeAddColumn(_database!, tableSiSalesOrders, 'orderNumber', 'TEXT');
+    await _safeAddColumn(_database!, tableCachedUsers, colUserSiteCode, 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'siteCode', 'TEXT DEFAULT ""');
+    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'salesUnit', 'TEXT DEFAULT ""');
+    await _safeAddColumn(_database!, tableReps, 'assignedSite', 'TEXT');
+    await _safeAddColumn(_database!, tableUserSelectedReps, 'username', 'TEXT DEFAULT ""');
+    await _safeAddColumn(_database!, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tablePriceLists, 'focAmtMin', 'REAL DEFAULT 0');
+    await _safeAddColumn(_database!, tablePriceLists, 'focAmtBkt', 'REAL DEFAULT 0');
+
     try {
-      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN reasonType INTEGER DEFAULT 0');
+      await _database!.execute('''
+        UPDATE $tableSiInvoices
+        SET isReversed = 1, isPartiallyReversed = 0, status = 'REVERSED'
+        WHERE invoiceId IN (
+          SELECT originalInvoiceId FROM $tableSiCreditNotes
+          WHERE originalInvoiceId IS NOT NULL AND originalInvoiceId != ''
+          GROUP BY originalInvoiceId
+          HAVING SUM(grandTotal) >= (
+            SELECT grandTotal FROM $tableSiInvoices WHERE $tableSiInvoices.invoiceId = $tableSiCreditNotes.originalInvoiceId
+          ) - 0.01
+        ) AND (isReversed = 0 OR isReversed IS NULL)
+      ''');
     } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtMin REAL DEFAULT 0');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tablePriceLists ADD COLUMN focAmtBkt REAL DEFAULT 0');
-    } catch (_) {}
+
     try {
       await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_lookup ON $tablePriceLists(pliCode, matchKey1, matchKey2)');
     } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN salesUnit TEXT DEFAULT ""');
-    } catch (_) {}
+
     // v81: partial reversal tracking
     try {
       await _database!.execute('''
@@ -256,24 +306,7 @@ class LocalDatabaseHelper {
         )
       ''');
     } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableSiInvoices ADD COLUMN isPartiallyReversed INTEGER DEFAULT 0');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN deliveryDate TEXT');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableSiSalesOrders ADD COLUMN orderNumber TEXT');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableCachedUsers ADD COLUMN $colUserSiteCode TEXT');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableSalesInvoiceItemStockDetails ADD COLUMN siteCode TEXT DEFAULT ""');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableReps ADD COLUMN assignedSite TEXT');
-    } catch (_) {}
+
     try {
       await _database!.execute('''
         CREATE TABLE IF NOT EXISTS $tableUserSelectedReps (
@@ -285,9 +318,6 @@ class LocalDatabaseHelper {
           PRIMARY KEY (code, username)
         )
       ''');
-    } catch (_) {}
-    try {
-      await _database!.execute('ALTER TABLE $tableUserSelectedReps ADD COLUMN username TEXT DEFAULT ""');
     } catch (_) {}
     try {
       await _database!.execute('''
@@ -403,24 +433,31 @@ class LocalDatabaseHelper {
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3l_invoice ON $tableX3HistoryLines(invoiceNumber)');
     } catch (_) {}
+
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiCreditNoteReasons (
+          code TEXT PRIMARY KEY,
+          description TEXT NOT NULL
+        )
+      ''');
+      final count = Sqflite.firstIntValue(
+        await _database!.rawQuery('SELECT COUNT(*) FROM $tableSiCreditNoteReasons'),
+      ) ?? 0;
+      if (count == 0) {
+        final batch = _database!.batch();
+        for (final r in defaultCreditNoteReasons) {
+          batch.insert(
+            tableSiCreditNoteReasons,
+            r,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+    } catch (_) {}
     
     return _database!;
-  }
-
-  _initDatabase() async {
-    Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String path = join(documentsDirectory.path, _databaseName);
-    return await openDatabase(
-      path,
-      version: _databaseVersion,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-      onOpen: (db) async {
-        try {
-          await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN paymentTerm TEXT');
-        } catch (_) {}
-      },
-    );
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -1796,7 +1833,10 @@ class LocalDatabaseHelper {
             x3DocumentId TEXT,
             createdAt TEXT NOT NULL,
             createdBy TEXT NOT NULL,
-            deviceId TEXT
+            deviceId TEXT,
+            reason TEXT,
+            salesRep TEXT,
+            transactionMode TEXT DEFAULT '1'
           )
         ''');
         await db.execute('''
@@ -1831,6 +1871,19 @@ class LocalDatabaseHelper {
         ''');
       } catch (e) {
         debugPrint("Migration error v79: $e");
+      }
+    }
+    if (oldVersion < 92) {
+      debugPrint('DB Upgrade: Adding x3DocumentId to tbl_si_invoices and tbl_si_credit_notes (v92)');
+      try {
+        await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN x3DocumentId TEXT');
+      } catch (e) {
+        debugPrint("Migration error v92 tbl_si_invoices: $e");
+      }
+      try {
+        await db.execute('ALTER TABLE $tableSiCreditNotes ADD COLUMN x3DocumentId TEXT');
+      } catch (e) {
+        debugPrint("Migration error v92 tbl_si_credit_notes: $e");
       }
     }
   }
@@ -1931,7 +1984,8 @@ class LocalDatabaseHelper {
         userName TEXT,
         createdBy TEXT,
         isReversed INTEGER DEFAULT 0,
-        transactionalId TEXT
+        transactionalId TEXT,
+        x3DocumentId TEXT
       )
     ''');
 
@@ -1994,7 +2048,10 @@ class LocalDatabaseHelper {
         x3DocumentId TEXT,
         createdAt TEXT NOT NULL,
         createdBy TEXT NOT NULL,
-        deviceId TEXT
+        deviceId TEXT,
+        reason TEXT,
+        salesRep TEXT,
+        transactionMode TEXT DEFAULT '1'
       )
     ''');
 
@@ -3637,11 +3694,19 @@ class LocalDatabaseHelper {
     );
   }
 
-  Future<void> markSalesInvoiceSynced(String invoiceId) async {
+  Future<void> markSalesInvoiceSynced(String invoiceId, {String? x3DocumentId}) async {
     final db = await database;
+    try {
+      await db.execute('ALTER TABLE $tableSiInvoices ADD COLUMN x3DocumentId TEXT');
+    } catch (_) {}
+
+    final updates = <String, dynamic>{'isSynced': 1};
+    if (x3DocumentId != null && x3DocumentId.isNotEmpty) {
+      updates['x3DocumentId'] = x3DocumentId;
+    }
     await db.update(
       tableSiInvoices,
-      {'isSynced': 1},
+      updates,
       where: 'invoiceId = ?',
       whereArgs: [invoiceId],
     );
@@ -3761,6 +3826,40 @@ class LocalDatabaseHelper {
       limit: limit,
       offset: offset,
     );
+  }
+
+  Future<List<Map<String, dynamic>>> getLinkedCreditNotes(String originalInvoiceId) async {
+    final db = await database;
+    return await db.query(
+      tableSiCreditNotes,
+      where: 'originalInvoiceId = ?',
+      whereArgs: [originalInvoiceId],
+      orderBy: 'createdAt DESC',
+    );
+  }
+
+  Future<Map<String, dynamic>?> getSalesInvoiceById(String invoiceId) async {
+    final db = await database;
+    final results = await db.query(
+      tableSiInvoices,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getCreditNoteById(String creditNoteId) async {
+    final db = await database;
+    final results = await db.query(
+      tableSiCreditNotes,
+      where: 'creditNoteId = ?',
+      whereArgs: [creditNoteId],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+    return null;
   }
 
   // ==========================================
@@ -4427,5 +4526,47 @@ class LocalDatabaseHelper {
       );
     }
     return await db.query(tableLocations, orderBy: '$colLocCode ASC');
+  }
+
+  // --- Credit Note Reasons (Sage X3 Miscellaneous Table 8) ---
+
+  Future<void> refreshCreditNoteReasons(List<dynamic> rawReasons) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete(tableSiCreditNoteReasons);
+      final batch = txn.batch();
+      for (final item in rawReasons) {
+        if (item is Map) {
+          final code = (item['code'] ?? item['Code'] ?? '').toString().trim();
+          final desc = (item['description'] ?? item['Description'] ?? code).toString().trim();
+          if (code.isNotEmpty) {
+            batch.insert(
+              tableSiCreditNoteReasons,
+              {'code': code, 'description': desc},
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<List<Map<String, String>>> getCreditNoteReasons() async {
+    final db = await database;
+    try {
+      final results = await db.query(tableSiCreditNoteReasons, orderBy: 'description ASC');
+      if (results.isNotEmpty) {
+        return results.map((r) => {
+          'code': r['code'].toString(),
+          'description': r['description'].toString(),
+        }).toList();
+      }
+    } catch (_) {}
+
+    return defaultCreditNoteReasons.map((m) => {
+      'code': m['code']!,
+      'description': m['description']!,
+    }).toList();
   }
 }

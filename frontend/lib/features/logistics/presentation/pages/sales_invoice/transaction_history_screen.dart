@@ -16,6 +16,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'order_summary_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
 
 
 class TransactionHistoryScreen extends StatefulWidget {
@@ -128,6 +129,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           customerCode: _selectedCustomerCode,
           productSku: _selectedProductSku,
           limit: 100, // Fetch up to 100 recent transactions
+          isForReversal: widget.isForReversal,
         );
       }
       if (mounted) {
@@ -562,7 +564,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${tx.type} - ${tx.id}', 
+                                      widget.isX3History ? tx.id : '${tx.type} - ${tx.id}', 
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -578,6 +580,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                       ),
                                       child: const Text('Reversed', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
                                     ),
+                                  ] else if (tx.isPartiallyReversed == 1) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.orange),
+                                      ),
+                                      child: Text(
+                                        tx.remainingAmount != null
+                                            ? 'Partial (${currencyFormat.format(tx.remainingAmount)})'
+                                            : 'Partial',
+                                        style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
                                   ],
                                 ],
                               ),
@@ -585,6 +603,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(tx.customerName),
+                                  if (tx.reversalCreditNoteId != null && tx.reversalCreditNoteId!.isNotEmpty)
+                                    Text(
+                                      tx.isReversed == 1
+                                          ? 'Reversed by: ${tx.reversalCreditNoteId}'
+                                          : 'Credit Note: ${tx.reversalCreditNoteId}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: tx.isReversed == 1 ? Colors.red[700] : Colors.orange[800],
+                                      ),
+                                    ),
                                   Text(dateStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                   if (tx.auditMetadata.createdByUserName != null)
                                     Text('By: ${tx.auditMetadata.createdByUserName}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -605,6 +634,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 ],
                               ),
                               onTap: () async {
+                                if (widget.isForReversal && tx.isReversed == 1) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Invoice ${tx.id} has already been fully reversed${tx.reversalCreditNoteId != null && tx.reversalCreditNoteId!.isNotEmpty ? " (${tx.reversalCreditNoteId})" : ""}.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
                                 // Show loading overlay
                                 showDialog(
                                   context: context,
@@ -619,20 +658,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                     Navigator.pop(context); // Dismiss loading
                                     
                                     final customerMap = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(tx.customerCode);
+                                    final resolvedCustomer = customerMap ?? {
+                                      'code': tx.customerCode,
+                                      'name': tx.customerName,
+                                      'statusFlag': '1',
+                                      'creditLimit': '0',
+                                      'outstandingBalance': '0'
+                                    };
                                     
                                     context.read<SalesInvoiceBloc>().add(ClearCart());
-                                    
-                                    if (customerMap != null) {
-                                      context.read<SalesInvoiceBloc>().add(SetCustomer(customerMap));
-                                    } else {
-                                      context.read<SalesInvoiceBloc>().add(SetCustomer({
-                                        'code': tx.customerCode,
-                                        'name': tx.customerName,
-                                        'statusFlag': '1',
-                                        'creditLimit': '0',
-                                        'outstandingBalance': '0'
-                                      }));
-                                    }
 
                                     final isCreditNote = tx.type == 'CREDIT_NOTE' || tx.id.startsWith('CN-');
                                     String type = widget.isForReversal 
@@ -643,9 +677,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                       InitializeTransaction(
                                         transactionType: type,
                                         originalDocumentId: tx.id,
+                                        customer: resolvedCustomer,
+                                        config: TransactionConfig.forType(type),
                                       )
                                     );
+                                    context.read<SalesInvoiceBloc>().add(SetCustomer(resolvedCustomer));
 
+                                    int validItemsAdded = 0;
                                     for (var item in lines) {
                                       final originalQty = (item['quantity'] as num?)?.toDouble() ?? 0.0;
                                       final reversedQty = (item['reversedQty'] as num?)?.toDouble() ?? 0.0;
@@ -659,8 +697,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                           ? basePrice
                                           : (totalAmount.abs() > 0.0001 ? totalAmount : lineAmtInc);
                                       
+                                      // If in reversal mode, skip lines that have 0 remaining quantity
+                                      if (widget.isForReversal && effectiveQty <= 0.0001) {
+                                        continue;
+                                      }
+
                                       // Support standard quantity lines as well as amount-only credit notes
                                       if (effectiveQty > 0 || effectivePrice.abs() > 0.0001) {
+                                        validItemsAdded++;
                                         context.read<SalesInvoiceBloc>().add(
                                           AddCartItem(
                                             CartItem(
@@ -685,19 +729,24 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                       }
                                     }
 
-                                    if (widget.isForReversal) {
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
+                                    if (widget.isForReversal && validItemsAdded == 0) {
+                                      context.read<SalesInvoiceBloc>().add(ClearCart());
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('All items in ${tx.id} have already been reversed.'),
+                                          backgroundColor: Colors.orange,
+                                        ),
                                       );
-                                    } else {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
-                                      );
-                                      if (result == true) {
-                                        _loadTransactions();
-                                      }
+                                      _loadTransactions();
+                                      return;
+                                    }
+
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
+                                    );
+                                    if (result == true || widget.isForReversal) {
+                                      _loadTransactions();
                                     }
                                   }
                                 } catch (e) {

@@ -13,12 +13,15 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/navigation/app_routes.dart';
 import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
 import 'invoice_preview_screen.dart';
 import '../../../domain/models/transaction_config.dart';
+import '../../../data/repositories/transaction_history_repository.dart';
 
 class OrderSummaryScreen extends StatefulWidget {
   const OrderSummaryScreen({super.key});
@@ -35,6 +38,204 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
   bool _isProcessingScan = false;
   final Map<int, double> _selectedReversalQuantities = {};
+
+  List<Map<String, dynamic>> _linkedCreditNotes = [];
+  Map<String, dynamic>? _invoiceRecord;
+  String? _creditNoteReason;
+  bool _isLoadingReversals = false;
+  String? _checkedDocId;
+
+  void _checkReversalStatus(String? docId) {
+    if (docId == null || docId.isEmpty || _checkedDocId == docId || _isLoadingReversals) return;
+    _isLoadingReversals = true;
+    _checkedDocId = docId;
+    Future.wait([
+      LocalDatabaseHelper.instance.getLinkedCreditNotes(docId),
+      LocalDatabaseHelper.instance.getSalesInvoiceById(docId),
+      LocalDatabaseHelper.instance.getCreditNoteById(docId),
+    ]).then((results) {
+      if (mounted) {
+        setState(() {
+          _linkedCreditNotes = results[0] as List<Map<String, dynamic>>;
+          _invoiceRecord = results[1] as Map<String, dynamic>?;
+          final cn = results[2] as Map<String, dynamic>?;
+          if (cn != null && cn['reason'] != null) {
+            _creditNoteReason = cn['reason'] as String?;
+          }
+          _isLoadingReversals = false;
+        });
+      }
+    }).catchError((_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingReversals = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _openCreditNotePreview(BuildContext context, Map<String, dynamic> cnMap) async {
+    final cnId = cnMap['creditNoteId']?.toString() ?? '';
+    final grandTotal = (cnMap['grandTotal'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (cnMap['subtotal'] as num?)?.toDouble() ?? grandTotal;
+    final totalVat = (cnMap['totalVat'] as num?)?.toDouble() ?? 0.0;
+    final totalDiscount = (cnMap['totalDiscount'] as num?)?.toDouble() ?? 0.0;
+    final customerCode = cnMap['customerCode']?.toString() ?? '';
+    final customerName = cnMap['customerName']?.toString() ?? '';
+    final reason = cnMap['reason']?.toString() ?? '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final repo = TransactionHistoryRepository();
+      final lines = await repo.getTransactionLines(cnId);
+      final customerMap = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(customerCode);
+
+      if (context.mounted) {
+        Navigator.pop(context); // Dismiss loading
+        final items = lines.map((item) {
+          final originalQty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
+          final basePrice = (item['basePrice'] as num?)?.toDouble() ?? ((item['total'] as num?)?.toDouble() ?? 0.0);
+          return CartItem(
+            product: SalesInvoiceProductModel(
+              sku: item['sku'] ?? '',
+              name: item['name'] ?? '',
+              stockQty: 0.0,
+              warehouse: item['warehouse'] ?? '',
+              salesUnit: (item['salesUnit'] != null && (item['salesUnit'] as String).isNotEmpty)
+                  ? item['salesUnit']
+                  : 'EA',
+            ),
+            lotNumber: item['lotNumber'] ?? '',
+            quantity: originalQty > 0 ? originalQty : 1.0,
+            basePrice: basePrice,
+            discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
+            taxRule: item['taxRule'] ?? '',
+            vatRatePercent: 0.0,
+          );
+        }).toList();
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InvoicePreviewScreen(
+              invoiceId: cnId,
+              customer: customerMap ?? {'code': customerCode, 'name': customerName},
+              subtotal: subtotal,
+              discountAmount: totalDiscount,
+              vatAmount: totalVat,
+              grandTotal: grandTotal,
+              paymentMethod: 'CASH REFUND',
+              paymentStatus: 'REFUNDED',
+              items: items,
+              isCreditNote: true,
+              creditNoteReason: reason,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load credit note: $e')),
+        );
+      }
+    }
+  }
+
+  void _showLinkedCreditNotesModal(BuildContext context, List<Map<String, dynamic>> notes) {
+    if (notes.isEmpty) return;
+    if (notes.length == 1) {
+      _openCreditNotePreview(context, notes.first);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                child: Text(
+                  'Linked Credit Notes',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: notes.length,
+                  itemBuilder: (ctx, i) {
+                    final note = notes[i];
+                    final cnId = note['creditNoteId']?.toString() ?? '';
+                    final total = (note['grandTotal'] as num?)?.toDouble() ?? 0.0;
+                    final date = note['createdAt']?.toString() ?? '';
+                    return ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Colors.orange,
+                        child: Icon(Icons.money_off, color: Colors.white, size: 20),
+                      ),
+                      title: Text(cnId, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(date.isNotEmpty ? (date.length > 16 ? date.substring(0, 16) : date) : ''),
+                      trailing: Text(_currencyFormat.format(total), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openCreditNotePreview(context, note);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _isPartialReversal(String originalDocId, List<CartItem> cartItems) async {
+    try {
+      final repo = TransactionHistoryRepository();
+      final originalLines = await repo.getTransactionLines(originalDocId);
+      if (originalLines.isEmpty) return false;
+
+      // 1. If cart has fewer lines than original invoice -> Partial
+      if (cartItems.length < originalLines.length) return true;
+
+      // 2. If any original line was previously partially reversed -> Partial
+      for (final orig in originalLines) {
+        final reversedQty = (orig['reversedQty'] as num?)?.toDouble() ?? 0.0;
+        if (reversedQty > 0) return true;
+      }
+
+      // 3. If any cart item quantity is less than original quantity -> Partial
+      for (final item in cartItems) {
+        final match = originalLines.where((l) => (l['sku'] ?? '') == item.product.sku).firstOrNull;
+        if (match != null) {
+          final origQty = (match['quantity'] as num?)?.toDouble() ?? 0.0;
+          if (item.quantity < origQty) return true;
+        }
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   void _showQtyInputDialog(BuildContext context, int index, double maxQty) {
     final currentQty = _selectedReversalQuantities[index] ?? maxQty;
@@ -185,6 +386,37 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         }
         final cartState = state;
         final isPreviewInvoice = cartState.transactionType == 'PREVIEW_INVOICE';
+        final isPreviewCreditNote = cartState.transactionType == 'PREVIEW_CREDIT_NOTE' ||
+            (cartState.config.mode.isCreditNote &&
+                isPreviewInvoice == false &&
+                cartState.originalDocumentId != null &&
+                cartState.originalDocumentId!.isNotEmpty);
+
+        if (cartState.originalDocumentId != null &&
+            cartState.originalDocumentId!.isNotEmpty &&
+            _checkedDocId != cartState.originalDocumentId &&
+            !_isLoadingReversals) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _checkReversalStatus(cartState.originalDocumentId);
+          });
+        }
+
+        // Calculate reversal metrics
+        final double totalCreditedAmt = _linkedCreditNotes.fold<double>(
+          0.0,
+          (sum, cn) => sum + ((cn['grandTotal'] as num?)?.toDouble() ?? 0.0),
+        );
+        final bool isInvoiceFullyReversed = isPreviewInvoice && (
+          (_invoiceRecord != null && (_invoiceRecord!['isReversed'] == 1 || _invoiceRecord!['status'] == 'REVERSED')) ||
+          _linkedCreditNotes.any((cn) => (cn['isFullReversal'] == 1 || cn['isFullReversal'] == true)) ||
+          (_linkedCreditNotes.isNotEmpty && totalCreditedAmt >= (cartState.grandTotal - 0.01))
+        );
+        final bool isInvoicePartiallyReversed = isPreviewInvoice && !isInvoiceFullyReversed && (
+          (_invoiceRecord != null && _invoiceRecord!['isPartiallyReversed'] == 1) ||
+          _linkedCreditNotes.isNotEmpty
+        );
+        final double remainingNetBalance = (cartState.grandTotal - totalCreditedAmt).clamp(0.0, double.infinity);
+
         final effectiveAbbreviation = (isPreviewInvoice && _selectedReversalQuantities.isNotEmpty)
             ? 'CN'
             : cartState.config.abbreviation;
@@ -247,6 +479,89 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                           ),
                         ),
                       ],
+                      if (isInvoiceFullyReversed) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.red.shade400, width: 1.5),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.cancel_outlined, color: Colors.red.shade700, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'INVOICE FULLY REVERSED',
+                                      style: TextStyle(
+                                        color: Colors.red.shade900,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _linkedCreditNotes.isNotEmpty
+                                          ? 'Reversed by ${_linkedCreditNotes.map((cn) => cn['creditNoteId']).join(', ')}'
+                                          : 'This invoice has been settled and fully reversed.',
+                                      style: TextStyle(
+                                        color: Colors.red.shade800,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else if (isInvoicePartiallyReversed) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.orange.shade400, width: 1.5),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.pie_chart_outline_rounded, color: Colors.orange.shade800, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'PARTIALLY REVERSED INVOICE',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade900,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Credited: ${_currencyFormat.format(totalCreditedAmt)} • Remaining Balance: ${_currencyFormat.format(remainingNetBalance)}',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade800,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (cartState.transactionType == 'SI_SALES_ORDER') ...[
                         _buildDeliveryDateCard(context, cartState, isDark),
                         const SizedBox(height: 16),
@@ -261,26 +576,36 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       ),
                       const SizedBox(height: 12),
 
-                      if (cartState.transactionType == 'CREDIT_NOTE')
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.orange),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'Converting to Partial Credit Note',
-                                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                      if (cartState.transactionType == 'CREDIT_NOTE' &&
+                          cartState.originalDocumentId != null &&
+                          cartState.originalDocumentId!.isNotEmpty)
+                        FutureBuilder<bool>(
+                          future: _isPartialReversal(cartState.originalDocumentId!, cartState.cartItems),
+                          builder: (context, snapshot) {
+                            final isPartial = snapshot.data ?? false;
+                            if (!isPartial) return const SizedBox.shrink();
+
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange),
                               ),
-                            ],
-                          ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Converting to Partial Credit Note',
+                                    style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
 
                       // Line Items List
@@ -367,7 +692,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               Container(
                 color: isDark ? theme.colorScheme.surface : Colors.grey[50],
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                child: _buildCalculationCard(cartState, theme, isDark),
+                child: _buildCalculationCard(
+                  cartState,
+                  theme,
+                  isDark,
+                  isInvoicePartiallyReversed: isInvoicePartiallyReversed,
+                  totalCreditedAmt: totalCreditedAmt,
+                  remainingNetBalance: remainingNetBalance,
+                ),
               ),
 
               // Action Buttons Container
@@ -390,7 +722,198 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                     children: [
                       Builder(
                         builder: (context) {
-                          final isCreditNote = cartState.transactionType == 'STANDALONE_CREDIT_NOTE' || cartState.transactionType == 'CREDIT_NOTE';
+                          // CASE 1: Viewing a Credit Note (user shall ONLY be able to reprint the receipt)
+                          if (isPreviewCreditNote) {
+                            return SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => InvoicePreviewScreen(
+                                        invoiceId: cartState.originalDocumentId ?? 'N/A',
+                                        customer: cartState.customer ?? {},
+                                        subtotal: cartState.subtotal,
+                                        discountAmount: cartState.totalDiscount,
+                                        vatAmount: cartState.totalVat,
+                                        grandTotal: cartState.grandTotal,
+                                        paymentMethod: 'CASH REFUND',
+                                        paymentStatus: 'REFUNDED',
+                                        items: cartState.cartItems,
+                                        isCreditNote: true,
+                                        creditNoteReason: _creditNoteReason,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.print_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Reprint Credit Note Receipt',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange.shade800,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  elevation: 0,
+                                ),
+                              ),
+                            );
+                          }
+
+                          // CASE 2: Viewing a Fully Reversed Invoice (user shall NOT reprint invoice, instead view credit note)
+                          if (isInvoiceFullyReversed) {
+                            return SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  if (_linkedCreditNotes.isNotEmpty) {
+                                    _showLinkedCreditNotesModal(context, _linkedCreditNotes);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('No linked credit note found locally for this reversed invoice.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.receipt_long_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _linkedCreditNotes.length > 1
+                                      ? 'View Linked Credit Notes (${_linkedCreditNotes.length})'
+                                      : (_linkedCreditNotes.isNotEmpty
+                                          ? 'View Linked Credit Note (${_linkedCreditNotes.first['creditNoteId']})'
+                                          : 'View Linked Credit Note'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange.shade800,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  elevation: 0,
+                                ),
+                              ),
+                            );
+                          }
+
+                          // CASE 3: Viewing a Partially Reversed Invoice (dual actions when not actively selecting more items to reverse)
+                          if (isInvoicePartiallyReversed && _selectedReversalQuantities.isEmpty) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_linkedCreditNotes.isNotEmpty) ...[
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _showLinkedCreditNotesModal(context, _linkedCreditNotes),
+                                      icon: const Icon(
+                                        Icons.receipt_long_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        _linkedCreditNotes.length > 1
+                                            ? 'View Credit Notes (${_linkedCreditNotes.length})'
+                                            : 'View Credit Note (${_linkedCreditNotes.first['creditNoteId']})',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange.shade800,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => InvoicePreviewScreen(
+                                            invoiceId: cartState.originalDocumentId ?? 'N/A',
+                                            customer: cartState.customer ?? {},
+                                            subtotal: cartState.subtotal,
+                                            discountAmount: cartState.totalDiscount,
+                                            vatAmount: cartState.totalVat,
+                                            grandTotal: cartState.grandTotal,
+                                            paymentMethod: 'INVOICE',
+                                            paymentStatus: 'PAID (PARTIAL REV)',
+                                            items: cartState.cartItems,
+                                            isCreditNote: false,
+                                            isPartiallyReversed: true,
+                                            totalCreditedAmount: totalCreditedAmt,
+                                            netBalanceDue: remainingNetBalance,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: Icon(
+                                      Icons.print_rounded,
+                                      color: theme.primaryColor,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Reprint Invoice (Net ${_currencyFormat.format(remainingNetBalance)})',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.primaryColor,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(color: theme.primaryColor),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          // CASE 4: Standard Invoice / Credit Note Confirmation or Subsequent Reversal
+                          final isCreditNote = cartState.config.mode.isCreditNote ||
+                              cartState.transactionType == 'STANDALONE_CREDIT_NOTE' ||
+                              cartState.transactionType == 'CREDIT_NOTE';
                           final isZeroAmount = cartState.grandTotal <= 0;
                           final bool showConfirmButton = !cartState.config.requireItemSelectionForAction || _selectedReversalQuantities.isNotEmpty;
 
@@ -470,6 +993,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                           );
 
                                           if (context.mounted) {
+                                            final currentCart = context.read<SalesInvoiceBloc>().state;
+                                            final bool isCartEmpty = currentCart is! SalesInvoiceLoaded || currentCart.cartItems.isEmpty;
+                                            if (isCartEmpty) {
+                                              if (Navigator.of(context).canPop()) {
+                                                Navigator.of(context).pop(true);
+                                              }
+                                              return;
+                                            }
+
                                             context.read<SalesInvoiceBloc>().add(RestoreOriginalInvoice(
                                               cartItems: originalCartItems,
                                               transactionType: originalTxType,
@@ -490,10 +1022,17 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                           return;
                                         }
 
-                                        context.push(
+                                        await context.push(
                                           AppRoutes.paymentProcessing,
                                           extra: isCreditNote,
                                         );
+                                        if (context.mounted) {
+                                          final currentCart = context.read<SalesInvoiceBloc>().state;
+                                          final bool isCartEmpty = currentCart is! SalesInvoiceLoaded || currentCart.cartItems.isEmpty;
+                                          if (isCartEmpty && Navigator.of(context).canPop()) {
+                                            Navigator.of(context).pop(true);
+                                          }
+                                        }
                                       },
                                     icon: Icon(
                                       _getConfirmIcon(cartState.config),
@@ -525,6 +1064,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                   height: 48,
                                   child: OutlinedButton.icon(
                                     onPressed: () {
+                                      final isCn = (cartState.config.mode.isCreditNote ||
+                                              cartState.transactionType == 'PREVIEW_CREDIT_NOTE') &&
+                                          cartState.transactionType != 'PREVIEW_INVOICE';
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -535,9 +1077,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                             discountAmount: cartState.totalDiscount,
                                             vatAmount: cartState.totalVat,
                                             grandTotal: cartState.grandTotal,
-                                            paymentMethod: 'INVOICE',
-                                            paymentStatus: 'PAID',
+                                            paymentMethod: isCn ? 'CASH REFUND' : 'INVOICE',
+                                            paymentStatus: isCn ? 'REFUNDED' : 'PAID',
                                             items: cartState.cartItems,
+                                            isCreditNote: isCn,
                                           ),
                                         ),
                                       );
@@ -548,7 +1091,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                       size: 18,
                                     ),
                                     label: Text(
-                                      'Reprint Invoice Receipt',
+                                      ((cartState.config.mode.isCreditNote ||
+                                                  cartState.transactionType == 'PREVIEW_CREDIT_NOTE') &&
+                                              cartState.transactionType != 'PREVIEW_INVOICE')
+                                          ? 'Reprint Credit Note Receipt'
+                                          : 'Reprint Invoice Receipt',
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -1176,8 +1723,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   Widget _buildCalculationCard(
     SalesInvoiceLoaded cart,
     ThemeData theme,
-    bool isDark,
-  ) {
+    bool isDark, {
+    bool isInvoicePartiallyReversed = false,
+    double totalCreditedAmt = 0.0,
+    double remainingNetBalance = 0.0,
+  }) {
     if (cart.config.requireItemSelectionForAction && _selectedReversalQuantities.isNotEmpty) {
       double revSubtotal = 0.0;
       double revDiscount = 0.0;
@@ -1311,6 +1861,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             _currencyFormat.format(cart.totalVat),
             isDark: isDark,
           ),
+          if (isInvoicePartiallyReversed) ...[
+            const SizedBox(height: 4),
+            _buildCalcRow(
+              'Total Credited',
+              '-${_currencyFormat.format(totalCreditedAmt)}',
+              isRed: true,
+              isDark: isDark,
+            ),
+          ],
           const SizedBox(height: 8),
           Divider(color: Colors.grey.withOpacity(0.2), height: 1),
           const SizedBox(height: 8),
@@ -1318,7 +1877,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Grand Total',
+                isInvoicePartiallyReversed ? 'Net Balance Due' : 'Grand Total',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -1326,7 +1885,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 ),
               ),
               Text(
-                _currencyFormat.format(cart.grandTotal),
+                _currencyFormat.format(isInvoicePartiallyReversed ? remainingNetBalance : cart.grandTotal),
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,

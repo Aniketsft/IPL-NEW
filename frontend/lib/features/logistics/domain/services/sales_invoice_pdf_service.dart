@@ -18,6 +18,9 @@ class SalesInvoicePdfService {
     required double grandTotal,
     required String paymentMethod,
     required String paymentStatus,
+    bool isPartiallyReversed = false,
+    double creditedAmount = 0.0,
+    double netBalanceDue = 0.0,
   }) async {
     final pdf = pw.Document();
 
@@ -39,13 +42,13 @@ class SalesInvoicePdfService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                _buildHeader(),
+                _buildHeader(isPartiallyReversed: isPartiallyReversed),
                 pw.SizedBox(height: 10),
                 _buildMetadata(
                   invoiceId: invoiceId,
                   customer: customer,
                   paymentMethod: paymentMethod,
-                  paymentStatus: paymentStatus,
+                  paymentStatus: isPartiallyReversed ? 'PAID (PARTIAL REV)' : paymentStatus,
                 ),
                 pw.SizedBox(height: 10),
                 _buildDivider(),
@@ -57,6 +60,9 @@ class SalesInvoicePdfService {
                   discountAmount: discountAmount,
                   vatAmount: vatAmount,
                   grandTotal: grandTotal,
+                  isPartiallyReversed: isPartiallyReversed,
+                  creditedAmount: creditedAmount,
+                  netBalanceDue: netBalanceDue,
                 ),
                 pw.SizedBox(height: 15),
                 _buildFooter(),
@@ -70,7 +76,7 @@ class SalesInvoicePdfService {
     return pdf.save();
   }
 
-  pw.Widget _buildHeader() {
+  pw.Widget _buildHeader({bool isPartiallyReversed = false}) {
     return pw.Center(
       child: pw.Column(
         children: [
@@ -88,6 +94,24 @@ class SalesInvoicePdfService {
               fontSize: 12,
             ),
           ),
+          if (isPartiallyReversed) ...[
+            pw.SizedBox(height: 4),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.orange800, width: 1),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+              ),
+              child: pw.Text(
+                '*** PARTIALLY REVERSED ***',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.orange800,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -233,6 +257,9 @@ class SalesInvoicePdfService {
     required double discountAmount,
     required double vatAmount,
     required double grandTotal,
+    bool isPartiallyReversed = false,
+    double creditedAmount = 0.0,
+    double netBalanceDue = 0.0,
   }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -242,6 +269,10 @@ class SalesInvoicePdfService {
         _buildTotalRow('Subtotal', subtotal),
         _buildTotalRow('Discount', discountAmount, isDiscount: true),
         _buildTotalRow('VAT', vatAmount),
+        if (isPartiallyReversed) ...[
+          _buildTotalRow('Less Credited', creditedAmount, isDiscount: true),
+          _buildTotalRow('Net Balance Due', netBalanceDue),
+        ],
         pw.SizedBox(height: 5),
         _buildDivider(),
         pw.SizedBox(height: 5),
@@ -249,14 +280,21 @@ class SalesInvoicePdfService {
           child: pw.Column(
             children: [
               pw.Text(
-                'GRAND TOTAL (Rs)',
+                isPartiallyReversed ? 'NET BALANCE DUE (Rs)' : 'GRAND TOTAL (Rs)',
                 style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 4),
               pw.Text(
-                numberFormat.format(grandTotal),
+                numberFormat.format(isPartiallyReversed ? netBalanceDue : grandTotal),
                 style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
+              if (isPartiallyReversed) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  '(Original Grand Total: Rs ${numberFormat.format(grandTotal)})',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                ),
+              ],
             ],
           ),
         ),

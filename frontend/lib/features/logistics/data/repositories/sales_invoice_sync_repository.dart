@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../../core/network_service.dart';
 import '../../../../../core/secure_storage_service.dart';
+import '../../../../../core/services/device_info_service.dart';
 import '../local/local_database_helper.dart';
 import '../models/sales_rep_model.dart';
 import 'sales_invoice_product_repository.dart';
@@ -27,11 +28,18 @@ class SalesInvoiceSyncRepository {
 
   String _extractX3InvoiceId(String fallbackInvoiceId, dynamic responseData) {
     String displayId = fallbackInvoiceId;
-    if (responseData is Map && responseData.containsKey('rawPayload')) {
-      final rawPayload = responseData['rawPayload']?.toString() ?? '';
-      final match = RegExp(r'[Cc]reation of\s+([A-Za-z0-9_-]+)').firstMatch(rawPayload);
-      if (match != null && match.groupCount >= 1) {
-        displayId = match.group(1)!;
+    if (responseData is Map) {
+      if (responseData.containsKey('x3DocumentId') &&
+          responseData['x3DocumentId'] != null &&
+          responseData['x3DocumentId'].toString().trim().isNotEmpty) {
+        return responseData['x3DocumentId'].toString().trim();
+      }
+      if (responseData.containsKey('rawPayload')) {
+        final rawPayload = responseData['rawPayload']?.toString() ?? '';
+        final match = RegExp(r'[Cc]reation of\s+([A-Za-z0-9_-]+)').firstMatch(rawPayload);
+        if (match != null && match.groupCount >= 1) {
+          displayId = match.group(1)!;
+        }
       }
     }
     return displayId;
@@ -60,7 +68,11 @@ class SalesInvoiceSyncRepository {
             "pricingRule": invoice['pricingRule'] ?? 'DEFAULT',
             "dueDate": invoice['dueDate'] ?? DateTime.now().toIso8601String(),
             "createdAt": invoice['createdAt'] ?? DateTime.now().toIso8601String(),
-            "userName": invoice['userName'] ?? '',
+            "userName": invoice['userName'] ?? invoice['createdBy'] ?? '',
+            "createdBy": invoice['createdBy'] ?? invoice['userName'] ?? '',
+            "deviceId": (invoice['deviceId'] != null && (invoice['deviceId'] as String).isNotEmpty)
+                ? invoice['deviceId']
+                : DeviceInfoService.instance.deviceInfo,
             "reference": invoice['reference'] ?? '',
             "invoiceType": invoice['invoiceType'] ?? 'STD',
             "transactionalId": invoice['transactionalId'] ?? invoiceId,
@@ -97,9 +109,8 @@ class SalesInvoiceSyncRepository {
           // POST to backend
           final response = await _dio.post('SalesInvoice/sync', data: payload);
           if (response.statusCode == 200 || response.statusCode == 201) {
-             await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
-             
              final displayId = _extractX3InvoiceId(invoiceId, response.data);
+             await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId, x3DocumentId: displayId);
              successes.add(displayId);
           } else {
              failures.add('$invoiceId: ${response.data}');
@@ -111,9 +122,8 @@ class SalesInvoiceSyncRepository {
             if (data is Map) {
               final rawPayload = data['rawPayload']?.toString();
               if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
-                await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId);
-                
                 final displayId = _extractX3InvoiceId(invoiceId, data);
+                await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId, x3DocumentId: displayId);
                 successes.add(displayId);
               } else if (data.containsKey('error')) {
                 failures.add('$invoiceId: ${data['error']}');
@@ -125,6 +135,121 @@ class SalesInvoiceSyncRepository {
             }
           } else {
             failures.add('$invoiceId: Failed to sync ($e)');
+          }
+        }
+      }
+
+      // 1b. Push Unsynced Credit Notes
+      final unsyncedCreditNotes = await LocalDatabaseHelper.instance.getUnsyncedCreditNotes();
+      debugPrint('Sync: Found ${unsyncedCreditNotes.length} unsynced Credit Notes.');
+
+      for (final cn in unsyncedCreditNotes) {
+        final creditNoteId = cn['creditNoteId'] as String;
+        final lines = await LocalDatabaseHelper.instance.getMergedCreditNoteLines(creditNoteId);
+        final refunds = await LocalDatabaseHelper.instance.getCreditNoteRefunds(creditNoteId);
+
+        try {
+          final originalInvoiceId = (cn['originalInvoiceId'] as String?)?.trim();
+          final isLinked = originalInvoiceId != null && originalInvoiceId.isNotEmpty;
+          final category = (cn['creditNoteType'] == 'RETURN') ? 3 : 2;
+          final transactionMode = (cn['transactionMode'] != null && (cn['transactionMode'] as String).trim().isNotEmpty)
+              ? (cn['transactionMode'] as String).trim()
+              : (isLinked ? "4" : "1");
+
+          String? resolvedOriginalInvoiceId = originalInvoiceId;
+          if (isLinked) {
+            try {
+              final invRows = await LocalDatabaseHelper.instance.database.then(
+                (db) => db.query(
+                  LocalDatabaseHelper.tableSiInvoices,
+                  columns: ['x3DocumentId'],
+                  where: 'invoiceId = ?',
+                  whereArgs: [originalInvoiceId],
+                  limit: 1,
+                ),
+              );
+              if (invRows.isNotEmpty && invRows.first['x3DocumentId'] != null) {
+                final x3Id = (invRows.first['x3DocumentId'] as String).trim();
+                if (x3Id.isNotEmpty) {
+                  resolvedOriginalInvoiceId = x3Id;
+                }
+              }
+            } catch (e) {
+              debugPrint('Warning: Could not fetch x3DocumentId for invoice $originalInvoiceId: $e');
+            }
+          }
+
+          final payload = {
+            "creditNoteId": creditNoteId,
+            "creditNoteType": cn['creditNoteType'] ?? 'CRN',
+            "salesSite": cn['salesSite'] ?? siteCode,
+            "customerCode": cn['customerCode'],
+            "customerName": cn['customerName'] ?? '',
+            "category": category,
+            "salesRep": cn['salesRep'] ?? '',
+            "reason": cn['reason'] ?? 'CREDIT_NOTE',
+            "originalInvoiceId": resolvedOriginalInvoiceId,
+            "transactionMode": transactionMode,
+            "reference": cn['reference'] ?? '',
+            "createdAt": cn['createdAt'] ?? DateTime.now().toIso8601String(),
+            "dueDate": cn['createdAt'] ?? DateTime.now().toIso8601String(),
+            "createdBy": cn['createdBy'] ?? '',
+            "userName": cn['createdBy'] ?? '',
+            "deviceId": (cn['deviceId'] != null && (cn['deviceId'] as String).isNotEmpty)
+                ? cn['deviceId']
+                : DeviceInfoService.instance.deviceInfo,
+            "transactionalId": creditNoteId,
+            "grandTotal": (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
+            "lines": lines.map((l) => {
+              "lineNo": l['lineNo'] ?? 1000,
+              "quantity": (l['quantity'] as num?)?.toDouble() ?? 0.0,
+              "sku": l['sku'] ?? '',
+              "name": l['name'] ?? '',
+              "salesUnit": l['salesUnit'] ?? 'EA',
+              "basePrice": (l['basePrice'] as num?)?.toDouble() ?? 0.0,
+              "taxRule": l['taxRule'] ?? '',
+              "lotNumber": l['lotNumber'] ?? '',
+              "warehouse": l['warehouse'] ?? '',
+              "cce0": l['cce0'] ?? '',
+              "originLineNo": l['lineNo']
+            }).toList(),
+            "refunds": refunds.map((r) => {
+              "method": r['method'] ?? 'CASH',
+              "amount": (r['amount'] as num?)?.toDouble() ?? 0.0,
+              "bankCode": r['bankCode'],
+              "bankName": r['bankName'],
+              "chequeNumber": r['chequeNumber'],
+              "chequeDate": r['chequeDate']
+            }).toList()
+          };
+
+          final response = await _dio.post('SalesInvoice/sync-credit-note', data: payload);
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            final displayId = _extractX3InvoiceId(creditNoteId, response.data);
+            await LocalDatabaseHelper.instance.markCreditNoteSynced(creditNoteId, x3DocumentId: displayId);
+            successes.add(displayId);
+          } else {
+            failures.add('$creditNoteId: ${response.data}');
+          }
+        } catch (e) {
+          if (e is DioException && e.response != null) {
+            final data = e.response?.data;
+            if (data is Map) {
+              final rawPayload = data['rawPayload']?.toString();
+              if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
+                final displayId = _extractX3InvoiceId(creditNoteId, data);
+                await LocalDatabaseHelper.instance.markCreditNoteSynced(creditNoteId, x3DocumentId: displayId);
+                successes.add(displayId);
+              } else if (data.containsKey('error')) {
+                failures.add('$creditNoteId: ${data['error']}');
+              } else {
+                failures.add('$creditNoteId: [HTTP ${e.response?.statusCode}] $data');
+              }
+            } else {
+              failures.add('$creditNoteId: [HTTP ${e.response?.statusCode}] $data');
+            }
+          } else {
+            failures.add('$creditNoteId: Failed to sync ($e)');
           }
         }
       }
@@ -160,6 +285,7 @@ class SalesInvoiceSyncRepository {
         safeGet('SalesInvoice/salesreps', queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null, label: 'Sales Reps'),
         safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices'),
         safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History'),
+        safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
         _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) => null).catchError((e) {
           debugPrint('Sync: Failed to fetch stock details: $e');
           return null;
@@ -173,6 +299,7 @@ class SalesInvoiceSyncRepository {
       final repsResp = results[4];
       final openInvResp = results[5];
       final x3Resp = results[6];
+      final reasonsResp = results[7];
 
       // Ingest Customers
       if (custResp != null && custResp.data is List) {
@@ -218,6 +345,15 @@ class SalesInvoiceSyncRepository {
           await LocalDatabaseHelper.instance.pruneX3HistoryOlderThan(months: 6);
           await LocalDatabaseHelper.instance.saveX3HistoryDocuments(rawX3Docs);
           debugPrint('Sync: Synced ${rawX3Docs.length} X3 History Documents (Site: $siteCode, 6 months).');
+        }
+      }
+
+      // Ingest Credit Note Reasons (Sage X3 Table 8)
+      if (reasonsResp != null && reasonsResp.data is List) {
+        final rawReasons = reasonsResp.data as List<dynamic>;
+        if (rawReasons.isNotEmpty) {
+          await LocalDatabaseHelper.instance.refreshCreditNoteReasons(rawReasons);
+          debugPrint('Sync: Synced ${rawReasons.length} Sage X3 Credit Note Reasons.');
         }
       }
 

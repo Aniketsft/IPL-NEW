@@ -28,7 +28,12 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice);
 
         /// <summary>
-        /// Imports a single Credit Note (Header + Lines) into Sage X3 via AOWSIMPORT using the ZSIHWEBA template with INVTYP = 2.
+        /// Imports a single Credit Note (Header + Lines) into Sage X3 via AOWSIMPORT using the ZSCRWEB template.
+        /// </summary>
+        Task<X3ImportResult> ImportCreditNoteAsync(StagingSalesInvoiceHeader creditNote);
+
+        /// <summary>
+        /// Legacy fallback for StagingCreditNoteHeader.
         /// </summary>
         Task<X3ImportResult> ImportCreditNoteAsync(StagingCreditNoteHeader creditNote);
     }

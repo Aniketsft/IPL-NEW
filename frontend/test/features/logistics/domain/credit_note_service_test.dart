@@ -102,7 +102,25 @@ void main() {
         x3DocumentId TEXT,
         createdAt TEXT NOT NULL,
         createdBy TEXT NOT NULL,
-        deviceId TEXT
+        deviceId TEXT,
+        reason TEXT,
+        salesRep TEXT,
+        transactionMode TEXT DEFAULT '1'
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE ${LocalDatabaseHelper.tableSiOpenInvoices} (
+        documentNo TEXT PRIMARY KEY,
+        docType TEXT,
+        customerNo TEXT,
+        customerName TEXT,
+        company TEXT,
+        site TEXT,
+        documentDate TEXT,
+        dueDate TEXT,
+        originalAmtLCY REAL,
+        remainingAmtLCY REAL
       )
     ''');
 

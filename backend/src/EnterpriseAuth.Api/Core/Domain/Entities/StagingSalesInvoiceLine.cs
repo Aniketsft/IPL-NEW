@@ -57,5 +57,8 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [MaxLength(20)]
         public string? TaxRule { get; set; }
+
+        [NotMapped]
+        public int? OriginLineNo { get; set; }
     }
 }

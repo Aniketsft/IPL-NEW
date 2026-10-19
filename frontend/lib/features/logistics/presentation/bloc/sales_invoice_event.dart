@@ -13,15 +13,17 @@ class InitializeTransaction extends SalesInvoiceEvent {
   final String transactionType;
   final String? originalDocumentId;
   final TransactionConfig? config;
+  final Map<String, dynamic>? customer;
 
   const InitializeTransaction({
     required this.transactionType,
     this.originalDocumentId,
     this.config,
+    this.customer,
   });
 
   @override
-  List<Object?> get props => [transactionType, originalDocumentId, config];
+  List<Object?> get props => [transactionType, originalDocumentId, config, customer];
 }
 
 class PrepareReversalCreditNote extends SalesInvoiceEvent {

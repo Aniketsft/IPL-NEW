@@ -424,5 +424,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             return grouped.Values;
         }
+
+        public async Task<IEnumerable<CreditNoteReasonDto>> GetCreditNoteReasonsAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(A.CODE_0)) AS Code,
+                    LTRIM(RTRIM(COALESCE(T.TEXTE_0, A.CODE_0))) AS Description
+                FROM {_syncSettings.X3DatabaseName}.{schema}.[ATABDIV] A WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.[ATEXTRA] T WITH (NOLOCK)
+                    ON T.CODFIC_0 = 'ATABDIV'
+                   AND T.ZONE_0 = 'LNGDES'
+                   AND T.IDENT1_0 = CAST(A.NUMTAB_0 AS VARCHAR)
+                   AND T.IDENT2_0 = A.CODE_0
+                   AND T.LANGUE_0 = 'ENG'
+                WHERE A.NUMTAB_0 = 8
+                ORDER BY 
+                    CASE WHEN T.TEXTE_0 IS NOT NULL AND T.TEXTE_0 <> '' THEN 0 ELSE 1 END,
+                    Description ASC;
+            ";
+            return await db.QueryAsync<CreditNoteReasonDto>(sql);
+        }
     }
 }

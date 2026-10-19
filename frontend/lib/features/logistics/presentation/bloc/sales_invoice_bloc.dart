@@ -53,7 +53,9 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   }
 
   void _onInitializeTransaction(InitializeTransaction event, Emitter<SalesInvoiceState> emit) {
+    final currentCustomer = state is SalesInvoiceLoaded ? (state as SalesInvoiceLoaded).customer : null;
     emit(SalesInvoiceLoaded(
+      customer: event.customer ?? currentCustomer,
       transactionType: event.transactionType,
       originalDocumentId: event.originalDocumentId,
       config: event.config,

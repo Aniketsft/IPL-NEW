@@ -34,6 +34,7 @@ class TransactionHistoryRepository {
     String? productSku,
     int limit = 100,
     int offset = 0,
+    bool isForReversal = false,
   }) async {
     final db = await _database;
     final Map<String, TransactionModel> uniqueMap = {};
@@ -46,6 +47,10 @@ class TransactionHistoryRepository {
     if (type == null || type.isEmpty || type == 'ALL' || type == 'INVOICE' || type == 'RETURN') {
       String whereClause = '1 = 1';
       List<dynamic> whereArgs = [];
+
+      if (isForReversal) {
+        whereClause += ' AND (isReversed = 0 OR isReversed IS NULL)';
+      }
 
       if (type != null && type.isNotEmpty && type != 'ALL') {
         whereClause += ' AND transactionType = ?';
@@ -87,7 +92,41 @@ class TransactionHistoryRepository {
       );
 
       for (final m in maps) {
-        final tx = TransactionModel.fromJson(m);
+        final Map<String, dynamic> mutableMap = Map<String, dynamic>.from(m);
+        final invId = mutableMap['invoiceId']?.toString() ?? '';
+        final invTotal = (mutableMap['grandTotal'] as num?)?.toDouble() ?? 0.0;
+
+        // Check if there are linked credit notes for this invoice
+        final cnRows = await db.rawQuery(
+          'SELECT creditNoteId, grandTotal FROM ${LocalDatabaseHelper.tableSiCreditNotes} WHERE originalInvoiceId = ? ORDER BY createdAt DESC',
+          [invId],
+        );
+
+        if (cnRows.isNotEmpty) {
+          final totalReversedAmt = cnRows.fold<double>(
+            0.0,
+            (sum, row) => sum + ((row['grandTotal'] as num?)?.toDouble() ?? 0.0),
+          );
+          mutableMap['reversalCreditNoteId'] = cnRows.first['creditNoteId'];
+          mutableMap['remainingAmount'] = (invTotal - totalReversedAmt).clamp(0.0, invTotal);
+
+          // If fully covered by credit notes, ensure marked reversed in model
+          if (totalReversedAmt >= (invTotal - 0.01)) {
+            mutableMap['isReversed'] = 1;
+            mutableMap['isPartiallyReversed'] = 0;
+          } else if (totalReversedAmt > 0) {
+            mutableMap['isPartiallyReversed'] = 1;
+          }
+        } else {
+          mutableMap['remainingAmount'] = invTotal;
+        }
+
+        // If isForReversal is true and invoice is computed as fully reversed, skip it
+        if (isForReversal && (mutableMap['isReversed'] == 1)) {
+          continue;
+        }
+
+        final tx = TransactionModel.fromJson(mutableMap);
         uniqueMap[tx.id] = tx;
       }
     }
@@ -411,11 +450,17 @@ class TransactionHistoryRepository {
     }).toList();
   }
 
-  Future<CreditNoteModel> cancelInvoice(TransactionModel transaction) async {
+  Future<CreditNoteModel> cancelInvoice(
+    TransactionModel transaction, {
+    String? reason,
+    String? salesRep,
+  }) async {
     final creditNoteService = CreditNoteService(dbProvider: () => _database);
     return await creditNoteService.createReversalCreditNote(
       invoiceId: transaction.id,
       createdBy: transaction.auditMetadata.createdByUserName ?? 'SYSTEM',
+      reason: reason,
+      salesRep: salesRep,
       deviceId: transaction.auditMetadata.deviceId,
     );
   }
@@ -433,13 +478,17 @@ class TransactionHistoryRepository {
   /// Partially reverses [selectedLines] on [transaction], creating a partial Credit Note.
   Future<CreditNoteModel> partialReverseInvoice(
     TransactionModel transaction,
-    List<Map<String, dynamic>> selectedLines,
-  ) async {
+    List<Map<String, dynamic>> selectedLines, {
+    String? reason,
+    String? salesRep,
+  }) async {
     final creditNoteService = CreditNoteService(dbProvider: () => _database);
     return await creditNoteService.createPartialReversalCreditNote(
       invoiceId: transaction.id,
       selectedLines: selectedLines,
       createdBy: transaction.auditMetadata.createdByUserName ?? 'SYSTEM',
+      reason: reason,
+      salesRep: salesRep,
       deviceId: transaction.auditMetadata.deviceId,
     );
   }

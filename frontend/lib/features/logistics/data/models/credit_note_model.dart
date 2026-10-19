@@ -31,6 +31,9 @@ class CreditNoteModel {
   final String createdAt;
   final String createdBy;
   final String? deviceId;
+  final String? reason;
+  final String? salesRep;
+  final String? transactionMode; // "1" = Direct Credit Note, "4" = Linked Credit Note with Origin Invoice
   final List<CreditNoteLineModel> lines;
   final List<CreditNoteRefundModel> refunds;
 
@@ -52,9 +55,16 @@ class CreditNoteModel {
     required this.createdAt,
     required this.createdBy,
     this.deviceId,
+    this.reason,
+    this.salesRep,
+    this.transactionMode,
     this.lines = const [],
     this.refunds = const [],
   });
+
+  String get resolvedTransactionMode =>
+      transactionMode ??
+      ((originalInvoiceId != null && originalInvoiceId!.trim().isNotEmpty) ? '4' : '1');
 
   Map<String, dynamic> toMap() {
     return {
@@ -75,6 +85,9 @@ class CreditNoteModel {
       'createdAt': createdAt,
       'createdBy': createdBy,
       'deviceId': deviceId,
+      'reason': reason,
+      'salesRep': salesRep,
+      'transactionMode': resolvedTransactionMode,
     };
   }
 
@@ -113,6 +126,9 @@ class CreditNoteModel {
       createdAt: map['createdAt'] ?? '',
       createdBy: map['createdBy'] ?? '',
       deviceId: map['deviceId'],
+      reason: map['reason'],
+      salesRep: map['salesRep'],
+      transactionMode: map['transactionMode'] as String?,
       lines: lines,
       refunds: refunds,
     );

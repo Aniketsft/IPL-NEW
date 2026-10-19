@@ -60,6 +60,21 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(100)]
         public string? TransactionalId { get; set; }
 
+        [NotMapped]
+        public string? CustomerName { get; set; }
+
+        [NotMapped]
+        public string? OriginInvoiceId { get; set; }
+
+        [NotMapped]
+        public string? Reason { get; set; }
+
+        [NotMapped]
+        public string? TransactionMode { get; set; }
+
+        [NotMapped]
+        public int Category => int.TryParse(InvoiceType, out var v) ? v : (InvoiceType == "CRN" ? 2 : (InvoiceType == "RTN" ? 3 : 1));
+
         // Navigation property
         public ICollection<StagingSalesInvoiceLine> Lines { get; set; } = new List<StagingSalesInvoiceLine>();
     }

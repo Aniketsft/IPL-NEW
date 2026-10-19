@@ -109,10 +109,31 @@ class CreditNotePdfService {
         _buildMetaRow('Customer Code:', creditNote.customerCode),
         _buildMetaRow('Customer Name:', creditNote.customerName),
         _buildMetaRow('Refund Method:', creditNote.settlementType, isBold: true),
+        if (creditNote.reason != null && creditNote.reason!.isNotEmpty)
+          _buildMetaRow('Reason:', _formatReason(creditNote.reason!)),
         if (creditNote.x3DocumentId != null && creditNote.x3DocumentId!.isNotEmpty)
           _buildMetaRow('Sage X3 Doc #:', creditNote.x3DocumentId!),
       ],
     );
+  }
+
+  String _formatReason(String reason) {
+    const defaultDescriptions = {
+      'RET': 'Delivery return',
+      'DEF': 'Faulty equipment',
+      'MIS': 'Miscellaneous',
+      'DNC': 'Not Compliant with shipment',
+      'PRI': 'Incorrect price',
+      'QTY': 'Quantity error',
+      'LTE': 'Late delivery',
+      'NOD': 'Not ordered',
+      'DSC': 'Discount',
+    };
+    final trimmed = reason.trim();
+    if (defaultDescriptions.containsKey(trimmed.toUpperCase())) {
+      return '${defaultDescriptions[trimmed.toUpperCase()]} ($trimmed)';
+    }
+    return trimmed;
   }
 
   pw.Widget _buildMetaRow(String label, String value, {bool isBold = false}) {

@@ -4,6 +4,7 @@ import 'package:printing/printing.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 
 /// Screen allowing the user to select specific invoice lines (and quantities)
@@ -170,58 +171,102 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
       return;
     }
 
+    final availableReasons = await LocalDatabaseHelper.instance.getCreditNoteReasons();
+    String selectedReasonCode = availableReasons.isNotEmpty ? availableReasons.first['code']! : 'RET';
+
     // Summary confirmation dialog
-    final confirm = await showDialog<bool>(
+    final confirmedReason = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.undo, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Confirm Partial Reversal'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${selectedLines.length} item(s) will be reversed.'),
-            const SizedBox(height: 8),
-            ...selectedLines.map((s) {
-              final line = _lines.firstWhere(
-                (l) => (l['lineId']?.toString() ?? l['id']?.toString() ?? '') == s['lineId'],
-                orElse: () => {},
-              );
-              return Text(
-                '• ${line['name'] ?? s['lineId']} — Qty: ${s['reversedQty']}',
-                style: const TextStyle(fontSize: 13),
-              );
-            }),
-            const SizedBox(height: 12),
-            Text(
-              'Reversal Total: ${currencyFormat.format(_reversalTotal)}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.undo, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Confirm Partial Reversal'),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text('Stock for reversed items will be replenished.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Confirm Reversal'),
-          ),
-        ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${selectedLines.length} item(s) will be reversed.'),
+                  const SizedBox(height: 8),
+                  ...selectedLines.map((s) {
+                    final line = _lines.firstWhere(
+                      (l) => (l['lineId']?.toString() ?? l['id']?.toString() ?? '') == s['lineId'],
+                      orElse: () => {},
+                    );
+                    return Text(
+                      '• ${line['name'] ?? s['lineId']} — Qty: ${s['reversedQty']}',
+                      style: const TextStyle(fontSize: 13),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Reversal Total: ${currencyFormat.format(_reversalTotal)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Stock for reversed items will be replenished.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedReasonCode,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Credit Note Reason *',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: availableReasons.map((r) {
+                      final code = r['code'] ?? '';
+                      final desc = r['description'] ?? code;
+                      return DropdownMenuItem<String>(
+                        value: code,
+                        child: Text(
+                          '$desc ($code)',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() {
+                          selectedReasonCode = val;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                onPressed: () {
+                  Navigator.of(ctx).pop(selectedReasonCode);
+                },
+                child: const Text('Confirm Reversal'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (confirm != true || !mounted) return;
+    if (confirmedReason == null || confirmedReason.isEmpty || !mounted) return;
 
     setState(() => _isProcessing = true);
     try {
-      final creditNote = await _repository.partialReverseInvoice(widget.transaction, selectedLines);
+      final creditNote = await _repository.partialReverseInvoice(
+        widget.transaction,
+        selectedLines,
+        reason: confirmedReason,
+      );
       if (!mounted) return;
       setState(() => _isProcessing = false);
 

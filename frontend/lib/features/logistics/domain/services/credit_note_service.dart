@@ -13,6 +13,9 @@ class CreditNoteService {
   Future<CreditNoteModel> createReversalCreditNote({
     required String invoiceId,
     required String createdBy,
+    String? reason,
+    String? reference,
+    String? salesRep,
     String? deviceId,
   }) async {
     final db = await _dbProvider();
@@ -69,6 +72,11 @@ class CreditNoteService {
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
 
+    final originX3Id = (invoice['x3DocumentId'] as String?)?.trim();
+    final resolvedOriginInvoiceId = (originX3Id != null && originX3Id.isNotEmpty)
+        ? originX3Id
+        : invoiceId;
+
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
       creditNoteType: CreditNoteType.reversal,
@@ -78,13 +86,16 @@ class CreditNoteService {
       customerName: customerName,
       currency: 'MUR',
       grandTotal: grandTotal,
-      originalInvoiceId: invoiceId,
+      originalInvoiceId: resolvedOriginInvoiceId,
       settlementType: settlementType,
-      reference: invoiceId,
+      reference: reference ?? '',
       isSynced: 0,
       createdAt: now,
       createdBy: createdBy,
       deviceId: deviceId,
+      reason: reason,
+      salesRep: salesRep ?? (invoice['salesRep'] as String?),
+      transactionMode: '4',
     );
 
     await db.transaction((txn) async {
@@ -137,6 +148,15 @@ class CreditNoteService {
           }
         }
 
+        final lineId = line['lineId'].toString();
+        await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
+          'invoiceId': invoiceId,
+          'lineId': lineId,
+          'reversedQty': qty,
+          'reversalCreditNoteId': creditNoteId,
+          'createdAt': now,
+        });
+
         lineNo += 1000;
       }
 
@@ -154,7 +174,7 @@ class CreditNoteService {
       // D. Mark origin invoice and lines as reversed
       await txn.update(
         LocalDatabaseHelper.tableSiInvoices,
-        {'isReversed': 1},
+        {'isReversed': 1, 'isPartiallyReversed': 0, 'status': 'REVERSED'},
         where: 'invoiceId = ?',
         whereArgs: [invoiceId],
       );
@@ -179,6 +199,9 @@ class CreditNoteService {
     required String invoiceId,
     required List<Map<String, dynamic>> selectedLines,
     required String createdBy,
+    String? reason,
+    String? reference,
+    String? salesRep,
     String? deviceId,
   }) async {
     if (selectedLines.isEmpty) {
@@ -280,6 +303,11 @@ class CreditNoteService {
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
 
+    final originX3Id = (invoice['x3DocumentId'] as String?)?.trim();
+    final resolvedOriginInvoiceId = (originX3Id != null && originX3Id.isNotEmpty)
+        ? originX3Id
+        : invoiceId;
+
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
       creditNoteType: CreditNoteType.reversal,
@@ -289,13 +317,16 @@ class CreditNoteService {
       customerName: customerName,
       currency: 'MUR',
       grandTotal: grandTotal,
-      originalInvoiceId: invoiceId,
+      originalInvoiceId: resolvedOriginInvoiceId,
       settlementType: settlementType,
-      reference: invoiceId,
+      reference: reference ?? '',
       isSynced: 0,
       createdAt: now,
       createdBy: createdBy,
       deviceId: deviceId,
+      reason: reason,
+      salesRep: salesRep ?? (invoice['salesRep'] as String?),
+      transactionMode: '4',
     );
 
     await db.transaction((txn) async {
@@ -405,6 +436,9 @@ class CreditNoteService {
     required String createdBy,
     String? deviceId,
     String? reference,
+    String? reason,
+    String? salesRep,
+    String? originInvoiceId,
   }) async {
     final methodUpper = refundMethod.toUpperCase();
     if (methodUpper == 'QR' || methodUpper.contains('QR')) {
@@ -425,43 +459,86 @@ class CreditNoteService {
 
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
-      creditNoteType: CreditNoteType.standalone,
+      creditNoteType: (originInvoiceId != null && originInvoiceId.isNotEmpty)
+          ? CreditNoteType.reversal
+          : CreditNoteType.standalone,
       x3CreditNoteType: 'CRN',
       salesSite: salesSite,
       customerCode: customerCode,
       customerName: customerName,
       currency: 'MUR',
       grandTotal: refundAmount,
+      originalInvoiceId: originInvoiceId,
       settlementType: methodUpper,
       reference: reference,
       isSynced: 0,
       createdAt: now,
       createdBy: createdBy,
       deviceId: deviceId,
+      reason: reason,
+      salesRep: salesRep,
+      transactionMode: (originInvoiceId != null && originInvoiceId.isNotEmpty) ? '4' : '1',
     );
 
     await db.transaction((txn) async {
       await txn.insert(LocalDatabaseHelper.tableSiCreditNotes, creditNote.toMap());
 
+      final hasOriginInvoice = originInvoiceId != null && originInvoiceId.isNotEmpty;
+      List<Map<String, dynamic>> originalInvoiceLines = [];
+      if (hasOriginInvoice) {
+        originalInvoiceLines = await txn.query(
+          LocalDatabaseHelper.tableSiInvoiceLines,
+          where: 'invoiceId = ?',
+          whereArgs: [originInvoiceId],
+        );
+      }
+
       int lineNo = 1000;
       for (final item in items) {
+        final sku = item.standaloneSku ?? item.sku;
+        final lot = item.standaloneLot ?? item.lot;
+
+        String? matchedLineId;
+        if (hasOriginInvoice) {
+          final match = originalInvoiceLines.firstWhere(
+            (ol) => ol['sku'] == sku && (lot.isEmpty || ol['lotNumber'] == lot),
+            orElse: () => originalInvoiceLines.firstWhere(
+              (ol) => ol['sku'] == sku,
+              orElse: () => <String, dynamic>{},
+            ),
+          );
+          if (match.isNotEmpty && match['lineId'] != null) {
+            matchedLineId = match['lineId'].toString();
+          }
+        }
+
         await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
           'quantity': item.quantity,
-          'standaloneSku': item.standaloneSku ?? item.sku,
+          'originInvoiceId': originInvoiceId,
+          'originLineNo': matchedLineId,
+          'standaloneSku': sku,
           'standaloneName': item.standaloneName ?? item.name,
           'standaloneSalesUnit': item.standaloneSalesUnit ?? item.salesUnit,
           'standalonePrice': item.standalonePrice ?? item.price,
           'standaloneTaxRule': item.standaloneTaxRule ?? item.taxRule,
-          'standaloneLot': item.standaloneLot ?? item.lot,
+          'standaloneLot': lot,
           'standaloneWarehouse': item.standaloneWarehouse ?? item.warehouse,
           'standaloneCce0': item.standaloneCce0 ?? item.cce0,
         });
 
+        if (hasOriginInvoice && matchedLineId != null) {
+          await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
+            'invoiceId': originInvoiceId,
+            'lineId': matchedLineId,
+            'reversedQty': item.quantity,
+            'reversalCreditNoteId': creditNoteId,
+            'createdAt': now,
+          });
+        }
+
         // Replenish stock
-        final sku = item.standaloneSku ?? item.sku;
-        final lot = item.standaloneLot ?? item.lot;
         final wh = item.standaloneWarehouse ?? item.warehouse;
         final loc = 'LOC1'; // default location if not specified
 
@@ -499,6 +576,60 @@ class CreditNoteService {
         'method': methodUpper,
         'amount': refundAmount,
       });
+
+      if (hasOriginInvoice) {
+        bool allFullyReversed = true;
+        if (originalInvoiceLines.isNotEmpty) {
+          for (final origLine in originalInvoiceLines) {
+            final lId = origLine['lineId'].toString();
+            final origQty = (origLine['quantity'] as num?)?.toDouble() ?? 0.0;
+            final reversalRows = await txn.rawQuery(
+              'SELECT COALESCE(SUM(reversedQty), 0) as total FROM ${LocalDatabaseHelper.tableSiInvoiceLineReversals} WHERE invoiceId = ? AND lineId = ?',
+              [originInvoiceId, lId],
+            );
+            final totalReversed = (reversalRows.first['total'] as num?)?.toDouble() ?? 0.0;
+            if (totalReversed < origQty) {
+              allFullyReversed = false;
+              break;
+            }
+          }
+        }
+
+        final invRows = await txn.query(
+          LocalDatabaseHelper.tableSiInvoices,
+          columns: ['grandTotal'],
+          where: 'invoiceId = ?',
+          whereArgs: [originInvoiceId],
+          limit: 1,
+        );
+        final invGrandTotal = invRows.isNotEmpty ? (invRows.first['grandTotal'] as num?)?.toDouble() ?? 0.0 : 0.0;
+        final totalCnRows = await txn.rawQuery(
+          'SELECT COALESCE(SUM(grandTotal), 0) as total FROM ${LocalDatabaseHelper.tableSiCreditNotes} WHERE originalInvoiceId = ?',
+          [originInvoiceId],
+        );
+        final totalCnAmount = (totalCnRows.first['total'] as num?)?.toDouble() ?? 0.0;
+        if (invGrandTotal > 0 && totalCnAmount >= (invGrandTotal - 0.01)) {
+          allFullyReversed = true;
+        }
+
+        await txn.update(
+          LocalDatabaseHelper.tableSiInvoices,
+          allFullyReversed
+              ? {'isReversed': 1, 'isPartiallyReversed': 0, 'status': 'REVERSED'}
+              : {'isPartiallyReversed': 1},
+          where: 'invoiceId = ?',
+          whereArgs: [originInvoiceId],
+        );
+
+        if (allFullyReversed) {
+          await txn.update(
+            LocalDatabaseHelper.tableSiInvoiceLines,
+            {'isReversed': 1},
+            where: 'invoiceId = ?',
+            whereArgs: [originInvoiceId],
+          );
+        }
+      }
     });
 
     return creditNote;
@@ -514,6 +645,8 @@ class CreditNoteService {
     required String createdBy,
     String? deviceId,
     String? reference,
+    String? reason,
+    String? salesRep,
   }) async {
     if (linkedInvoiceIds.isEmpty) {
       throw ArgumentError('Amount-only credit note requires at least 1 linked invoice.');
@@ -568,6 +701,7 @@ class CreditNoteService {
       customerName: customerName,
       currency: 'MUR',
       grandTotal: refundAmount,
+      originalInvoiceId: linkedInvoiceIds.isNotEmpty ? linkedInvoiceIds.first : null,
       linkedInvoiceIds: linkedInvoiceIds,
       settlementType: CreditNoteRefundMethod.cash,
       reference: reference ?? linkedInvoiceIds.join(','),
@@ -575,6 +709,8 @@ class CreditNoteService {
       createdAt: now,
       createdBy: createdBy,
       deviceId: deviceId,
+      reason: reason,
+      salesRep: salesRep,
     );
 
     await db.transaction((txn) async {
