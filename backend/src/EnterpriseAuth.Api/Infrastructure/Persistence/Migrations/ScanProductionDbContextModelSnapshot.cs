@@ -67,12 +67,84 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("PerformedBy");
 
+                    b.Property<string>("Site")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Site");
+
                     b.HasKey("AuditId");
 
                     b.HasIndex("EntityName", "EntityIdString")
                         .HasDatabaseName("IX_AuditLogs_EntityLookup");
 
                     b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.DeviceLocation", b =>
+                {
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("DeviceId");
+
+                    b.Property<Guid?>("AssignedUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AssignedUserId");
+
+                    b.Property<string>("AssignedUserName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("AssignedUserName");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)")
+                        .HasColumnName("DeviceName");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("LocationCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasColumnName("LocationCode");
+
+                    b.Property<string>("MacAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("MacAddress");
+
+                    b.Property<string>("SiteCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("SiteCode");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UpdatedAt");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("UpdatedBy");
+
+                    b.Property<string>("WarehouseCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("WarehouseCode");
+
+                    b.HasKey("DeviceId");
+
+                    b.ToTable("DeviceLocations");
                 });
 
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.EodProcessAudit", b =>
@@ -768,6 +840,201 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Staging");
                 });
 
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteHeader", b =>
+                {
+                    b.Property<string>("CreditNoteId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CreditNoteType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CustomerCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<double>("GrandTotal")
+                        .HasColumnType("float");
+
+                    b.Property<bool>("IsProcessedByX3")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("IsSynced")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LinkedInvoiceIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OriginalInvoiceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SalesSite")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SettlementType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("X3CreditNoteType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("X3DocumentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("CreditNoteId");
+
+                    b.ToTable("StagingCreditNoteHeaders");
+                });
+
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteLine", b =>
+                {
+                    b.Property<int>("LineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LineId"));
+
+                    b.Property<string>("CreditNoteId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OriginInvoiceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("OriginLineNo")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Quantity")
+                        .HasColumnType("float");
+
+                    b.Property<string>("StandaloneCce0")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("StandaloneLot")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("StandaloneName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<double?>("StandalonePrice")
+                        .HasColumnType("float");
+
+                    b.Property<string>("StandaloneSalesUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StandaloneSku")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("StandaloneTaxRule")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StandaloneWarehouse")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("LineId");
+
+                    b.HasIndex("CreditNoteId");
+
+                    b.ToTable("StagingCreditNoteLines");
+                });
+
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteRefund", b =>
+                {
+                    b.Property<int>("RefundId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RefundId"));
+
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
+
+                    b.Property<string>("BankCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ChequeDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ChequeNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreditNoteId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("RefundId");
+
+                    b.HasIndex("CreditNoteId");
+
+                    b.ToTable("StagingCreditNoteRefunds");
+                });
+
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingEod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -987,6 +1254,144 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("StagingSalesInvoiceLines");
                 });
 
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoicePayment", b =>
+                {
+                    b.Property<int>("PaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaymentId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18, 4)");
+
+                    b.Property<string>("BankCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ChequeDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ChequeNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreatedAt")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CustomerCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsProcessedByX3")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("IsSynced")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("LocalPaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("QrTransactionRef")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("SalesSite")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SoapError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SoapRequestNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("SyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("X3DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("X3EntryType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("X3InvoiceDocumentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("X3PaymentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("X3PaymentMode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("X3Sign")
+                        .HasColumnType("int");
+
+                    b.HasKey("PaymentId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("IsProcessedByX3");
+
+                    b.HasIndex("DocumentType", "DocumentId");
+
+                    b.ToTable("StagingSalesInvoicePayments");
+                });
+
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.X3SoapAudit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1064,6 +1469,28 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteLine", b =>
+                {
+                    b.HasOne("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteHeader", "Header")
+                        .WithMany("Lines")
+                        .HasForeignKey("CreditNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Header");
+                });
+
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteRefund", b =>
+                {
+                    b.HasOne("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteHeader", "Header")
+                        .WithMany("Refunds")
+                        .HasForeignKey("CreditNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Header");
+                });
+
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceLine", b =>
                 {
                     b.HasOne("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceHeader", "Header")
@@ -1075,14 +1502,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Header");
                 });
 
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoicePayment", b =>
+                {
+                    b.HasOne("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceHeader", "Header")
+                        .WithMany("Payments")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Header");
+                });
+
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.SalesOrder", b =>
                 {
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingCreditNoteHeader", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Refunds");
+                });
+
             modelBuilder.Entity("EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceHeader", b =>
                 {
                     b.Navigation("Lines");
+
+                    b.Navigation("Payments");
                 });
 #pragma warning restore 612, 618
         }

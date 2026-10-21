@@ -740,6 +740,208 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return await ImportCreditNoteAsync(invoiceHeader);
         }
 
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _facilityCompanyCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _facilityDefaultBankCache = new();
+
+        private async Task<(string company, string defaultBank)> ResolveCompanyAndBankAsync(string fcy, string schema = "INLDRYRUN")
+        {
+            string cleanFcy = (!string.IsNullOrWhiteSpace(fcy) && fcy != "ALL") ? fcy.Trim() : "POD";
+
+            if (!_facilityCompanyCache.TryGetValue(cleanFcy, out var company))
+            {
+                try
+                {
+                    using var conn = new SqlConnection(_innodisConnectionString);
+                    await conn.OpenAsync();
+                    var legCpy = await conn.QueryFirstOrDefaultAsync<string>(
+                        $"SELECT TOP 1 LEGCPY_0 FROM x3.{schema}.FACILITY WHERE FCY_0 = @cleanFcy",
+                        new { cleanFcy });
+                    company = !string.IsNullOrWhiteSpace(legCpy) ? legCpy.Trim() : ((cleanFcy == "IPL") ? "IPLTD" : "INL");
+                    _facilityCompanyCache[cleanFcy] = company;
+                }
+                catch
+                {
+                    company = (cleanFcy == "IPL") ? "IPLTD" : "INL";
+                }
+            }
+
+            string cacheKey = $"{cleanFcy}_{company}";
+            if (!_facilityDefaultBankCache.TryGetValue(cacheKey, out var defaultBank))
+            {
+                try
+                {
+                    using var conn = new SqlConnection(_innodisConnectionString);
+                    await conn.OpenAsync();
+                    var ban = await conn.QueryFirstOrDefaultAsync<string>(
+                        $"SELECT TOP 1 BAN_0 FROM x3.{schema}.BANK WHERE (FCY_0 = @cleanFcy OR (CPY_0 = @company AND (FCY_0 IS NULL OR FCY_0 = ''))) ORDER BY CASE WHEN FCY_0 = @cleanFcy THEN 1 ELSE 2 END, CASE WHEN BAN_0 LIKE 'MCB%' THEN 1 ELSE 2 END, BAN_0 ASC",
+                        new { cleanFcy, company });
+                    defaultBank = !string.IsNullOrWhiteSpace(ban) ? ban.Trim() : ((company == "IPLTD") ? "MCB76" : "MCB92");
+                    _facilityDefaultBankCache[cacheKey] = defaultBank;
+                }
+                catch
+                {
+                    defaultBank = (company == "IPLTD") ? "MCB76" : "MCB92";
+                }
+            }
+
+            return (company, defaultBank);
+        }
+
+        public async Task<X3ImportResult> ImportPaymentAsync(List<StagingSalesInvoicePayment> payments)
+        {
+            var result = new X3ImportResult();
+            if (payments == null || !payments.Any())
+            {
+                result.Success = true;
+                return result;
+            }
+
+            var firstPayment = payments.First();
+            result.Identifier = firstPayment.DocumentId;
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
+
+            try
+            {
+                var fileBuilder = new StringBuilder();
+
+                foreach (var payment in payments)
+                {
+                    bool isCreditNote = string.Equals(payment.DocumentType, "CREDIT_NOTE", StringComparison.OrdinalIgnoreCase);
+                    
+                    // Entry Type: REM (Reimbursement/Refund) for Credit Note, REC (Receipt) for Invoice
+                    string entryType = !string.IsNullOrWhiteSpace(payment.X3EntryType) 
+                        ? payment.X3EntryType 
+                        : (isCreditNote ? "REM" : "REC");
+                    
+                    // Sign: 1 for Disbursement (Outflow), 2 for Receipt (Inflow)
+                    int sign = payment.X3Sign > 0 ? payment.X3Sign : (isCreditNote ? 1 : 2);
+                    
+                    // Document Category: SCRN for Credit Note, SINV for Sales Invoice
+                    string docCategory = !string.IsNullOrWhiteSpace(payment.X3DocumentType) 
+                        ? payment.X3DocumentType 
+                        : (isCreditNote ? "SCRN" : "SINV");
+
+                    string customerCode = !string.IsNullOrWhiteSpace(payment.CustomerCode) ? payment.CustomerCode.Trim() : "";
+
+                    // Dynamically resolve site, legal company, and default bank from Sage X3
+                    string fcy = (!string.IsNullOrWhiteSpace(payment.SalesSite) && payment.SalesSite != "ALL") 
+                        ? payment.SalesSite.Trim() 
+                        : "POD";
+                    
+                    var (resolvedCompany, resolvedDefaultBank) = await ResolveCompanyAndBankAsync(fcy);
+                    string company = resolvedCompany;
+                    string controlAccount = "122001";
+
+                    // Map payment mode (CSH, CHQ, BTR)
+                    string methodUpper = (payment.PaymentMethod ?? "").Trim().ToUpperInvariant();
+                    string pam = "CSH";
+                    if (methodUpper == "CHEQUE" || methodUpper == "CHQ") pam = "CHQ";
+                    else if (methodUpper == "BANK_TRANSFER" || methodUpper == "BTR" || methodUpper == "BLINK" || methodUpper == "JUICE" || methodUpper == "QR" || methodUpper == "QR CODE") pam = "BTR";
+                    else if (!string.IsNullOrWhiteSpace(payment.X3PaymentMode)) pam = payment.X3PaymentMode.Trim().ToUpperInvariant();
+
+                    // Resolve Bank Code: strictly <= 5 characters (K:5c in Sage X3)
+                    string bank = (!string.IsNullOrWhiteSpace(payment.BankCode) && 
+                                   payment.BankCode.Trim().Length <= 5 && 
+                                   !payment.BankCode.Trim().Equals("CASH01", StringComparison.OrdinalIgnoreCase))
+                        ? payment.BankCode.Trim()
+                        : resolvedDefaultBank;
+
+                    string currency = !string.IsNullOrWhiteSpace(payment.Currency) ? payment.Currency.Trim() : "MUR";
+                    string amtStr = payment.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+                    string payDate = (payment.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd"))
+                        .Replace("-", "").Replace(" ", "").Replace(":", "");
+                    if (payDate.Length > 8) payDate = payDate.Substring(0, 8);
+                    if (string.IsNullOrWhiteSpace(payDate)) payDate = DateTime.UtcNow.ToString("yyyyMMdd");
+
+                    string description = !string.IsNullOrWhiteSpace(payment.ChequeNumber) 
+                        ? $"CHQ {payment.ChequeNumber}".Trim() 
+                        : (isCreditNote ? "Cash Refund" : "Payment");
+                    if (description.Length > 30) description = description.Substring(0, 30);
+
+                    string targetDocNum = !string.IsNullOrWhiteSpace(payment.X3InvoiceDocumentId) ? payment.X3InvoiceDocumentId.Trim() : "";
+
+                    // P Header Line:
+                    // P;[NUM];[TYP];;[BPR];[CPY];[ACC];;[PAM];[FCY];[BAN];[SNS];[CUR];[AMTCUR];[AMT];0;[DATE];[DES]
+                    fileBuilder.Append($"P;;{entryType};;{customerCode};{company};{controlAccount};;{pam};{fcy};{bank};{sign};{currency};{amtStr};{amtStr};0;{payDate};{description}|");
+
+                    // D Detail Line:
+                    // Pos 19: D | Pos 20: DENCOD | Pos 21: COA | Pos 22: ACC | Pos 23: BPRLIN | Pos 24: VCRTYP | Pos 25: VCRNUM
+                    // Pos 26: *1 (DUDDAT) | Pos 27: *2 (DUDLIG = 1) | Pos 28: *3 | Pos 29: *4 | Pos 30: CURLIN
+                    // Pos 31: AMTLIN | Pos 32: VATLIN | Pos 33: QTYLIN (0) | Pos 34: DSP | Pos 35: DESLIN
+                    fileBuilder.Append($"D;;;{controlAccount};{customerCode};{docCategory};{targetDocNum};{payDate};1;;;{currency};{amtStr};;0;;{description}|");
+                }
+
+                fileBuilder.Append("END");
+
+                string iFile = fileBuilder.ToString();
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZPAYWEBA\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
+
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
+         <callContext xsi:type=""wss:CAdxCallContext"">
+            <codeLang xsi:type=""xsd:string"">ENG</codeLang>
+            <poolAlias xsi:type=""xsd:string"">{_poolAlias}</poolAlias>
+            <poolId xsi:type=""xsd:string""></poolId>
+            <requestConfig xsi:type=""xsd:string""></requestConfig>
+         </callContext>
+         <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
+         <inputXml xsi:type=""xsd:string"">
+            <![CDATA[{inputXmlJson}]]>
+         </inputXml>
+      </wss:run>
+   </soapenv:Body>
+</soapenv:Envelope>";
+
+                Console.WriteLine("====== SAGE X3 PAYMENT SOAP REQUEST (ZPAYWEBA) ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("======================================================");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
+                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+                
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+                request.Headers.TryAddWithoutValidation("SOAPAction", "");
+                request.Headers.TryAddWithoutValidation("soapAction", "");
+
+                var response = await _httpClient.SendAsync(request);
+                responseXml = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine("====== SAGE X3 PAYMENT SOAP RESPONSE (ZPAYWEBA) ======");
+                Console.WriteLine(responseXml);
+                Console.WriteLine("=======================================================");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    result.Success = false;
+                    result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, false, result.TechnicalError);
+                    return result;
+                }
+
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, false, ex.Message);
+                return result;
+            }
+        }
+
         public async Task<EndOfDayResult> ProcessProductionEodAsync()
         {
             var result = new EndOfDayResult();

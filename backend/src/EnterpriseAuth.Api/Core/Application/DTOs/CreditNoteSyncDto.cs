@@ -63,6 +63,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
 
     public class CreditNoteRefundSyncDto
     {
+        public int? LocalRefundId { get; set; }
         public string Method { get; set; } = string.Empty;
         public double Amount { get; set; }
         public string? BankCode { get; set; }

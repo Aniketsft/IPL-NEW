@@ -68,7 +68,7 @@ class CreditNoteService {
     if (grandTotal <= 0) {
       throw StateError('Cannot reverse invoice: amount must be greater than zero.');
     }
-    final salesSite = (invoice['salesSite'] as String?) ?? 'SCG';
+    final salesSite = (invoice['salesSite'] as String?) ?? 'POD';
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
 
@@ -161,14 +161,30 @@ class CreditNoteService {
       }
 
       // C. Insert refund record
+      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+      final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
+          ? primaryPayment['bankCode'].toString().trim()
+          : (defaultBank['bankCode'] ?? '');
+      final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
+          ? primaryPayment['bankName'].toString().trim()
+          : (defaultBank['bankName'] ?? '');
+
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
         'method': settlementType,
         'amount': grandTotal,
-        'bankCode': primaryPayment?['bankCode'],
-        'bankName': primaryPayment?['bankName'],
+        'bankCode': resolvedBankCode,
+        'bankName': resolvedBankName,
         'chequeNumber': primaryPayment?['chequeNumber'],
         'chequeDate': primaryPayment?['chequeDate'],
+        'isSynced': 0,
+        'x3PaymentId': null,
+        'syncError': null,
+        'createdAt': now,
+        'deviceId': deviceId,
+        'userName': createdBy,
+        'salesSite': salesSite,
+        'customerCode': customerCode,
       });
 
       // D. Mark origin invoice and lines as reversed
@@ -299,7 +315,7 @@ class CreditNoteService {
 
     final creditNoteId = 'CN-P-${DateTime.now().millisecondsSinceEpoch}';
     final now = DateTime.now().toIso8601String();
-    final salesSite = (invoice['salesSite'] as String?) ?? 'SCG';
+    final salesSite = (invoice['salesSite'] as String?) ?? 'POD';
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
 
@@ -387,14 +403,30 @@ class CreditNoteService {
       }
 
       // E. Insert refund record
+      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+      final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
+          ? primaryPayment['bankCode'].toString().trim()
+          : (defaultBank['bankCode'] ?? '');
+      final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
+          ? primaryPayment['bankName'].toString().trim()
+          : (defaultBank['bankName'] ?? '');
+
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
         'method': settlementType,
         'amount': grandTotal,
-        'bankCode': primaryPayment?['bankCode'],
-        'bankName': primaryPayment?['bankName'],
+        'bankCode': resolvedBankCode,
+        'bankName': resolvedBankName,
         'chequeNumber': primaryPayment?['chequeNumber'],
         'chequeDate': primaryPayment?['chequeDate'],
+        'isSynced': 0,
+        'x3PaymentId': null,
+        'syncError': null,
+        'createdAt': now,
+        'deviceId': deviceId,
+        'userName': createdBy,
+        'salesSite': salesSite,
+        'customerCode': customerCode,
       });
 
       // F. Check if ALL lines are now fully reversed → flip isReversed = 1, else isPartiallyReversed = 1
@@ -571,10 +603,22 @@ class CreditNoteService {
         lineNo += 1000;
       }
 
+      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+      final defaultBankCode = defaultBank['bankCode'] ?? '';
+      final defaultBankName = defaultBank['bankName'] ?? '';
+
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
         'method': methodUpper,
         'amount': refundAmount,
+        'bankCode': defaultBankCode,
+        'bankName': defaultBankName,
+        'salesSite': salesSite,
+        'customerCode': customerCode,
+        'createdAt': now,
+        'deviceId': deviceId,
+        'userName': createdBy,
+        'isSynced': 0,
       });
 
       if (hasOriginInvoice) {

@@ -75,7 +75,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [NotMapped]
         public int Category => int.TryParse(InvoiceType, out var v) ? v : (InvoiceType == "CRN" ? 2 : (InvoiceType == "RTN" ? 3 : 1));
 
-        // Navigation property
+        // Navigation properties
         public ICollection<StagingSalesInvoiceLine> Lines { get; set; } = new List<StagingSalesInvoiceLine>();
+
+        [NotMapped]
+        public ICollection<StagingSalesInvoicePayment> Payments { get; set; } = new List<StagingSalesInvoicePayment>();
     }
 }

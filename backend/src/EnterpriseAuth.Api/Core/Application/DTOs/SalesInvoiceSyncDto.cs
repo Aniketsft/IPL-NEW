@@ -20,6 +20,25 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? PaymentTerm { get; set; }
 
         public List<SalesInvoiceLineDto> Lines { get; set; } = new List<SalesInvoiceLineDto>();
+        public List<SalesInvoicePaymentSyncDto> Payments { get; set; } = new List<SalesInvoicePaymentSyncDto>();
+    }
+
+    public class SalesInvoicePaymentSyncDto
+    {
+        public int? LocalPaymentId { get; set; }
+        public string Method { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string? BankCode { get; set; }
+        public string? BankName { get; set; }
+        public string? ChequeNumber { get; set; }
+        public string? ChequeDate { get; set; }
+        public string? QrTransactionRef { get; set; }
+        public string? DocumentType { get; set; }
+        public string? DocumentId { get; set; }
+        public string? X3InvoiceDocumentId { get; set; }
+        public string? SalesSite { get; set; }
+        public string? CustomerCode { get; set; }
+        public string? CustomerName { get; set; }
     }
 
     public class SalesInvoiceLineDto

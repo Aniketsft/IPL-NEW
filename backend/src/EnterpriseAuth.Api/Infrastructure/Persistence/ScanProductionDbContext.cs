@@ -33,6 +33,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         // --- SALES INVOICE STAGING ---
         public DbSet<StagingSalesInvoiceHeader> StagingSalesInvoiceHeaders { get; set; }
         public DbSet<StagingSalesInvoiceLine> StagingSalesInvoiceLines { get; set; }
+        public DbSet<StagingSalesInvoicePayment> StagingSalesInvoicePayments { get; set; }
 
         // --- CREDIT NOTE STAGING ---
         public DbSet<StagingCreditNoteHeader> StagingCreditNoteHeaders { get; set; }
@@ -167,6 +168,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             modelBuilder.Entity<StagingSalesInvoiceHeader>(entity =>
             {
                 entity.HasKey(e => e.InvoiceId);
+                entity.Ignore(e => e.Payments);
                 
                 entity.HasMany(e => e.Lines)
                       .WithOne(e => e.Header)
@@ -178,6 +180,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             modelBuilder.Entity<StagingSalesInvoiceLine>(entity =>
             {
                 entity.HasKey(e => e.LineId);
+            });
+
+            // StagingSalesInvoicePayment
+            modelBuilder.Entity<StagingSalesInvoicePayment>(entity =>
+            {
+                entity.HasKey(e => e.PaymentId);
+                entity.Property(e => e.Amount).HasPrecision(18, 4);
+                entity.Ignore(e => e.Header);
+                entity.Ignore(e => e.InvoiceId);
+                entity.HasIndex(e => new { e.DocumentType, e.DocumentId });
+                entity.HasIndex(e => e.IsProcessedByX3);
             });
 
             // StagingCreditNoteHeader

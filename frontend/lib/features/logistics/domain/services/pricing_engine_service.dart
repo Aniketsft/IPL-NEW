@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/entities/pricing_result.dart';
 
@@ -44,11 +45,15 @@ class PricingEngineService {
     int? facilityFlag,
     required String sku,
     required double qty,
+    String? siteCode,
     Database? database,
   }) async {
     final db = database ?? await _dbHelper.database;
     final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final String customerBpcsho = (bpcsho ?? '').trim();
+    final String effectiveSite = ((siteCode != null && siteCode.isNotEmpty)
+        ? siteCode
+        : (await SecureStorageService().getSiteCode() ?? '')).trim();
 
     // Step 1: Inter-site / Facility Override
     // Condition: If Customer BETFCY_0 == 2 OR BCGCOD == 'INTER'.
@@ -59,11 +64,21 @@ class PricingEngineService {
         SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
         WHERE pliCode = 'T40'
           AND (
-            (fld0 IN ('FCY', 'BPCNUM', 'BPCSHO') AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
+            (fld0 = 'FCY' AND fld1 = 'ITMREF' AND (
+               matchKey1 = ? OR ? LIKE matchKey1 || '%' OR
+               matchKey1 = ? OR ? LIKE matchKey1 || '%'
+             ) AND matchKey2 = ?)
+            OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
+            OR (fld0 = 'BPCSHO' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
             OR (fld0 = 'ITMREF' AND matchKey1 = ?)
           )
         ORDER BY priority ASC, reasonType ASC, basePrice ASC
-      ''', [customerCode, customerCode, sku, sku]);
+      ''', [
+        effectiveSite, effectiveSite, customerCode, customerCode, sku,
+        customerCode, customerCode, sku,
+        customerBpcsho, customerBpcsho, sku,
+        sku,
+      ]);
 
       Map<String, dynamic>? winningT40Row;
       PricingResult? facilityResult;
@@ -132,6 +147,7 @@ class PricingEngineService {
       _printFacilityMatrix(
         customerCode: customerCode,
         bcgcod: bcgcod,
+        siteCode: effectiveSite,
         facilityFlag: facilityFlag,
         sku: sku,
         qty: qty,
@@ -154,9 +170,11 @@ class PricingEngineService {
           OR (fld0 = 'TSCCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
           OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
           OR (fld0 = 'BPCSHO' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR matchKey1 = ?) AND matchKey2 = ?)
+          OR (fld0 IN ('SALFCY', 'STOFCY', 'FCY') AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
           OR (fld0 = 'ITMREF' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
           OR (fld0 = 'BPCNUM' AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
           OR (fld0 = 'BPCSHO' AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR matchKey1 = ?))
+          OR (fld0 IN ('SALFCY', 'STOFCY', 'FCY') AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
           OR (fld0 = 'BCGCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
           OR (fld0 = 'TSCCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
         )
@@ -166,9 +184,11 @@ class PricingEngineService {
       tsccod, sku,
       customerCode, customerCode, sku,
       customerBpcsho, customerCode, sku,
+      effectiveSite, effectiveSite, sku,
       sku,
       customerCode, customerCode,
       customerBpcsho, customerCode,
+      effectiveSite, effectiveSite,
       bcgcod,
       tsccod
     ]);
@@ -181,6 +201,7 @@ class PricingEngineService {
         bcgcod: bcgcod,
         tsccod: tsccod,
         bpcsho: customerBpcsho,
+        siteCode: effectiveSite,
         facilityFlag: facilityFlag,
         sku: sku,
         qty: qty,
@@ -486,6 +507,7 @@ class PricingEngineService {
       bcgcod: bcgcod,
       tsccod: tsccod,
       bpcsho: customerBpcsho,
+      siteCode: effectiveSite,
       facilityFlag: facilityFlag,
       sku: sku,
       qty: qty,
@@ -505,6 +527,7 @@ class PricingEngineService {
   void _printFacilityMatrix({
     required String customerCode,
     required String bcgcod,
+    String? siteCode,
     required int? facilityFlag,
     required String sku,
     required double qty,
@@ -521,6 +544,7 @@ class PricingEngineService {
     buffer.writeln(' CUSTOMER CONTEXT (INTER-SITE / FACILITY TRANSFER):');
     buffer.writeln('   * Customer Code : $customerCode');
     buffer.writeln('   * Category (BCG): $bcgcod');
+    buffer.writeln('   * Site Code     : ${(siteCode != null && siteCode.isNotEmpty) ? siteCode : "(None)"}');
     buffer.writeln('   * Facility Flag : ${facilityFlag ?? 1} (BETFCY = 2 or BCGCOD = INTER -> Bypass standard pricing)');
     buffer.writeln(' ITEM CONTEXT:');
     buffer.writeln('   * SKU (ITMREF)  : $sku');
@@ -551,6 +575,7 @@ class PricingEngineService {
     required String bcgcod,
     required String tsccod,
     String? bpcsho,
+    String? siteCode,
     required int? facilityFlag,
     required String sku,
     required double qty,
@@ -573,6 +598,7 @@ class PricingEngineService {
     buffer.writeln('   * Category (BCG): $bcgcod');
     buffer.writeln('   * Stat Group    : ${tsccod.isEmpty ? "(None)" : tsccod}');
     buffer.writeln('   * Short/Group   : ${(bpcsho != null && bpcsho.isNotEmpty) ? bpcsho : "(None)"} (BPCSHO)');
+    buffer.writeln('   * Site Code     : ${(siteCode != null && siteCode.isNotEmpty) ? siteCode : "(None)"}');
     buffer.writeln('   * Facility Flag : ${facilityFlag ?? 1} (Standard Commercial)');
     buffer.writeln(' ITEM CONTEXT:');
     buffer.writeln('   * SKU (ITMREF)  : $sku');

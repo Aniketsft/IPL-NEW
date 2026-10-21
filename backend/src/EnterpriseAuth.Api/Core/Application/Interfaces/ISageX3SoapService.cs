@@ -36,5 +36,10 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         /// Legacy fallback for StagingCreditNoteHeader.
         /// </summary>
         Task<X3ImportResult> ImportCreditNoteAsync(StagingCreditNoteHeader creditNote);
+
+        /// <summary>
+        /// Imports and allocates payments or cash refunds into Sage X3 via AOWSIMPORT using the ZPAYWEBA template.
+        /// </summary>
+        Task<X3ImportResult> ImportPaymentAsync(List<StagingSalesInvoicePayment> payments);
     }
 }

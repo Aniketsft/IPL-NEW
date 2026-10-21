@@ -1246,7 +1246,9 @@ class DeliveryRepository implements ILogisticsRepository {
       // Fetch Sales Invoice Customers (Standalone table, not part of compute because it's a separate API endpoint)
       yield SyncProgress(status: 'Fetching Sales Invoice Customers...', progress: 0.9);
       try {
-        final siResponse = await _dio.get('SalesInvoice/customers');
+        final siteCode = await _storageService.getSiteCode() ?? '';
+        final custParams = siteCode.isNotEmpty ? {'sitecode': siteCode} : null;
+        final siResponse = await _dio.get('SalesInvoice/customers', queryParameters: custParams);
         final siCustomers = siResponse.data as List<dynamic>? ?? [];
         await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
         counts['salesInvoiceCustomers'] = siCustomers.length;

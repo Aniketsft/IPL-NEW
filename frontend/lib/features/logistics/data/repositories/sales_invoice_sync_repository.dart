@@ -58,6 +58,7 @@ class SalesInvoiceSyncRepository {
       for (final invoice in unsyncedInvoices) {
         final invoiceId = invoice['invoiceId'] as String;
         final lines = await LocalDatabaseHelper.instance.getSalesInvoiceLines(invoiceId);
+        final payments = await LocalDatabaseHelper.instance.getPaymentsForInvoice(invoiceId);
 
         try {
           final payload = {
@@ -103,6 +104,16 @@ class SalesInvoiceSyncRepository {
               "pricingSource": l['pricingSource'] ?? '',
               "priceListCode": l['priceListCode'] ?? '',
               "reasonType": l['reasonType'] ?? 0
+            }).toList(),
+            "payments": payments.map((p) => {
+              "localPaymentId": p['paymentId'],
+              "method": p['method'] ?? 'CASH',
+              "amount": (p['amount'] as num?)?.toDouble() ?? 0.0,
+              "bankCode": p['bankCode'],
+              "bankName": p['bankName'],
+              "chequeNumber": p['chequeNumber'],
+              "chequeDate": p['chequeDate'],
+              "qrTransactionRef": p['qrTransactionRef'],
             }).toList()
           };
 
@@ -111,6 +122,10 @@ class SalesInvoiceSyncRepository {
           if (response.statusCode == 200 || response.statusCode == 201) {
              final displayId = _extractX3InvoiceId(invoiceId, response.data);
              await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId, x3DocumentId: displayId);
+             if (response.data is Map && (response.data['paymentSynced'] == true || response.data['x3PaymentId'] != null)) {
+               final x3PayId = response.data['x3PaymentId']?.toString();
+               await LocalDatabaseHelper.instance.markPaymentsSynced(invoiceId, x3PaymentId: x3PayId, x3InvoiceDocumentId: displayId);
+             }
              successes.add(displayId);
           } else {
              failures.add('$invoiceId: ${response.data}');
@@ -124,6 +139,10 @@ class SalesInvoiceSyncRepository {
               if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
                 final displayId = _extractX3InvoiceId(invoiceId, data);
                 await LocalDatabaseHelper.instance.markSalesInvoiceSynced(invoiceId, x3DocumentId: displayId);
+                if (data['paymentSynced'] == true || data['x3PaymentId'] != null) {
+                  final x3PayId = data['x3PaymentId']?.toString();
+                  await LocalDatabaseHelper.instance.markPaymentsSynced(invoiceId, x3PaymentId: x3PayId, x3InvoiceDocumentId: displayId);
+                }
                 successes.add(displayId);
               } else if (data.containsKey('error')) {
                 failures.add('$invoiceId: ${data['error']}');
@@ -214,6 +233,7 @@ class SalesInvoiceSyncRepository {
               "originLineNo": l['lineNo']
             }).toList(),
             "refunds": refunds.map((r) => {
+              "localRefundId": r['refundId'],
               "method": r['method'] ?? 'CASH',
               "amount": (r['amount'] as num?)?.toDouble() ?? 0.0,
               "bankCode": r['bankCode'],
@@ -227,6 +247,10 @@ class SalesInvoiceSyncRepository {
           if (response.statusCode == 200 || response.statusCode == 201) {
             final displayId = _extractX3InvoiceId(creditNoteId, response.data);
             await LocalDatabaseHelper.instance.markCreditNoteSynced(creditNoteId, x3DocumentId: displayId);
+            if (response.data is Map && (response.data['refundSynced'] == true || response.data['x3RefundPaymentId'] != null)) {
+              final x3RefundId = response.data['x3RefundPaymentId']?.toString();
+              await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
+            }
             successes.add(displayId);
           } else {
             failures.add('$creditNoteId: ${response.data}');
@@ -239,6 +263,10 @@ class SalesInvoiceSyncRepository {
               if (rawPayload != null && rawPayload.toLowerCase().contains("creation of ")) {
                 final displayId = _extractX3InvoiceId(creditNoteId, data);
                 await LocalDatabaseHelper.instance.markCreditNoteSynced(creditNoteId, x3DocumentId: displayId);
+                if (data['refundSynced'] == true || data['x3RefundPaymentId'] != null) {
+                  final x3RefundId = data['x3RefundPaymentId']?.toString();
+                  await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
+                }
                 successes.add(displayId);
               } else if (data.containsKey('error')) {
                 failures.add('$creditNoteId: ${data['error']}');
@@ -252,6 +280,61 @@ class SalesInvoiceSyncRepository {
             failures.add('$creditNoteId: Failed to sync ($e)');
           }
         }
+      }
+
+      // 1c. Push Unsynced Standalone / Retried Payments for existing X3 documents
+      try {
+        final unsyncedPayments = await LocalDatabaseHelper.instance.getUnsyncedPayments();
+        if (unsyncedPayments.isNotEmpty) {
+          debugPrint('Sync: Found ${unsyncedPayments.length} unsynced payment rows.');
+          final eligiblePayments = <Map<String, dynamic>>[];
+          for (final p in unsyncedPayments) {
+            final invId = p['invoiceId']?.toString() ?? '';
+            if (invId.isEmpty) continue;
+            final inv = await LocalDatabaseHelper.instance.getSalesInvoiceById(invId);
+            final x3Doc = inv?['x3DocumentId']?.toString();
+            if (x3Doc != null && x3Doc.isNotEmpty) {
+              eligiblePayments.add({
+                "localPaymentId": p['paymentId'],
+                "documentType": "INVOICE",
+                "documentId": invId,
+                "x3InvoiceDocumentId": x3Doc,
+                "salesSite": p['salesSite'] ?? inv?['salesSite'] ?? siteCode,
+                "customerCode": p['customerCode'] ?? inv?['customerCode'] ?? '',
+                "customerName": inv?['customerName'] ?? '',
+                "method": p['method'] ?? 'CASH',
+                "amount": (p['amount'] as num?)?.toDouble() ?? 0.0,
+                "bankCode": p['bankCode'],
+                "bankName": p['bankName'],
+                "chequeNumber": p['chequeNumber'],
+                "chequeDate": p['chequeDate'],
+                "qrTransactionRef": p['qrTransactionRef'],
+              });
+            }
+          }
+
+          if (eligiblePayments.isNotEmpty) {
+            final payResp = await _dio.post('SalesInvoice/sync-payments', data: eligiblePayments);
+            if (payResp.statusCode == 200 && payResp.data is Map && payResp.data['results'] is List) {
+              for (final res in (payResp.data['results'] as List)) {
+                if (res is Map && res['success'] == true) {
+                  final docId = res['documentId']?.toString();
+                  final x3PayId = res['x3PaymentId']?.toString();
+                  final x3InvDocId = res['x3InvoiceDocumentId']?.toString();
+                  if (docId != null && docId.isNotEmpty) {
+                    await LocalDatabaseHelper.instance.markPaymentsSynced(
+                      docId,
+                      x3PaymentId: x3PayId,
+                      x3InvoiceDocumentId: x3InvDocId,
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (payRetryEx) {
+        debugPrint('Sync: Standalone payment sync retry warning: $payRetryEx');
       }
 
       // Helper to safely execute a network request without failing sibling requests
@@ -270,6 +353,9 @@ class SalesInvoiceSyncRepository {
         debugPrint('⚠️ WARNING: Fetching price lists from INLDRYRUN schema. Ensure the correct schema is configured in app settings. Prices may not reflect production rules.');
       }
 
+      final custParams = <String, dynamic>{};
+      if (siteCode.isNotEmpty) custParams['sitecode'] = siteCode;
+
       final openInvParams = <String, dynamic>{'daysCutoff': 90};
       if (siteCode.isNotEmpty) openInvParams['sitecode'] = siteCode;
 
@@ -278,7 +364,7 @@ class SalesInvoiceSyncRepository {
 
       debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
       final results = await Future.wait([
-        safeGet('SalesInvoice/customers', label: 'Customers'),
+        safeGet('SalesInvoice/customers', queryParameters: custParams.isNotEmpty ? custParams : null, label: 'Customers'),
         safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
         safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
         safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists'),
@@ -286,6 +372,7 @@ class SalesInvoiceSyncRepository {
         safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices'),
         safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History'),
         safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
+        safeGet('SalesInvoice/banks', label: 'Banks'),
         _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) => null).catchError((e) {
           debugPrint('Sync: Failed to fetch stock details: $e');
           return null;
@@ -300,6 +387,7 @@ class SalesInvoiceSyncRepository {
       final openInvResp = results[5];
       final x3Resp = results[6];
       final reasonsResp = results[7];
+      final banksResp = results[8];
 
       // Ingest Customers
       if (custResp != null && custResp.data is List) {
@@ -354,6 +442,16 @@ class SalesInvoiceSyncRepository {
         if (rawReasons.isNotEmpty) {
           await LocalDatabaseHelper.instance.refreshCreditNoteReasons(rawReasons);
           debugPrint('Sync: Synced ${rawReasons.length} Sage X3 Credit Note Reasons.');
+        }
+      }
+
+      // Ingest Banks (Sage X3 Table BANK)
+      if (banksResp != null && banksResp.data is List) {
+        final rawBanks = banksResp.data as List<dynamic>;
+        if (rawBanks.isNotEmpty) {
+          final banksList = rawBanks.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          await LocalDatabaseHelper.instance.upsertBanks(banksList);
+          debugPrint('Sync: Synced ${banksList.length} Sage X3 Banks.');
         }
       }
 

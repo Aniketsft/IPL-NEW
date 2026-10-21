@@ -97,6 +97,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   List<PaymentEntry> _payments = [];
 
+  List<Map<String, dynamic>> _availableBanks = [];
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +111,29 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     if (widget.isCreditNoteRefund) {
       _loadCreditNoteReasons();
     }
+    _loadBanks();
+  }
+
+  Future<void> _loadBanks() async {
+    final authState = context.read<AuthBloc>().state;
+    String site = (authState is Authenticated && authState.siteCode != null && authState.siteCode!.isNotEmpty && authState.siteCode != 'ALL')
+        ? authState.siteCode!
+        : 'POD';
+    final banks = await LocalDatabaseHelper.instance.getBanks(siteCode: site);
+    if (!mounted) return;
+    setState(() {
+      _availableBanks = banks;
+      if (_bankCodeController.text.isEmpty && banks.isNotEmpty) {
+        final defaultBank = banks.firstWhere(
+          (b) => (b['bankCode'] as String? ?? '').toUpperCase().startsWith('MCB'),
+          orElse: () => banks.first,
+        );
+        _bankCodeController.text = defaultBank['bankCode']?.toString() ?? '';
+        if (_bankNameController.text.isEmpty) {
+          _bankNameController.text = defaultBank['bankName']?.toString() ?? '';
+        }
+      }
+    });
   }
 
   Future<void> _loadCreditNoteReasons() async {
@@ -147,7 +172,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     return _payments.fold(0.0, (sum, item) => sum + item.amount);
   }
 
-  void _addPayment({required double grandTotal, Map<String, dynamic>? customer}) {
+  Future<void> _addPayment({required double grandTotal, Map<String, dynamic>? customer}) async {
     if (grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -193,7 +218,29 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
 
-    // Dynamic Validations
+    final authState = context.read<AuthBloc>().state;
+    String currentSite = (authState is Authenticated && authState.siteCode != null && authState.siteCode!.isNotEmpty && authState.siteCode != 'ALL')
+        ? authState.siteCode!
+        : 'POD';
+
+    String resolvedBankCode = _bankCodeController.text.trim();
+    String resolvedBankName = _bankNameController.text.trim();
+
+    if (resolvedBankCode.isEmpty) {
+      if (_availableBanks.isNotEmpty) {
+        final defB = _availableBanks.firstWhere(
+          (b) => (b['bankCode'] as String? ?? '').toUpperCase().startsWith('MCB'),
+          orElse: () => _availableBanks.first,
+        );
+        resolvedBankCode = defB['bankCode']?.toString() ?? '';
+        resolvedBankName = defB['bankName']?.toString() ?? '';
+      } else {
+        final defB = await LocalDatabaseHelper.instance.getDefaultBank(currentSite);
+        resolvedBankCode = defB['bankCode'] ?? '';
+        resolvedBankName = defB['bankName'] ?? '';
+      }
+    }
+
     if (_selectedMethod == 'CHEQUE') {
       if (_bankNameController.text.trim().isEmpty ||
           _chequeNumController.text.trim().isEmpty ||
@@ -246,8 +293,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           id: const Uuid().v4(),
           method: _selectedMethod,
           amount: amount,
-          bankCode: _bankCodeController.text.trim(),
-          bankName: _bankNameController.text.trim(),
+          bankCode: resolvedBankCode,
+          bankName: resolvedBankName,
           chequeNumber: _chequeNumController.text.trim(),
           chequeDate: _chequeDateController.text.trim(),
           qrTransactionRef: _qrRefController.text.trim(),
@@ -398,12 +445,17 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       // Read user assigned site from AuthBloc synchronously before async gaps
       final authState = context.read<AuthBloc>().state;
-      final userSiteCode = (authState is Authenticated &&
+      String userSiteCode = (authState is Authenticated &&
               authState.siteCode != null &&
               authState.siteCode!.isNotEmpty &&
               authState.siteCode != 'ALL')
           ? authState.siteCode!
-          : 'IPL';
+          : 'POD';
+
+      // For IPL poultry mobile sales reps, sales sites are POD or PTT (Company INL)
+      if (userSiteCode == 'IPL') {
+        userSiteCode = 'POD';
+      }
 
       // Fetch audit details
       final secureStorage = SecureStorageService();
@@ -578,6 +630,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           'chequeNumber': payment.chequeNumber,
           'chequeDate': payment.chequeDate,
           'qrTransactionRef': payment.qrTransactionRef,
+          'isSynced': 0,
+          'x3PaymentId': null,
+          'x3InvoiceDocumentId': null,
+          'syncError': null,
+          'createdAt': DateTime.now().toIso8601String(),
+          'deviceId': deviceId,
+          'userName': username,
+          'salesSite': userSiteCode,
+          'customerCode': cartState.customer?['code'],
         });
       }
 
@@ -1457,6 +1518,36 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
                     // Dynamic Fields
                     if (_selectedMethod == 'CHEQUE') ...[
+                      if (_availableBanks.isNotEmpty) ...[
+                        DropdownButtonFormField<String>(
+                          value: _availableBanks.any((b) => b['bankCode'] == _bankCodeController.text)
+                              ? _bankCodeController.text
+                              : null,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Sage X3 Bank *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _availableBanks.map((b) {
+                            final code = b['bankCode']?.toString() ?? '';
+                            final name = b['bankName']?.toString() ?? '';
+                            return DropdownMenuItem<String>(
+                              value: code,
+                              child: Text('$code - $name', overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              final matched = _availableBanks.firstWhere((b) => b['bankCode'] == val);
+                              setState(() {
+                                _bankCodeController.text = val;
+                                _bankNameController.text = matched['bankName']?.toString() ?? val;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       TextField(
                         controller: _bankNameController,
                         decoration: const InputDecoration(
@@ -1468,11 +1559,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: _bankCodeController,
-                        keyboardType: TextInputType.number,
+                        maxLength: 5,
                         decoration: const InputDecoration(
-                          labelText: 'Bank Code (Optional)',
+                          labelText: 'Bank Code (Max 5 chars) *',
                           border: OutlineInputBorder(),
                           isDense: true,
+                          counterText: '',
                         ),
                       ),
                       const SizedBox(height: 12),

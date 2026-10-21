@@ -14,6 +14,7 @@ import '../../../../../core/network_service.dart';
 import '../../../domain/services/vat_calculator_service.dart';
 import '../../../domain/services/pricing_engine_service.dart';
 import '../../../domain/models/transaction_config.dart';
+import '../../../../../core/secure_storage_service.dart';
 import 'lot_selection_screen.dart';
 
 class AddItemDetailScreen extends StatefulWidget {
@@ -149,6 +150,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
               : null);
 
       try {
+        final siteCode = await SecureStorageService().getSiteCode();
         final pricingEngine = PricingEngineService();
         final result = await pricingEngine.resolvePrice(
           customerCode: customerCode,
@@ -158,6 +160,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           facilityFlag: facilityFlag,
           sku: widget.product.sku,
           qty: _quantity.toDouble(),
+          siteCode: siteCode,
         );
 
         if (mounted) {

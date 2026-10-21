@@ -2,7 +2,6 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
@@ -11,7 +10,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 92;
+  static const _databaseVersion = 94;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -57,6 +56,15 @@ class LocalDatabaseHelper {
   static const tableX3HistoryLines = 'tbl_x3_history_lines';
   static const tableDeviceLocations = 'tbl_device_locations';
   static const tableSiCreditNoteReasons = 'tbl_si_credit_note_reasons';
+  static const tableSiBanks = 'tbl_si_banks';
+
+  static const defaultBanks = [
+    {'bankCode': 'MCB92', 'bankName': 'MCB-010318992-MUR', 'company': 'INL', 'currency': 'MUR', 'siteCode': 'POD'},
+    {'bankCode': 'SBM33', 'bankName': 'SBM-02710100010333-MUR', 'company': 'INL', 'currency': 'MUR', 'siteCode': 'POD'},
+    {'bankCode': 'MMU74', 'bankName': 'MAUBANK-01000000074-MUR', 'company': 'INL', 'currency': 'MUR', 'siteCode': 'POD'},
+    {'bankCode': 'BMU47', 'bankName': 'BANK ONE-0000301047-MUR', 'company': 'INL', 'currency': 'MUR', 'siteCode': 'POD'},
+    {'bankCode': 'MCB76', 'bankName': 'MCB-444039376-MUR', 'company': 'IPLTD', 'currency': 'MUR', 'siteCode': 'IPL'},
+  ];
 
   static const defaultCreditNoteReasons = [
     {'code': 'RET', 'description': 'Delivery return'},
@@ -274,6 +282,26 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtMin', 'REAL DEFAULT 0');
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtBkt', 'REAL DEFAULT 0');
 
+    // Payment and refund sync healing
+    await _safeAddColumn(_database!, tableSiPayments, 'isSynced', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiPayments, 'x3PaymentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'x3InvoiceDocumentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'syncError', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'createdAt', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'deviceId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'userName', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'salesSite', 'TEXT');
+    await _safeAddColumn(_database!, tableSiPayments, 'customerCode', 'TEXT');
+
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'isSynced', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'x3PaymentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'syncError', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'createdAt', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'deviceId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'userName', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'salesSite', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'customerCode', 'TEXT');
+
     try {
       await _database!.execute('''
         UPDATE $tableSiInvoices
@@ -456,11 +484,54 @@ class LocalDatabaseHelper {
         await batch.commit(noResult: true);
       }
     } catch (_) {}
-    
+
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableSiBanks (
+          bankCode TEXT PRIMARY KEY,
+          bankName TEXT NOT NULL,
+          company TEXT NOT NULL,
+          currency TEXT NOT NULL,
+          siteCode TEXT
+        )
+      ''');
+      final bankCount = Sqflite.firstIntValue(
+        await _database!.rawQuery('SELECT COUNT(*) FROM $tableSiBanks'),
+      ) ?? 0;
+      if (bankCount == 0) {
+        final batch = _database!.batch();
+        for (final b in defaultBanks) {
+          batch.insert(
+            tableSiBanks,
+            b,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+    } catch (_) {}
+
     return _database!;
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 94) {
+      debugPrint('DB Upgrade: Creating Banks table (v94)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSiBanks (
+            bankCode TEXT PRIMARY KEY,
+            bankName TEXT NOT NULL,
+            company TEXT NOT NULL,
+            currency TEXT NOT NULL,
+            siteCode TEXT
+          )
+        ''');
+      } catch (e) {
+        debugPrint('Migration error v94 ($tableSiBanks): $e');
+      }
+    }
+
     if (oldVersion < 91) {
       debugPrint('DB Upgrade: Adding paymentTerm to tableSiInvoices (v91)');
       try {
@@ -1886,6 +1957,41 @@ class LocalDatabaseHelper {
         debugPrint("Migration error v92 tbl_si_credit_notes: $e");
       }
     }
+    if (oldVersion < 93) {
+      debugPrint('DB Upgrade: Adding payment and refund sync columns (v93)');
+      final paymentCols = [
+        ('isSynced', 'INTEGER DEFAULT 0'),
+        ('x3PaymentId', 'TEXT'),
+        ('x3InvoiceDocumentId', 'TEXT'),
+        ('syncError', 'TEXT'),
+        ('createdAt', 'TEXT'),
+        ('deviceId', 'TEXT'),
+        ('userName', 'TEXT'),
+        ('salesSite', 'TEXT'),
+        ('customerCode', 'TEXT'),
+      ];
+      for (final col in paymentCols) {
+        try {
+          await db.execute('ALTER TABLE $tableSiPayments ADD COLUMN ${col.$1} ${col.$2}');
+        } catch (_) {}
+      }
+
+      final refundCols = [
+        ('isSynced', 'INTEGER DEFAULT 0'),
+        ('x3PaymentId', 'TEXT'),
+        ('syncError', 'TEXT'),
+        ('createdAt', 'TEXT'),
+        ('deviceId', 'TEXT'),
+        ('userName', 'TEXT'),
+        ('salesSite', 'TEXT'),
+        ('customerCode', 'TEXT'),
+      ];
+      for (final col in refundCols) {
+        try {
+          await db.execute('ALTER TABLE $tableSiCreditNoteRefunds ADD COLUMN ${col.$1} ${col.$2}');
+        } catch (_) {}
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -2026,7 +2132,16 @@ class LocalDatabaseHelper {
         bankName TEXT,
         chequeNumber TEXT,
         chequeDate TEXT,
-        qrTransactionRef TEXT
+        qrTransactionRef TEXT,
+        isSynced INTEGER DEFAULT 0,
+        x3PaymentId TEXT,
+        x3InvoiceDocumentId TEXT,
+        syncError TEXT,
+        createdAt TEXT,
+        deviceId TEXT,
+        userName TEXT,
+        salesSite TEXT,
+        customerCode TEXT
       )
     ''');
 
@@ -2083,7 +2198,15 @@ class LocalDatabaseHelper {
         bankCode TEXT,
         bankName TEXT,
         chequeNumber TEXT,
-        chequeDate TEXT
+        chequeDate TEXT,
+        isSynced INTEGER DEFAULT 0,
+        x3PaymentId TEXT,
+        syncError TEXT,
+        createdAt TEXT,
+        deviceId TEXT,
+        userName TEXT,
+        salesSite TEXT,
+        customerCode TEXT
       )
     ''');
 
@@ -3799,6 +3922,80 @@ class LocalDatabaseHelper {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getPaymentsForInvoice(String invoiceId) async {
+    final db = await database;
+    return await db.query(
+      tableSiPayments,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+      orderBy: 'paymentId ASC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getUnsyncedPayments() async {
+    final db = await database;
+    return await db.query(
+      tableSiPayments,
+      where: 'isSynced = ? OR isSynced IS NULL',
+      whereArgs: [0],
+      orderBy: 'paymentId ASC',
+    );
+  }
+
+  Future<void> markPaymentsSynced(
+    String invoiceId, {
+    String? x3PaymentId,
+    String? x3InvoiceDocumentId,
+  }) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'isSynced': 1,
+      'syncError': null,
+    };
+    if (x3PaymentId != null && x3PaymentId.isNotEmpty) {
+      updates['x3PaymentId'] = x3PaymentId;
+    }
+    if (x3InvoiceDocumentId != null && x3InvoiceDocumentId.isNotEmpty) {
+      updates['x3InvoiceDocumentId'] = x3InvoiceDocumentId;
+    }
+    await db.update(
+      tableSiPayments,
+      updates,
+      where: 'invoiceId = ?',
+      whereArgs: [invoiceId],
+    );
+  }
+
+  Future<void> markCreditNoteRefundsSynced(
+    String creditNoteId, {
+    String? x3PaymentId,
+  }) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'isSynced': 1,
+      'syncError': null,
+    };
+    if (x3PaymentId != null && x3PaymentId.isNotEmpty) {
+      updates['x3PaymentId'] = x3PaymentId;
+    }
+    await db.update(
+      tableSiCreditNoteRefunds,
+      updates,
+      where: 'creditNoteId = ?',
+      whereArgs: [creditNoteId],
+    );
+  }
+
+  Future<void> markPaymentError(int paymentId, String error) async {
+    final db = await database;
+    await db.update(
+      tableSiPayments,
+      {'syncError': error},
+      where: 'paymentId = ?',
+      whereArgs: [paymentId],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getCreditNotes({
     String? creditNoteType,
     String? customerCode,
@@ -4569,4 +4766,94 @@ class LocalDatabaseHelper {
       'description': m['description']!,
     }).toList();
   }
+
+  // --- Banks (Sage X3 BANK Table) ---
+
+  Future<void> upsertBanks(List<Map<String, dynamic>> banks) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final b in banks) {
+        final bankCode = (b['bankCode'] ?? b['code'] ?? '').toString().trim();
+        final bankName = (b['bankName'] ?? b['name'] ?? b['description'] ?? bankCode).toString().trim();
+        final company = (b['company'] ?? '').toString().trim();
+        final currency = (b['currency'] ?? 'MUR').toString().trim();
+        final siteCode = (b['siteCode'] ?? '').toString().trim();
+
+        if (bankCode.isNotEmpty) {
+          batch.insert(
+            tableSiBanks,
+            {
+              'bankCode': bankCode,
+              'bankName': bankName,
+              'company': company,
+              'currency': currency,
+              'siteCode': siteCode,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getBanks({String? siteCode}) async {
+    final db = await database;
+    try {
+      if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+        // First attempt: match directly by siteCode
+        final directResults = await db.query(
+          tableSiBanks,
+          where: 'siteCode = ?',
+          whereArgs: [siteCode],
+          orderBy: 'bankCode ASC',
+        );
+        if (directResults.isNotEmpty) return directResults;
+
+        // Second attempt: match by associated company (IPL -> IPLTD, all other poultry -> INL)
+        final targetCompany = (siteCode == 'IPL') ? 'IPLTD' : 'INL';
+        final results = await db.query(
+          tableSiBanks,
+          where: 'siteCode = ? OR company = ? OR siteCode IS NULL OR siteCode = ""',
+          whereArgs: [siteCode, targetCompany],
+          orderBy: 'bankCode ASC',
+        );
+        if (results.isNotEmpty) return results;
+      }
+      final allResults = await db.query(tableSiBanks, orderBy: 'bankCode ASC');
+      if (allResults.isNotEmpty) return allResults;
+    } catch (_) {}
+
+    return defaultBanks;
+  }
+
+  Future<Map<String, String>> getDefaultBank(String? siteCode) async {
+    final banks = await getBanks(siteCode: siteCode);
+    if (banks.isNotEmpty) {
+      final mcb = banks.firstWhere(
+        (b) => (b['bankCode'] as String? ?? '').toUpperCase().startsWith('MCB'),
+        orElse: () => banks.first,
+      );
+      return {
+        'bankCode': mcb['bankCode']?.toString() ?? '',
+        'bankName': mcb['bankName']?.toString() ?? '',
+        'company': mcb['company']?.toString() ?? '',
+        'currency': mcb['currency']?.toString() ?? 'MUR',
+      };
+    }
+    final fallback = (siteCode == 'IPL') ? defaultBanks[4] : defaultBanks[0];
+    return {
+      'bankCode': fallback['bankCode']?.toString() ?? '',
+      'bankName': fallback['bankName']?.toString() ?? '',
+      'company': fallback['company']?.toString() ?? '',
+      'currency': fallback['currency']?.toString() ?? 'MUR',
+    };
+  }
+
+  Future<String> getDefaultBankCode(String? siteCode) async {
+    final bank = await getDefaultBank(siteCode);
+    return bank['bankCode'] ?? '';
+  }
 }
+

@@ -58,9 +58,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
                 WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''
+                  AND (@SiteCode = '' OR @SiteCode = 'ALL' 
+                       OR c.SALFCY_0 = @SiteCode 
+                       OR c.BPCSHO_0 = @SiteCode
+                       OR c.SALFCY_0 IS NULL 
+                       OR LTRIM(RTRIM(c.SALFCY_0)) = '')
                 ORDER BY LTRIM(RTRIM(c.BPCNAM_0))";
 
-            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql);
+            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql, new { SiteCode = sitecode ?? string.Empty });
         }
 
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
@@ -446,6 +451,23 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Description ASC;
             ";
             return await db.QueryAsync<CreditNoteReasonDto>(sql);
+        }
+
+        public async Task<IEnumerable<BankDto>> GetBanksAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(b.BAN_0)) AS BankCode,
+                    LTRIM(RTRIM(b.DES_0)) AS BankName,
+                    LTRIM(RTRIM(b.CPY_0)) AS Company,
+                    LTRIM(RTRIM(b.CUR_0)) AS Currency,
+                    LTRIM(RTRIM(COALESCE(b.FCY_0, ''))) AS SiteCode
+                FROM {_syncSettings.X3DatabaseName}.{schema}.[BANK] b WITH (NOLOCK)
+                ORDER BY b.CPY_0, b.BAN_0;
+            ";
+            return await db.QueryAsync<BankDto>(sql);
         }
     }
 }

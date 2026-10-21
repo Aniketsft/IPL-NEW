@@ -837,5 +837,65 @@ void main() {
       expect(resultWithoutBpcsho.basePrice, 253.65);
       expect(resultWithoutBpcsho.priceListCode, 'T100');
     });
+
+    test('Scenario 10: Site-specific Pricing (T40 by siteCode and Standard by SALFCY)', () async {
+      // 1. T40 rule matching FLD0=FCY, matchKey1=IPL
+      await db.insert(LocalDatabaseHelper.tablePriceLists, {
+        'pliCode': 'T40',
+        'priority': 50,
+        'ruleType': 2,
+        'fld0': 'FCY',
+        'fld1': 'ITMREF',
+        'matchKey1': 'IPL',
+        'matchKey2': 'ITEM_SITE_A',
+        'basePrice': 150.0,
+        'discountPct': 0.0,
+        'discountAmt': 0.0,
+        'focType': 1,
+      });
+
+      // Facility customer where customerCode is not site code, but siteCode='IPL' is provided
+      final facilitySiteResult = await service.resolvePrice(
+        customerCode: 'CUST999',
+        bcgcod: 'INTER',
+        tsccod: '',
+        facilityFlag: 2,
+        sku: 'ITEM_SITE_A',
+        qty: 1,
+        siteCode: 'IPL',
+        database: db,
+      );
+
+      expect(facilitySiteResult.basePrice, 150.0);
+      expect(facilitySiteResult.priceListCode, 'T40');
+
+      // 2. Commercial rule matching FLD0=SALFCY, matchKey1=IPL
+      await db.insert(LocalDatabaseHelper.tablePriceLists, {
+        'pliCode': 'T120',
+        'priority': 40,
+        'ruleType': 2,
+        'fld0': 'SALFCY',
+        'fld1': 'ITMREF',
+        'matchKey1': 'IPL',
+        'matchKey2': 'ITEM_SITE_B',
+        'basePrice': 200.0,
+        'discountPct': 0.0,
+        'discountAmt': 0.0,
+        'focType': 1,
+      });
+
+      final commercialSiteResult = await service.resolvePrice(
+        customerCode: 'COMM001',
+        bcgcod: 'REG',
+        tsccod: '',
+        sku: 'ITEM_SITE_B',
+        qty: 1,
+        siteCode: 'IPL',
+        database: db,
+      );
+
+      expect(commercialSiteResult.basePrice, 200.0);
+      expect(commercialSiteResult.priceListCode, 'T120');
+    });
   });
 }
