@@ -106,8 +106,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Console.WriteLine($"[DbInitializer] Added {permissionsToAdd.Count} new permissions.");
             }
 
-            // Seed Roles
+            // Seed specific root permission: administration.user_management.set_site
+            const string setSitePermissionName = "administration.user_management.set_site";
+            var setSitePermission = await context.Permissions.FirstOrDefaultAsync(p => p.Name == setSitePermissionName);
+            if (setSitePermission == null)
+            {
+                setSitePermission = new Permission
+                {
+                    Id = Guid.NewGuid(),
+                    Name = setSitePermissionName,
+                    Description = "Authority to assign and modify site codes in user management"
+                };
+                await context.Permissions.AddAsync(setSitePermission);
+                await context.SaveChangesAsync();
+                Console.WriteLine($"[DbInitializer] Added root permission: {setSitePermissionName}");
+            }
+
+            // Seed Roles (Admin role gets all permissions EXCEPT set_site, which is reserved strictly for user admin)
             var allPermissions = await context.Permissions.ToListAsync();
+            var generalPermissions = allPermissions.Where(p => p.Name != setSitePermissionName).ToList();
             Console.WriteLine($"[DbInitializer] Total permissions in DB: {allPermissions.Count}");
 
             var adminRole = await context.Roles.Include(r => r.Permissions).FirstOrDefaultAsync(r => r.Name == "Admin");
@@ -118,27 +135,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Id = Guid.NewGuid(),
                     Name = "Admin",
                     Description = "Full system access",
-                    Permissions = new List<Permission>(allPermissions)
+                    Permissions = new List<Permission>(generalPermissions)
                 };
                 await context.Roles.AddAsync(adminRole);
-                Console.WriteLine("[DbInitializer] Created Admin role with all permissions.");
+                Console.WriteLine("[DbInitializer] Created Admin role with general permissions.");
             }
             else
             {
-                // Brute force update: Clear and re-add to ensure sync
+                // Brute force update: Clear and re-add general permissions (excluding set_site)
                 adminRole.Permissions.Clear();
-                foreach(var p in allPermissions) adminRole.Permissions.Add(p);
-                Console.WriteLine($"[DbInitializer] Synchronized Admin role with {allPermissions.Count} permissions.");
+                foreach(var p in generalPermissions) adminRole.Permissions.Add(p);
+                Console.WriteLine($"[DbInitializer] Synchronized Admin role with {generalPermissions.Count} permissions (excluding set_site).");
             }
 
-            // Ensure other roles exist
-            // (Removed Operator role seeding per user request)
+            // Ensure no other role has set_site
+            var otherRolesWithSetSite = await context.Roles
+                .Include(r => r.Permissions)
+                .Where(r => r.Permissions.Any(p => p.Name == setSitePermissionName))
+                .ToListAsync();
+            foreach (var r in otherRolesWithSetSite)
+            {
+                var permToRemove = r.Permissions.FirstOrDefault(p => p.Name == setSitePermissionName);
+                if (permToRemove != null) r.Permissions.Remove(permToRemove);
+            }
 
             await context.SaveChangesAsync();
 
             // Seed Admin User
             var adminUser = await context.Users
                 .Include(u => u.Roles)
+                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(u => u.Username == "admin");
 
             if (adminUser == null)
@@ -153,21 +179,38 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     Salt = salt,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
-                    Roles = new List<Role> { adminRole }
+                    Roles = new List<Role> { adminRole },
+                    Permissions = new List<Permission> { setSitePermission }
                 };
                 await context.Users.AddAsync(adminUser);
-                Console.WriteLine("[DbInitializer] Created 'admin' user and assigned Admin role.");
+                Console.WriteLine("[DbInitializer] Created 'admin' user and assigned Admin role + set_site permission.");
             }
             else
             {
-                // Ensure Admin Role Link and SYNC PERMISSIONS
+                // Ensure Admin Role Link
                 if (!adminUser.Roles.Any(r => r.Name == "Admin"))
                 {
                     adminUser.Roles.Add(adminRole);
                     Console.WriteLine("[DbInitializer] Assigned missing Admin role to existing 'admin' user.");
                 }
-                
-                // Force sync the user's role permissions if they were stale
+
+                // Ensure user admin has set_site permission directly
+                if (!adminUser.Permissions.Any(p => p.Name == setSitePermissionName))
+                {
+                    adminUser.Permissions.Add(setSitePermission);
+                    Console.WriteLine($"[DbInitializer] Assigned '{setSitePermissionName}' to 'admin' user.");
+                }
+            }
+
+            // Ensure no other user has set_site
+            var otherUsersWithSetSite = await context.Users
+                .Include(u => u.Permissions)
+                .Where(u => u.Username != "admin" && u.Permissions.Any(p => p.Name == setSitePermissionName))
+                .ToListAsync();
+            foreach (var u in otherUsersWithSetSite)
+            {
+                var permToRemove = u.Permissions.FirstOrDefault(p => p.Name == setSitePermissionName);
+                if (permToRemove != null) u.Permissions.Remove(permToRemove);
             }
 
             await context.SaveChangesAsync();

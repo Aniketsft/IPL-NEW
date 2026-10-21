@@ -75,14 +75,33 @@ namespace EnterpriseAuth.Api.Controllers
             return Ok(dto);
         }
 
+        private bool CanSetSiteCode()
+        {
+            return User.HasClaim("permission", "administration.user_management.set_site");
+        }
+
         [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] UserCreateRequest request)
         {
             var passwordHash = _passwordHasher.HashPassword(request.Password, out string salt);
             
+            var canSetSite = CanSetSiteCode();
             var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
-            var assignedSiteCode = string.IsNullOrEmpty(currentUserSiteCode) ? request.SiteCode : currentUserSiteCode;
+
+            string? assignedSiteCode;
+            if (canSetSite)
+            {
+                assignedSiteCode = request.SiteCode;
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(request.SiteCode) && !string.Equals(request.SiteCode, currentUserSiteCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return StatusCode(403, "Only the authorized administrator can assign or change site codes.");
+                }
+                assignedSiteCode = currentUserSiteCode;
+            }
             
             var user = new User
             {
@@ -110,6 +129,12 @@ namespace EnterpriseAuth.Api.Controllers
             if (request.Permissions != null && request.Permissions.Any())
             {
                 var normalizedRequestPermissions = request.Permissions.Select(p => p.ToLowerInvariant()).ToList();
+                // Never grant set_site permission via creation to anyone other than admin
+                if (!request.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalizedRequestPermissions.Remove("administration.user_management.set_site");
+                }
+
                 var allPermissions = await _context.Permissions.ToListAsync();
                 var permissions = allPermissions
                     .Where(p => normalizedRequestPermissions.Contains(p.Name.ToLowerInvariant()))
@@ -157,11 +182,8 @@ namespace EnterpriseAuth.Api.Controllers
 
             if (isTargetAdmin)
             {
-                var callerUsername = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
-                                     ?? User.Identity?.Name 
-                                     ?? string.Empty;
                 var isCallerSuperAdmin = User.IsInRole("SuperAdmin");
-                var isCallerRootAdmin = callerUsername.Equals("admin", StringComparison.OrdinalIgnoreCase);
+                var isCallerRootAdmin = CanSetSiteCode();
 
                 if (!isCallerSuperAdmin && !isCallerRootAdmin)
                 {
@@ -173,7 +195,16 @@ namespace EnterpriseAuth.Api.Controllers
             user.Email = dto.Email;
             user.IsActive = dto.IsActive;
             
-            if (string.IsNullOrEmpty(currentUserSiteCode))
+            // Site code updates: restricted strictly to users with CanSetSiteCode permission
+            if (!string.Equals(dto.SiteCode, user.SiteCode, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!CanSetSiteCode())
+                {
+                    return StatusCode(403, "Only the authorized administrator can modify site codes.");
+                }
+                user.SiteCode = dto.SiteCode;
+            }
+            else if (CanSetSiteCode())
             {
                 user.SiteCode = dto.SiteCode;
             }
@@ -250,11 +281,8 @@ namespace EnterpriseAuth.Api.Controllers
 
             if (isTargetAdmin)
             {
-                var callerUsername = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
-                                     ?? User.Identity?.Name 
-                                     ?? string.Empty;
                 var isCallerSuperAdmin = User.IsInRole("SuperAdmin");
-                var isCallerRootAdmin = callerUsername.Equals("admin", StringComparison.OrdinalIgnoreCase);
+                var isCallerRootAdmin = CanSetSiteCode();
 
                 if (!isCallerSuperAdmin && !isCallerRootAdmin)
                 {
@@ -264,6 +292,19 @@ namespace EnterpriseAuth.Api.Controllers
 
             var normalizedRequestPermissions = permissionNames.Select(p => p.ToLowerInvariant()).ToList();
             
+            // Safeguard: Only the user 'admin' can have 'administration.user_management.set_site'
+            if (!user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedRequestPermissions.Remove("administration.user_management.set_site");
+            }
+            else
+            {
+                if (!normalizedRequestPermissions.Contains("administration.user_management.set_site"))
+                {
+                    normalizedRequestPermissions.Add("administration.user_management.set_site");
+                }
+            }
+
             // Load all permissions first to avoid EF Core translation issues with ToLower inside Contains
             var allPermissions = await _context.Permissions.ToListAsync();
             var permissions = allPermissions

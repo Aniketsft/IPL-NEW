@@ -813,9 +813,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     List<ModuleAccess> newRolePermissions = [];
 
     final authState = context.read<AuthBloc>().state;
+    final canSetSite = authState is Authenticated &&
+        authState.permissions.contains('administration.user_management.set_site');
     final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
-    final isAdmin = currentUserSite == 'ALL' || currentUserSite == null;
-    if (!isAdmin) {
+    if (!canSetSite) {
       selectedSite = currentUserSite;
     }
 
@@ -877,7 +878,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                                 hintText: 'e.g. IT administrators with full settings access',
                               ),
                             ),
-                            if (isAdmin) ...[
+                            if (canSetSite) ...[
                               const SizedBox(height: 16),
                               DropdownButtonFormField<String>(
                                 value: selectedSite,
@@ -1054,50 +1055,73 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           
           Builder(builder: (context) {
             final authState = context.read<AuthBloc>().state;
+            final canSetSite = authState is Authenticated &&
+                authState.permissions.contains('administration.user_management.set_site');
             final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
-            final isAdmin = currentUserSite == 'ALL' || currentUserSite == null;
             
-            final displaySite = isAdmin ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
+            final displaySite = canSetSite ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Assign Site Code',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: displaySite,
-                        hint: const Text('Select Site'),
-                        isExpanded: true,
-                        dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                        items: _availableSites.map((site) {
-                          return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
-                        }).toList()
-                          ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
-                        onChanged: isAdmin ? (val) {
-                          setState(() {
-                            _selectedCreationSite = val;
-                          });
-                        } : null, // Disabled for non-admins
+                Row(
+                  children: [
+                    const Text(
+                      'Assign Site Code',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                    if (!canSetSite) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Locked to $currentUserSite',
+                          style: TextStyle(
+                            color: Colors.amber.shade400,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 16),
-                ],
-              );
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: displaySite,
+                      hint: const Text('Select Site'),
+                      isExpanded: true,
+                      dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                      items: _availableSites.map((site) {
+                        return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
+                      }).toList()
+                        ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+                      onChanged: canSetSite ? (val) {
+                        setState(() {
+                          _selectedCreationSite = val;
+                        });
+                      } : null, // Disabled for non-user-admins
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
           }),
           
           const SizedBox(height: 32),
@@ -1198,8 +1222,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     setState(() => _isCreatingUser = true);
     try {
       final authState = context.read<AuthBloc>().state;
+      final canSetSite = authState is Authenticated &&
+          authState.permissions.contains('administration.user_management.set_site');
       final currentUserSite = authState is Authenticated ? authState.siteCode : 'ALL';
-      final finalSite = (currentUserSite == 'ALL' || currentUserSite == null) ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
+      final finalSite = canSetSite ? (_selectedCreationSite ?? 'ALL') : currentUserSite;
 
       // Note: The backend UsersController POST doesn't directly take siteCode currently (it assumes what we send in the payload).
       // Wait, in user_management_repository.dart we pass siteCode!
@@ -1257,12 +1283,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         if (_selectedManagementUser != null)
           Builder(
             builder: (context) {
+              final authState = context.read<AuthBloc>().state;
+              final canSetSite = authState is Authenticated &&
+                  authState.permissions.contains('administration.user_management.set_site');
               final isSelectedAdmin = _selectedManagementUser!.username.toLowerCase() == 'admin' ||
                   _localRoles.any((r) =>
                       r.id == _selectedManagementUser!.roleId &&
                       (r.name.toLowerCase() == 'admin' || r.name.toLowerCase() == 'superadmin'));
-              final isCallerRootAdmin = _currentLoggedInUsername?.toLowerCase() == 'admin';
-              final bool isLocked = isSelectedAdmin && !isCallerRootAdmin;
+              final bool isLocked = isSelectedAdmin && !canSetSite;
 
               return Expanded(
                 child: SingleChildScrollView(
@@ -1313,6 +1341,45 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                           child: _buildUserRoleSelector(isDark),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Text(
+                            'ASSIGNED SITE CODE',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (!canSetSite) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Locked (Admin only)',
+                                style: TextStyle(
+                                  color: Colors.amber.shade400,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      AbsorbPointer(
+                        absorbing: isLocked || !canSetSite,
+                        child: Opacity(
+                          opacity: (isLocked || !canSetSite) ? 0.6 : 1.0,
+                          child: _buildUserSiteSelector(isDark, canSetSite),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1330,13 +1397,15 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           ),
         Builder(
           builder: (context) {
+            final authState = context.read<AuthBloc>().state;
+            final canSetSite = authState is Authenticated &&
+                authState.permissions.contains('administration.user_management.set_site');
             final isSelectedAdmin = _selectedManagementUser != null &&
                 (_selectedManagementUser!.username.toLowerCase() == 'admin' ||
                     _localRoles.any((r) =>
                         r.id == _selectedManagementUser!.roleId &&
                         (r.name.toLowerCase() == 'admin' || r.name.toLowerCase() == 'superadmin')));
-            final isCallerRootAdmin = _currentLoggedInUsername?.toLowerCase() == 'admin';
-            final bool isLocked = isSelectedAdmin && !isCallerRootAdmin;
+            final bool isLocked = isSelectedAdmin && !canSetSite;
 
             return _buildActionFooter('SAVE CHANGES', _isSavingUserPermissions || isLocked, isLocked ? () {} : () async {
               if (_selectedManagementUser == null) return;
@@ -1419,11 +1488,55 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                   isActive: _selectedManagementUser!.isActive,
                   roleId: val.id,
                   permissions: _selectedManagementUser!.permissions,
+                  siteCode: _selectedManagementUser!.siteCode,
                 );
                 _selectedManagementUser = _allUsers[userIdx];
               });
             }
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserSiteSelector(bool isDark, bool canSetSite) {
+    if (_selectedManagementUser == null) return const SizedBox.shrink();
+
+    final currentSiteCode = _selectedManagementUser!.siteCode ?? 'ALL';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? Theme.of(context).cardColor : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentSiteCode,
+          hint: const Text('Select Site'),
+          isExpanded: true,
+          dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          items: _availableSites.map((site) {
+            return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
+          }).toList()
+            ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+          onChanged: canSetSite ? (val) {
+            if (val != null) {
+              setState(() {
+                final userIdx = _allUsers.indexOf(_selectedManagementUser!);
+                _allUsers[userIdx] = User(
+                  id: _selectedManagementUser!.id,
+                  username: _selectedManagementUser!.username,
+                  email: _selectedManagementUser!.email,
+                  isActive: _selectedManagementUser!.isActive,
+                  roleId: _selectedManagementUser!.roleId,
+                  permissions: _selectedManagementUser!.permissions,
+                  siteCode: val == 'ALL' ? null : val,
+                );
+                _selectedManagementUser = _allUsers[userIdx];
+              });
+            }
+          } : null,
         ),
       ),
     );
@@ -1449,6 +1562,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         isActive: _selectedManagementUser!.isActive,
         roleId: _selectedManagementUser!.roleId,
         permissions: updatedPerms,
+        siteCode: _selectedManagementUser!.siteCode,
       );
       _selectedManagementUser = _allUsers[userIdx];
     });
