@@ -20,12 +20,15 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
   ) async {
     if (state is SalesInvoiceSyncInProgress) return;
 
-    emit(const SalesInvoiceSyncInProgress('Synchronizing Sales Invoice Data...'));
+    emit(const SalesInvoiceSyncInProgress('Synchronizing Mobile Sales Data...'));
 
     try {
       final batchResult = await _useCase.execute(siteCode: event.siteCode);
-      if (batchResult.errorMessage != null && batchResult.successes.isEmpty) {
-        emit(SalesInvoiceSyncFailure(batchResult.errorMessage!));
+      if (batchResult.isTotalFailure) {
+        emit(SalesInvoiceSyncFailure(
+          batchResult.errorMessage ?? 'Synchronization failed. Could not communicate with server.',
+          batchResult: batchResult,
+        ));
       } else {
         final lastSync = DateTime.now().toString().substring(0, 16);
         emit(SalesInvoiceSyncSuccess(lastSync, batchResult));

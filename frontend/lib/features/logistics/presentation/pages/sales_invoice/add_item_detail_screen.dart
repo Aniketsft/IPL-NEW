@@ -41,6 +41,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     decimalDigits: 2,
   );
 
+  String _formatQty(num val) =>
+      val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(2);
+
   int _quantity = 1;
   final TextEditingController _qtyController = TextEditingController(text: '1');
 
@@ -100,11 +103,17 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     if (widget.existingItem != null) {
       _quantity = widget.existingItem!.quantity.toInt();
       _originalInvoicedQty = widget.existingItem!.quantity;
-      _qtyController.text = _quantity.toString();
+      _qtyController.text = _formatQty(widget.existingItem!.quantity);
       _basePriceController.text = widget.existingItem!.basePrice
           .toStringAsFixed(2);
       _discountPercent = widget.existingItem!.discountPercent;
       _discountController.text = _discountPercent.toString();
+      _vatRatePercent = widget.existingItem!.vatRatePercent;
+      _taxRuleCode = widget.existingItem!.taxRule;
+      _priceSource = widget.existingItem!.pricingSource;
+      _priceListCode = widget.existingItem!.priceListCode;
+      _discountAmountFlat = widget.existingItem!.discountAmountFlat;
+      _reasonType = widget.existingItem!.reasonType;
       _lotNumber = widget.existingItem!.lotNumber;
       _warehouse = widget.existingItem!.warehouse.isNotEmpty
           ? widget.existingItem!.warehouse
@@ -353,12 +362,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       // Strict validation against maximum valid quantity
       if (_enforceLimit) {
         if (newQty > _maxValidQty) {
-          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
+          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_formatQty(_maxValidQty)}).');
           return;
         }
       } else if (!_isSalesOrder && _maxValidQty > 0 && newQty > _maxValidQty) {
         _showStockErrorDialog(
-          'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
+          'Insufficient stock in this lot (${_formatQty(_maxValidQty)} available). Please adjust.',
         );
         return;
       }
@@ -472,10 +481,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               ),
                               child: Text(
                                 _enforceLimit
-                                    ? 'Original Qty: ${_originalInvoicedQty.toInt()}'
+                                    ? 'Original Qty: ${_formatQty(_originalInvoicedQty)}'
                                     : _isSalesOrder
-                                        ? 'Stock: ${actualTotalStock.toInt()} | Order (No Limit)'
-                                        : 'Total: ${actualTotalStock.toInt()} | Lot: ${_lotTotalQty.toInt()}',
+                                        ? 'Stock: ${_formatQty(actualTotalStock)} | Order (No Limit)'
+                                        : 'Total: ${_formatQty(actualTotalStock)} | Lot: ${_formatQty(_lotTotalQty)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -760,7 +769,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                       int updatedQty = parsed;
                                       if (_enforceLimit) {
                                         if (updatedQty > _maxValidQty) {
-                                          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_maxValidQty.toInt()}).');
+                                          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_formatQty(_maxValidQty)}).');
                                           _qtyController.text = _quantity.toString();
                                           return;
                                         }
@@ -768,7 +777,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                           _maxValidQty > 0 &&
                                           updatedQty > _maxValidQty) {
                                         _showStockErrorDialog(
-                                          'Insufficient stock in this lot (${_maxValidQty.toInt()} available). Please adjust.',
+                                          'Insufficient stock in this lot (${_formatQty(_maxValidQty)} available). Please adjust.',
                                         );
                                         _qtyController.text = _quantity.toString();
                                         return;
@@ -866,7 +875,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           onPressed: () async {
                             if (!_isSalesOrder && _quantity > _maxValidQty) {
                               _showStockErrorDialog(
-                                'Cannot proceed: Insufficient stock in this lot (${_maxValidQty.toInt()} available).',
+                                'Cannot proceed: Insufficient stock in this lot (${_formatQty(_maxValidQty)} available).',
                               );
                               return;
                             }

@@ -146,31 +146,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     if (!isOfflineSession && (token == null || token.isEmpty || isTokenExpired(token))) {
       print('AuthBloc: JWT expired on interaction — attempting silent refresh.');
-      try {
-        await _authRepository.refreshToken();
-        final newToken = await _storageService.getToken();
-        if (newToken == null || newToken.isEmpty || isTokenExpired(newToken)) {
-          // Refresh returned but token is still bad — check offline validity
-          final offlineValid = await _authRepository.isOfflineSessionValid();
-          if (!offlineValid) {
-            print('AuthBloc: Silent refresh failed and offline session invalid. Logging out.');
-            add(LogoutRequested());
-            return;
-          }
-          // Offline session is still valid — let the user keep working
-          print('AuthBloc: Silent refresh failed but offline session valid. Continuing.');
-        } else {
-          await _updateAuthTimer();
-        }
-      } catch (_) {
-        // Network unreachable — check offline window before deciding
+      final success = await _authRepository.refreshToken();
+      if (!success) {
         final offlineValid = await _authRepository.isOfflineSessionValid();
         if (!offlineValid) {
-          print('AuthBloc: Offline session expired. Logging out.');
+          print('AuthBloc: Silent refresh failed and offline session invalid. Logging out.');
           add(LogoutRequested());
           return;
         }
-        print('AuthBloc: Offline — continuing with cached session.');
+        final username = await _storageService.getUsername() ?? 'user';
+        await _storageService.saveToken('OFFLINE_SESSION_$username');
+        _cancelAllTimers();
+        _startInactivityTimer();
+        print('AuthBloc: Silent refresh offline. Transitioned to OFFLINE mode (valid for 7 days).');
+      } else {
+        await _updateAuthTimer();
       }
     }
 
@@ -201,24 +191,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     if (!isOfflineSession && (token == null || token.isEmpty || isTokenExpired(token))) {
       print('AuthBloc: JWT expired on resume — attempting silent refresh.');
-      try {
-        await _authRepository.refreshToken();
-        final newToken = await _storageService.getToken();
-        if (newToken == null || newToken.isEmpty || isTokenExpired(newToken)) {
-          final offlineValid = await _authRepository.isOfflineSessionValid();
-          if (!offlineValid) {
-            print('AuthBloc: Post-resume refresh failed and offline invalid. Logging out.');
-            add(LogoutRequested());
-          }
-        } else {
-          await _updateAuthTimer();
-        }
-      } catch (_) {
+      final success = await _authRepository.refreshToken();
+      if (!success) {
         final offlineValid = await _authRepository.isOfflineSessionValid();
         if (!offlineValid) {
-          print('AuthBloc: Post-resume offline session expired. Logging out.');
+          print('AuthBloc: Post-resume refresh failed and offline invalid. Logging out.');
           add(LogoutRequested());
+        } else {
+          final username = await _storageService.getUsername() ?? 'user';
+          await _storageService.saveToken('OFFLINE_SESSION_$username');
+          _cancelAllTimers();
+          _startInactivityTimer();
+          print('AuthBloc: Post-resume refresh offline. Transitioned to OFFLINE session.');
         }
+      } else {
+        await _updateAuthTimer();
       }
     }
   }
@@ -249,12 +236,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('AuthBloc: Skipping token refresh for offline session.');
       return;
     }
-    try {
-      await _authRepository.refreshToken();
+    final success = await _authRepository.refreshToken();
+    if (success) {
       await _updateAuthTimer();
-    } catch (_) {
-      // Network may be unavailable. isOfflineSessionValid will guard on next interaction.
-      print('AuthBloc: Periodic token refresh failed (possibly offline). Will retry next cycle.');
+    } else {
+      final offlineValid = await _authRepository.isOfflineSessionValid();
+      if (offlineValid) {
+        final username = await _storageService.getUsername() ?? 'user';
+        await _storageService.saveToken('OFFLINE_SESSION_$username');
+        _cancelAllTimers();
+        _startInactivityTimer();
+        print('AuthBloc: Network unavailable for token refresh. Session safely converted to OFFLINE mode (valid for 7 days).');
+      } else {
+        print('AuthBloc: Token refresh failed and offline credentials expired. Logging out.');
+        add(LogoutRequested());
+      }
     }
   }
 

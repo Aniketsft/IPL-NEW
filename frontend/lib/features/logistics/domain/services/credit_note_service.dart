@@ -17,6 +17,7 @@ class CreditNoteService {
     String? reference,
     String? salesRep,
     String? deviceId,
+    int stockTransaction = 0,
   }) async {
     final db = await _dbProvider();
 
@@ -96,7 +97,17 @@ class CreditNoteService {
       reason: reason,
       salesRep: salesRep ?? (invoice['salesRep'] as String?),
       transactionMode: '4',
+      stockTransaction: stockTransaction,
     );
+
+    // Fetch default bank outside transaction to prevent sqflite lock contention
+    final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+    final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
+        ? primaryPayment['bankCode'].toString().trim()
+        : (defaultBank['bankCode'] ?? '');
+    final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
+        ? primaryPayment['bankName'].toString().trim()
+        : (defaultBank['bankName'] ?? '');
 
     await db.transaction((txn) async {
       // A. Insert credit note header
@@ -161,14 +172,6 @@ class CreditNoteService {
       }
 
       // C. Insert refund record
-      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
-      final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
-          ? primaryPayment['bankCode'].toString().trim()
-          : (defaultBank['bankCode'] ?? '');
-      final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
-          ? primaryPayment['bankName'].toString().trim()
-          : (defaultBank['bankName'] ?? '');
-
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
         'method': settlementType,
@@ -219,6 +222,7 @@ class CreditNoteService {
     String? reference,
     String? salesRep,
     String? deviceId,
+    int stockTransaction = 0,
   }) async {
     if (selectedLines.isEmpty) {
       throw ArgumentError('At least one line must be selected for partial reversal.');
@@ -343,7 +347,17 @@ class CreditNoteService {
       reason: reason,
       salesRep: salesRep ?? (invoice['salesRep'] as String?),
       transactionMode: '4',
+      stockTransaction: stockTransaction,
     );
+
+    // Fetch default bank outside transaction to prevent sqflite lock contention
+    final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+    final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
+        ? primaryPayment['bankCode'].toString().trim()
+        : (defaultBank['bankCode'] ?? '');
+    final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
+        ? primaryPayment['bankName'].toString().trim()
+        : (defaultBank['bankName'] ?? '');
 
     await db.transaction((txn) async {
       // A. Insert credit note header
@@ -403,14 +417,6 @@ class CreditNoteService {
       }
 
       // E. Insert refund record
-      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
-      final resolvedBankCode = (primaryPayment?['bankCode'] != null && (primaryPayment!['bankCode'] as String).trim().isNotEmpty)
-          ? primaryPayment['bankCode'].toString().trim()
-          : (defaultBank['bankCode'] ?? '');
-      final resolvedBankName = (primaryPayment?['bankName'] != null && (primaryPayment!['bankName'] as String).trim().isNotEmpty)
-          ? primaryPayment['bankName'].toString().trim()
-          : (defaultBank['bankName'] ?? '');
-
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
         'method': settlementType,
@@ -471,6 +477,7 @@ class CreditNoteService {
     String? reason,
     String? salesRep,
     String? originInvoiceId,
+    int stockTransaction = 0,
   }) async {
     final methodUpper = refundMethod.toUpperCase();
     if (methodUpper == 'QR' || methodUpper.contains('QR')) {
@@ -510,19 +517,33 @@ class CreditNoteService {
       reason: reason,
       salesRep: salesRep,
       transactionMode: (originInvoiceId != null && originInvoiceId.isNotEmpty) ? '4' : '1',
+      stockTransaction: stockTransaction,
     );
+
+    // Fetch default bank outside transaction to prevent sqflite lock contention
+    final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
+    final defaultBankCode = defaultBank['bankCode'] ?? '';
+    final defaultBankName = defaultBank['bankName'] ?? '';
 
     await db.transaction((txn) async {
       await txn.insert(LocalDatabaseHelper.tableSiCreditNotes, creditNote.toMap());
 
       final hasOriginInvoice = originInvoiceId != null && originInvoiceId.isNotEmpty;
       List<Map<String, dynamic>> originalInvoiceLines = [];
+      List<Map<String, dynamic>> x3HistoryLines = [];
       if (hasOriginInvoice) {
         originalInvoiceLines = await txn.query(
           LocalDatabaseHelper.tableSiInvoiceLines,
           where: 'invoiceId = ?',
           whereArgs: [originInvoiceId],
         );
+        if (originalInvoiceLines.isEmpty) {
+          x3HistoryLines = await txn.query(
+            LocalDatabaseHelper.tableX3HistoryLines,
+            where: 'invoiceNumber = ?',
+            whereArgs: [originInvoiceId],
+          );
+        }
       }
 
       int lineNo = 1000;
@@ -532,15 +553,25 @@ class CreditNoteService {
 
         String? matchedLineId;
         if (hasOriginInvoice) {
-          final match = originalInvoiceLines.firstWhere(
-            (ol) => ol['sku'] == sku && (lot.isEmpty || ol['lotNumber'] == lot),
-            orElse: () => originalInvoiceLines.firstWhere(
-              (ol) => ol['sku'] == sku,
+          if (originalInvoiceLines.isNotEmpty) {
+            final match = originalInvoiceLines.firstWhere(
+              (ol) => ol['sku'] == sku && (lot.isEmpty || ol['lotNumber'] == lot),
+              orElse: () => originalInvoiceLines.firstWhere(
+                (ol) => ol['sku'] == sku,
+                orElse: () => <String, dynamic>{},
+              ),
+            );
+            if (match.isNotEmpty && match['lineId'] != null) {
+              matchedLineId = match['lineId'].toString();
+            }
+          } else if (x3HistoryLines.isNotEmpty) {
+            final match = x3HistoryLines.firstWhere(
+              (xl) => xl['productCode'] == sku,
               orElse: () => <String, dynamic>{},
-            ),
-          );
-          if (match.isNotEmpty && match['lineId'] != null) {
-            matchedLineId = match['lineId'].toString();
+            );
+            if (match.isNotEmpty && match['lineNumber'] != null) {
+              matchedLineId = match['lineNumber'].toString();
+            }
           }
         }
 
@@ -570,42 +601,43 @@ class CreditNoteService {
           });
         }
 
-        // Replenish stock
-        final wh = item.standaloneWarehouse ?? item.warehouse;
-        final loc = 'LOC1'; // default location if not specified
+        // Replenish stock when physical goods are returned (stockTransaction == 1)
+        if (stockTransaction == 1) {
+          final wh = (item.standaloneWarehouse ?? item.warehouse).isNotEmpty
+              ? (item.standaloneWarehouse ?? item.warehouse)
+              : salesSite;
+          final resolvedLot = lot.isNotEmpty ? lot : 'RETURN';
+          final loc = 'LOC1'; // default location if not specified
 
-        if (sku.isNotEmpty && lot.isNotEmpty && wh.isNotEmpty) {
-          final updated = await txn.rawUpdate(
-            '''
-            UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-            SET totalQty = totalQty + ? 
-            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ?
-            ''',
-            [item.quantity, sku, lot, wh],
-          );
+          if (sku.isNotEmpty) {
+            final updated = await txn.rawUpdate(
+              '''
+              UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+              SET totalQty = totalQty + ? 
+              WHERE itemCode = ? AND lotNumber = ? AND warehouse = ?
+              ''',
+              [item.quantity, sku, resolvedLot, wh],
+            );
 
-          if (updated == 0) {
-            await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
-              'itemCode': sku,
-              'itemName': item.standaloneName ?? item.name,
-              'lotNumber': lot,
-              'warehouse': wh,
-              'location': loc,
-              'totalQty': item.quantity,
-              'taxLevel': item.standaloneTaxRule ?? item.taxRule,
-              'cce0': item.standaloneCce0 ?? item.cce0,
-              'isSynced': 1,
-              'createdAt': now,
-            });
+            if (updated == 0) {
+              await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
+                'itemCode': sku,
+                'itemName': item.standaloneName ?? item.name,
+                'lotNumber': resolvedLot,
+                'warehouse': wh,
+                'location': loc,
+                'totalQty': item.quantity,
+                'taxLevel': item.standaloneTaxRule ?? item.taxRule,
+                'cce0': item.standaloneCce0 ?? item.cce0,
+                'isSynced': 1,
+                'createdAt': now,
+              });
+            }
           }
         }
 
         lineNo += 1000;
       }
-
-      final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
-      final defaultBankCode = defaultBank['bankCode'] ?? '';
-      final defaultBankName = defaultBank['bankName'] ?? '';
 
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,

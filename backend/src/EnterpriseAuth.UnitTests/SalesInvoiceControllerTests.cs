@@ -12,18 +12,22 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 
+using Microsoft.Extensions.Logging;
+
 namespace EnterpriseAuth.UnitTests
 {
     public class SalesInvoiceControllerTests
     {
         private readonly Mock<ISalesInvoiceRepository> _repoMock;
         private readonly Mock<ISageX3SoapService> _soapMock;
+        private readonly Mock<ILogger<SalesInvoiceController>> _loggerMock;
         private readonly ScanProductionDbContext _dbContext;
 
         public SalesInvoiceControllerTests()
         {
             _repoMock = new Mock<ISalesInvoiceRepository>();
             _soapMock = new Mock<ISageX3SoapService>();
+            _loggerMock = new Mock<ILogger<SalesInvoiceController>>();
 
             var options = new DbContextOptionsBuilder<ScanProductionDbContext>()
                 .UseInMemoryDatabase(databaseName: "TestSalesInvoiceDb_" + Guid.NewGuid())
@@ -33,7 +37,7 @@ namespace EnterpriseAuth.UnitTests
 
         private SalesInvoiceController CreateControllerWithUser(string? siteClaim = null)
         {
-            var controller = new SalesInvoiceController(_repoMock.Object, _dbContext, _soapMock.Object);
+            var controller = new SalesInvoiceController(_repoMock.Object, _dbContext, _soapMock.Object, _loggerMock.Object);
 
             var claims = new List<Claim>();
             if (siteClaim != null)
@@ -85,10 +89,24 @@ namespace EnterpriseAuth.UnitTests
         }
 
         [Fact]
-        public async Task GetItemStockDetails_WithNoParamAndNoClaim_ReturnsBadRequest()
+        public async Task GetItemStockDetails_WithNoParamAndNoClaim_ReturnsForbidden()
         {
             // Arrange
             var controller = CreateControllerWithUser(null);
+
+            // Act
+            var result = await controller.GetItemStockDetails(null);
+
+            // Assert
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetItemStockDetails_WithNoParamAndAllClaim_ReturnsBadRequest()
+        {
+            // Arrange
+            var controller = CreateControllerWithUser("ALL");
 
             // Act
             var result = await controller.GetItemStockDetails(null);

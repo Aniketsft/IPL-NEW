@@ -15,6 +15,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
+import '../../../data/repositories/sales_invoice_sync_repository.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
   final String? initialCustomerNo;
@@ -45,7 +46,78 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   final Map<String, double> _selectedAllocations = {};
 
   bool _isLoading = true;
+  bool _isSyncing = false;
   final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
+
+  Future<void> _syncCustomerOpenInvoices() async {
+    if (_isSyncing || _selectedCustomerNo == null || _selectedCustomerNo!.isEmpty) return;
+
+    setState(() => _isSyncing = true);
+    final custCode = _selectedCustomerNo!;
+    final custName = _selectedCustomerName ?? custCode;
+
+    String siteCode = '';
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is Authenticated) {
+        siteCode = authState.siteCode ?? '';
+      }
+    } catch (_) {}
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Syncing open invoices for $custName from Sage X3...'),
+        duration: const Duration(seconds: 25),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final syncRepo = context.read<SalesInvoiceSyncRepository>();
+      final result = await syncRepo.syncSingleCustomerData(
+        customerCode: custCode,
+        siteCode: siteCode,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (result.success) {
+        await _loadData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.green.shade800,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+            content: Text('Synced ${result.openInvoicesCount} open invoices for $custName'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            content: Text(result.errorMessage ?? 'Failed to sync open invoices.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade800,
+            content: Text('Sync error: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
+  }
 
   int _selectedTab = 0; // 0: Pending Collections, 1: Collection History
   List<Map<String, dynamic>> _paymentHistory = [];
@@ -269,6 +341,20 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       title: widget.lockToCustomer && _selectedCustomerName != null
           ? 'Receipt (Cash Collection) [${_selectedCustomerNo ?? ''}]'
           : 'Receipt (Cash Collection)',
+      extraActions: [
+        if (_selectedCustomerNo != null && _selectedCustomerNo!.isNotEmpty)
+          IconButton(
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.cloud_sync_rounded),
+            tooltip: 'Sync Open Invoices for ${_selectedCustomerName ?? _selectedCustomerNo}',
+            onPressed: _isSyncing ? null : _syncCustomerOpenInvoices,
+          ),
+      ],
       body: Column(
         children: [
           // Top Segmented Control Tab Bar

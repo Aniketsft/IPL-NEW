@@ -34,6 +34,7 @@ class CreditNoteModel {
   final String? reason;
   final String? salesRep;
   final String? transactionMode; // "1" = Direct Credit Note, "4" = Linked Credit Note with Origin Invoice
+  final int stockTransaction; // 0 = Credit Note (Financial only), 1 = Customer Return (Financial + Physical Stock Receipt)
   final List<CreditNoteLineModel> lines;
   final List<CreditNoteRefundModel> refunds;
 
@@ -58,6 +59,7 @@ class CreditNoteModel {
     this.reason,
     this.salesRep,
     this.transactionMode,
+    this.stockTransaction = 0,
     this.lines = const [],
     this.refunds = const [],
   });
@@ -88,6 +90,7 @@ class CreditNoteModel {
       'reason': reason,
       'salesRep': salesRep,
       'transactionMode': resolvedTransactionMode,
+      'stockTransaction': stockTransaction,
     };
   }
 
@@ -129,6 +132,7 @@ class CreditNoteModel {
       reason: map['reason'],
       salesRep: map['salesRep'],
       transactionMode: map['transactionMode'] as String?,
+      stockTransaction: (map['stockTransaction'] as num?)?.toInt() ?? 0,
       lines: lines,
       refunds: refunds,
     );

@@ -912,8 +912,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
                           // CASE 4: Standard Invoice / Credit Note Confirmation or Subsequent Reversal
                           final isCreditNote = cartState.config.mode.isCreditNote ||
+                              cartState.config.isReturnOrCreditNote ||
                               cartState.transactionType == 'STANDALONE_CREDIT_NOTE' ||
-                              cartState.transactionType == 'CREDIT_NOTE';
+                              cartState.transactionType == 'CREDIT_NOTE' ||
+                              cartState.transactionType == 'RETURN' ||
+                              cartState.transactionType == 'CUSTOMER_RETURN';
                           final isZeroAmount = cartState.grandTotal <= 0;
                           final bool showConfirmButton = !cartState.config.requireItemSelectionForAction || _selectedReversalQuantities.isNotEmpty;
 
@@ -925,7 +928,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                   padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Text(
                                     isCreditNote
-                                        ? 'Credit note amount must be greater than zero.'
+                                        ? ((cartState.transactionType == 'RETURN' || cartState.transactionType == 'CUSTOMER_RETURN')
+                                            ? 'Return refund amount must be greater than zero.'
+                                            : 'Credit note amount must be greater than zero.')
                                         : 'Invoice amount must be greater than zero.',
                                     style: const TextStyle(
                                       color: Colors.red,

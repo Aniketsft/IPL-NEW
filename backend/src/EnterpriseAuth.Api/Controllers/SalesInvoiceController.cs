@@ -21,17 +21,38 @@ namespace EnterpriseAuth.Api.Controllers
         private readonly ScanProductionDbContext _dbContext;
         private readonly ISageX3SoapService _soapService;
         private readonly ILogger<SalesInvoiceController> _logger;
+        private readonly EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? _snapshotService;
 
         public SalesInvoiceController(
             ISalesInvoiceRepository repository,
             ScanProductionDbContext dbContext,
             ISageX3SoapService soapService,
-            ILogger<SalesInvoiceController> logger)
+            ILogger<SalesInvoiceController> logger,
+            EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? snapshotService = null)
         {
             _repository = repository;
             _dbContext = dbContext;
             _soapService = soapService;
             _logger = logger;
+            _snapshotService = snapshotService;
+        }
+
+        private IActionResult ServeSnapshotResult(EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.SnapshotFileResult snapshot)
+        {
+            var requestETag = Request.Headers.IfNoneMatch.ToString();
+            if (!string.IsNullOrEmpty(requestETag) && requestETag.Equals(snapshot.ETag, StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(304);
+            }
+
+            Response.Headers.ETag = snapshot.ETag;
+            Response.Headers.LastModified = snapshot.LastModifiedUtc.ToString("R");
+            if (snapshot.IsGzip)
+            {
+                Response.Headers.ContentEncoding = "gzip";
+            }
+
+            return PhysicalFile(snapshot.FilePath, "application/json");
         }
 
         [HttpPost("sync")]
@@ -703,7 +724,7 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("customers")]
         public async Task<IActionResult> GetCustomers([FromQuery] string? sitecode = null)
         {
-            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode, allowAll: true);
             if (error != null)
             {
                 return error;
@@ -751,11 +772,23 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
+                if (_snapshotService != null)
+                {
+                    var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
+                        effectiveSiteCode!,
+                        "StockDetails",
+                        () => _repository.GetStockWatermarkAsync(effectiveSiteCode!),
+                        () => _repository.GetItemStockDetailsAsync(effectiveSiteCode!));
+
+                    return ServeSnapshotResult(snapshot);
+                }
+
                 var details = await _repository.GetItemStockDetailsAsync(effectiveSiteCode!);
                 return Ok(details);
             }
-            catch (System.Exception)
+            catch (System.Exception ex)
             {
+                _logger.LogError(ex, "Error retrieving stock details for site {Site}", effectiveSiteCode);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving stock details." });
             }
         }
@@ -793,12 +826,100 @@ namespace EnterpriseAuth.Api.Controllers
         {
             try
             {
+                if (_snapshotService != null)
+                {
+                    var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
+                        "GLOBAL",
+                        "PriceLists",
+                        () => _repository.GetPriceListsWatermarkAsync(),
+                        () => _repository.GetPriceListsAsync());
+
+                    return ServeSnapshotResult(snapshot);
+                }
+
                 var data = await _repository.GetPriceListsAsync();
                 return Ok(data);
             }
-            catch (System.Exception)
+            catch (System.Exception ex)
             {
+                _logger.LogError(ex, "Error retrieving price lists");
                 return StatusCode(500, new { error = "An internal error occurred while retrieving price lists." });
+            }
+        }
+
+        [HttpGet("customer/{customerNo}/live-credit")]
+        public async Task<IActionResult> GetCustomerLiveCredit(string customerNo)
+        {
+            if (string.IsNullOrWhiteSpace(customerNo))
+            {
+                return BadRequest(new { error = "Customer number is required." });
+            }
+
+            try
+            {
+                var liveCredit = await _repository.GetCustomerLiveCreditAsync(customerNo);
+                if (liveCredit == null)
+                {
+                    return NotFound(new { error = $"Customer '{customerNo}' not found." });
+                }
+
+                return Ok(liveCredit);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving live credit for customer {CustomerNo}", customerNo);
+                return StatusCode(500, new { error = "An internal error occurred while retrieving live credit." });
+            }
+        }
+
+        [HttpGet("customer/{customerNo}")]
+        public async Task<IActionResult> GetCustomerByCode(string customerNo)
+        {
+            if (string.IsNullOrWhiteSpace(customerNo))
+            {
+                return BadRequest(new { error = "Customer number is required." });
+            }
+
+            try
+            {
+                var customer = await _repository.GetCustomerByCodeAsync(customerNo);
+                if (customer == null)
+                {
+                    return NotFound(new { error = $"Customer '{customerNo}' not found." });
+                }
+
+                return Ok(customer);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving customer {CustomerNo}", customerNo);
+                return StatusCode(500, new { error = "An internal error occurred while retrieving customer." });
+            }
+        }
+
+        [HttpGet("product/{productCode}/live-stock")]
+        public async Task<IActionResult> GetProductLiveStock(string productCode, [FromQuery] string? sitecode = null)
+        {
+            if (string.IsNullOrWhiteSpace(productCode))
+            {
+                return BadRequest(new { error = "Product code is required." });
+            }
+
+            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            if (error != null)
+            {
+                return error;
+            }
+
+            try
+            {
+                var liveStock = await _repository.GetProductLiveStockAsync(productCode, effectiveSiteCode!);
+                return Ok(liveStock);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving live stock for product {ProductCode} at site {Site}", productCode, effectiveSiteCode);
+                return StatusCode(500, new { error = "An internal error occurred while retrieving live stock." });
             }
         }
 
@@ -853,6 +974,17 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
+                if (_snapshotService != null && string.IsNullOrWhiteSpace(customerno) && daysCutoff == 90)
+                {
+                    var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
+                        effectiveSite!,
+                        "OpenInvoices",
+                        () => _repository.GetOpenInvoicesWatermarkAsync(effectiveSite!),
+                        () => _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff));
+
+                    return ServeSnapshotResult(snapshot);
+                }
+
                 var data = await _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff);
                 return Ok(data);
             }
@@ -874,6 +1006,17 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
+                if (_snapshotService != null && string.IsNullOrWhiteSpace(customercode) && months == 6)
+                {
+                    var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
+                        effectiveSite!,
+                        "X3History",
+                        () => _repository.GetX3HistoryWatermarkAsync(effectiveSite!),
+                        () => _repository.GetX3HistoryAsync(effectiveSite ?? "", customercode, months));
+
+                    return ServeSnapshotResult(snapshot);
+                }
+
                 var data = await _repository.GetX3HistoryAsync(effectiveSite ?? "", customercode, months);
                 return Ok(data);
             }
@@ -944,7 +1087,7 @@ namespace EnterpriseAuth.Api.Controllers
             }
         }
 
-        private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode)
+        private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode, bool allowAll = false)
         {
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
             bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
@@ -969,6 +1112,10 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(requestedSiteCode) || string.Equals(requestedSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (allowAll)
+                    {
+                        return (string.Empty, null);
+                    }
                     return (null, BadRequest(new { error = "An explicit sitecode is required to fetch records. 'ALL' is not permitted." }));
                 }
 

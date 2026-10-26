@@ -124,6 +124,7 @@ class TransactionConfig {
           confirmIcon: Icons.assignment_return,
           enforceOriginalQtyLimit: true,
           canRemoveItems: true,
+          allowCatalogProductAddition: false,
           isReturnOrCreditNote: true,
         );
       case 'CREDIT_NOTE':

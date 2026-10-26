@@ -5,7 +5,6 @@ import '../../../../core/network_service.dart';
 import '../local/local_database_helper.dart';
 import '../models/sales_invoice_product_model.dart';
 import '../models/sales_invoice_item_stock_model.dart';
-import '../../../../core/config/api_config.dart';
 import 'package:flutter/foundation.dart';
 
 List<Map<String, dynamic>> _parseItemStockData(List<dynamic> rawData) {
@@ -177,13 +176,37 @@ class SalesInvoiceProductRepository {
 
   Future<void> syncSalesInvoiceItemStockDetails([String? siteCode]) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final etagKey = 'etag_stock_${siteCode?.isNotEmpty == true ? siteCode : "default"}';
+      final cachedEtag = prefs.getString(etagKey);
+      final headers = <String, dynamic>{};
+      if (cachedEtag != null && cachedEtag.isNotEmpty) {
+        headers['If-None-Match'] = cachedEtag;
+      }
+
       final response = await _dio.get(
         'SalesInvoice/itemstockdetails',
         queryParameters: (siteCode != null && siteCode.isNotEmpty)
             ? {'sitecode': siteCode}
             : null,
+        options: Options(
+          headers: headers.isNotEmpty ? headers : null,
+          validateStatus: (status) => status != null && ((status >= 200 && status < 300) || status == 304),
+        ),
       );
-      final List<dynamic> rawData = response.data;
+
+      if (response.statusCode == 304) {
+        debugPrint('Sync: Stock details up-to-date (HTTP 304 Not Modified). Bypassing re-index.');
+        return;
+      }
+
+      final dynamic respData = response.data;
+      if (respData == null || respData is! List) {
+        debugPrint('Sync: Stock details response is empty or invalid.');
+        return;
+      }
+
+      final List<dynamic> rawData = respData;
       
       // Parse in background to prevent UI freeze
       final List<Map<String, dynamic>> parsedData = await compute(_parseItemStockData, rawData);
@@ -213,6 +236,12 @@ class SalesInvoiceProductRepository {
         // Apply Unsynced Ledger after fully overwriting from X3
         await _applyUnsyncedLedgerToStock(txn);
       });
+
+      // Update stored ETag on successful ingestion
+      final newEtag = response.headers.value('etag');
+      if (newEtag != null && newEtag.isNotEmpty) {
+        await prefs.setString(etagKey, newEtag);
+      }
 
       debugPrint(
         'Successfully synced ${rawData.length} sales invoice item stock details.',
@@ -315,5 +344,46 @@ class SalesInvoiceProductRepository {
     final result = await db.rawQuery(sql, [itemCode]);
 
     return result.map((e) => SalesInvoiceItemStockModel.fromSqlMap(e)).toList();
+  }
+
+  /// Fetches live real-time stock directly from Sage X3 factoring physical inventory and active allocations (ITMMVT).
+  Future<Map<String, dynamic>?> fetchLiveProductStock(String productCode, [String? siteCode]) async {
+    try {
+      final response = await _dio.get(
+        'SalesInvoice/product/$productCode/live-stock',
+        queryParameters: (siteCode != null && siteCode.isNotEmpty) ? {'sitecode': siteCode} : null,
+        options: Options(
+          sendTimeout: const Duration(milliseconds: 1500),
+          receiveTimeout: const Duration(milliseconds: 1500),
+        ),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Sync: Live product stock unreachable ($productCode), falling back to local SQLite.');
+      return null;
+    }
+  }
+
+  /// Fetches live customer credit limit and live outstanding balance directly from Sage X3.
+  Future<Map<String, dynamic>?> fetchLiveCustomerCredit(String customerNo) async {
+    try {
+      final response = await _dio.get(
+        'SalesInvoice/customer/$customerNo/live-credit',
+        options: Options(
+          sendTimeout: const Duration(milliseconds: 1500),
+          receiveTimeout: const Duration(milliseconds: 1500),
+        ),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Sync: Live credit unreachable for customer $customerNo, using local snapshot.');
+      return null;
+    }
   }
 }

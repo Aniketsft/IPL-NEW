@@ -11,19 +11,24 @@ import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
 import 'customer_hub_screen.dart';
 import 'sales_reports_screen.dart';
 import 'sales_invoice_product_selection_screen.dart';
+import 'transaction_history_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_rep_selection_dialog.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import '../../bloc/sales_invoice_sync_bloc.dart';
 import '../../bloc/sales_invoice_sync_event.dart';
+import '../../bloc/sales_invoice_sync_state.dart';
+import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
   final bool isPickerMode;
+  final bool isReturnMode;
 
   const CustomerSelectionScreen({
     Key? key,
     this.isPickerMode = false,
+    this.isReturnMode = false,
   }) : super(key: key);
 
   @override
@@ -181,33 +186,63 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          widget.isPickerMode ? 'Select Customer' : 'Sales • Customers',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          if (!widget.isPickerMode) ...[
-            IconButton(
-              icon: const Icon(Icons.sync_rounded),
-              tooltip: 'Sync Sales Data',
-              onPressed: () {
-                final authState = context.read<AuthBloc>().state;
-                final siteCode = (authState is Authenticated &&
-                        authState.siteCode != null &&
-                        authState.siteCode!.isNotEmpty &&
-                        authState.siteCode != 'ALL')
-                    ? authState.siteCode!
-                    : 'IPL';
-                context.read<SalesInvoiceSyncBloc>().add(
-                      StartSalesInvoiceSyncRequested(siteCode: siteCode),
-                    );
-              },
-            ),
+    return BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+      listener: (context, syncState) {
+        if (syncState is SalesInvoiceSyncSuccess) {
+          _fetchCustomers();
+        }
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            appBar: AppBar(
+              title: Text(
+                widget.isReturnMode
+                    ? 'Select Customer for Return'
+                    : (widget.isPickerMode ? 'Select Customer' : 'Sales • Customers'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                if (!widget.isPickerMode) ...[
+                  BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+                    builder: (context, syncState) {
+                      final isSyncing = syncState is SalesInvoiceSyncInProgress;
+                      if (isSyncing) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                valueColor: AlwaysStoppedAnimation<Color>(orange),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return IconButton(
+                        icon: const Icon(Icons.sync_rounded),
+                        tooltip: 'Sync Mobile Sales Data',
+                        onPressed: () {
+                          final authState = context.read<AuthBloc>().state;
+                          final siteCode = (authState is Authenticated &&
+                                  authState.siteCode != null &&
+                                  authState.siteCode!.isNotEmpty &&
+                                  authState.siteCode != 'ALL')
+                              ? authState.siteCode!
+                              : 'IPL';
+                          context.read<SalesInvoiceSyncBloc>().add(
+                                StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                              );
+                        },
+                      );
+                    },
+                  ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
               tooltip: 'Route Dispatch Tools',
@@ -422,6 +457,28 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                 }
 
                                 context.read<SalesInvoiceBloc>().add(SetCustomer(customer));
+
+                                if (widget.isReturnMode) {
+                                  final code = (customer['code'] ?? customer['customerCode'] ?? '').toString();
+                                  final name = (customer['name'] ?? customer['customerName'] ?? '').toString();
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => TransactionHistoryScreen(
+                                        initialCustomerCode: code,
+                                        initialCustomerName: name,
+                                        lockToCustomer: true,
+                                        isX3History: true,
+                                        isForReturn: true,
+                                      ),
+                                    ),
+                                  );
+                                  if (mounted) {
+                                    _fetchCustomers();
+                                  }
+                                  return;
+                                }
+
                                 await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -455,20 +512,25 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: orange.withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            code,
-                                            style: TextStyle(
-                                              color: orange,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12,
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: orange.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                code,
+                                                style: TextStyle(
+                                                  color: orange,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -583,11 +645,15 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                           );
                         },
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SalesInvoiceSyncOverlay(),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        );
+      }
 
   void _showSearchPicker(
     String title,

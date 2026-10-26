@@ -19,5 +19,6 @@ class SalesInvoiceSyncSuccess extends SalesInvoiceSyncState {
 
 class SalesInvoiceSyncFailure extends SalesInvoiceSyncState {
   final String error;
-  const SalesInvoiceSyncFailure(this.error);
+  final SyncBatchResult? batchResult;
+  const SalesInvoiceSyncFailure(this.error, {this.batchResult});
 }

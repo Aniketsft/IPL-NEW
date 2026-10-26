@@ -14,6 +14,7 @@ using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -26,8 +27,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ILogisticsRepository _logisticsRepository;
         private readonly IStagingService _stagingService;
         private readonly IX3SchemaProvider _schemaProvider;
+        private readonly IMemoryCache? _memoryCache;
 
-        public EfSyncRepository(IConfiguration configuration, ApplicationDbContext context, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, ILogisticsRepository logisticsRepository, IStagingService stagingService, IX3SchemaProvider schemaProvider)
+        public EfSyncRepository(
+            IConfiguration configuration,
+            ApplicationDbContext context,
+            ScanProductionDbContext scanContext,
+            IOptions<SyncSettings> syncSettings,
+            ILogisticsRepository logisticsRepository,
+            IStagingService stagingService,
+            IX3SchemaProvider schemaProvider,
+            IMemoryCache? memoryCache = null)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
@@ -37,6 +47,16 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _logisticsRepository = logisticsRepository;
             _stagingService = stagingService;
             _schemaProvider = schemaProvider;
+            _memoryCache = memoryCache;
+        }
+
+        public EfSyncRepository(
+            IConfiguration configuration,
+            ApplicationDbContext context,
+            ScanProductionDbContext scanContext,
+            IOptions<SyncSettings> syncSettings)
+            : this(configuration, context, scanContext, syncSettings, null!, null!, null!, null)
+        {
         }
 
         public async Task<SyncPackageDto> GetRefreshPackageAsync(string site, string? deviceId = null, string? performedBy = null)
@@ -120,21 +140,27 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
                 WHERE (@Site = 'ALL' OR f0.STOFCY_0 = @Site) AND f0.SHIDAT_0 >= DATEADD(day, -7, CAST(GETDATE() AS DATE))", new { Site = site });
 
-            var customersTask = FetchFromInnodisAsync<CustomerLookupDto>($@"
-                SELECT DISTINCT c.BPCNUM_0 as Code, c.ZFULLBUSNAM_0 as Name 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK)
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
+            string schema = _schemaProvider?.GetSchemaName() ?? "INLDRYRUN";
+
+            var customersTask = FetchCachedOrLiveAsync<CustomerLookupDto>(
+                $"customers_{site}_{schema}",
+                TimeSpan.FromMinutes(5),
+                $@"SELECT DISTINCT c.BPCNUM_0 as Code, c.ZFULLBUSNAM_0 as Name 
+                FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
                 WHERE (@Site = 'ALL' OR @Site = '' OR c.SALFCY_0 = @Site OR c.BPCSHO_0 = @Site)", new { Site = site });
             
-            var repsTask = FetchFromInnodisAsync<SalesRepLookupDto>($@"
-                SELECT 
+            var repsTask = FetchCachedOrLiveAsync<SalesRepLookupDto>(
+                $"reps_{schema}",
+                TimeSpan.FromMinutes(5),
+                $@"SELECT 
                     LTRIM(RTRIM(T1.REPNUM_0)) AS Code, 
                     LTRIM(RTRIM(ISNULL(T3.TEXTE_0, T2.BPRNAM_0))) AS Name,
                     LTRIM(RTRIM(T1.FCY_0)) AS AssignedSite 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SALESREP T1 WITH (NOLOCK)
-                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER T2 WITH (NOLOCK) 
+                FROM {_syncSettings.X3DatabaseName}.{schema}.SALESREP T1 WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{schema}.BPARTNER T2 WITH (NOLOCK) 
                     ON T1.REPNUM_0 = T2.BPRNUM_0 
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ATEXTRA T3 WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.ATEXTRA T3 WITH (NOLOCK)
                     ON T3.CODFIC_0 = 'BPARTNER'
                     AND T3.ZONE_0 = 'BPRNAM'
                     AND T3.LANGUE_0 = 'ENG'
@@ -142,9 +168,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     AND (T3.IDENT2_0 = '' OR T3.IDENT2_0 IS NULL)
                 ORDER BY T1.REPNUM_0");
             
-            var sitesTask = FetchFromInnodisAsync<SiteLookupDto>($@"
-                SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name 
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.FACILITY WITH (NOLOCK)
+            var sitesTask = FetchCachedOrLiveAsync<SiteLookupDto>(
+                $"sites_{site}_{schema}",
+                TimeSpan.FromMinutes(5),
+                $@"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name 
+                FROM {_syncSettings.X3DatabaseName}.{schema}.FACILITY WITH (NOLOCK)
                 WHERE (@Site = 'ALL' OR FCY_0 = @Site)", new { Site = site });
             
             var locSql = $@"
@@ -152,13 +180,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     T1.STOFCY_0 as Site, T1.LOC_0 as Location, T1.WRH_0 as Warehouse,
                     WRH.WRHNAM_0 as WarehouseName, T1.LOCTYP_0 as LocationType,
                     ATRA.TEXTE_0 as LocationTypeName
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOC T1 WITH (NOLOCK)
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.WAREHOUSE WRH WITH (NOLOCK) on WRH.WRH_0 = T1.WRH_0 
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.[ATEXTRA] ATRA WITH (NOLOCK) on T1.STOFCY_0 = ATRA.IDENT1_0 
+                FROM {_syncSettings.X3DatabaseName}.{schema}.STOLOC T1 WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.WAREHOUSE WRH WITH (NOLOCK) on WRH.WRH_0 = T1.WRH_0 
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.[ATEXTRA] ATRA WITH (NOLOCK) on T1.STOFCY_0 = ATRA.IDENT1_0 
                     and T1.LOCTYP_0 = ATRA.IDENT2_0 
                     and ATRA.CODFIC_0 = 'TABLOCTYP' and ATRA.LANGUE_0 = 'BRI' and ATRA.ZONE_0 = 'TYPDESAXX'
                 WHERE (@Site = 'ALL' OR T1.STOFCY_0 = @Site)";
-            var locationsTask = FetchFromInnodisAsync<LocationLookupDto>(locSql, new { Site = site });
+            var locationsTask = FetchCachedOrLiveAsync<LocationLookupDto>($"locations_{site}_{schema}", TimeSpan.FromMinutes(5), locSql, new { Site = site });
 
             var productsSql = $@"
                 SELECT T1.*
@@ -172,34 +200,34 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         f0.SAU_0 AS [SalesUnit],
                         f0.ITMWEI_0 AS [StandardWeight],
                         f0.EANCOD_0 AS [Barcode]
-                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f0 WITH (NOLOCK)
-                    JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.ITMMASTER f0 WITH (NOLOCK)
+                    JOIN {_syncSettings.X3DatabaseName}.{schema}.ITMFACILIT f1 WITH (NOLOCK) ON f0.ITMREF_0 = f1.ITMREF_0
                 ) AS T1
                 WHERE (@Site = 'ALL' OR T1.Site = @Site)
                   AND T1.Category NOT IN ('ADMIN','CONSU','TECHN')";
-            var productsTask = FetchFromInnodisAsync<ProductLookupDto>(productsSql, new { Site = site });
+            var productsTask = FetchCachedOrLiveAsync<ProductLookupDto>($"products_{site}_{schema}", TimeSpan.FromMinutes(5), productsSql, new { Site = site });
 
             var lotsSql = $@"
                 SELECT DISTINCT ITMREF_0 as ItemCode, STOFCY_0 as SiteCode, LOT_0 as Lot
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK WITH (NOLOCK)
+                FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK WITH (NOLOCK)
                 WHERE (@Site = 'ALL' OR STOFCY_0 = @Site) AND QTYPCU_0 > 0";
-            var lotsTask = FetchFromInnodisAsync<LotLookupDto>(lotsSql, new { Site = site });
+            var lotsTask = FetchCachedOrLiveAsync<LotLookupDto>($"lots_{site}_{schema}", TimeSpan.FromMinutes(2), lotsSql, new { Site = site });
 
             var taxMatrixSql = $@"
                 SELECT 
                     LTRIM(RTRIM(VACBPR_0)) AS CustomerTaxRule,
                     LTRIM(RTRIM(VACITM_0)) AS ItemTaxLevel,
                     VAT_0 AS TaxCode
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAC WITH (NOLOCK)";
-            var taxMatrixTask = FetchFromInnodisAsync<TaxMatrixDto>(taxMatrixSql);
+                FROM {_syncSettings.X3DatabaseName}.{schema}.TABVAC WITH (NOLOCK)";
+            var taxMatrixTask = FetchCachedOrLiveAsync<TaxMatrixDto>($"tax_matrix_{schema}", TimeSpan.FromMinutes(5), taxMatrixSql);
 
             var taxRateSql = $@"
                 SELECT 
                     VAT_0 AS TaxCode,
                     LTRIM(RTRIM(VATDES_0)) AS Description,
                     VATRAT_0 AS TaxRatePercent
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";
-            var taxRateTask = FetchFromInnodisAsync<TaxRateDto>(taxRateSql);
+                FROM {_syncSettings.X3DatabaseName}.{schema}.TABVAT WITH (NOLOCK)";
+            var taxRateTask = FetchCachedOrLiveAsync<TaxRateDto>($"tax_rates_{schema}", TimeSpan.FromMinutes(5), taxRateSql);
 
             // Execute tasks in parallel
             await Task.WhenAll(ordersTask, detailsTask, customersTask, repsTask, locationsTask, productsTask, sitesTask, lotsTask, taxMatrixTask, taxRateTask);
@@ -209,14 +237,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // --- MERGE INTERNAL ORDERS ---
             var internalOrders = await _scanContext.SalesOrders
+                .AsNoTracking()
                 .Include(o => o.Lines)
                 .Where(o => o.SourceSystem == "Internal" && !o.IsArchived)
                 .ToListAsync();
 
+            var existingOrderNumbers = new HashSet<string>(package.Orders.Select(o => o.SohNum), StringComparer.OrdinalIgnoreCase);
+
             foreach (var order in internalOrders)
             {
-                if (!package.Orders.Any(o => o.SohNum == order.SourceOrderId))
+                if (order.SourceOrderId != null && !existingOrderNumbers.Contains(order.SourceOrderId))
                 {
+                    existingOrderNumbers.Add(order.SourceOrderId);
                     package.Orders.Add(new SalesOrderHeaderDto
                     {
                         SohNum = order.SourceOrderId,
@@ -264,22 +296,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             if (allSoNumbers.Any())
             {
                 // Closed orders — from OrderStatusHistory (KEPT table)
-                var closedSoNumbers = await _scanContext.OrderStatusHistories
+                var closedSoNumbers = new HashSet<string>(await _scanContext.OrderStatusHistories
+                    .AsNoTracking()
                     .Where(h => allSoNumbers.Contains(h.SoNumber) && h.Status == 2)
                     .Select(h => h.SoNumber)
                     .Distinct()
-                    .ToListAsync();
+                    .ToListAsync(), StringComparer.OrdinalIgnoreCase);
 
                 // Shipment readiness — from OrderShipmentStatus (KEPT table)
-                var shipmentReady = await _scanContext.OrderShipmentStatuses
+                var shipmentReady = new HashSet<string>(await _scanContext.OrderShipmentStatuses
+                    .AsNoTracking()
                     .Where(s => allSoNumbers.Contains(s.SoNumber) && s.IsPreparedForShipment)
                     .Select(s => s.SoNumber)
-                    .ToListAsync();
+                    .ToListAsync(), StringComparer.OrdinalIgnoreCase);
 
-                var processedOrders = await _scanContext.SalesOrders
+                var processedOrders = new HashSet<string>(await _scanContext.SalesOrders
+                    .AsNoTracking()
                     .Where(o => allSoNumbers.Contains(o.SourceOrderId) && o.IsProcessed)
                     .Select(o => o.SourceOrderId)
-                    .ToListAsync();
+                    .ToListAsync(), StringComparer.OrdinalIgnoreCase);
                 
                 foreach (var header in package.Orders)
                 {
@@ -298,6 +333,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Pull Aggregated States from Enterprise Tables
             var orderLineStates = await _scanContext.ProductionLineStates
+                .AsNoTracking()
                 .Include(s => s.OrderLine)
                 .ThenInclude(l => l.Order)
                 .Where(s => allSoNumbers.Contains(s.OrderLine.Order.SourceOrderId))
@@ -305,6 +341,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Pull latest scanned lot number from active scans
             var scans = await _scanContext.ProductionScanTransactions
+                .AsNoTracking()
                 .Where(t => !t.IsDeleted && !t.IsArchived)
                 .Join(_scanContext.SalesOrderLines,
                     t => t.SalesOrderLineId,
@@ -326,14 +363,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     StringComparer.OrdinalIgnoreCase
                 );
 
-            // Update External Order Details from Enterprise Aggregates
+            // Update External Order Details from Enterprise Aggregates with O(1) state lookup
+            var stateLookup = orderLineStates
+                .Where(s => s.OrderLine?.Order?.SourceOrderId != null && s.OrderLine?.ItemCode != null)
+                .ToDictionary(
+                    s => $"{s.OrderLine.Order.SourceOrderId}|{s.OrderLine.ItemCode}",
+                    StringComparer.OrdinalIgnoreCase
+                );
+
             foreach (var detail in package.Details)
             {
-                var state = orderLineStates.FirstOrDefault(s => 
-                    s.OrderLine.Order.SourceOrderId == detail.SoNumber && 
-                    s.OrderLine.ItemCode == detail.ItemCode);
-                
-                if (state != null)
+                var key = $"{detail.SoNumber}|{detail.ItemCode}";
+                if (stateLookup.TryGetValue(key, out var state))
                 {
                     detail.Manufactured = state.TotalManufacturedQty;
                     detail.EaQuantity = state.TotalEaQty;
@@ -346,23 +387,22 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
 
                 // Populate Lot number from latest scan transaction
-                var lotKey = $"{detail.SoNumber}|{detail.ItemCode}";
-                if (latestLots.TryGetValue(lotKey, out var lotNum))
+                if (latestLots.TryGetValue(key, out var lotNum))
                 {
                     detail.Lot = lotNum;
                 }
             }
 
             // Build Internal Orders (Cut & Bulk) from Enterprise SalesOrders
-            internalOrders = await _scanContext.SalesOrders
-                .Include(o => o.Lines)
-                .Where(o => o.SourceSystem == "Internal" && !o.IsArchived)
-                .ToListAsync();
+            var internalOrderStateLookup = orderLineStates
+                .Where(s => s.OrderLine != null)
+                .GroupBy(s => s.OrderLine.SalesOrderId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault());
 
             foreach (var order in internalOrders)
             {
                 var line = order.Lines.FirstOrDefault();
-                var state = orderLineStates.FirstOrDefault(s => s.OrderLine.SalesOrderId == order.Id);
+                internalOrderStateLookup.TryGetValue(order.Id, out var state);
 
                 var manufactured = state?.TotalManufacturedQty ?? 0m;
 
@@ -379,7 +419,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             }
 
             // Fetch Global Settings for Sync (Latest Version from Ledger)
-            var globalSettingsList = await _scanContext.GlobalSettings.ToListAsync();
+            var globalSettingsList = await _scanContext.GlobalSettings.AsNoTracking().ToListAsync();
             package.GlobalSettingsMap = globalSettingsList
                 .GroupBy(s => s.SettingKey)
                 .Select(g => g.OrderByDescending(x => x.UpdatedAt).First())
@@ -387,6 +427,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
             // Pull EodProcessAudits to sync down to device
             var eodAudits = await _scanContext.EodProcessAudits
+                .AsNoTracking()
                 .Select(e => new EodProcessAuditDto
                 {
                     Id = e.Id,
@@ -408,6 +449,37 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             return await db.QueryAsync<T>(sql, parameters);
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.SemaphoreSlim> _syncLocks = new();
+
+        private async Task<IEnumerable<T>> FetchCachedOrLiveAsync<T>(string cacheKey, TimeSpan ttl, string sql, object? parameters = null)
+        {
+            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<T>? cached) && cached != null)
+            {
+                return cached;
+            }
+
+            var myLock = _syncLocks.GetOrAdd(cacheKey, _ => new System.Threading.SemaphoreSlim(1, 1));
+            await myLock.WaitAsync();
+            try
+            {
+                if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out cached) && cached != null)
+                {
+                    return cached;
+                }
+
+                var result = (await FetchFromInnodisAsync<T>(sql, parameters)).ToList();
+                if (_memoryCache != null && result.Any())
+                {
+                    _memoryCache.Set(cacheKey, result, ttl);
+                }
+                return result;
+            }
+            finally
+            {
+                myLock.Release();
+            }
         }
 
         public async Task<int> PushUpdatesAsync(SyncPushRequestDto request, string performedBy)
@@ -1354,9 +1426,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Where(o => sohNums.Contains(o.SourceOrderId))
                 .ToListAsync();
 
+            var existingOrderMap = existingOrders.ToDictionary(o => o.SourceOrderId, StringComparer.OrdinalIgnoreCase);
+
             foreach (var dto in orderDtos)
             {
-                var existing = existingOrders.FirstOrDefault(o => o.SourceOrderId == dto.SohNum);
+                existingOrderMap.TryGetValue(dto.SohNum, out var existing);
                 var salesman = !string.IsNullOrEmpty(dto.Salesman) 
                     ? dto.Salesman 
                     : (string.IsNullOrEmpty(dto.Rep1) ? dto.Rep0 : $"{dto.Rep0} / {dto.Rep1}");
@@ -1393,6 +1467,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         CreatedAt = DateTime.UtcNow
                     };
                     _scanContext.SalesOrders.Add(existing);
+                    existingOrderMap[existing.SourceOrderId] = existing;
                     existingOrders.Add(existing);
                 }
             }
@@ -1402,19 +1477,20 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             // 2. Sync Lines (SalesOrderLines)
             var linesToProcess = detailDtos.ToList();
             var existingLines = await _scanContext.SalesOrderLines
-                .Include(l => l.Order)
                 .Where(l => sohNums.Contains(l.Order.SourceOrderId))
                 .ToListAsync();
 
+            var existingLineMap = new Dictionary<(Guid SalesOrderId, string ItemCode), SalesOrderLine>();
+            foreach (var l in existingLines)
+            {
+                existingLineMap[(l.SalesOrderId, l.ItemCode)] = l;
+            }
+
             foreach (var dto in linesToProcess)
             {
-                var order = existingOrders.FirstOrDefault(o => o.SourceOrderId == dto.SoNumber);
-                if (order == null) continue;
+                if (!existingOrderMap.TryGetValue(dto.SoNumber, out var order)) continue;
 
-                var existingLine = existingLines.FirstOrDefault(l => 
-                    l.SalesOrderId == order.Id && l.ItemCode == dto.ItemCode);
-
-                if (existingLine != null)
+                if (existingLineMap.TryGetValue((order.Id, dto.ItemCode), out var existingLine))
                 {
                     existingLine.Description = dto.Description;
                     existingLine.OrderedQuantity = dto.Quantity ?? 0;
@@ -1434,6 +1510,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         CreatedAt = DateTime.UtcNow
                     };
                     _scanContext.SalesOrderLines.Add(existingLine);
+                    existingLineMap[(order.Id, dto.ItemCode)] = existingLine;
                     existingLines.Add(existingLine);
                 }
             }
@@ -1447,8 +1524,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 .Select(s => s.SalesOrderLineId)
                 .ToListAsync();
 
+            var existingStateSet = new HashSet<Guid>(existingStates);
             var newStates = existingLines
-                .Where(l => !existingStates.Contains(l.Id))
+                .Where(l => !existingStateSet.Contains(l.Id))
                 .Select(l => new ProductionLineState
                 {
                     SalesOrderLineId = l.Id,

@@ -270,16 +270,37 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         double creditLimit = double.tryParse(creditLimitStr) ?? 0.0;
         double outstanding = double.tryParse(outstandingStr) ?? 0.0;
 
+        // Query unsynced offline invoices for this customer to prevent offline credit evasion
+        double unsyncedInvoicesTotal = 0.0;
+        try {
+          final db = await LocalDatabaseHelper.instance.database;
+          final unsyncedRes = await db.rawQuery(
+            '''
+            SELECT IFNULL(SUM(grandTotal), 0.0) as total
+            FROM ${LocalDatabaseHelper.tableSiInvoices}
+            WHERE customerCode = ? AND (isSynced = 0 OR isSynced IS NULL)
+            ''',
+            [customer['code']],
+          );
+          if (unsyncedRes.isNotEmpty) {
+            unsyncedInvoicesTotal = (unsyncedRes.first['total'] as num?)?.toDouble() ?? 0.0;
+          }
+        } catch (_) {}
+
         // Calculate existing credit payments in the cart
         double cartCreditTotal = _payments
             .where((p) => p.method == 'CREDIT')
             .fold(0.0, (sum, p) => sum + p.amount);
 
-        if (creditLimit > 0 &&
-            (outstanding + cartCreditTotal + amount) > creditLimit) {
+        final totalExposure = outstanding + unsyncedInvoicesTotal + cartCreditTotal + amount;
+        if (creditLimit > 0 && totalExposure > creditLimit) {
+          final availableCredit = creditLimit - (outstanding + unsyncedInvoicesTotal + cartCreditTotal);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('This amount exceeds the available credit limit.'),
+            SnackBar(
+              content: Text(
+                'Credit limit exceeded! Limit: Rs ${creditLimit.toStringAsFixed(2)}, Available: Rs ${availableCredit > 0 ? availableCredit.toStringAsFixed(2) : '0.00'}',
+              ),
+              backgroundColor: Colors.red[800],
             ),
           );
           return;
@@ -375,12 +396,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     }
 
     final grandTotal = cartState.grandTotal;
+    final isReturn = cartState.transactionType == 'RETURN' || cartState.transactionType == 'CUSTOMER_RETURN';
+    final isRefund = widget.isCreditNoteRefund || isReturn || cartState.config.isReturnOrCreditNote;
+
     if (grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            widget.isCreditNoteRefund
-                ? 'Credit note amount must be greater than zero.'
+            isRefund
+                ? 'Refund amount must be greater than zero.'
                 : 'Invoice amount must be greater than zero.',
           ),
           backgroundColor: Colors.red,
@@ -389,7 +413,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
 
-    if (!widget.isCreditNoteRefund) {
+    if (!isRefund) {
       final totalPaid = _getTotalPaid();
 
       if (totalPaid < grandTotal) {
@@ -402,9 +426,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       }
     }
 
-    if (widget.isCreditNoteRefund && _reasonController.text.trim().isEmpty) {
+    if (isRefund && _reasonController.text.trim().isEmpty) {
       setState(() {
-        _reasonErrorText = 'Credit note reason is mandatory to proceed';
+        _reasonErrorText = isReturn
+            ? 'Return reason is mandatory to proceed'
+            : 'Credit note reason is mandatory to proceed';
       });
       _reasonFocusNode.requestFocus();
       showDialog(
@@ -417,8 +443,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               Text('Reason Required'),
             ],
           ),
-          content: const Text(
-            'Credit Note Reason is mandatory in Sage X3.\n\nPlease input a credit note reason to proceed with this refund.',
+          content: Text(
+            isReturn
+                ? 'Customer Return Reason is mandatory in Sage X3.\n\nPlease input a reason to proceed with this return refund.'
+                : 'Credit Note Reason is mandatory in Sage X3.\n\nPlease input a credit note reason to proceed with this refund.',
           ),
           actions: [
             ElevatedButton(
@@ -439,10 +467,6 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     try {
       final db = await LocalDatabaseHelper.instance.database;
       final batch = db.batch();
-
-      final invoiceId =
-          'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-
       // Read user assigned site from AuthBloc synchronously before async gaps
       final authState = context.read<AuthBloc>().state;
       String userSiteCode = (authState is Authenticated &&
@@ -452,7 +476,6 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           ? authState.siteCode!
           : 'POD';
 
-      // For IPL poultry mobile sales reps, sales sites are POD or PTT (Company INL)
       if (userSiteCode == 'IPL') {
         userSiteCode = 'POD';
       }
@@ -463,17 +486,30 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final deviceId = DeviceInfoService.instance.deviceInfo;
       final appVersion = '1.0.0';
 
+      final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
+      final salesRepString = selectedReps.isNotEmpty
+          ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
+          : username;
+      final repCodeSafe = salesRepString.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final invoiceId = 'INV-${repCodeSafe.isNotEmpty ? repCodeSafe : 'REP'}-${DateTime.now().millisecondsSinceEpoch}';
+
       // Determine main invoice status
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
 
-      // Handle Credit Note Refund flow
-      if (widget.isCreditNoteRefund) {
+      // Handle Credit Note / Return Refund flow
+      if (isRefund) {
         const refundMethod = 'CASH';
         final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
         final salesRepString = selectedReps.isNotEmpty
             ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
             : username;
+
+        final isReturnTransaction = cartState.transactionType == 'RETURN' ||
+            cartState.transactionType == 'CUSTOMER_RETURN' ||
+            (cartState.config.isReturnOrCreditNote &&
+                cartState.config.screenTitle.toLowerCase().contains('return'));
+        final stockTransaction = isReturnTransaction ? 1 : 0;
 
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
           salesSite: userSiteCode,
@@ -487,19 +523,23 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           reason: _reasonController.text.trim(),
           salesRep: salesRepString,
           originInvoiceId: cartState.originalDocumentId,
-          items: cartState.cartItems.map((item) => CreditNoteLineModel(
-            creditNoteId: '',
-            lineNo: 1000,
-            quantity: item.quantity,
-            standaloneSku: item.product.sku,
-            standaloneName: item.product.name,
-            standaloneSalesUnit: item.product.salesUnit,
-            standalonePrice: item.basePrice,
-            standaloneTaxRule: item.taxRule,
-            standaloneLot: item.lotNumber,
-            standaloneWarehouse: item.warehouse,
-            standaloneCce0: item.product.cce0,
-          )).toList(),
+          stockTransaction: stockTransaction,
+          items: cartState.cartItems.asMap().entries.map((entry) {
+            final item = entry.value;
+            return CreditNoteLineModel(
+              creditNoteId: '',
+              lineNo: (entry.key + 1) * 1000,
+              quantity: item.quantity,
+              standaloneSku: item.product.sku,
+              standaloneName: item.product.name,
+              standaloneSalesUnit: item.product.salesUnit,
+              standalonePrice: item.basePrice,
+              standaloneTaxRule: item.taxRule,
+              standaloneLot: item.lotNumber,
+              standaloneWarehouse: item.warehouse,
+              standaloneCce0: item.product.cce0,
+            );
+          }).toList(),
         );
 
         if (!mounted) return;
@@ -550,11 +590,6 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       } catch (_) {}
 
       // 1. Insert Invoice with Active Selected Sales Rep(s)
-      final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
-      final salesRepString = selectedReps.isNotEmpty
-          ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
-          : username;
-
       batch.insert(LocalDatabaseHelper.tableSiInvoices, {
         'invoiceId': invoiceId,
         'customerCode': cartState.customer!['code'],
@@ -1164,15 +1199,17 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         }
         final cartState = state;
         final isPreview = cartState.transactionType.startsWith('PREVIEW');
+        final isReturn = cartState.transactionType == 'RETURN' || cartState.transactionType == 'CUSTOMER_RETURN';
+        final isRefund = widget.isCreditNoteRefund || isReturn || cartState.config.isReturnOrCreditNote;
 
-        if (cartState.customer == null && !widget.isCreditNoteRefund) {
+        if (cartState.customer == null && !isRefund) {
           return const Scaffold(body: Center(child: Text('No Customer')));
         }
 
         bool isChequeEnabled = false;
         bool isCreditEnabled = false;
 
-        if (widget.isCreditNoteRefund) {
+        if (isRefund) {
           isCreditEnabled = true;
         } else {
           final customer = cartState.customer!;
@@ -1197,20 +1234,25 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
         return _buildScaffold(
           context: context,
-          title: widget.isCreditNoteRefund
-              ? 'Refund Processing'
-              : (isPreview ? 'Transaction Details' : 'Payment Processing'),
+          title: isReturn
+              ? 'Customer Return Refund'
+              : (isRefund
+                  ? 'Refund Processing'
+                  : (isPreview ? 'Transaction Details' : 'Payment Processing')),
           customer: cartState.customer ?? {'code': '', 'name': ''},
           grandTotal: cartState.grandTotal,
           isChequeEnabled: isChequeEnabled,
           isCreditEnabled: isCreditEnabled,
           isZeroOffset: false,
           isPreview: isPreview,
+          isReturn: isReturn,
           onPrint: isPreview ? () => _handleHistoricalPrint(cartState) : null,
           onConfirm: () => _processPayment(cartState),
-          confirmButtonLabel: widget.isCreditNoteRefund
-              ? 'CONFIRM CREDIT NOTE REFUND'
-              : 'CONFIRM INVOICE',
+          confirmButtonLabel: isReturn
+              ? 'CONFIRM RETURN REFUND'
+              : (isRefund
+                  ? 'CONFIRM CREDIT NOTE REFUND'
+                  : 'CONFIRM INVOICE'),
         );
       },
     );
@@ -1227,9 +1269,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     required VoidCallback onConfirm,
     required String confirmButtonLabel,
     bool isPreview = false,
+    bool isReturn = false,
     VoidCallback? onPrint,
   }) {
-    final isCreditNote = widget.isCreditNoteRefund;
+    final isCreditNote = widget.isCreditNoteRefund || isReturn;
     final totalPaid = isCreditNote ? grandTotal : _getTotalPaid();
     final remaining = isCreditNote ? 0.0 : (grandTotal - totalPaid);
     final isFullyPaid = isCreditNote || isZeroOffset || (grandTotal > 0 && remaining <= 0);
@@ -1264,7 +1307,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   Text(
                     widget.isOpenInvoiceMode
                         ? 'RECEIPT / COLLECTION SUMMARY'
-                        : (widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS'),
+                        : (isReturn
+                            ? 'CUSTOMER RETURN DETAILS'
+                            : (widget.isCreditNoteRefund ? 'CREDIT NOTE DETAILS' : 'INVOICE DETAILS')),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -1437,7 +1482,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Credit note refund of ${currencyFormat.format(grandTotal)} is disbursed in Cash.',
+                                  isReturn
+                                      ? 'Customer return refund of ${currencyFormat.format(grandTotal)} will be disbursed in Cash.'
+                                      : 'Credit note refund of ${currencyFormat.format(grandTotal)} is disbursed in Cash.',
                                   style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color),
                                 ),
                               ],

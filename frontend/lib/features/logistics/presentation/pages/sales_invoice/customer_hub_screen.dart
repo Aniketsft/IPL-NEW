@@ -12,6 +12,9 @@ import 'open_invoices_screen.dart';
 import 'transaction_history_screen.dart';
 import 'sales_orders_list_screen.dart';
 import 'amount_only_credit_note_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 class CustomerHubScreen extends StatefulWidget {
   final Map<String, dynamic> customer;
@@ -28,6 +31,7 @@ class CustomerHubScreen extends StatefulWidget {
 class _CustomerHubScreenState extends State<CustomerHubScreen> {
   late Map<String, dynamic> _customer;
   bool _isLoading = true;
+  bool _isSyncingCustomer = false;
 
   double _effectiveOutstanding = 0.0;
   double _creditLimit = 0.0;
@@ -104,6 +108,106 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _handleSyncCustomer() async {
+    if (_isSyncingCustomer) return;
+
+    final code = _customerCode;
+    if (code.isEmpty) return;
+
+    setState(() => _isSyncingCustomer = true);
+
+    String siteCode = '';
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is Authenticated) {
+        siteCode = authState.siteCode ?? '';
+      }
+    } catch (_) {}
+
+    final syncRepo = context.read<SalesInvoiceSyncRepository>();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Syncing live Sage X3 data for $_customerName...',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 40),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final result = await syncRepo.syncSingleCustomerData(
+      customerCode: code,
+      siteCode: siteCode,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (result.success) {
+      await _loadFinancials();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green.shade800,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Customer Synchronized!\nBalance: ${currencyFormat.format(result.liveBalance)} • ${result.openInvoicesCount} Open Invoices • ${result.x3HistoryInvoicesCount} X3 Invoices',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  result.errorMessage ?? 'Failed to synchronize customer data from Sage X3.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() => _isSyncingCustomer = false);
     }
   }
 
@@ -315,9 +419,21 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                     icon: Icons.assignment_return_rounded,
                     accentColor: Colors.blue,
                     newActionLabel: 'New Return',
-                    onNewAction: () {
+                    onNewAction: () async {
                       Navigator.pop(ctx);
-                      _startTransaction('RETURN');
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TransactionHistoryScreen(
+                            initialCustomerCode: _customerCode,
+                            initialCustomerName: _customerName,
+                            lockToCustomer: true,
+                            isX3History: true,
+                            isForReturn: true,
+                          ),
+                        ),
+                      );
+                      _loadFinancials();
                     },
                     previousActionLabel: 'Previous Returns',
                     onPreviousAction: () async {
@@ -620,15 +736,21 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
             onPressed: _onSwitchCustomer,
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh Ledger',
-            onPressed: _loadFinancials,
+            icon: _isSyncingCustomer
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.cloud_sync_rounded),
+            tooltip: 'Sync Customer from Sage X3',
+            onPressed: _isSyncingCustomer ? null : _handleSyncCustomer,
           ),
         ],
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : RefreshIndicator(
-                onRefresh: _loadFinancials,
+                onRefresh: _handleSyncCustomer,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16.0),
@@ -869,6 +991,83 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const Divider(height: 1, thickness: 1),
+
+          // Customer Targeted Sync Action Strip
+          InkWell(
+            onTap: _isSyncingCustomer ? null : _handleSyncCustomer,
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withOpacity(isDark ? 0.12 : 0.06),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  _isSyncingCustomer
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+                          ),
+                        )
+                      : Icon(
+                          Icons.cloud_sync_rounded,
+                          size: 18,
+                          color: theme.primaryColor,
+                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isSyncingCustomer
+                              ? 'Syncing customer data from Sage X3...'
+                              : 'Sync This Customer',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                        Text(
+                          _isSyncingCustomer
+                              ? 'Updating live balance, open invoices & X3 history'
+                              : 'Live balance, open invoices & 6-month X3 history',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!_isSyncingCustomer)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'SYNC',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],

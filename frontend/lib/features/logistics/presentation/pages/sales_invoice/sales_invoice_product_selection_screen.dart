@@ -392,7 +392,7 @@ class _SalesInvoiceProductSelectionScreenState
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: '${actualStock.toStringAsFixed(0)} ',
+                        text: '${actualStock % 1 == 0 ? actualStock.toInt().toString() : actualStock.toStringAsFixed(2)} ',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,

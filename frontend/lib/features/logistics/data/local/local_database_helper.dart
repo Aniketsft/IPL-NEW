@@ -10,7 +10,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 94;
+  static const _databaseVersion = 95;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -268,16 +268,17 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNotes, 'reason', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNotes, 'salesRep', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNotes, 'transactionMode', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiCreditNotes, 'x3DocumentId', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'x3DocumentId', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'isPartiallyReversed', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'deliveryDate', 'TEXT');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'orderNumber', 'TEXT');
     await _safeAddColumn(_database!, tableCachedUsers, colUserSiteCode, 'TEXT');
-    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'siteCode', 'TEXT DEFAULT ""');
-    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'salesUnit', 'TEXT DEFAULT ""');
+    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'siteCode', "TEXT DEFAULT ''");
+    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'salesUnit', "TEXT DEFAULT ''");
     await _safeAddColumn(_database!, tableReps, 'assignedSite', 'TEXT');
-    await _safeAddColumn(_database!, tableUserSelectedReps, 'username', 'TEXT DEFAULT ""');
+    await _safeAddColumn(_database!, tableUserSelectedReps, 'username', "TEXT DEFAULT ''");
     await _safeAddColumn(_database!, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtMin', 'REAL DEFAULT 0');
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtBkt', 'REAL DEFAULT 0');
@@ -414,10 +415,10 @@ class LocalDatabaseHelper {
       await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3h_site ON $tableX3HistoryHeader(salesSite)');
 
       // Safe column additions for existing local DBs
-      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN customerCode TEXT'); } catch (_) {}
-      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN customerName TEXT'); } catch (_) {}
-      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN soNumber TEXT'); } catch (_) {}
-      try { await _database!.execute('ALTER TABLE $tableX3HistoryHeader ADD COLUMN deliveryNumber TEXT'); } catch (_) {}
+      await _safeAddColumn(_database!, tableX3HistoryHeader, 'customerCode', 'TEXT');
+      await _safeAddColumn(_database!, tableX3HistoryHeader, 'customerName', 'TEXT');
+      await _safeAddColumn(_database!, tableX3HistoryHeader, 'soNumber', 'TEXT');
+      await _safeAddColumn(_database!, tableX3HistoryHeader, 'deliveryNumber', 'TEXT');
     } catch (_) {}
 
     try {
@@ -1992,6 +1993,10 @@ class LocalDatabaseHelper {
         } catch (_) {}
       }
     }
+    if (oldVersion < 95) {
+      debugPrint('DB Upgrade: Adding stockTransaction to tbl_si_credit_notes (v95)');
+      await _safeAddColumn(db, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -2166,7 +2171,8 @@ class LocalDatabaseHelper {
         deviceId TEXT,
         reason TEXT,
         salesRep TEXT,
-        transactionMode TEXT DEFAULT '1'
+        transactionMode TEXT DEFAULT '1',
+        stockTransaction INTEGER DEFAULT 0
       )
     ''');
 
@@ -2853,6 +2859,11 @@ class LocalDatabaseHelper {
     Database db = await instance.database;
 
     await db.transaction((txn) async {
+      // High-performance SQLite PRAGMAs for massive bulk sync ingestion
+      await txn.execute('PRAGMA synchronous = NORMAL;');
+      await txn.execute('PRAGMA temp_store = MEMORY;');
+      await txn.execute('PRAGMA cache_size = -64000;');
+
       // 0. FETCH DIRTY RECORDS to preserve local state
       // We must not overwrite isPrepared=1 if it hasn't been synced yet,
       // even if the server refresh (which is eventually consistent) says isPrepared=0.
@@ -2888,8 +2899,20 @@ class LocalDatabaseHelper {
         await txn.delete(tableEodProcessAudits);
       }
 
-      // 2. Batch Insert new data (UPSERT via ConflictAlgorithm.replace)
+      // 2. Batch Insert new data with chunked commits to eliminate memory bloat
+      int opCount = 0;
       Batch batch = txn.batch();
+
+      Future<void> queueInsert(String table, Map<String, dynamic> values, {ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.replace}) async {
+        batch.insert(table, values, conflictAlgorithm: conflictAlgorithm);
+        opCount++;
+        if (opCount >= 500) {
+          await batch.commit(noResult: true);
+          batch = txn.batch();
+          opCount = 0;
+          await Future.delayed(Duration.zero);
+        }
+      }
 
       try {
         for (var order in orders) {
@@ -2904,7 +2927,7 @@ class LocalDatabaseHelper {
             record[columnIsSynced] = 0;
           }
 
-          batch.insert(
+          await queueInsert(
             tableOrders,
             record,
             conflictAlgorithm: ConflictAlgorithm.replace,
@@ -2926,49 +2949,49 @@ class LocalDatabaseHelper {
             record[columnIsSynced] = 1;
           }
 
-          batch.insert(
+          await queueInsert(
             tableDetails,
             record,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var customer in customers) {
-          batch.insert(
+          await queueInsert(
             tableCustomers,
             customer,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var rep in reps) {
-          batch.insert(
+          await queueInsert(
             tableReps,
             rep,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var location in locations) {
-          batch.insert(
+          await queueInsert(
             tableLocations,
             location,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var product in products) {
-          batch.insert(
+          await queueInsert(
             tableProducts,
             product,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var site in sites) {
-          batch.insert(
+          await queueInsert(
             tableSites,
             site,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
         for (var lot in lots) {
-          batch.insert(
+          await queueInsert(
             tableLots,
             lot,
             conflictAlgorithm: ConflictAlgorithm.replace,
@@ -2976,7 +2999,7 @@ class LocalDatabaseHelper {
         }
         if (taxDeterminations != null) {
           for (var matrix in taxDeterminations) {
-            batch.insert(
+            await queueInsert(
               tableTaxMatrix,
               matrix,
               conflictAlgorithm: ConflictAlgorithm.replace,
@@ -2985,7 +3008,7 @@ class LocalDatabaseHelper {
         }
         if (taxRates != null) {
           for (var rate in taxRates) {
-            batch.insert(
+            await queueInsert(
               tableTaxRates,
               rate,
               conflictAlgorithm: ConflictAlgorithm.replace,
@@ -2994,7 +3017,7 @@ class LocalDatabaseHelper {
         }
         if (eodProcessAudits != null) {
           for (var audit in eodProcessAudits) {
-            batch.insert(tableEodProcessAudits, {
+            await queueInsert(tableEodProcessAudits, {
               'id': audit['id'],
               'eodDate': audit['eodDate'],
               'workOrderNumber': audit['workOrderNumber'],
@@ -3010,7 +3033,9 @@ class LocalDatabaseHelper {
           }
         }
 
-        await batch.commit(noResult: true);
+        if (opCount > 0) {
+          await batch.commit(noResult: true);
+        }
         debugPrint(
           "Data Sync Storage: ${incremental ? 'Incremental' : 'Full'} refresh complete. Inserted ${orders.length} orders, ${details.length} details, ${products.length} products, ${sites.length} sites and ${lots.length} lots.",
         );
@@ -4262,6 +4287,119 @@ class LocalDatabaseHelper {
     });
   }
 
+  Future<int> refreshOpenInvoicesForCustomer(String customerNo, List<dynamic> rawList) async {
+    final db = await database;
+    final cust = customerNo.trim();
+    if (cust.isEmpty) return 0;
+
+    int activeCount = 0;
+    await db.transaction((txn) async {
+      // 1. Wipe previous open invoices for THIS customer
+      await txn.delete(
+        tableSiOpenInvoices,
+        where: 'customerNo = ?',
+        whereArgs: [cust],
+      );
+
+      // 2. Reconcile with pending offline local payments for this customer
+      final unsynced = await txn.query(
+        tableSiOpenInvoicePayments,
+        where: 'customerNo = ? AND isSynced = 0',
+        whereArgs: [cust],
+      );
+      final Map<String, double> pendingPayments = {};
+      for (final p in unsynced) {
+        final doc = (p['documentNo'] ?? '').toString();
+        final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+        if (doc.isNotEmpty) {
+          pendingPayments[doc] = (pendingPayments[doc] ?? 0.0) + amt;
+        }
+      }
+
+      // 3. Insert fresh open invoices
+      for (final item in rawList) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final docNo = (map['documentNo'] ?? map['DocumentNo'] ?? '').toString().trim();
+        final custNo = (map['customerNo'] ?? map['CustomerNo'] ?? cust).toString().trim();
+        final custName = (map['customerName'] ?? map['CustomerName'] ?? '').toString().trim();
+        final dueDate = (map['dueDate'] ?? map['DueDate'] ?? '').toString().trim();
+        final site = (map['site'] ?? map['Site'] ?? '').toString().trim();
+        final company = (map['company'] ?? map['Company'] ?? '').toString().trim();
+        final docType = (map['docType'] ?? map['DocType'] ?? 'INV').toString().trim();
+        final rawRemaining = (map['remainingAmtLCY'] ?? map['RemainingAmtLCY'] as num?)?.toDouble() ?? 0.0;
+
+        if (docNo.isEmpty || dueDate.isEmpty) continue;
+
+        final pendingDeduction = pendingPayments[docNo] ?? 0.0;
+        double effectiveRemaining = rawRemaining;
+        if (docType == 'INV') {
+          effectiveRemaining = rawRemaining - pendingDeduction;
+        } else if (docType == 'CN') {
+          effectiveRemaining = rawRemaining + pendingDeduction;
+        }
+        effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
+
+        final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
+            (docType == 'CN' && effectiveRemaining >= -0.001)
+            ? 1
+            : 0;
+
+        if (isPaid == 0) {
+          activeCount++;
+        }
+
+        await txn.insert(
+          tableSiOpenInvoices,
+          {
+            'documentNo': docNo,
+            'customerNo': custNo,
+            'customerName': custName,
+            'dueDate': dueDate,
+            'site': site,
+            'company': company,
+            'docType': docType,
+            'remainingAmtLCY': effectiveRemaining,
+            'allocatedAmount': pendingDeduction,
+            'isPaid': isPaid,
+            'lastSyncAt': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+
+    return activeCount;
+  }
+
+  Future<void> updateCustomerProfileAndFinancials({
+    required String customerCode,
+    double? outstandingBalance,
+    double? creditLimit,
+    String? statusFlag,
+    String? paymentTerm,
+    String? taxRule,
+    String? name,
+  }) async {
+    final db = await database;
+    final Map<String, dynamic> updates = {};
+    if (outstandingBalance != null) updates['outstandingBalance'] = outstandingBalance;
+    if (creditLimit != null) updates['creditLimit'] = creditLimit;
+    if (statusFlag != null && statusFlag.isNotEmpty) updates['statusFlag'] = statusFlag;
+    if (paymentTerm != null && paymentTerm.isNotEmpty) updates['paymentTerm'] = paymentTerm;
+    if (taxRule != null && taxRule.isNotEmpty) updates['taxRule'] = taxRule;
+    if (name != null && name.isNotEmpty) updates[colName] = name;
+
+    if (updates.isNotEmpty) {
+      await db.update(
+        tableSalesInvoiceCustomers,
+        updates,
+        where: '$colCode = ?',
+        whereArgs: [customerCode.trim()],
+      );
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getOpenInvoices({
     String? siteCode,
     String? customerNo,
@@ -4552,6 +4690,50 @@ class LocalDatabaseHelper {
         await Future.delayed(Duration.zero);
       }
     }
+  }
+
+  Future<int> refreshX3HistoryForCustomer(String customerCode, List<dynamic> documents) async {
+    final db = await database;
+    final code = customerCode.trim();
+    if (code.isEmpty) return 0;
+
+    await db.transaction((txn) async {
+      // 1. Find all invoice numbers currently stored for this customer
+      final existingDocs = await txn.query(
+        tableX3HistoryHeader,
+        columns: ['invoiceNumber'],
+        where: 'customerCode = ? OR billToCustomer = ?',
+        whereArgs: [code, code],
+      );
+
+      final invNums = existingDocs
+          .map((d) => d['invoiceNumber']?.toString() ?? '')
+          .where((num) => num.isNotEmpty)
+          .toList();
+
+      // 2. Delete lines for these invoices
+      for (final inv in invNums) {
+        await txn.delete(
+          tableX3HistoryLines,
+          where: 'invoiceNumber = ?',
+          whereArgs: [inv],
+        );
+      }
+
+      // 3. Delete headers for this customer
+      await txn.delete(
+        tableX3HistoryHeader,
+        where: 'customerCode = ? OR billToCustomer = ?',
+        whereArgs: [code, code],
+      );
+    });
+
+    // 4. Save new documents
+    if (documents.isNotEmpty) {
+      await saveX3HistoryDocuments(documents);
+    }
+
+    return documents.length;
   }
 
   Future<void> pruneX3HistoryOlderThan({int months = 6}) async {

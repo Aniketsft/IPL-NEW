@@ -22,6 +22,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? DeviceId { get; set; }
         public string? TransactionalId { get; set; }
         public int Category { get; set; } = 2; // 1 = Invoice, 2 = Credit Note, 3 = Return
+        public int StockTransaction { get; set; } = 0; // 0 = Pure Credit Note, 1 = Customer Return (Stock Receipt)
         public string? SalesRep { get; set; }
         public string? Reason { get; set; }
         public string? TransactionMode { get; set; } // "1" = Direct, "4" = Linked

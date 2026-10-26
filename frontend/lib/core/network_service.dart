@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'secure_storage_service.dart';
 import 'config/api_config.dart';
@@ -41,6 +42,9 @@ class NetworkService {
         baseUrl: ApiConfig.baseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 60),
+        headers: {
+          'Accept-Encoding': 'gzip, deflate',
+        },
       ),
     );
 
@@ -103,7 +107,40 @@ class NetworkService {
             // Do NOT clear storage here to avoid race conditions with the refresh cycle.
             debugPrint('Global 401 Intercepted: Notifying AuthBloc for session refresh.');
             onUnauthorized?.call();
+            return handler.next(e);
           }
+
+          // Retry logic for transient errors on idempotent GET operations (sync pull)
+          final isGet = e.requestOptions.method.toUpperCase() == 'GET';
+          final statusCode = e.response?.statusCode;
+          final isTransient = statusCode == 429 ||
+              statusCode == 502 ||
+              statusCode == 503 ||
+              statusCode == 504 ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout;
+
+          if (isGet && isTransient) {
+            final currentRetry =
+                (e.requestOptions.extra['_retryCount'] as int? ?? 0);
+            if (currentRetry < 2) {
+              e.requestOptions.extra['_retryCount'] = currentRetry + 1;
+              final backoffMs =
+                  (500 * (1 << currentRetry)) + math.Random().nextInt(400);
+              debugPrint(
+                  'Network transient error ($statusCode / ${e.type}). Retrying GET ${e.requestOptions.path} in ${backoffMs}ms (attempt ${currentRetry + 1}/2)...');
+              await Future.delayed(Duration(milliseconds: backoffMs));
+              try {
+                final retryResponse = await dio.fetch(e.requestOptions);
+                return handler.resolve(retryResponse);
+              } on DioException catch (retryErr) {
+                return handler.next(retryErr);
+              } catch (_) {
+                return handler.next(e);
+              }
+            }
+          }
+
           return handler.next(e);
         },
       ),

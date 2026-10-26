@@ -12,6 +12,8 @@ using EnterpriseAuth.Api.Infrastructure.Features.SchemaManagement;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,17 +40,48 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
+
+// Enable In-Memory Caching for reference tables
+builder.Services.AddMemoryCache();
+
+// Enable Brotli & Gzip Response Compression
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/json" });
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        // Restricting CORS to a specific frontend domain (example domain)
-        policy.WithOrigins("https://trusted-frontend.example.com")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            // Restricting CORS to a specific frontend domain in production
+            policy.WithOrigins("https://trusted-frontend.example.com")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
 });
 
@@ -57,12 +90,13 @@ builder.Services.AddDataProtection();
 
 // 2. Global & Endpoint Rate Limiting
 builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddFixedWindowLimiter("FixedPolicy", opt => {
         opt.PermitLimit = 100;
         opt.Window = TimeSpan.FromMinutes(1);
     });
     options.AddFixedWindowLimiter("AuthPolicy", opt => {
-        opt.PermitLimit = 5;
+        opt.PermitLimit = 15;
         opt.Window = TimeSpan.FromSeconds(15);
     });
 });
@@ -109,6 +143,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStagingService, StagingService>();
 builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
 builder.Services.AddScoped<ISalesInvoiceRepository, EfSalesInvoiceRepository>();
+builder.Services.AddSingleton<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService, EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.SnapshotService>();
+builder.Services.AddHostedService<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.X3SnapshotBackgroundWorker>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IX3SchemaProvider, HeaderX3SchemaProvider>();
@@ -220,6 +256,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseResponseCompression();
 app.UseCors();
 
 // 7. Apply Rate Limiting Pipeline

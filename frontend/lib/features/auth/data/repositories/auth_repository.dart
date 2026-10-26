@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/entities/user.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
 import 'package:enterprise_auth_mobile/features/auth/data/models/user_dto.dart';
@@ -155,10 +156,20 @@ class AuthRepository implements IAuthRepository {
     await _storageService.deleteAll();
   }
 
+  bool _isRefreshing = false;
+
   @override
-  Future<void> refreshToken() async {
+  Future<bool> refreshToken() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
     try {
-      final response = await _dio.post('Auth/refresh');
+      final response = await _dio.post(
+        'Auth/refresh',
+        options: Options(
+          sendTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
+        ),
+      );
       final data = response.data;
       if (data != null && data['token'] != null) {
         await _storageService.saveToken(data['token']);
@@ -173,10 +184,14 @@ class AuthRepository implements IAuthRepository {
             whereArgs: [username],
           );
         }
+        return true;
       }
+      return false;
     } catch (e) {
-      // If refresh fails, it might be due to offline mode or already expired session.
-      // Next API call or 401 interceptor will handle it.
+      debugPrint('AuthRepository: Token refresh failed ($e). Device may be offline.');
+      return false;
+    } finally {
+      _isRefreshing = false;
     }
   }
 
@@ -214,6 +229,9 @@ class AuthRepository implements IAuthRepository {
       }
       return '$operation failed: Server returned ${e.response?.statusCode}';
     }
-    return '$operation failed: ${e.message}';
+    final detail = (e.message != null && e.message!.isNotEmpty)
+        ? e.message!
+        : (e.error?.toString() ?? e.type.name);
+    return '$operation failed: $detail';
   }
 }

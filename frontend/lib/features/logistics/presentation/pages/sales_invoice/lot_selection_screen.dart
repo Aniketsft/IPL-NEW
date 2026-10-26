@@ -300,7 +300,7 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${lot.totalQty.toInt()} ${widget.salesUnit}',
+                        '${lot.totalQty % 1 == 0 ? lot.totalQty.toInt().toString() : lot.totalQty.toStringAsFixed(2)} ${widget.salesUnit}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

@@ -5,6 +5,7 @@ import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
 import '../../bloc/sales_invoice_sync_bloc.dart';
 import '../../bloc/sales_invoice_sync_event.dart';
+import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'customer_selection_screen.dart';
 import 'transaction_history_screen.dart';
@@ -33,31 +34,51 @@ class SelectTransactionScreen extends StatelessWidget {
         IndustrialModuleLayout(
           title: 'Select Transaction',
           extraActions: [
-            IconButton(
-              icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
-              tooltip: 'Sync Sales Data',
-              onPressed: () {
-                final authState = context.read<AuthBloc>().state;
-                final siteCode = (authState is Authenticated &&
-                        authState.siteCode != null &&
-                        authState.siteCode!.isNotEmpty &&
-                        authState.siteCode != 'ALL')
-                    ? authState.siteCode
-                    : null;
-
-                if (siteCode == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Cannot sync: No assigned site code found for logged in user.'),
-                      backgroundColor: Colors.red,
+            BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+              builder: (context, syncState) {
+                final isSyncing = syncState is SalesInvoiceSyncInProgress;
+                if (isSyncing) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+                        ),
+                      ),
                     ),
                   );
-                  return;
                 }
+                return IconButton(
+                  icon: Icon(Icons.sync_rounded, color: theme.primaryColor),
+                  tooltip: 'Sync Mobile Sales Data',
+                  onPressed: () {
+                    final authState = context.read<AuthBloc>().state;
+                    final siteCode = (authState is Authenticated &&
+                            authState.siteCode != null &&
+                            authState.siteCode!.isNotEmpty &&
+                            authState.siteCode != 'ALL')
+                        ? authState.siteCode
+                        : null;
 
-                context.read<SalesInvoiceSyncBloc>().add(
-                      StartSalesInvoiceSyncRequested(siteCode: siteCode),
-                    );
+                    if (siteCode == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Cannot sync: No assigned site code found for logged in user.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    context.read<SalesInvoiceSyncBloc>().add(
+                          StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                        );
+                  },
+                );
               },
             ),
           ],
@@ -234,6 +255,34 @@ class SelectTransactionScreen extends StatelessWidget {
                         ? (bloc.state as SalesInvoiceLoaded).customer
                         : null;
                     bloc.add(ClearCart());
+
+                    if (txType == 'RETURN') {
+                      if (currentCustomer != null) {
+                        final code = (currentCustomer['code'] ?? currentCustomer['customerCode'] ?? '').toString();
+                        final name = (currentCustomer['name'] ?? currentCustomer['customerName'] ?? '').toString();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TransactionHistoryScreen(
+                              initialCustomerCode: code,
+                              initialCustomerName: name,
+                              lockToCustomer: true,
+                              isX3History: true,
+                              isForReturn: true,
+                            ),
+                          ),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CustomerSelectionScreen(isReturnMode: true),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
                     bloc.add(InitializeTransaction(
                       transactionType: txType,
                       config: TransactionConfig.forType(txType),

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../core/network_service.dart';
 import '../../../../../core/secure_storage_service.dart';
 import '../../../../../core/services/device_info_service.dart';
@@ -7,11 +9,121 @@ import '../local/local_database_helper.dart';
 import '../models/sales_rep_model.dart';
 import 'sales_invoice_product_repository.dart';
 
+enum SyncStatus {
+  success,
+  cached304,
+  failed,
+  skipped,
+}
+
+enum SyncDirection {
+  download,
+  upload,
+}
+
+class SyncEntityReport {
+  final String entityName;
+  final SyncDirection direction;
+  final SyncStatus status;
+  final int count;
+  final String? errorCode;
+  final String? userMessage;
+  final String? technicalDetails;
+  final Duration duration;
+
+  const SyncEntityReport({
+    required this.entityName,
+    required this.direction,
+    required this.status,
+    this.count = 0,
+    this.errorCode,
+    this.userMessage,
+    this.technicalDetails,
+    this.duration = Duration.zero,
+  });
+}
+
+class CustomerSyncResult {
+  final bool success;
+  final String customerCode;
+  final double liveBalance;
+  final double creditLimit;
+  final String statusFlag;
+  final int openInvoicesCount;
+  final int x3HistoryInvoicesCount;
+  final String? errorMessage;
+
+  const CustomerSyncResult({
+    required this.success,
+    required this.customerCode,
+    this.liveBalance = 0.0,
+    this.creditLimit = 0.0,
+    this.statusFlag = '1',
+    this.openInvoicesCount = 0,
+    this.x3HistoryInvoicesCount = 0,
+    this.errorMessage,
+  });
+}
+
 class SyncBatchResult {
   final List<String> successes;
   final List<String> failures;
   final String? errorMessage;
-  SyncBatchResult({this.successes = const [], this.failures = const [], this.errorMessage});
+  final List<SyncEntityReport> reports;
+  final DateTime timestamp;
+
+  SyncBatchResult({
+    this.successes = const [],
+    this.failures = const [],
+    this.errorMessage,
+    this.reports = const [],
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  bool get isCleanSuccess =>
+      (errorMessage == null || errorMessage!.isEmpty) &&
+      failures.isEmpty &&
+      reports.isNotEmpty &&
+      reports.every((r) => r.status == SyncStatus.success || r.status == SyncStatus.cached304);
+
+  bool get hasFailures => failures.isNotEmpty || reports.any((r) => r.status == SyncStatus.failed);
+
+  bool get isTotalFailure =>
+      reports.isNotEmpty &&
+      reports.every((r) => r.status == SyncStatus.failed || r.status == SyncStatus.skipped);
+
+  List<SyncEntityReport> get failedReports =>
+      reports.where((r) => r.status == SyncStatus.failed).toList();
+
+  List<SyncEntityReport> get successfulReports =>
+      reports.where((r) => r.status == SyncStatus.success || r.status == SyncStatus.cached304).toList();
+
+  String toDiagnosticJson({String? siteCode, String? schema, String? baseUrl, String? deviceId}) {
+    final Map<String, dynamic> data = {
+      'timestamp': timestamp.toIso8601String(),
+      'siteCode': siteCode ?? 'N/A',
+      'schema': schema ?? 'N/A',
+      'baseUrl': baseUrl ?? 'N/A',
+      'deviceId': deviceId ?? 'N/A',
+      'isCleanSuccess': isCleanSuccess,
+      'hasFailures': hasFailures,
+      'isTotalFailure': isTotalFailure,
+      'errorMessage': errorMessage,
+      'successCount': successes.length,
+      'failureCount': failures.length,
+      'reports': reports.map((r) => {
+        'entity': r.entityName,
+        'direction': r.direction.name,
+        'status': r.status.name,
+        'count': r.count,
+        if (r.errorCode != null) 'errorCode': r.errorCode,
+        if (r.userMessage != null) 'userMessage': r.userMessage,
+        if (r.technicalDetails != null) 'technicalDetails': r.technicalDetails,
+        'durationMs': r.duration.inMilliseconds,
+      }).toList(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
 }
 
 class SalesInvoiceSyncRepository {
@@ -49,6 +161,29 @@ class SalesInvoiceSyncRepository {
     final stopwatch = Stopwatch()..start();
     final List<String> successes = [];
     final List<String> failures = [];
+    final List<SyncEntityReport> entityReports = [];
+
+    // Pre-flight session check: Prevent flooding logs with suppressed requests
+    final token = await SecureStorageService().getToken();
+    if (token == null || token.isEmpty || token.startsWith('OFFLINE_SESSION_')) {
+      final offlineMsg = 'Device is operating in Offline Mode. Connect to company network and log in online to synchronize.';
+      debugPrint('Sync: Cannot synchronize because device is in Offline Session ($token).');
+      entityReports.add(SyncEntityReport(
+        entityName: 'Authentication Session',
+        direction: SyncDirection.download,
+        status: SyncStatus.failed,
+        errorCode: 'ERR_AUTH_OFFLINE_SESSION',
+        userMessage: offlineMsg,
+        technicalDetails: 'Network requests suppressed: device running under OFFLINE_SESSION token.',
+        duration: stopwatch.elapsed,
+      ));
+      return SyncBatchResult(
+        successes: [],
+        failures: [offlineMsg],
+        errorMessage: offlineMsg,
+        reports: entityReports,
+      );
+    }
 
     try {
       // 1. Push Unsynced Sales Invoices
@@ -127,8 +262,23 @@ class SalesInvoiceSyncRepository {
                await LocalDatabaseHelper.instance.markPaymentsSynced(invoiceId, x3PaymentId: x3PayId, x3InvoiceDocumentId: displayId);
              }
              successes.add(displayId);
+             entityReports.add(SyncEntityReport(
+               entityName: 'Invoice $displayId',
+               direction: SyncDirection.upload,
+               status: SyncStatus.success,
+               count: 1,
+             ));
           } else {
-             failures.add('$invoiceId: ${response.data}');
+             final err = '$invoiceId: ${response.data}';
+             failures.add(err);
+             entityReports.add(SyncEntityReport(
+               entityName: 'Invoice $invoiceId',
+               direction: SyncDirection.upload,
+               status: SyncStatus.failed,
+               errorCode: 'ERR_UPLOAD_INVOICE',
+               userMessage: err,
+               technicalDetails: 'HTTP ${response.statusCode}: ${response.data}',
+             ));
           }
         } catch (e) {
           if (e is DioException && e.response != null) {
@@ -144,16 +294,58 @@ class SalesInvoiceSyncRepository {
                   await LocalDatabaseHelper.instance.markPaymentsSynced(invoiceId, x3PaymentId: x3PayId, x3InvoiceDocumentId: displayId);
                 }
                 successes.add(displayId);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Invoice $displayId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.success,
+                  count: 1,
+                ));
               } else if (data.containsKey('error')) {
-                failures.add('$invoiceId: ${data['error']}');
+                final err = '$invoiceId: ${data['error']}';
+                failures.add(err);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Invoice $invoiceId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.failed,
+                  errorCode: 'ERR_UPLOAD_INVOICE',
+                  userMessage: err,
+                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                ));
               } else {
-                failures.add('$invoiceId: [HTTP ${e.response?.statusCode}] $data');
+                final err = '$invoiceId: [HTTP ${e.response?.statusCode}] $data';
+                failures.add(err);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Invoice $invoiceId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.failed,
+                  errorCode: 'ERR_UPLOAD_INVOICE',
+                  userMessage: err,
+                  technicalDetails: '$data',
+                ));
               }
             } else {
-              failures.add('$invoiceId: [HTTP ${e.response?.statusCode}] $data');
+              final err = '$invoiceId: [HTTP ${e.response?.statusCode}] $data';
+              failures.add(err);
+              entityReports.add(SyncEntityReport(
+                entityName: 'Invoice $invoiceId',
+                direction: SyncDirection.upload,
+                status: SyncStatus.failed,
+                errorCode: 'ERR_UPLOAD_INVOICE',
+                userMessage: err,
+                technicalDetails: '$data',
+              ));
             }
           } else {
-            failures.add('$invoiceId: Failed to sync ($e)');
+            final err = '$invoiceId: Failed to sync ($e)';
+            failures.add(err);
+            entityReports.add(SyncEntityReport(
+              entityName: 'Invoice $invoiceId',
+              direction: SyncDirection.upload,
+              status: SyncStatus.failed,
+              errorCode: 'ERR_UPLOAD_INVOICE',
+              userMessage: err,
+              technicalDetails: e.toString(),
+            ));
           }
         }
       }
@@ -205,6 +397,7 @@ class SalesInvoiceSyncRepository {
             "customerCode": cn['customerCode'],
             "customerName": cn['customerName'] ?? '',
             "category": category,
+            "stockTransaction": cn['stockTransaction'] ?? ((cn['creditNoteType'] == 'RETURN' || category == 3) ? 1 : 0),
             "salesRep": cn['salesRep'] ?? '',
             "reason": cn['reason'] ?? 'CREDIT_NOTE',
             "originalInvoiceId": resolvedOriginalInvoiceId,
@@ -252,8 +445,23 @@ class SalesInvoiceSyncRepository {
               await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
             }
             successes.add(displayId);
+            entityReports.add(SyncEntityReport(
+              entityName: 'Credit Note $displayId',
+              direction: SyncDirection.upload,
+              status: SyncStatus.success,
+              count: 1,
+            ));
           } else {
-            failures.add('$creditNoteId: ${response.data}');
+            final err = '$creditNoteId: ${response.data}';
+            failures.add(err);
+            entityReports.add(SyncEntityReport(
+              entityName: 'Credit Note $creditNoteId',
+              direction: SyncDirection.upload,
+              status: SyncStatus.failed,
+              errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
+              userMessage: err,
+              technicalDetails: 'HTTP ${response.statusCode}: ${response.data}',
+            ));
           }
         } catch (e) {
           if (e is DioException && e.response != null) {
@@ -268,16 +476,58 @@ class SalesInvoiceSyncRepository {
                   await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
                 }
                 successes.add(displayId);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Credit Note $displayId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.success,
+                  count: 1,
+                ));
               } else if (data.containsKey('error')) {
-                failures.add('$creditNoteId: ${data['error']}');
+                final err = '$creditNoteId: ${data['error']}';
+                failures.add(err);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Credit Note $creditNoteId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.failed,
+                  errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
+                  userMessage: err,
+                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                ));
               } else {
-                failures.add('$creditNoteId: [HTTP ${e.response?.statusCode}] $data');
+                final err = '$creditNoteId: [HTTP ${e.response?.statusCode}] $data';
+                failures.add(err);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'Credit Note $creditNoteId',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.failed,
+                  errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
+                  userMessage: err,
+                  technicalDetails: '$data',
+                ));
               }
             } else {
-              failures.add('$creditNoteId: [HTTP ${e.response?.statusCode}] $data');
+              final err = '$creditNoteId: [HTTP ${e.response?.statusCode}] $data';
+              failures.add(err);
+              entityReports.add(SyncEntityReport(
+                entityName: 'Credit Note $creditNoteId',
+                direction: SyncDirection.upload,
+                status: SyncStatus.failed,
+                errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
+                userMessage: err,
+                technicalDetails: '$data',
+              ));
             }
           } else {
-            failures.add('$creditNoteId: Failed to sync ($e)');
+            final err = '$creditNoteId: Failed to sync ($e)';
+            failures.add(err);
+            entityReports.add(SyncEntityReport(
+              entityName: 'Credit Note $creditNoteId',
+              direction: SyncDirection.upload,
+              status: SyncStatus.failed,
+              errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
+              userMessage: err,
+              technicalDetails: e.toString(),
+            ));
           }
         }
       }
@@ -337,12 +587,102 @@ class SalesInvoiceSyncRepository {
         debugPrint('Sync: Standalone payment sync retry warning: $payRetryEx');
       }
 
-      // Helper to safely execute a network request without failing sibling requests
-      Future<Response?> safeGet(String path, {Map<String, dynamic>? queryParameters, Options? options, String? label}) async {
+      final prefs = await SharedPreferences.getInstance();
+      final effectiveSiteKey = siteCode.isNotEmpty ? siteCode : 'default';
+      final openInvEtagKey = 'etag_open_invoices_$effectiveSiteKey';
+      final x3HistoryEtagKey = 'etag_x3_history_$effectiveSiteKey';
+      final priceListEtagKey = 'etag_price_lists';
+
+      // Helper to safely execute a network request with optional ETag 304 caching
+      Future<Response?> safeGet(
+        String path, {
+        Map<String, dynamic>? queryParameters,
+        Options? options,
+        required String label,
+        String? etagKey,
+      }) async {
+        final itemStopwatch = Stopwatch()..start();
         try {
-          return await _dio.get(path, queryParameters: queryParameters, options: options);
+          final effectiveOptions = options ?? Options();
+          effectiveOptions.validateStatus = (status) => status != null && ((status >= 200 && status < 300) || status == 304);
+
+          if (etagKey != null) {
+            final cachedEtag = prefs.getString(etagKey);
+            if (cachedEtag != null && cachedEtag.isNotEmpty) {
+              effectiveOptions.headers = {
+                ...?effectiveOptions.headers,
+                'If-None-Match': cachedEtag,
+              };
+            }
+          }
+
+          final resp = await _dio.get(path, queryParameters: queryParameters, options: effectiveOptions);
+
+          if (resp.statusCode == 304) {
+            debugPrint('Sync: $label is up-to-date (HTTP 304 Not Modified). Bypassing download.');
+            entityReports.add(SyncEntityReport(
+              entityName: label,
+              direction: SyncDirection.download,
+              status: SyncStatus.cached304,
+              duration: itemStopwatch.elapsed,
+            ));
+            return resp;
+          }
+
+          if (etagKey != null && resp.statusCode == 200) {
+            final newEtag = resp.headers.value('etag');
+            if (newEtag != null && newEtag.isNotEmpty) {
+              await prefs.setString(etagKey, newEtag);
+            }
+          }
+
+          final int count = (resp.data is List) ? (resp.data as List).length : 1;
+          entityReports.add(SyncEntityReport(
+            entityName: label,
+            direction: SyncDirection.download,
+            status: SyncStatus.success,
+            count: count,
+            duration: itemStopwatch.elapsed,
+          ));
+
+          return resp;
+        } on DioException catch (e) {
+          debugPrint('Sync: Failed to fetch $label ($path): $e');
+          final isOffline = e.type == DioExceptionType.connectionError ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout ||
+              (e.error != null && e.error.toString().toLowerCase().contains('offline'));
+          final errCode = (e.error != null && e.error.toString().contains('offline'))
+              ? 'ERR_AUTH_OFFLINE_SESSION'
+              : (isOffline ? 'ERR_NET_UNREACHABLE' : 'ERR_HTTP_${e.response?.statusCode ?? "NET"}');
+          final errMsg = isOffline
+              ? (e.error?.toString() ?? 'Network connection failed')
+              : (e.response?.statusMessage ?? e.message ?? 'Server error');
+          final failMsg = '$label: $errMsg';
+          failures.add(failMsg);
+          entityReports.add(SyncEntityReport(
+            entityName: label,
+            direction: SyncDirection.download,
+            status: SyncStatus.failed,
+            errorCode: errCode,
+            userMessage: failMsg,
+            technicalDetails: '$path -> [${e.response?.statusCode}] ${e.message}',
+            duration: itemStopwatch.elapsed,
+          ));
+          return null;
         } catch (e) {
           debugPrint('Sync: Failed to fetch $label ($path): $e');
+          final failMsg = '$label: $e';
+          failures.add(failMsg);
+          entityReports.add(SyncEntityReport(
+            entityName: label,
+            direction: SyncDirection.download,
+            status: SyncStatus.failed,
+            errorCode: 'ERR_UNKNOWN',
+            userMessage: failMsg,
+            technicalDetails: '$path -> $e',
+            duration: itemStopwatch.elapsed,
+          ));
           return null;
         }
       }
@@ -367,14 +707,33 @@ class SalesInvoiceSyncRepository {
         safeGet('SalesInvoice/customers', queryParameters: custParams.isNotEmpty ? custParams : null, label: 'Customers'),
         safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
         safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
-        safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists'),
+        safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists', etagKey: priceListEtagKey),
         safeGet('SalesInvoice/salesreps', queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null, label: 'Sales Reps'),
-        safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices'),
-        safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History'),
+        safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices', etagKey: openInvEtagKey),
+        safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History', etagKey: x3HistoryEtagKey),
         safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
         safeGet('SalesInvoice/banks', label: 'Banks'),
-        _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) => null).catchError((e) {
+        _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) {
+          entityReports.add(const SyncEntityReport(
+            entityName: 'Stock Details',
+            direction: SyncDirection.download,
+            status: SyncStatus.success,
+          ));
+          return null;
+        }).catchError((e) {
           debugPrint('Sync: Failed to fetch stock details: $e');
+          final isOffline = e.toString().toLowerCase().contains('offline') || e.toString().toLowerCase().contains('connection');
+          final errCode = isOffline ? 'ERR_AUTH_OFFLINE_SESSION' : 'ERR_STOCK_SYNC';
+          final errUser = isOffline ? 'Stock Details: Operating in offline mode' : 'Stock Details: $e';
+          failures.add(errUser);
+          entityReports.add(SyncEntityReport(
+            entityName: 'Stock Details',
+            direction: SyncDirection.download,
+            status: SyncStatus.failed,
+            errorCode: errCode,
+            userMessage: errUser,
+            technicalDetails: 'syncSalesInvoiceItemStockDetails: $e',
+          ));
           return null;
         }),
       ]);
@@ -404,11 +763,13 @@ class SalesInvoiceSyncRepository {
         debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
       }
 
-      // Ingest Price Lists
-      if (priceListResp != null && priceListResp.data is List) {
+      // Ingest Price Lists (Direct Sync with ETag 304)
+      if (priceListResp != null && priceListResp.statusCode != 304 && priceListResp.data is List) {
         final priceLists = priceListResp.data as List<dynamic>;
         await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
-        debugPrint('Sync: Synced ${priceLists.length} Price Lists.');
+        debugPrint('Sync: Synced ${priceLists.length} Price Lists directly from Sage X3.');
+      } else if (priceListResp?.statusCode == 304) {
+        debugPrint('Sync: Price Lists unchanged (HTTP 304), preserved local SQLite cache.');
       }
 
       // Ingest Sales Reps
@@ -420,20 +781,24 @@ class SalesInvoiceSyncRepository {
       }
 
       // Ingest Open Invoices
-      if (openInvResp != null && openInvResp.data is List) {
+      if (openInvResp != null && openInvResp.statusCode != 304 && openInvResp.data is List) {
         final rawOpenInvoices = openInvResp.data as List<dynamic>;
         await LocalDatabaseHelper.instance.refreshOpenInvoices(rawOpenInvoices);
         debugPrint('Sync: Synced ${rawOpenInvoices.length} Open Invoices & Credit Notes (Site: $siteCode, Cutoff: 90d).');
+      } else if (openInvResp?.statusCode == 304) {
+        debugPrint('Sync: Open Invoices unchanged (HTTP 304), preserved local SQLite cache.');
       }
 
       // Ingest 6-Month X3 History
-      if (x3Resp != null && x3Resp.data is List) {
+      if (x3Resp != null && x3Resp.statusCode != 304 && x3Resp.data is List) {
         final rawX3Docs = x3Resp.data as List<dynamic>;
         if (rawX3Docs.isNotEmpty) {
           await LocalDatabaseHelper.instance.pruneX3HistoryOlderThan(months: 6);
           await LocalDatabaseHelper.instance.saveX3HistoryDocuments(rawX3Docs);
           debugPrint('Sync: Synced ${rawX3Docs.length} X3 History Documents (Site: $siteCode, 6 months).');
         }
+      } else if (x3Resp?.statusCode == 304) {
+        debugPrint('Sync: X3 History unchanged (HTTP 304), preserved local SQLite cache.');
       }
 
       // Ingest Credit Note Reasons (Sage X3 Table 8)
@@ -490,9 +855,24 @@ class SalesInvoiceSyncRepository {
       }
 
       final duration = stopwatch.elapsedMilliseconds;
-      debugPrint('Sales Invoice Sync completed in ${duration}ms');
+      debugPrint('Sales Invoice Sync completed in ${duration}ms (Reports: ${entityReports.length}, Successes: ${successes.length}, Failures: ${failures.length})');
       
-      return SyncBatchResult(successes: successes, failures: failures);
+      String? finalError;
+      if (failures.isNotEmpty) {
+        final successfulDownloads = entityReports.where((r) => r.direction == SyncDirection.download && (r.status == SyncStatus.success || r.status == SyncStatus.cached304));
+        if (successfulDownloads.isEmpty && successes.isEmpty) {
+          finalError = failures.first;
+        } else {
+          finalError = 'Sync completed with ${failures.length} issue(s).';
+        }
+      }
+
+      return SyncBatchResult(
+        successes: successes,
+        failures: failures,
+        errorMessage: finalError,
+        reports: entityReports,
+      );
     } on DioException catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data (DioException): $e');
       if (e.response != null) {
@@ -506,7 +886,7 @@ class SalesInvoiceSyncRepository {
           ? 'Cannot sync while offline. All records are safely saved locally.'
           : (e.response?.data?.toString() ?? e.message ?? 'Network error');
       failures.add(serverError);
-      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError);
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError, reports: entityReports);
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
       final errStr = e.toString();
@@ -517,7 +897,7 @@ class SalesInvoiceSyncRepository {
           ? 'Cannot sync while offline. All records are safely saved locally.'
           : errStr;
       failures.add(serverError);
-      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError);
+      return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError, reports: entityReports);
     }
   }
 
@@ -537,6 +917,169 @@ class SalesInvoiceSyncRepository {
       debugPrint('Failed to fetch and sync sales reps: $e');
       final localData = await LocalDatabaseHelper.instance.getSalesReps(siteCode: siteCode);
       return localData.map((m) => SalesRepModel.fromMap(m)).toList();
+    }
+  }
+
+  /// Synchronizes all live information for ONLY the selected customer:
+  /// - Live Balance & Credit Limits from Sage X3 (GACCDUDATE / BPCUSTOMER)
+  /// - Master profile details (Terms, Tax Rule, Status)
+  /// - Open Invoices & Credit Notes (90 Days)
+  /// - 6-Month Invoiced X3 History & Line Pricing
+  Future<CustomerSyncResult> syncSingleCustomerData({
+    required String customerCode,
+    String? siteCode,
+  }) async {
+    final code = customerCode.trim();
+    if (code.isEmpty) {
+      return const CustomerSyncResult(
+        success: false,
+        customerCode: '',
+        errorMessage: 'Invalid customer code provided.',
+      );
+    }
+
+    // Pre-flight session check
+    final token = await SecureStorageService().getToken();
+    if (token == null || token.isEmpty || token.startsWith('OFFLINE_SESSION_')) {
+      const msg = 'Device is operating in Offline Mode. Connect to company network to synchronize this customer.';
+      debugPrint('Sync: Cannot sync customer $code while in offline session ($token).');
+      return CustomerSyncResult(
+        success: false,
+        customerCode: code,
+        errorMessage: msg,
+      );
+    }
+
+    try {
+      debugPrint('Sync: Starting targeted sync for customer: $code (Site: ${siteCode ?? "DEFAULT"})');
+
+      final effectiveSite = (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') ? siteCode : '';
+
+      final openInvParams = <String, dynamic>{
+        'customerno': code,
+        'daysCutoff': 90,
+      };
+      if (effectiveSite.isNotEmpty) openInvParams['sitecode'] = effectiveSite;
+
+      final x3Params = <String, dynamic>{
+        'customercode': code,
+        'months': 6,
+      };
+      if (effectiveSite.isNotEmpty) x3Params['sitecode'] = effectiveSite;
+
+      // 1. Parallel fetch of Customer Live Credit, Profile, Open Invoices, and 6-Month X3 History
+      final responses = await Future.wait([
+        // [0] Live Credit & Balance
+        _dio.get(
+          'SalesInvoice/customer/$code/live-credit',
+          options: Options(receiveTimeout: const Duration(seconds: 15)),
+        ).catchError((e) {
+          debugPrint('Sync: live-credit error for $code: $e');
+          return Response(requestOptions: RequestOptions(path: ''), statusCode: 500);
+        }),
+        // [1] Full Customer Profile
+        _dio.get(
+          'SalesInvoice/customer/$code',
+          options: Options(receiveTimeout: const Duration(seconds: 15)),
+        ).catchError((e) {
+          debugPrint('Sync: customer profile error for $code: $e');
+          return Response(requestOptions: RequestOptions(path: ''), statusCode: 500);
+        }),
+        // [2] Customer Open Invoices
+        _dio.get(
+          'SalesInvoice/open-invoices',
+          queryParameters: openInvParams,
+          options: Options(receiveTimeout: const Duration(seconds: 25)),
+        ).catchError((e) {
+          debugPrint('Sync: open-invoices error for $code: $e');
+          return Response(requestOptions: RequestOptions(path: ''), statusCode: 500);
+        }),
+        // [3] Customer 6-Month X3 History
+        _dio.get(
+          'SalesInvoice/x3-history',
+          queryParameters: x3Params,
+          options: Options(receiveTimeout: const Duration(seconds: 35)),
+        ).catchError((e) {
+          debugPrint('Sync: x3-history error for $code: $e');
+          return Response(requestOptions: RequestOptions(path: ''), statusCode: 500);
+        }),
+      ]);
+
+      final liveCreditResp = responses[0];
+      final profileResp = responses[1];
+      final openInvResp = responses[2];
+      final x3HistoryResp = responses[3];
+
+      double liveBalance = 0.0;
+      double creditLimit = 0.0;
+      String statusFlag = '1';
+      String? paymentTerm;
+      String? taxRule;
+      String? customerName;
+
+      // Ingest Profile & Live Credit
+      if (liveCreditResp.statusCode == 200 && liveCreditResp.data is Map) {
+        final creditData = liveCreditResp.data as Map;
+        liveBalance = (creditData['liveOutstandingBalance'] as num?)?.toDouble() ?? 0.0;
+        creditLimit = (creditData['authorizedCreditLimit'] as num?)?.toDouble() ?? 0.0;
+        statusFlag = (creditData['creditControlStatus'] ?? '1').toString().trim();
+      }
+
+      if (profileResp.statusCode == 200 && profileResp.data is Map) {
+        final profData = profileResp.data as Map;
+        paymentTerm = profData['paymentTerm']?.toString().trim();
+        taxRule = profData['taxRule']?.toString().trim();
+        customerName = profData['name']?.toString().trim();
+        if (creditLimit == 0.0) {
+          creditLimit = (profData['creditLimit'] as num?)?.toDouble() ?? 0.0;
+        }
+        if (statusFlag.isEmpty || statusFlag == '1') {
+          statusFlag = (profData['statusFlag'] ?? '1').toString().trim();
+        }
+      }
+
+      await LocalDatabaseHelper.instance.updateCustomerProfileAndFinancials(
+        customerCode: code,
+        outstandingBalance: liveBalance,
+        creditLimit: creditLimit,
+        statusFlag: statusFlag,
+        paymentTerm: paymentTerm,
+        taxRule: taxRule,
+        name: customerName,
+      );
+
+      // Ingest Open Invoices
+      int openCount = 0;
+      if (openInvResp.statusCode == 200 && openInvResp.data is List) {
+        final openInvoicesList = openInvResp.data as List<dynamic>;
+        openCount = await LocalDatabaseHelper.instance.refreshOpenInvoicesForCustomer(code, openInvoicesList);
+        debugPrint('Sync: Ingested ${openInvoicesList.length} open invoices ($openCount active) for $code.');
+      }
+
+      // Ingest X3 History
+      int historyCount = 0;
+      if (x3HistoryResp.statusCode == 200 && x3HistoryResp.data is List) {
+        final historyList = x3HistoryResp.data as List<dynamic>;
+        historyCount = await LocalDatabaseHelper.instance.refreshX3HistoryForCustomer(code, historyList);
+        debugPrint('Sync: Ingested $historyCount X3 history invoices for $code.');
+      }
+
+      return CustomerSyncResult(
+        success: true,
+        customerCode: code,
+        liveBalance: liveBalance,
+        creditLimit: creditLimit,
+        statusFlag: statusFlag,
+        openInvoicesCount: openCount,
+        x3HistoryInvoicesCount: historyCount,
+      );
+    } catch (e) {
+      debugPrint('Sync: Failed to sync customer $code: $e');
+      return CustomerSyncResult(
+        success: false,
+        customerCode: code,
+        errorMessage: 'Failed to sync customer: $e',
+      );
     }
   }
 }

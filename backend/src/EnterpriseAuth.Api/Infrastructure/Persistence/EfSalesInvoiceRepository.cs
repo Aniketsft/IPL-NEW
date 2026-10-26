@@ -13,6 +13,8 @@ using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 
+using Microsoft.Extensions.Caching.Memory;
+
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
     public class EfSalesInvoiceRepository : ISalesInvoiceRepository
@@ -21,18 +23,31 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly ScanProductionDbContext _scanContext;
         private readonly SyncSettings _syncSettings;
         private readonly IX3SchemaProvider _schemaProvider;
+        private readonly IMemoryCache? _memoryCache;
 
-        public EfSalesInvoiceRepository(IConfiguration configuration, ScanProductionDbContext scanContext, IOptions<SyncSettings> syncSettings, IX3SchemaProvider schemaProvider)
+        public EfSalesInvoiceRepository(
+            IConfiguration configuration,
+            ScanProductionDbContext scanContext,
+            IOptions<SyncSettings> syncSettings,
+            IX3SchemaProvider schemaProvider,
+            IMemoryCache? memoryCache = null)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
             _scanContext = scanContext;
             _syncSettings = syncSettings.Value;
             _schemaProvider = schemaProvider;
+            _memoryCache = memoryCache;
         }
 
         public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode)
         {
+            var cacheKey = $"Customers_{_schemaProvider.GetSchemaName()}_{sitecode ?? "ALL"}";
+            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesInvoiceCustomerDto>? cached) && cached != null)
+            {
+                return cached;
+            }
+
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
@@ -58,14 +73,44 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
                 WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''
-                  AND (@SiteCode = '' OR @SiteCode = 'ALL' 
-                       OR c.SALFCY_0 = @SiteCode 
-                       OR c.BPCSHO_0 = @SiteCode
-                       OR c.SALFCY_0 IS NULL 
-                       OR LTRIM(RTRIM(c.SALFCY_0)) = '')
                 ORDER BY LTRIM(RTRIM(c.BPCNAM_0))";
 
-            return await db.QueryAsync<SalesInvoiceCustomerDto>(sql, new { SiteCode = sitecode ?? string.Empty });
+            var result = (await db.QueryAsync<SalesInvoiceCustomerDto>(sql, new { SiteCode = sitecode ?? string.Empty })).ToList();
+            _memoryCache?.Set(cacheKey, result, TimeSpan.FromMinutes(15));
+            return result;
+        }
+
+        public async Task<SalesInvoiceCustomerDto?> GetCustomerByCodeAsync(string customerCode)
+        {
+            if (string.IsNullOrWhiteSpace(customerCode)) return null;
+
+            using IDbConnection db = new SqlConnection(_connectionString);
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(c.BPCNUM_0)) as Code,
+                    LTRIM(RTRIM(c.BPCNAM_0)) as Name,
+                    LTRIM(RTRIM(c.PTE_0)) as PaymentTerm,
+                    c.OSTAUZ_0 as CreditLimit,
+                    LTRIM(RTRIM(c.OSTCTL_0)) as StatusFlag,
+                    LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
+                    LTRIM(RTRIM(c.BCGCOD_0)) as Bcgcod,
+                    LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
+                    LTRIM(RTRIM(c.BPCSHO_0)) as Bpcsho,
+                    COALESCE(b.BETFCY_0, 1) as FacilityFlag,
+                    COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
+                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
+                LEFT JOIN (
+                    SELECT 
+                        BPR_0, 
+                        SUM(AMTCUR_0 - PAYCUR_0) as OutstandingBalance 
+                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.GACCDUDATE 
+                    WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
+                    GROUP BY BPR_0
+                ) g ON c.BPCNUM_0 = g.BPR_0
+                WHERE c.BPCNUM_0 = @CustomerCode";
+
+            return await db.QueryFirstOrDefaultAsync<SalesInvoiceCustomerDto>(sql, new { CustomerCode = customerCode.Trim() });
         }
 
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
@@ -138,41 +183,63 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = sitecode });
         }
 
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.SemaphoreSlim> _siLocks = new();
+
+        private async Task<IEnumerable<T>> QueryCachedOrLiveAsync<T>(string cacheKey, TimeSpan ttl, string sql, object? parameters = null)
+        {
+            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<T>? cached) && cached != null)
+            {
+                return cached;
+            }
+
+            var myLock = _siLocks.GetOrAdd(cacheKey, _ => new System.Threading.SemaphoreSlim(1, 1));
+            await myLock.WaitAsync();
+            try
+            {
+                if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out cached) && cached != null)
+                {
+                    return cached;
+                }
+
+                using IDbConnection db = new SqlConnection(_connectionString);
+                var result = (await db.QueryAsync<T>(sql, parameters)).ToList();
+                if (_memoryCache != null && result.Any())
+                {
+                    _memoryCache.Set(cacheKey, result, ttl);
+                }
+                return result;
+            }
+            finally
+            {
+                myLock.Release();
+            }
+        }
+
         public async Task<IEnumerable<TaxMatrixDto>> GetTaxDeterminationsAsync()
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(VACBPR_0)) AS CustomerTaxRule,
                     LTRIM(RTRIM(VACITM_0)) AS ItemTaxLevel,
                     VAT_0 AS TaxCode
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAC WITH (NOLOCK)";
-            return await db.QueryAsync<TaxMatrixDto>(sql);
+            return await QueryCachedOrLiveAsync<TaxMatrixDto>($"si_tax_matrix_{_schemaProvider.GetSchemaName()}", TimeSpan.FromMinutes(5), sql);
         }
 
         public async Task<IEnumerable<TaxRateDto>> GetTaxRatesAsync()
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
                     VAT_0 AS TaxCode,
                     LTRIM(RTRIM(VATDES_0)) AS Description,
                     VATRAT_0 AS TaxRatePercent
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.TABVAT WITH (NOLOCK)";
-            return await db.QueryAsync<TaxRateDto>(sql);
+            return await QueryCachedOrLiveAsync<TaxRateDto>($"si_tax_rates_{_schemaProvider.GetSchemaName()}", TimeSpan.FromMinutes(5), sql);
         }
 
         public async Task<IEnumerable<PriceListDto>> GetPriceListsAsync()
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             string schema = _schemaProvider.GetSchemaName();
-            if (string.IsNullOrEmpty(schema) || schema == "INLDRYRUN") 
-            {
-                // To adhere strictly to no-fallback rule if the header is not provided properly, 
-                // but if we want to ensure we get the explicit one. 
-                // Let's just trust _schemaProvider.GetSchemaName() and use it.
-            }
-            
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(c.PLI_0)) AS PliCode,
@@ -207,11 +274,18 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND l.PLISTRDAT_0 <= GETDATE()
                   AND (l.PLIENDDAT_0 >= CONVERT(DATE, GETDATE()) OR l.PLIENDDAT_0 IN ('1753-01-01', '1900-01-01'))
             ";
+            using IDbConnection db = new SqlConnection(_connectionString);
             return await db.QueryAsync<PriceListDto>(sql);
         }
 
         public async Task<IEnumerable<SalesRepLookupDto>> GetSalesRepsAsync(string? siteCode = null)
         {
+            var cacheKey = $"SalesReps_{_schemaProvider.GetSchemaName()}_{siteCode ?? "ALL"}";
+            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesRepLookupDto>? cached) && cached != null)
+            {
+                return cached;
+            }
+
             using IDbConnection db = new SqlConnection(_connectionString);
             string sql = $@"
                 SELECT 
@@ -230,7 +304,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR T1.FCY_0 = @SiteCode OR T1.FCY_0 IS NULL OR T1.FCY_0 = '')
                 ORDER BY T1.REPNUM_0;
             ";
-            return await db.QueryAsync<SalesRepLookupDto>(sql, new { SiteCode = siteCode ?? "" });
+            var result = (await db.QueryAsync<SalesRepLookupDto>(sql, new { SiteCode = siteCode ?? "" })).ToList();
+            _memoryCache?.Set(cacheKey, result, TimeSpan.FromMinutes(30));
+            return result;
         }
 
         public async Task<IEnumerable<OpenInvoiceDto>> GetOpenInvoicesAsync(
@@ -292,43 +368,61 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var schema = _schemaProvider.GetSchemaName();
 
             string sql = $@"
-                WITH CustMap AS (
-                    SELECT MapKey, ORISOCUST_0, ORISOCUSTNAM_0,
-                           ROW_NUMBER() OVER(PARTITION BY MapKey ORDER BY ORISOCUST_0) AS rn
-                    FROM (
-                        SELECT LTRIM(RTRIM(SONO_0)) AS MapKey, 
-                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
-                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
-                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
-                        WHERE SONO_0 IS NOT NULL AND SONO_0 <> ''
-                        
-                        UNION ALL
-                        
-                        SELECT LTRIM(RTRIM(ORISONO_0)) AS MapKey, 
-                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
-                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
-                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
-                        WHERE ORISONO_0 IS NOT NULL AND ORISONO_0 <> ''
-                        
-                        UNION ALL
-                        
-                        SELECT LTRIM(RTRIM(DELIVERYNO_0)) AS MapKey, 
-                               LTRIM(RTRIM(ORISOCUST_0)) AS ORISOCUST_0, 
-                               LTRIM(RTRIM(ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0 
-                        FROM {dbName}.{schema}.ZBTBORD WITH (NOLOCK)
-                        WHERE DELIVERYNO_0 IS NOT NULL AND DELIVERYNO_0 <> ''
-                    ) t
-                )
+                -- Step 1: Pre-filter invoices and lines by site, date and type into a scoped temp table
                 SELECT 
-                    LTRIM(RTRIM(H.CPY_0))                             AS Company,
-                    LTRIM(RTRIM(D.SALFCY_0))                          AS SalesSite,
-                    LTRIM(RTRIM(H.NUM_0))                             AS InvoiceNumber,
-                    H.INVTYP_0                                        AS InvoiceTypeFlag,
-                    LTRIM(RTRIM(D.BPCINV_0))                          AS BillToCustomer,
+                    H.CPY_0, D.SALFCY_0, H.NUM_0, H.INVTYP_0, D.BPCINV_0,
+                    D.INVDAT_0, D.CREUSR_0, D.SOHNUM_0, D.SDHNUM_0, D.SIDLIN_0,
+                    D.ITMREF_0, D.ITMDES_0, D.QTY_0, D.SAU_0, D.GROPRI_0,
+                    D.NETPRI_0, D.AMTNOTLIN_0, D.AMTATILIN_0, D.DISCRGVAL1_0, D.DISCRGVAL2_0
+                INTO #TargetLines
+                FROM {dbName}.{schema}.SINVOICED D WITH (NOLOCK)
+                INNER JOIN {dbName}.{schema}.SINVOICE H WITH (NOLOCK) ON D.NUM_0 = H.NUM_0
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(D.SALFCY_0)) = @SiteCode)
+                  AND D.INVDAT_0 >= DATEADD(month, -@Months, GETDATE())
+                  AND H.INVTYP_0 IN (1, 2);
+
+                CREATE CLUSTERED INDEX IX_Target_Doc ON #TargetLines (NUM_0, SIDLIN_0);
+                CREATE NONCLUSTERED INDEX IX_Target_Keys ON #TargetLines (SOHNUM_0, SDHNUM_0);
+
+                -- Step 2: Scope order and delivery keys
+                SELECT DISTINCT SOHNUM_0 AS KeyVal INTO #OrderKeys FROM #TargetLines WHERE SOHNUM_0 IS NOT NULL AND SOHNUM_0 <> '';
+                SELECT DISTINCT SDHNUM_0 AS KeyVal INTO #DlvKeys FROM #TargetLines WHERE SDHNUM_0 IS NOT NULL AND SDHNUM_0 <> '';
+
+                -- Step 3: Match customer details only for the targeted orders and deliveries
+                SELECT LTRIM(RTRIM(z.SONO_0)) AS MapKey, LTRIM(RTRIM(z.ORISOCUST_0)) AS ORISOCUST_0, LTRIM(RTRIM(z.ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0
+                INTO #CustMapSO
+                FROM {dbName}.{schema}.ZBTBORD z WITH (NOLOCK)
+                INNER JOIN #OrderKeys k ON z.SONO_0 = k.KeyVal;
+
+                SELECT LTRIM(RTRIM(z.DELIVERYNO_0)) AS MapKey, LTRIM(RTRIM(z.ORISOCUST_0)) AS ORISOCUST_0, LTRIM(RTRIM(z.ORISOCUSTNAM_0)) AS ORISOCUSTNAM_0
+                INTO #CustMapDLV
+                FROM {dbName}.{schema}.ZBTBORD z WITH (NOLOCK)
+                INNER JOIN #DlvKeys k ON z.DELIVERYNO_0 = k.KeyVal;
+
+                -- Step 4: Resolve distinct customer codes for targeted lines
+                SELECT DISTINCT 
+                    COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), t.BPCINV_0) AS CustomerCode
+                INTO #TargetCusts
+                FROM #TargetLines t
+                LEFT JOIN #CustMapSO m_so ON t.SOHNUM_0 = m_so.MapKey
+                LEFT JOIN #CustMapDLV m_dlv ON t.SDHNUM_0 = m_dlv.MapKey;
+
+                SELECT LTRIM(RTRIM(c.BPCNUM_0)) AS BPCNUM_0, LTRIM(RTRIM(c.ZFULLBUSNAM_0)) AS ZFULLBUSNAM_0, LTRIM(RTRIM(c.BPCNAM_0)) AS BPCNAM_0
+                INTO #CustMaster
+                FROM {dbName}.{schema}.BPCUSTOMER c WITH (NOLOCK)
+                INNER JOIN #TargetCusts tc ON c.BPCNUM_0 = tc.CustomerCode;
+
+                -- Step 5: Final high-speed projection
+                SELECT 
+                    LTRIM(RTRIM(t.CPY_0))                             AS Company,
+                    LTRIM(RTRIM(t.SALFCY_0))                          AS SalesSite,
+                    LTRIM(RTRIM(t.NUM_0))                             AS InvoiceNumber,
+                    t.INVTYP_0                                        AS InvoiceTypeFlag,
+                    LTRIM(RTRIM(t.BPCINV_0))                          AS BillToCustomer,
                     COALESCE(
                         NULLIF(m_so.ORISOCUST_0, ''), 
                         NULLIF(m_dlv.ORISOCUST_0, ''), 
-                        LTRIM(RTRIM(D.BPCINV_0))
+                        LTRIM(RTRIM(t.BPCINV_0))
                     ) COLLATE DATABASE_DEFAULT                        AS CustomerCode,
                     COALESCE(
                         NULLIF(m_so.ORISOCUSTNAM_0, ''), 
@@ -337,43 +431,37 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         LTRIM(RTRIM(c.BPCNAM_0)), 
                         ''
                     ) COLLATE DATABASE_DEFAULT                        AS CustomerName,
-                    D.INVDAT_0                                        AS InvoiceDate,
-                    LTRIM(RTRIM(D.CREUSR_0))                          AS CreationUser,
-                    LTRIM(RTRIM(D.SOHNUM_0))                          AS SoNumber,
-                    LTRIM(RTRIM(D.SDHNUM_0))                          AS DeliveryNumber,
-                    D.SIDLIN_0                                        AS LineNumber,
-                    LTRIM(RTRIM(D.ITMREF_0))                          AS ProductCode,
-                    LTRIM(RTRIM(D.ITMDES_0))                          AS ProductDescription,
-                    D.QTY_0                                           AS Quantity,
-                    LTRIM(RTRIM(D.SAU_0))                             AS SalesUOM,
-                    D.GROPRI_0                                        AS GrossPrice,
-                    D.NETPRI_0                                        AS NetPrice,
-                    D.AMTNOTLIN_0                                     AS LineAmountNotTax,
-                    D.AMTATILIN_0                                     AS LineAmountIncTax,
-                    D.DISCRGVAL1_0                                    AS DiscountValue1,
-                    D.DISCRGVAL2_0                                    AS DiscountValue2
-                FROM {dbName}.{schema}.SINVOICED D WITH (NOLOCK)
-                INNER JOIN {dbName}.{schema}.SINVOICE H WITH (NOLOCK) 
-                    ON D.NUM_0 = H.NUM_0
-                LEFT JOIN CustMap m_so 
-                    ON D.SOHNUM_0 = m_so.MapKey 
-                   AND m_so.rn = 1 
-                   AND D.SOHNUM_0 <> ''
-                LEFT JOIN CustMap m_dlv 
-                    ON D.SDHNUM_0 = m_dlv.MapKey 
-                   AND m_dlv.rn = 1 
-                   AND D.SDHNUM_0 <> ''
-                LEFT JOIN {dbName}.{schema}.BPCUSTOMER c WITH (NOLOCK) 
-                    ON c.BPCNUM_0 = COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), D.BPCINV_0)
-                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(D.SALFCY_0)) = @SiteCode)
-                  AND D.INVDAT_0 >= DATEADD(month, -@Months, GETDATE())
-                  AND H.INVTYP_0 IN (1, 2)
-                  AND (
-                        @CustomerCode = '' 
-                        OR COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), D.BPCINV_0) = @CustomerCode
-                        OR LTRIM(RTRIM(D.BPCINV_0)) = @CustomerCode
-                      )
-                ORDER BY D.INVDAT_0 DESC, H.NUM_0 DESC, D.SIDLIN_0 ASC;
+                    t.INVDAT_0                                        AS InvoiceDate,
+                    LTRIM(RTRIM(t.CREUSR_0))                          AS CreationUser,
+                    LTRIM(RTRIM(t.SOHNUM_0))                          AS SoNumber,
+                    LTRIM(RTRIM(t.SDHNUM_0))                          AS DeliveryNumber,
+                    t.SIDLIN_0                                        AS LineNumber,
+                    LTRIM(RTRIM(t.ITMREF_0))                          AS ProductCode,
+                    LTRIM(RTRIM(t.ITMDES_0))                          AS ProductDescription,
+                    t.QTY_0                                           AS Quantity,
+                    LTRIM(RTRIM(t.SAU_0))                             AS SalesUOM,
+                    t.GROPRI_0                                        AS GrossPrice,
+                    t.NETPRI_0                                        AS NetPrice,
+                    t.AMTNOTLIN_0                                     AS LineAmountNotTax,
+                    t.AMTATILIN_0                                     AS LineAmountIncTax,
+                    t.DISCRGVAL1_0                                    AS DiscountValue1,
+                    t.DISCRGVAL2_0                                    AS DiscountValue2
+                FROM #TargetLines t
+                LEFT JOIN #CustMapSO m_so ON t.SOHNUM_0 = m_so.MapKey
+                LEFT JOIN #CustMapDLV m_dlv ON t.SDHNUM_0 = m_dlv.MapKey
+                LEFT JOIN #CustMaster c ON c.BPCNUM_0 = COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), t.BPCINV_0)
+                WHERE (@CustomerCode = '' 
+                       OR COALESCE(NULLIF(m_so.ORISOCUST_0, ''), NULLIF(m_dlv.ORISOCUST_0, ''), t.BPCINV_0) = @CustomerCode
+                       OR LTRIM(RTRIM(t.BPCINV_0)) = @CustomerCode)
+                ORDER BY t.INVDAT_0 DESC, t.NUM_0 DESC, t.SIDLIN_0 ASC;
+
+                DROP TABLE #TargetLines;
+                DROP TABLE #OrderKeys;
+                DROP TABLE #DlvKeys;
+                DROP TABLE #CustMapSO;
+                DROP TABLE #CustMapDLV;
+                DROP TABLE #TargetCusts;
+                DROP TABLE #CustMaster;
             ";
 
             var rows = await db.QueryAsync<X3HistoryRawRowDto>(sql, new 
@@ -381,7 +469,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SiteCode = (siteCode ?? "").Trim(),
                 CustomerCode = (customerCode ?? "").Trim(),
                 Months = months > 0 ? months : 6
-            }, commandTimeout: 120);
+            }, commandTimeout: 30);
 
             var grouped = new Dictionary<string, X3HistoryDocumentDto>();
             foreach (var r in rows)
@@ -432,7 +520,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<IEnumerable<CreditNoteReasonDto>> GetCreditNoteReasonsAsync()
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             string sql = $@"
                 SELECT 
@@ -450,12 +537,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     CASE WHEN T.TEXTE_0 IS NOT NULL AND T.TEXTE_0 <> '' THEN 0 ELSE 1 END,
                     Description ASC;
             ";
-            return await db.QueryAsync<CreditNoteReasonDto>(sql);
+            return await QueryCachedOrLiveAsync<CreditNoteReasonDto>($"si_cn_reasons_{schema}", TimeSpan.FromMinutes(5), sql);
         }
 
         public async Task<IEnumerable<BankDto>> GetBanksAsync()
         {
-            using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             string sql = $@"
                 SELECT 
@@ -467,7 +553,158 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM {_syncSettings.X3DatabaseName}.{schema}.[BANK] b WITH (NOLOCK)
                 ORDER BY b.CPY_0, b.BAN_0;
             ";
-            return await db.QueryAsync<BankDto>(sql);
+            return await QueryCachedOrLiveAsync<BankDto>($"si_banks_{schema}", TimeSpan.FromMinutes(5), sql);
+        }
+
+        public async Task<string> GetX3HistoryWatermarkAsync(string siteCode, int months = 6)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    CONCAT(
+                        COALESCE(CONVERT(VARCHAR(30), MAX(H.UPDDAT_0), 126), '1970-01-01'), 
+                        '_', 
+                        COUNT(*), 
+                        '_', 
+                        COALESCE(MAX(H.NUM_0), '')
+                    )
+                FROM {_syncSettings.X3DatabaseName}.{schema}.SINVOICEV H WITH (NOLOCK)
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(H.SALFCY_0)) = @SiteCode)
+                  AND H.INVDAT_0 >= DATEADD(month, -@Months, GETDATE())
+                  AND H.INVTYP_0 IN (1, 2);
+            ";
+            var watermark = await db.ExecuteScalarAsync<string>(sql, new 
+            { 
+                SiteCode = (siteCode ?? "").Trim(),
+                Months = months > 0 ? months : 6
+            });
+            return watermark ?? "EMPTY";
+        }
+
+        public async Task<string> GetOpenInvoicesWatermarkAsync(string siteCode, int daysCutoff = 90)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    CONCAT(
+                        COALESCE(CONVERT(VARCHAR(30), MAX(DUD.UPDDATTIM_0), 126), '1970-01-01'),
+                        '_',
+                        COALESCE(SUM(DUD.AMTCUR_0 - DUD.PAYCUR_0), 0),
+                        '_',
+                        COUNT(*)
+                    )
+                FROM {_syncSettings.X3DatabaseName}.{schema}.[GACCDUDATE] DUD WITH (NOLOCK)
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
+                  AND DUD.DUDSTA_0 = 2
+                  AND DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE));
+            ";
+            var watermark = await db.ExecuteScalarAsync<string>(sql, new 
+            { 
+                SiteCode = (siteCode ?? "").Trim(),
+                DaysCutoff = daysCutoff > 0 ? daysCutoff : 90
+            });
+            return watermark ?? "EMPTY";
+        }
+
+        public async Task<string> GetStockWatermarkAsync(string siteCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    CONCAT(
+                        COALESCE(CONVERT(VARCHAR(30), MAX(stk.UPDDAT_0), 126), '1970-01-01'),
+                        '_',
+                        COALESCE(SUM(stk.QTYSTU_0), 0),
+                        '_',
+                        COUNT(*)
+                    )
+                FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK stk WITH (NOLOCK)
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode)
+                  AND stk.STA_0 = 'A'
+                  AND stk.QTYSTU_0 > 0;
+            ";
+            var watermark = await db.ExecuteScalarAsync<string>(sql, new 
+            { 
+                SiteCode = (siteCode ?? "").Trim() 
+            });
+            return watermark ?? "EMPTY";
+        }
+
+        public async Task<string> GetPriceListsWatermarkAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    CONCAT(
+                        COALESCE(CONVERT(VARCHAR(30), MAX(l.UPDDAT_0), 126), '1970-01-01'),
+                        '_',
+                        COUNT(*),
+                        '_',
+                        COALESCE(MAX(l.PLI_0), '')
+                    )
+                FROM {_syncSettings.X3DatabaseName}.{schema}.SPRICLIST l WITH (NOLOCK)
+                WHERE l.PLISTRDAT_0 <= GETDATE()
+                  AND (l.PLIENDDAT_0 >= CONVERT(DATE, GETDATE()) OR l.PLIENDDAT_0 IN ('1753-01-01', '1900-01-01'));
+            ";
+            var watermark = await db.ExecuteScalarAsync<string>(sql);
+            return watermark ?? "EMPTY";
+        }
+
+        public async Task<CustomerLiveCreditDto?> GetCustomerLiveCreditAsync(string customerNo)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    LTRIM(RTRIM(c.BPCNUM_0))                              AS CustomerNo,
+                    COALESCE(c.OSTAUZ_0, 0)                               AS AuthorizedCreditLimit,
+                    LTRIM(RTRIM(COALESCE(c.OSTCTL_0, '')))                AS CreditControlStatus,
+                    COALESCE(SUM((d.AMTCUR_0 - d.PAYCUR_0) * d.SNS_0), 0) AS LiveOutstandingBalance,
+                    (COALESCE(c.OSTAUZ_0, 0) - COALESCE(SUM((d.AMTCUR_0 - d.PAYCUR_0) * d.SNS_0), 0)) AS LiveAvailableCredit
+                FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.GACCDUDATE d WITH (NOLOCK)
+                    ON c.BPCNUM_0 = d.BPR_0 AND d.DUDSTA_0 = 2 AND d.BPRTYP_0 = 1
+                WHERE c.BPCNUM_0 = @CustomerNo
+                GROUP BY c.BPCNUM_0, c.OSTAUZ_0, c.OSTCTL_0;
+            ";
+            return await db.QueryFirstOrDefaultAsync<CustomerLiveCreditDto>(sql, new { CustomerNo = (customerNo ?? "").Trim() });
+        }
+
+        public async Task<ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode)
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT 
+                    @ProductCode                                                        AS ProductCode,
+                    @SiteCode                                                           AS SiteCode,
+                    ISNULL(SUM(s.QTYSTU_0), 0)                                          AS PhysicalStock,
+                    ISNULL(MAX(m.CUMALL_0), 0)                                          AS AllocatedStock,
+                    (ISNULL(SUM(s.QTYSTU_0), 0) - ISNULL(MAX(m.CUMALL_0), 0))          AS LiveAvailableStock
+                FROM {_syncSettings.X3DatabaseName}.{schema}.ITMMVT m WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOCK s WITH (NOLOCK)
+                    ON m.ITMREF_0 = s.ITMREF_0 AND m.STOFCY_0 = s.STOFCY_0 AND s.STA_0 = 'A' AND s.QTYSTU_0 > 0
+                WHERE m.ITMREF_0 = @ProductCode AND m.STOFCY_0 = @SiteCode
+                GROUP BY m.ITMREF_0;
+            ";
+            var result = await db.QueryFirstOrDefaultAsync<ProductLiveStockDto>(sql, new 
+            { 
+                ProductCode = (productCode ?? "").Trim(), 
+                SiteCode = (siteCode ?? "").Trim() 
+            });
+
+            return result ?? new ProductLiveStockDto
+            {
+                ProductCode = productCode ?? "",
+                SiteCode = siteCode ?? "",
+                PhysicalStock = 0,
+                AllocatedStock = 0,
+                LiveAvailableStock = 0
+            };
         }
     }
 }

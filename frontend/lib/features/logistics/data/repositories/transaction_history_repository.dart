@@ -429,19 +429,39 @@ class TransactionHistoryRepository {
       final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
       final netPrice = (line['netPrice'] as num?)?.toDouble() ?? 0.0;
       final grossPrice = (line['grossPrice'] as num?)?.toDouble() ?? 0.0;
-      final effectivePrice = netPrice > 0 ? netPrice : grossPrice;
       final amtNot = (line['lineAmountNotTax'] as num?)?.toDouble() ?? 0.0;
       final amtInc = (line['lineAmountIncTax'] as num?)?.toDouble() ?? 0.0;
 
+      // Exact invoiced net price per unit paid by customer:
+      final unitNetPrice = netPrice > 0.0001
+          ? netPrice
+          : ((amtNot > 0.0001 && qty > 0.0001)
+              ? (amtNot / qty)
+              : ((amtInc > 0.0001 && qty > 0.0001) ? (amtInc / qty) : grossPrice));
+
+      // Calculate effective VAT percentage from historical line amounts
+      final effectiveVatRate = (amtNot > 0.001 && amtInc > amtNot)
+          ? (((amtInc - amtNot) / amtNot) * 100).roundToDouble()
+          : 0.0;
+
       return {
+        'lineId': line['lineNumber']?.toString() ?? '0',
+        'id': line['lineNumber']?.toString() ?? '0',
+        'lineNumber': (line['lineNumber'] as num?)?.toInt() ?? 0,
         'sku': line['productCode'] ?? '',
         'name': line['productDescription'] ?? '',
         'quantity': qty,
         'salesUnit': line['salesUOM'] ?? 'EA',
-        'basePrice': effectivePrice,
-        'discountAmountFlat': (line['discountValue1'] as num?)?.toDouble() ?? 0.0,
-        'total': amtInc > 0 ? amtInc : amtNot,
-        'taxRule': '',
+        'basePrice': unitNetPrice,
+        'grossPrice': grossPrice,
+        // Net price is already net of discounts; do not double-deduct flat discount
+        'discountAmountFlat': 0.0,
+        'discountPercent': 0.0,
+        'total': amtInc > 0 ? amtInc : (amtNot > 0 ? amtNot : unitNetPrice * qty),
+        'taxRule': effectiveVatRate > 0.1 ? 'VAT15' : 'ZERO',
+        'vatRatePercent': effectiveVatRate,
+        'pricingSource': 'X3_HISTORIC',
+        'priceListCode': 'X3_INVOICE',
         'lotNumber': '',
         'warehouse': '',
         'lineAmountNotTax': amtNot,

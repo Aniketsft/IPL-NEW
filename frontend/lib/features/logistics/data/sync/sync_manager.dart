@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/local_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/delivery_repository.dart';
@@ -7,6 +8,7 @@ import '../local/local_database_helper.dart';
 class SyncManager {
   final LocalRepository _localRepository;
   final DeliveryRepository _deliveryRepository;
+  final math.Random _random = math.Random();
   Timer? _syncTimer;
   bool _isSyncing = false;
 
@@ -16,13 +18,32 @@ class SyncManager {
   }) : _localRepository = localRepository,
        _deliveryRepository = deliveryRepository;
 
-  void startPeriodicSync({Duration interval = const Duration(minutes: 1)}) {
+  void startPeriodicSync({
+    Duration interval = const Duration(minutes: 1),
+    Duration maxJitter = const Duration(seconds: 15),
+  }) {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(interval, (_) => syncNow());
+    _scheduleNextSync(interval, maxJitter);
+  }
+
+  void _scheduleNextSync(Duration baseInterval, Duration maxJitter) {
+    // Disperse sync times across devices by applying randomized jitter
+    final jitterMillis = maxJitter.inMilliseconds > 0
+        ? _random.nextInt(maxJitter.inMilliseconds * 2) - maxJitter.inMilliseconds
+        : 0;
+    final delay = Duration(
+      milliseconds: math.max(10000, baseInterval.inMilliseconds + jitterMillis),
+    );
+
+    _syncTimer = Timer(delay, () async {
+      await syncNow();
+      _scheduleNextSync(baseInterval, maxJitter);
+    });
   }
 
   void stopPeriodicSync() {
     _syncTimer?.cancel();
+    _syncTimer = null;
   }
 
   Future<void> syncNow() async {
