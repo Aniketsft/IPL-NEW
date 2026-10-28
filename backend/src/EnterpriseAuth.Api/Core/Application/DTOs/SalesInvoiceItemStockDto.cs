@@ -15,5 +15,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string SalesUnit { get; set; } = string.Empty;
         public string Barcode { get; set; } = string.Empty;
         public string SiteCode { get; set; } = string.Empty;
+        public string StockStatus { get; set; } = "A";
     }
 }

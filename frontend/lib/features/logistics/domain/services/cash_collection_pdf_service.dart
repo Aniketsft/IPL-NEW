@@ -200,7 +200,7 @@ class CashCollectionPdfService {
                 if (isZeroOffset || paymentTenders.isEmpty) ...[
                   _buildMetaRow(
                     'BALANCE OFFSET:',
-                    'RS ${numberFormat.format(totalCollected.abs())}',
+                    'Rs ${numberFormat.format(totalCollected.abs())}',
                     isBold: true,
                   ),
                   pw.Text(
@@ -221,7 +221,7 @@ class CashCollectionPdfService {
                       children: [
                         _buildMetaRow(
                           method,
-                          'RS ${numberFormat.format(amount)}',
+                          'Rs ${numberFormat.format(amount)}',
                           isBold: true,
                         ),
                         if (chequeNo.isNotEmpty || bankName.isNotEmpty)
@@ -268,7 +268,7 @@ class CashCollectionPdfService {
                         ),
                       ),
                       pw.Text(
-                        'RS ${numberFormat.format(totalCollected.abs())}',
+                        'Rs ${numberFormat.format(totalCollected.abs())}',
                         style: pw.TextStyle(
                           fontSize: 12,
                           fontWeight: pw.FontWeight.bold,

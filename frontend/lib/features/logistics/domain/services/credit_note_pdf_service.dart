@@ -230,7 +230,7 @@ class CreditNotePdfService {
                         style: const pw.TextStyle(fontSize: 9),
                       ),
                       pw.Text(
-                        '${qty.toStringAsFixed(0)} $unit x ${numberFormat.format(price)}',
+                        '${qty.toStringAsFixed(0)} $unit x Rs ${numberFormat.format(price)}',
                         style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
                       ),
                     ],
@@ -268,12 +268,13 @@ class CreditNotePdfService {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text(
-              'TOTAL REFUND (Rs):',
+              'TOTAL REFUND:',
               style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
             ),
             pw.Text(
-              numberFormat.format(creditNote.grandTotal),
+              'Rs ${numberFormat.format(creditNote.grandTotal)}',
               style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.right,
             ),
           ],
         ),

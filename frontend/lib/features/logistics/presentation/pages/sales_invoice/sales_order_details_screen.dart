@@ -12,6 +12,7 @@ import 'order_summary_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 class SalesOrderDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> order;
@@ -432,19 +433,20 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                                   style: const TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
-                                  'SKU: ${detail['productCode']} • Qty: ${qty.toStringAsFixed(0)} $unit @ Rs ${price.toStringAsFixed(2)}',
+                                  'SKU: ${detail['productCode']} • Qty: ${qty.toStringAsFixed(0)} $unit @ ${CurrencyFormatter.format(price)}',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: isDark ? Colors.white70 : Colors.black54,
                                   ),
                                 ),
                                 trailing: Text(
-                                  'Rs ${lineTotal.toStringAsFixed(2)}',
+                                  CurrencyFormatter.format(lineTotal),
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold, 
                                     fontSize: 14,
                                     color: isDark ? AppTheme.primaryAmber : Colors.black87,
                                   ),
+                                  textAlign: TextAlign.right,
                                 ),
                               ),
                             );
@@ -469,20 +471,23 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Excl. Tax:', 
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54, 
-                                fontSize: 13,
+                            Expanded(
+                              child: Text(
+                                'Excl. Tax:', 
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : Colors.black54, 
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                             Text(
-                              'Rs ${subtotal.toStringAsFixed(2)}', 
+                              CurrencyFormatter.format(subtotal), 
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 color: isDark ? Colors.white : Colors.black87,
                               ),
+                              textAlign: TextAlign.right,
                             ),
                           ],
                         ),
@@ -490,20 +495,23 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'VAT:', 
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54, 
-                                fontSize: 13,
+                            Expanded(
+                              child: Text(
+                                'VAT:', 
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : Colors.black54, 
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                             Text(
-                              'Rs ${totalVat.toStringAsFixed(2)}', 
+                              CurrencyFormatter.format(totalVat), 
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 color: isDark ? Colors.white : Colors.black87,
                               ),
+                              textAlign: TextAlign.right,
                             ),
                           ],
                         ),
@@ -515,21 +523,24 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Total Amount:',
-                            style: TextStyle(
-                              fontSize: 16, 
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                          Expanded(
+                            child: Text(
+                              'Total Amount:',
+                              style: TextStyle(
+                                fontSize: 16, 
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
                           ),
                           Text(
-                            'Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                            CurrencyFormatter.format((order['totalAmount'] as num?)?.toDouble() ?? 0.0),
                             style: TextStyle(
                               fontSize: 18, 
                               fontWeight: FontWeight.bold, 
                               color: isDark ? AppTheme.primaryAmber : Colors.blueGrey,
                             ),
+                            textAlign: TextAlign.right,
                           ),
                         ],
                       ),

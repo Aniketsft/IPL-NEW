@@ -13,6 +13,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 class AmountOnlyCreditNoteScreen extends StatefulWidget {
   final String? initialCustomerCode;
@@ -47,11 +48,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
   bool _isLoading = false;
   bool _isProcessing = false;
 
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final currencyFormat = CurrencyFormatter.currencyFormat;
 
   String get _customerCode {
     if (_selectedCustomer == null) return widget.initialCustomerCode ?? '';
@@ -625,6 +622,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                             secondary: Text(
                               currencyFormat.format(total),
                               style: const TextStyle(fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.right,
                             ),
                             onChanged: (bool? val) {
                               setState(() {
@@ -644,7 +642,9 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Total Available in Selected:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Expanded(
+                              child: Text('Total Available in Selected:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
                             Text(
                               currencyFormat.format(selectedBalance),
                               style: TextStyle(
@@ -652,6 +652,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                                 fontSize: 15,
                                 color: isOverBalance ? Colors.red : AppTheme.primaryAmber,
                               ),
+                              textAlign: TextAlign.right,
                             ),
                           ],
                         ),

@@ -9,6 +9,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 class InvoicePreviewScreen extends StatefulWidget {
   final String invoiceId;
@@ -137,11 +138,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
     final paymentStatus = widget.paymentStatus;
     final items = widget.items;
 
-    final currencyFormat = NumberFormat.currency(
-      locale: 'en_US',
-      symbol: 'RS ',
-      decimalDigits: 2,
-    );
+    final currencyFormat = CurrencyFormatter.currencyFormat;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return IndustrialModuleLayout(
@@ -496,24 +493,32 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Subtotal',
-                          style: TextStyle(color: Colors.grey[600]),
+                        Expanded(
+                          child: Text(
+                            'Subtotal',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
                         ),
-                        Text(currencyFormat.format(subtotal)),
+                        Text(
+                          currencyFormat.format(subtotal),
+                          textAlign: TextAlign.right,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Discount',
-                          style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600]),
+                        Expanded(
+                          child: Text(
+                            'Discount',
+                            style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600]),
+                          ),
                         ),
                         Text(
-                          '-${currencyFormat.format(discountAmount)}',
+                          CurrencyFormatter.formatDiscount(discountAmount),
                           style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.right,
                         ),
                       ],
                     ),
@@ -521,8 +526,13 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('VAT', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
-                        Text(currencyFormat.format(vatAmount)),
+                        Expanded(
+                          child: Text('VAT', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
+                        ),
+                        Text(
+                          currencyFormat.format(vatAmount),
+                          textAlign: TextAlign.right,
+                        ),
                       ],
                     ),
                     if (widget.isPartiallyReversed) ...[
@@ -530,10 +540,13 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Less Credited', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
+                          Expanded(
+                            child: Text('Less Credited', style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600])),
+                          ),
                           Text(
                             '-${currencyFormat.format(widget.totalCreditedAmount)}',
                             style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.right,
                           ),
                         ],
                       ),
@@ -544,13 +557,15 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          widget.isCreditNote
-                              ? 'Total Refund'
-                              : (widget.isPartiallyReversed ? 'Net Balance Due' : 'Grand Total'),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            widget.isCreditNote
+                                ? 'Total Refund'
+                                : (widget.isPartiallyReversed ? 'Net Balance Due' : 'Grand Total'),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         Text(
@@ -560,6 +575,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                             fontWeight: FontWeight.bold,
                             color: AppTheme.primaryAmber,
                           ),
+                          textAlign: TextAlign.right,
                         ),
                       ],
                     ),

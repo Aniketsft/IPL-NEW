@@ -36,6 +36,7 @@ class SalesInvoiceProductRepository {
     String? siteCode,
     String query = '',
     String stockFilter = 'all',
+    String? stockStatus = 'A',
     int limit = 20,
     int offset = 0,
   }) async {
@@ -43,6 +44,12 @@ class SalesInvoiceProductRepository {
 
     List<String> conditions = [];
     List<dynamic> whereArgs = [];
+
+    if (stockStatus != null && stockStatus != 'ALL') {
+      conditions.add('(S.stockStatus = ? OR (S.stockStatus IS NULL AND ? = "A"))');
+      whereArgs.add(stockStatus);
+      whereArgs.add(stockStatus);
+    }
 
     if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
       conditions.add('(S.siteCode = ? OR S.warehouse = ?)');
@@ -81,11 +88,12 @@ class SalesInvoiceProductRepository {
         MAX(S.warehouse) AS warehouse,
         MAX(S.cce0) AS cce0,
         MAX(S.barcode) AS barcode,
-        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
+        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit,
+        COALESCE(S.stockStatus, 'A') AS stockStatus
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
       $whereClause
-      GROUP BY S.itemCode, S.itemName
+      GROUP BY S.itemCode, S.itemName, COALESCE(S.stockStatus, 'A')
       $havingClause
       ORDER BY S.itemName
       LIMIT ? OFFSET ?
@@ -108,13 +116,24 @@ class SalesInvoiceProductRepository {
                 : 'UN',
             cce0: (e['cce0'] as String?) ?? '',
             barcode: (e['barcode'] as String?) ?? '',
+            stockStatus: (e['stockStatus'] as String?) ?? 'A',
           ),
         )
         .toList();
   }
 
-  Future<SalesInvoiceProductModel?> getProductByItemCode(String itemCode) async {
+  Future<SalesInvoiceProductModel?> getProductByItemCode(
+    String itemCode, {
+    String? stockStatus = 'A',
+  }) async {
     final db = await LocalDatabaseHelper.instance.database;
+
+    final String statusClause = (stockStatus != null && stockStatus != 'ALL')
+        ? 'AND (S.stockStatus = ? OR (S.stockStatus IS NULL AND ? = "A"))'
+        : '';
+    final List<dynamic> args = (stockStatus != null && stockStatus != 'ALL')
+        ? [itemCode, stockStatus, stockStatus]
+        : [itemCode];
 
     final sql = '''
       SELECT
@@ -124,15 +143,16 @@ class SalesInvoiceProductRepository {
         MAX(S.warehouse) AS warehouse,
         MAX(S.cce0) AS cce0,
         MAX(S.barcode) AS barcode,
-        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit
+        MAX(COALESCE(NULLIF(S.salesUnit, ''), NULLIF(P.salesUnit, ''), 'UN')) AS salesUnit,
+        COALESCE(S.stockStatus, 'A') AS stockStatus
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} S
       LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceProducts} P ON S.itemCode = P.sku
-      WHERE S.itemCode = ?
-      GROUP BY S.itemCode, S.itemName
+      WHERE S.itemCode = ? $statusClause
+      GROUP BY S.itemCode, S.itemName, COALESCE(S.stockStatus, 'A')
       LIMIT 1
     ''';
 
-    final result = await db.rawQuery(sql, [itemCode]);
+    final result = await db.rawQuery(sql, args);
 
     if (result.isNotEmpty) {
       final e = result.first;
@@ -146,6 +166,7 @@ class SalesInvoiceProductRepository {
             : 'UN',
         cce0: (e['cce0'] as String?) ?? '',
         barcode: (e['barcode'] as String?) ?? '',
+        stockStatus: (e['stockStatus'] as String?) ?? 'A',
       );
     }
     return null;
@@ -256,7 +277,7 @@ class SalesInvoiceProductRepository {
     // 0. Ensure all unsynced lots exist in stock details (with 0 initial qty) so we can deduct/add from them.
     await txn.rawInsert('''
       INSERT OR IGNORE INTO ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-        (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, barcode, isSynced, createdAt, updatedAt, deviceId)
+        (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, salesUnit, barcode, siteCode, stockStatus, isSynced, createdAt, updatedAt, deviceId)
       SELECT DISTINCT 
         L.sku, 
         COALESCE((SELECT itemName FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = L.sku LIMIT 1), ''),
@@ -269,6 +290,9 @@ class SalesInvoiceProductRepository {
         '', 
         '', 
         '',
+        '',
+        '',
+        'A',
         1, 
         datetime('now'), 
         datetime('now'), 
@@ -278,7 +302,7 @@ class SalesInvoiceProductRepository {
       WHERE I.isSynced = 0 OR I.isSynced IS NULL
     ''');
 
-    // 1. Deduct unsynced active INVOICES
+    // 1. Deduct unsynced active INVOICES exclusively from sellable (A) stock
     await txn.rawUpdate('''
       UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}
       SET totalQty = totalQty - (
@@ -291,18 +315,19 @@ class SalesInvoiceProductRepository {
           AND L.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
           AND L.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
       )
-      WHERE EXISTS (
-        SELECT 1 FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L2
-        JOIN ${LocalDatabaseHelper.tableSiInvoices} I2 ON L2.invoiceId = I2.invoiceId
-        WHERE (I2.isSynced = 0 OR I2.isSynced IS NULL) AND I2.transactionType = 'INVOICE' AND I2.isReversed = 0
-          AND L2.sku = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.itemCode
-          AND L2.lotNumber = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.lotNumber
-          AND L2.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
-          AND L2.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
-      )
+      WHERE (${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.stockStatus = 'A' OR ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.stockStatus IS NULL OR ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.stockStatus = '')
+        AND EXISTS (
+          SELECT 1 FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L2
+          JOIN ${LocalDatabaseHelper.tableSiInvoices} I2 ON L2.invoiceId = I2.invoiceId
+          WHERE (I2.isSynced = 0 OR I2.isSynced IS NULL) AND I2.transactionType = 'INVOICE' AND I2.isReversed = 0
+            AND L2.sku = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.itemCode
+            AND L2.lotNumber = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.lotNumber
+            AND L2.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
+            AND L2.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
+        )
     ''');
 
-    // 2. Add back unsynced CREDIT_NOTES
+    // 2. Add back unsynced CREDIT_NOTES into quarantine (Q) stock
     await txn.rawUpdate('''
       UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}
       SET totalQty = totalQty + (
@@ -317,31 +342,39 @@ class SalesInvoiceProductRepository {
           AND L.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
           AND L.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
       )
-      WHERE EXISTS (
-        SELECT 1 FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L2
-        JOIN ${LocalDatabaseHelper.tableSiInvoices} I2 ON L2.invoiceId = I2.invoiceId
-        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P2 ON I2.reference = P2.invoiceId
-        WHERE (I2.isSynced = 0 OR I2.isSynced IS NULL) AND I2.transactionType = 'CREDIT_NOTE'
-          AND (P2.invoiceId IS NULL OR P2.isSynced = 1)
-          AND L2.sku = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.itemCode
-          AND L2.lotNumber = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.lotNumber
-          AND L2.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
-          AND L2.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
-      )
+      WHERE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.stockStatus = 'Q'
+        AND EXISTS (
+          SELECT 1 FROM ${LocalDatabaseHelper.tableSiInvoiceLines} L2
+          JOIN ${LocalDatabaseHelper.tableSiInvoices} I2 ON L2.invoiceId = I2.invoiceId
+          LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P2 ON I2.reference = P2.invoiceId
+          WHERE (I2.isSynced = 0 OR I2.isSynced IS NULL) AND I2.transactionType = 'CREDIT_NOTE'
+            AND (P2.invoiceId IS NULL OR P2.isSynced = 1)
+            AND L2.sku = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.itemCode
+            AND L2.lotNumber = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.lotNumber
+            AND L2.warehouse = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.warehouse
+            AND L2.location = ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}.location
+        )
     ''');
   }
 
   Future<List<SalesInvoiceItemStockModel>> getSalesInvoiceItemStockDetails(
-    String itemCode,
-  ) async {
+    String itemCode, {
+    String? stockStatus = 'A',
+  }) async {
     final db = await LocalDatabaseHelper.instance.database;
-    final sql =
-        '''
+    final String statusClause = (stockStatus != null && stockStatus != 'ALL')
+        ? 'AND (stockStatus = ? OR (stockStatus IS NULL AND ? = "A"))'
+        : '';
+    final List<dynamic> args = (stockStatus != null && stockStatus != 'ALL')
+        ? [itemCode, stockStatus, stockStatus]
+        : [itemCode];
+
+    final sql = '''
       SELECT * 
       FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}
-      WHERE itemCode = ?
+      WHERE itemCode = ? $statusClause
     ''';
-    final result = await db.rawQuery(sql, [itemCode]);
+    final result = await db.rawQuery(sql, args);
 
     return result.map((e) => SalesInvoiceItemStockModel.fromSqlMap(e)).toList();
   }

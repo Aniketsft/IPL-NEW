@@ -21,6 +21,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sal
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:printing/printing.dart';
 
 class PaymentEntry {
@@ -88,11 +89,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   String? _selectedReasonCode;
   String? _selectedReasonDesc;
 
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final currencyFormat = CurrencyFormatter.currencyFormat;
   bool _isProcessing = false;
 
   List<PaymentEntry> _payments = [];
@@ -298,7 +295,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Credit limit exceeded! Limit: Rs ${creditLimit.toStringAsFixed(2)}, Available: Rs ${availableCredit > 0 ? availableCredit.toStringAsFixed(2) : '0.00'}',
+                'Credit limit exceeded! Limit: ${CurrencyFormatter.format(creditLimit)}, Available: ${CurrencyFormatter.format(availableCredit > 0 ? availableCredit : 0.0)}',
               ),
               backgroundColor: Colors.red[800],
             ),
@@ -641,12 +638,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           'reasonType': item.reasonType,
         });
 
-        // Deduct from local stock to prevent overselling offline
+        // Deduct from local stock to prevent overselling offline (strictly sellable stock A)
         batch.rawUpdate(
           '''
           UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
           SET totalQty = totalQty - ? 
-          WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+          WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND (stockStatus = 'A' OR stockStatus IS NULL OR stockStatus = '')
           ''',
           [item.quantity, item.product.sku, item.lotNumber, item.warehouse, item.location],
         );
@@ -1546,6 +1543,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
                     TextField(
                       controller: _amountController,
+                      textAlign: TextAlign.right,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -1750,7 +1748,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                               ),
                             ),
                             title: Text(
-                              '${p.method} - ${currencyFormat.format(p.amount)}',
+                              p.method,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1758,12 +1756,26 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                             subtitle: subtitle.isNotEmpty
                                 ? Text(subtitle)
                                 : null,
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.red,
-                              ),
-                              onPressed: () => _removePayment(p),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  currencyFormat.format(p.amount),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _removePayment(p),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -1802,13 +1814,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'GRAND TOTAL',
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                    Expanded(
+                      child: Text(
+                        'GRAND TOTAL',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                     Text(
@@ -1817,6 +1831,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),
@@ -1824,13 +1839,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      widget.isCreditNoteRefund ? 'TOTAL REFUND (CASH)' : 'TOTAL PAID',
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                    Expanded(
+                      child: Text(
+                        widget.isCreditNoteRefund ? 'TOTAL REFUND (CASH)' : 'TOTAL PAID',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                     Text(
@@ -1840,6 +1857,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),
@@ -1850,13 +1868,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      remaining < 0 ? 'CHANGE DUE' : 'REMAINING',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                        color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
+                    Expanded(
+                      child: Text(
+                        remaining < 0 ? 'CHANGE DUE' : 'REMAINING',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
+                        ),
                       ),
                     ),
                     Text(
@@ -1868,6 +1888,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         fontWeight: FontWeight.bold,
                         color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),

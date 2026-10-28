@@ -15,6 +15,7 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import '../../../data/repositories/sales_invoice_sync_repository.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
@@ -47,7 +48,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
 
   bool _isLoading = true;
   bool _isSyncing = false;
-  final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
+  final currencyFormat = CurrencyFormatter.currencyFormat;
 
   Future<void> _syncCustomerOpenInvoices() async {
     if (_isSyncing || _selectedCustomerNo == null || _selectedCustomerNo!.isEmpty) return;
@@ -637,9 +638,11 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${selectedDocs.length} Document(s) Selected',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        Expanded(
+                          child: Text(
+                            '${selectedDocs.length} Document(s) Selected',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
                         ),
                         Text(
                           netPayable < 0
@@ -650,6 +653,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                             fontSize: 15,
                             color: netPayable < 0 ? Colors.amber.shade800 : theme.colorScheme.primary,
                           ),
+                          textAlign: TextAlign.right,
                         ),
                       ],
                     ),
@@ -869,6 +873,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                       fontWeight: FontWeight.bold,
                       color: Colors.green.shade700,
                     ),
+                    textAlign: TextAlign.right,
                   ),
                 ],
               ),
@@ -1012,10 +1017,13 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total Amount Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    const Expanded(
+                      child: Text('Total Amount Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    ),
                     Text(
                       currencyFormat.format(amount),
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),

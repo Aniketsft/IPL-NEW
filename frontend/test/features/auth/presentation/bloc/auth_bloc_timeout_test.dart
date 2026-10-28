@@ -76,7 +76,7 @@ class FakeAuthRepository implements IAuthRepository {
   Future<void> logout() async {}
 
   @override
-  Future<void> refreshToken() async {}
+  Future<bool> refreshToken() async => true;
 
   @override
   Future<bool> isOfflineSessionValid() async => offlineValid;

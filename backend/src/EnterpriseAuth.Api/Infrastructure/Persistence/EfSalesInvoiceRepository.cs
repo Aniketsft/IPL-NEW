@@ -160,7 +160,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(COALESCE(itm.CCE_0, ''))) AS Cce0,
                     LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
                     LTRIM(RTRIM(COALESCE(itm.EANCOD_0, ''))) AS Barcode,
-                    LTRIM(RTRIM(stk.STOFCY_0)) AS SiteCode
+                    LTRIM(RTRIM(stk.STOFCY_0)) AS SiteCode,
+                    LTRIM(RTRIM(COALESCE(stk.STA_0, 'A'))) AS StockStatus
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk WITH (NOLOCK)
                 INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK)
                     ON stk.ITMREF_0 = itm.ITMREF_0 AND itm.ITMSTA_0 = 1
@@ -169,16 +170,17 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE stk.STOFCY_0 = @SiteCode 
-                  AND stk.STA_0 = 'A'
+                  AND stk.STA_0 IN ('A', 'Q', 'R')
                   AND stk.QTYSTU_0 > 0
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                   AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
                 GROUP BY 
                     stk.STOFCY_0, COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0), COALESCE(zlw.WRHNAM_0, stk.STOFCY_0), 
                     stk.LOC_0, zlw.LOCTYPNAM_0,
-                    itm.ITMREF_0, COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''), stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0
+                    itm.ITMREF_0, COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''), stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0,
+                    stk.STA_0
                 ORDER BY 
-                    stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0";
+                    stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0, stk.STA_0";
 
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = sitecode });
         }

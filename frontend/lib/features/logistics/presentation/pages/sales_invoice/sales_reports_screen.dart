@@ -148,7 +148,8 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
 
       final items = await repo.getSalesInvoiceProducts(
         warehouse: selectedWarehouse,
-        limit: 5000,
+        stockStatus: 'ALL',
+        limit: 10000,
       );
 
       if (items.isEmpty) {

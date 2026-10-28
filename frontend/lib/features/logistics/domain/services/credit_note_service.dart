@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 
 typedef DbProvider = Future<Database> Function();
 
@@ -127,20 +128,25 @@ class CreditNoteService {
           'originLineNo': originLineId,
         });
 
-        // Replenish stock
+        // Replenish stock as quarantined (Q) or rejected (R) — never prime sellable (A)
         final sku = line['sku'] as String?;
         final lotNumber = line['lotNumber'] as String?;
         final warehouse = line['warehouse'] as String?;
         final location = line['location'] as String?;
+        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
+                reason?.toUpperCase().contains('DAM') == true ||
+                reason?.toUpperCase().contains('REJ') == true)
+            ? StockStatus.codeRejected
+            : StockStatus.codeQuarantine;
 
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
             '''
             UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
             SET totalQty = totalQty + ? 
-            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND stockStatus = ?
             ''',
-            [qty, sku, lotNumber, warehouse, location],
+            [qty, sku, lotNumber, warehouse, location, returnStatus],
           );
 
           if (updated == 0) {
@@ -153,6 +159,7 @@ class CreditNoteService {
               'totalQty': qty,
               'taxLevel': line['taxRule'] ?? '',
               'cce0': line['cce0'] ?? '',
+              'stockStatus': returnStatus,
               'isSynced': 1,
               'createdAt': now,
             });
@@ -387,15 +394,21 @@ class CreditNoteService {
           'createdAt': now,
         });
 
-        // D. Replenish stock (partial quantity only — atomically with credit note insert)
+        // D. Replenish stock (partial quantity quarantined into Q or R)
         final sku = originalLine['sku'] as String?;
         final lotNumber = originalLine['lotNumber'] as String?;
         final warehouse = originalLine['warehouse'] as String?;
         final location = originalLine['location'] as String?;
+        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
+                reason?.toUpperCase().contains('DAM') == true ||
+                reason?.toUpperCase().contains('REJ') == true)
+            ? StockStatus.codeRejected
+            : StockStatus.codeQuarantine;
+
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
-            'UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} SET totalQty = totalQty + ? WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?',
-            [reversedQty, sku, lotNumber, warehouse, location],
+            'UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} SET totalQty = totalQty + ? WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND stockStatus = ?',
+            [reversedQty, sku, lotNumber, warehouse, location, returnStatus],
           );
           if (updated == 0) {
             await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
@@ -407,6 +420,7 @@ class CreditNoteService {
               'totalQty': reversedQty,
               'taxLevel': originalLine['taxRule'] ?? '',
               'cce0': originalLine['cce0'] ?? '',
+              'stockStatus': returnStatus,
               'isSynced': 1,
               'createdAt': now,
             });
@@ -608,15 +622,20 @@ class CreditNoteService {
               : salesSite;
           final resolvedLot = lot.isNotEmpty ? lot : 'RETURN';
           final loc = 'LOC1'; // default location if not specified
+          final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
+                  reason?.toUpperCase().contains('DAM') == true ||
+                  reason?.toUpperCase().contains('REJ') == true)
+              ? StockStatus.codeRejected
+              : StockStatus.codeQuarantine;
 
           if (sku.isNotEmpty) {
             final updated = await txn.rawUpdate(
               '''
               UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
               SET totalQty = totalQty + ? 
-              WHERE itemCode = ? AND lotNumber = ? AND warehouse = ?
+              WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND stockStatus = ?
               ''',
-              [item.quantity, sku, resolvedLot, wh],
+              [item.quantity, sku, resolvedLot, wh, returnStatus],
             );
 
             if (updated == 0) {
@@ -629,6 +648,7 @@ class CreditNoteService {
                 'totalQty': item.quantity,
                 'taxLevel': item.standaloneTaxRule ?? item.taxRule,
                 'cce0': item.standaloneCce0 ?? item.cce0,
+                'stockStatus': returnStatus,
                 'isSynced': 1,
                 'createdAt': now,
               });
@@ -820,14 +840,19 @@ class CreditNoteService {
         final sku = item.standaloneSku ?? item.sku;
         final lot = item.standaloneLot ?? item.lot;
         final wh = item.standaloneWarehouse ?? item.warehouse;
+        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
+                reason?.toUpperCase().contains('DAM') == true ||
+                reason?.toUpperCase().contains('REJ') == true)
+            ? StockStatus.codeRejected
+            : StockStatus.codeQuarantine;
         if (sku.isNotEmpty && lot.isNotEmpty && wh.isNotEmpty) {
           await txn.rawUpdate(
             '''
             UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
             SET totalQty = totalQty + ? 
-            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ?
+            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND stockStatus = ?
             ''',
-            [item.quantity, sku, lot, wh],
+            [item.quantity, sku, lot, wh, returnStatus],
           );
         }
 

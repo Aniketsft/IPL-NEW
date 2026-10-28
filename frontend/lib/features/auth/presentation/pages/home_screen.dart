@@ -9,8 +9,9 @@ import 'package:enterprise_auth_mobile/features/manufacturing/ui/screens/manufac
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/settings_modules_screen.dart';
 import 'package:enterprise_auth_mobile/features/settings/ui/screens/printer_settings_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/delivery_screen.dart';
-import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/sales_menu_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/customer_selection_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/sales_reports_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/otp_generation_screen.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/devices_screen.dart';
@@ -339,6 +340,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final bool hasSalesman = _hasAccess('logistics.salesman.read') ||
+        _hasAccess('logistics.sales_invoice.read');
+    final bool hasReports = _hasAccess('logistics.reports.read');
+    final bool hasOtp = _hasAccess('logistics.otp_generation.read');
+
     final List<Widget> menuItems = [
       _buildMenuButton(
         context,
@@ -355,17 +361,18 @@ class _HomeScreenState extends State<HomeScreen> {
           Icons.local_shipping_rounded,
           DeliveryScreen(permissions: widget.permissions),
         ),
-      if (_hasAccess('logistics.sales_invoice.read'))
+      if (hasSalesman)
         _buildMenuButton(
           context,
           'Sales',
-          Icons.receipt_long_rounded,
+          Icons.point_of_sale_rounded,
           null,
           onTapOverride: () async {
             if (_selectedSalesReps.isEmpty) {
               await _checkAndPromptSalesRepSelection(force: true);
               if (_selectedSalesReps.isEmpty && mounted) {
-                final repCount = await LocalDatabaseHelper.instance.getSalesRepsCount();
+                final repCount =
+                    await LocalDatabaseHelper.instance.getSalesRepsCount();
                 if (repCount > 0) {
                   return;
                 }
@@ -376,11 +383,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const CustomerSelectionScreen(),
-                  settings: const RouteSettings(name: '/sales_customer_selection'),
+                  settings:
+                      const RouteSettings(name: '/sales_customer_selection'),
                 ),
               );
             }
           },
+        ),
+      if (hasReports)
+        _buildMenuButton(
+          context,
+          'Sales Reports',
+          Icons.analytics_rounded,
+          SalesReportsScreen(permissions: widget.permissions),
+          subtitle: 'Sales & EOD PDF',
+        ),
+      if (hasOtp)
+        _buildMenuButton(
+          context,
+          'OTP Generation',
+          Icons.pin_outlined,
+          const OtpGenerationScreen(),
+          subtitle: 'Supervisor Override PIN',
         ),
       if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(

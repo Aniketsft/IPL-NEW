@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
@@ -40,11 +41,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
   int _openInvoicesCount = 0;
   double _openInvoicesSum = 0.0;
 
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final currencyFormat = CurrencyFormatter.currencyFormat;
 
   String get _customerCode => (_customer['code'] ?? '').toString().trim();
   String get _customerName => (_customer['name'] ?? '').toString().trim();
@@ -1095,7 +1092,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          currencyFormat.format(amount),
+          CurrencyFormatter.format(amount),
           style: TextStyle(
             fontSize: 12,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w600,

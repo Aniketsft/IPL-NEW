@@ -70,7 +70,9 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
       PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
       PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
-      PermissionNode(label: 'Sales Invoice', moduleId: 'logistics.sales_invoice'),
+      PermissionNode(label: 'Salesman', moduleId: 'logistics.salesman'),
+      PermissionNode(label: 'Reports', moduleId: 'logistics.reports'),
+      PermissionNode(label: 'OTP Generation', moduleId: 'logistics.otp_generation'),
     ];
 
   List<Site> _availableSites = [];
@@ -534,7 +536,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
       case 'QR Label':         return Icons.qr_code_scanner_rounded;
       case 'Printer Settings': return Icons.print_outlined;
-      case 'Sales Invoice':    return Icons.receipt_long_rounded;
+      case 'Salesman':
+      case 'Sales Invoice':    return Icons.point_of_sale_rounded;
+      case 'Reports':          return Icons.analytics_rounded;
+      case 'OTP Generation':   return Icons.pin_outlined;
       default:                 return Icons.folder_outlined;
     }
   }
@@ -550,7 +555,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return Theme.of(context).primaryColor;
       case 'QR Label':         return const Color(0xFF4CAF50);
       case 'Printer Settings': return const Color(0xFF607D8B);
+      case 'Salesman':
       case 'Sales Invoice':    return const Color(0xFF4A90D9);
+      case 'Reports':          return const Color(0xFF00B4D8);
+      case 'OTP Generation':   return const Color(0xFFFF9F1C);
       default:                 return Colors.grey;
     }
   }
@@ -566,7 +574,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       case 'Manufacturing':    return 'Sales orders & tracking';
       case 'QR Label':         return 'QR aggregation & printing';
       case 'Printer Settings': return 'Printer configuration';
+      case 'Salesman':
       case 'Sales Invoice':    return 'Customer invoicing & returns';
+      case 'Reports':          return 'Sales summaries, stock & EOD reports';
+      case 'OTP Generation':   return 'Generate override PINs for limits/holds';
       default:                 return '';
     }
   }

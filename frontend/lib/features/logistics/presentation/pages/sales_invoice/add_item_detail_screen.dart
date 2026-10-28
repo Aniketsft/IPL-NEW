@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'dart:async';
 import '../../../data/models/sales_invoice_product_model.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart'; // Keep for CartItem
@@ -36,10 +37,7 @@ class AddItemDetailScreen extends StatefulWidget {
 }
 
 class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
-  final _currencyFormat = NumberFormat.currency(
-    customPattern: "'Rs ' #,##0.00",
-    decimalDigits: 2,
-  );
+  final _currencyFormat = CurrencyFormatter.currencyFormat;
 
   String _formatQty(num val) =>
       val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(2);
@@ -582,6 +580,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     _basePriceController,
                     isDark,
                     prefixText: 'Rs ',
+                    alignRight: true,
+                    enabled: !_isReturnMode,
                     onChanged: (val) {
                       setState(() {});
                     },
@@ -619,9 +619,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       Expanded(
                         child: _buildReadOnlyField(
                           'Discount Amt',
-                          '-${_currencyFormat.format(_discountAmount)}',
+                          CurrencyFormatter.formatDiscount(_discountAmount),
                           isDark,
                           isRed: true,
+                          alignRight: true,
                         ),
                       ),
                     ],
@@ -640,8 +641,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       Expanded(
                         child: _buildReadOnlyField(
                           'VAT Amt',
-                          '+${_currencyFormat.format(_vatAmount)}',
+                          CurrencyFormatter.format(_vatAmount, explicitSign: true),
                           isDark,
+                          alignRight: true,
                         ),
                       ),
                     ],
@@ -671,47 +673,23 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left side: Total
+                    // Left side: Quantity and Stepper
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Total:',
+                          'QUANTITY',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                             color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _currencyFormat.format((_priceAfterDiscount + _vatAmount)),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: theme.primaryColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    // Right side: Quantity and Stepper
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Quantity',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.grey[300] : Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Container(
                           height: 48,
                           width: 144, // Restored width since MAX button is gone
@@ -828,6 +806,38 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           ),
                       ],
                     ),
+                    
+                    // Right side: Symmetrically aligned Total
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'ITEM TOTAL',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 48,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            CurrencyFormatter.format((_priceAfterDiscount + _vatAmount)),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: theme.primaryColor,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -911,7 +921,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 final db = await LocalDatabaseHelper.instance.database;
                                 final result = await db.query(
                                   LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-                                  where: 'itemCode = ?',
+                                  where: 'itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
                                   whereArgs: [_focItemSku.trim()],
                                   limit: 1,
                                 );
@@ -924,7 +934,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                 }
 
                                 final sumResult = await db.rawQuery(
-                                  'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ?',
+                                  'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
                                   [_focItemSku.trim()]
                                 );
                                 if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
@@ -1107,11 +1117,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     IconData? trailingIcon,
     VoidCallback? onTap,
     String? suffixText,
+    bool alignRight = false,
   }) {
     Widget content = Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
           const SizedBox(height: 4),
@@ -1120,10 +1131,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
             children: [
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                   children: [
                     Text(
                       value,
+                      textAlign: alignRight ? TextAlign.right : TextAlign.left,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -1189,7 +1201,96 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     String? prefixText,
     String? suffixText,
     Function(String)? onChanged,
+    bool alignRight = false,
+    bool enabled = true,
   }) {
+    if (alignRight) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[850] : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.grey[300] : Colors.grey[700],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[800] : Colors.grey[100],
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (prefixText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 2.0),
+                      child: Text(
+                        prefixText,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.grey[300] : Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 20),
+                    child: IntrinsicWidth(
+                      child: TextField(
+                        controller: controller,
+                        enabled: enabled,
+                        textAlign: TextAlign.left,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: onChanged,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        decoration: InputDecoration(
+                          filled: false,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          suffixText: suffixText,
+                          suffixStyle: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4, right: 12),
@@ -1201,9 +1302,16 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            ],
+          ),
+          const SizedBox(height: 2),
           TextField(
             controller: controller,
+            enabled: enabled,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: onChanged,
             style: TextStyle(

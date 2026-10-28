@@ -23,7 +23,7 @@ class TransactionHistoryRepository {
         _networkService = networkService;
 
   Future<Database> get _database async =>
-      _dbProvider != null ? await _dbProvider!() : await _dbHelper.database;
+      _dbProvider != null ? await _dbProvider() : await _dbHelper.database;
 
   Future<List<TransactionModel>> getTransactions({
     String? type,
@@ -365,7 +365,7 @@ class TransactionHistoryRepository {
           queryParams['sitecode'] = siteCode.trim();
         }
 
-        final response = await _networkService!.dio.get(
+        final response = await _networkService.dio.get(
           'SalesInvoice/x3-history',
           queryParameters: queryParams,
         );
@@ -514,14 +514,14 @@ class TransactionHistoryRepository {
   }
 
   /// Aggregates all End-of-Day data for the given [date] from local SQLite.
-  /// All 6 SQL queries verified against the confirmed DB schema.
+  /// Queries verified against confirmed DB schema including tbl_si_open_invoice_payments.
   Future<EodReportModel> getEodReportData(DateTime date) async {
     final db = await _dbHelper.database;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final startDate = '${dateStr}T00:00:00';
     final endDate = '${dateStr}T23:59:59';
 
-    // ── 1. Valid Sales ────────────────────────────────────────────────────────
+    // ── 1. Valid Sales Totals ─────────────────────────────────────────────────
     // Only count fully clean invoices: isReversed = 0 AND isPartiallyReversed = 0
     final salesRows = await db.rawQuery('''
       SELECT COUNT(*) as cnt,
@@ -556,7 +556,7 @@ class TransactionHistoryRepository {
     final int returnsCount = (returnsRows.first['cnt'] as int?) ?? 0;
     final double returnsGross = (returnsRows.first['grossTotal'] as num?)?.toDouble() ?? 0.0;
 
-    // ── 3. Cancelled (Fully Reversed) Receipts ─────────────────────────────────
+    // ── 3. Cancelled (Fully Reversed & Partially Reversed) Receipts ───────────
     final cancelledRows = await db.rawQuery('''
       SELECT invoiceId, customerName,
              grandTotal,
@@ -565,20 +565,6 @@ class TransactionHistoryRepository {
       WHERE isReversed = 1
         AND createdAt >= ? AND createdAt <= ?
       ORDER BY createdAt DESC
-    ''', [startDate, endDate]);
-
-    // Partially reversed invoices also appear in the cancelled section with a note
-    final partialRows = await db.rawQuery('''
-      SELECT I.invoiceId, I.customerName, I.grandTotal,
-             COALESCE(SUM(R.reversedQty * L.basePrice), 0) as reversedAmount
-      FROM ${LocalDatabaseHelper.tableSiInvoices} I
-      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLineReversals} R ON R.invoiceId = I.invoiceId
-      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} L ON L.lineId = CAST(R.lineId AS INTEGER) AND L.invoiceId = I.invoiceId
-      WHERE COALESCE(I.isPartiallyReversed, 0) = 1
-        AND I.isReversed = 0
-        AND I.createdAt >= ? AND I.createdAt <= ?
-      GROUP BY I.invoiceId
-      ORDER BY I.createdAt DESC
     ''', [startDate, endDate]);
 
     final cancelledReceipts = cancelledRows.map((row) {
@@ -592,7 +578,170 @@ class TransactionHistoryRepository {
       );
     }).toList();
 
-    // ── 4. Payment Method Summary ─────────────────────────────────────────────
+    // ── 4. Itemized Invoices & Classification (Cash Invoices vs Credit Invoices)
+    final invoiceRows = await db.rawQuery('''
+      SELECT invoiceId, customerCode, customerName, grandTotal, totalVat,
+             paymentTerm, status, createdAt
+      FROM ${LocalDatabaseHelper.tableSiInvoices}
+      WHERE transactionType = 'INVOICE'
+        AND isReversed = 0
+        AND createdAt >= ? AND createdAt <= ?
+      ORDER BY createdAt ASC
+    ''', [startDate, endDate]);
+
+    final List<EodInvoiceItem> cashInvoices = [];
+    final List<EodInvoiceItem> creditInvoices = [];
+    final List<EodChequeDetail> chequeList = [];
+
+    for (final inv in invoiceRows) {
+      final invId = (inv['invoiceId'] as String?) ?? '';
+      final custCode = (inv['customerCode'] as String?) ?? '';
+      final custName = (inv['customerName'] as String?) ?? '';
+      final grandTotal = (inv['grandTotal'] as num?)?.toDouble() ?? 0.0;
+      final paymentTerm = (inv['paymentTerm'] as String?) ?? 'CSH';
+      final status = (inv['status'] as String?) ?? 'PAID';
+      final createdAt = (inv['createdAt'] as String?) ?? '';
+
+      // Query payments associated with this invoice
+      final paymentRows = await db.rawQuery('''
+        SELECT method, amount, bankCode, bankName, chequeNumber, chequeDate, qrTransactionRef
+        FROM ${LocalDatabaseHelper.tableSiPayments}
+        WHERE invoiceId = ?
+      ''', [invId]);
+
+      double cashAmt = 0.0;
+      double chequeAmt = 0.0;
+      double digitalAmt = 0.0;
+      double creditAmt = 0.0;
+      final List<String> methodsUsed = [];
+
+      for (final p in paymentRows) {
+        final m = ((p['method'] as String?) ?? '').toUpperCase();
+        final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+
+        if (m == 'CASH') {
+          cashAmt += amt;
+          if (!methodsUsed.contains('CASH')) methodsUsed.add('CASH');
+        } else if (m == 'CHEQUE') {
+          chequeAmt += amt;
+          final chqNo = (p['chequeNumber'] as String?) ?? '';
+          final bank = (p['bankName'] as String?) ?? (p['bankCode'] as String?) ?? 'BANK';
+          final label = chqNo.isNotEmpty ? 'CHQ #$chqNo ($bank)' : 'CHEQUE ($bank)';
+          methodsUsed.add(label);
+
+          chequeList.add(EodChequeDetail(
+            chequeNumber: chqNo,
+            bankName: bank,
+            customerName: custName,
+            source: 'INV: ${invId.length > 8 ? invId.substring(invId.length - 8) : invId}',
+            amount: amt,
+            date: (p['chequeDate'] as String?) ?? '',
+          ));
+        } else if (['JUICE', 'BLINK', 'MYT MONEY', 'CARD', 'BANK_TRANSFER', 'ONLINE'].contains(m)) {
+          digitalAmt += amt;
+          final ref = (p['qrTransactionRef'] as String?) ?? '';
+          methodsUsed.add(ref.isNotEmpty ? '$m ($ref)' : m);
+        } else if (m == 'CREDIT') {
+          creditAmt += amt;
+          if (!methodsUsed.contains('CREDIT')) methodsUsed.add('CREDIT');
+        } else {
+          methodsUsed.add(m);
+        }
+      }
+
+      final isCredit = (creditAmt > 0) ||
+          status.toUpperCase() == 'CREDIT' ||
+          (paymentTerm.isNotEmpty &&
+              paymentTerm.toUpperCase() != 'CSH' &&
+              paymentTerm.toUpperCase() != 'CASH' &&
+              (cashAmt + chequeAmt + digitalAmt) < grandTotal - 0.01);
+
+      final summaryMethod = methodsUsed.isNotEmpty
+          ? methodsUsed.join(' + ')
+          : (isCredit ? 'CREDIT' : 'CASH');
+
+      final item = EodInvoiceItem(
+        invoiceId: invId,
+        customerCode: custCode,
+        customerName: custName,
+        grandTotal: grandTotal,
+        paymentTerm: paymentTerm,
+        tenderSummary: summaryMethod,
+        cashAmount: cashAmt,
+        chequeAmount: chequeAmt,
+        digitalAmount: digitalAmt,
+        creditAmount: isCredit ? (creditAmt > 0 ? creditAmt : grandTotal) : 0.0,
+        createdAt: createdAt,
+        isCredit: isCredit,
+      );
+
+      if (isCredit) {
+        creditInvoices.add(item);
+      } else {
+        cashInvoices.add(item);
+      }
+    }
+
+    // ── 5. Open Invoices Collections (AR Debt Recovery) ───────────────────────
+    final openCollRows = await db.rawQuery('''
+      SELECT P.paymentId, P.documentNo, P.customerNo,
+             COALESCE(C.name, P.customerNo) as customerName,
+             P.amount, P.paymentMethod, P.bankCode, P.bankName,
+             P.chequeNumber, P.chequeDate, P.qrTransactionRef,
+             P.createdAt, P.isSynced
+      FROM ${LocalDatabaseHelper.tableSiOpenInvoicePayments} P
+      LEFT JOIN ${LocalDatabaseHelper.tableSalesInvoiceCustomers} C ON P.customerNo = C.code
+      WHERE P.createdAt >= ? AND P.createdAt <= ?
+      ORDER BY P.createdAt ASC
+    ''', [startDate, endDate]);
+
+    final List<EodOpenInvoiceCollectionItem> openInvoiceCollections = [];
+    for (final row in openCollRows) {
+      final amt = (row['amount'] as num?)?.toDouble() ?? 0.0;
+      final method = ((row['paymentMethod'] as String?) ?? 'CASH').toUpperCase();
+      final chqNo = (row['chequeNumber'] as String?) ?? '';
+      final bank = (row['bankName'] as String?) ?? (row['bankCode'] as String?) ?? '';
+      final cust = (row['customerName'] as String?) ?? (row['customerNo'] as String?) ?? '';
+      final doc = (row['documentNo'] as String?) ?? '';
+
+      if (method == 'CHEQUE') {
+        chequeList.add(EodChequeDetail(
+          chequeNumber: chqNo,
+          bankName: bank.isNotEmpty ? bank : 'BANK',
+          customerName: cust,
+          source: 'OPEN: $doc',
+          amount: amt,
+          date: (row['chequeDate'] as String?) ?? '',
+        ));
+      }
+
+      openInvoiceCollections.add(EodOpenInvoiceCollectionItem(
+        paymentId: (row['paymentId'] as String?) ?? '',
+        documentNo: doc,
+        customerNo: (row['customerNo'] as String?) ?? '',
+        customerName: cust,
+        amount: amt,
+        paymentMethod: method,
+        bankCode: (row['bankCode'] as String?) ?? '',
+        bankName: bank,
+        chequeNumber: chqNo,
+        chequeDate: (row['chequeDate'] as String?) ?? '',
+        qrTransactionRef: (row['qrTransactionRef'] as String?) ?? '',
+        createdAt: (row['createdAt'] as String?) ?? '',
+        isSynced: ((row['isSynced'] as int?) ?? 0) == 1,
+      ));
+    }
+
+    // ── 6. Cash Refunded on Returns / Credit Notes ────────────────────────────
+    final refundRows = await db.rawQuery('''
+      SELECT COALESCE(SUM(amount), 0) as totalCashRefund
+      FROM ${LocalDatabaseHelper.tableSiCreditNoteRefunds}
+      WHERE UPPER(method) = 'CASH'
+        AND createdAt >= ? AND createdAt <= ?
+    ''', [startDate, endDate]);
+    final double cashRefunded = (refundRows.first['totalCashRefund'] as num?)?.toDouble() ?? 0.0;
+
+    // ── 7. Overall Payment Method Summary (Invoices + Open Collections) ────────
     final paymentRows = await db.rawQuery('''
       SELECT P.method, COALESCE(SUM(P.amount), 0) as total
       FROM ${LocalDatabaseHelper.tableSiPayments} P
@@ -604,12 +753,24 @@ class TransactionHistoryRepository {
       ORDER BY total DESC
     ''', [startDate, endDate]);
 
-    final paymentSummaries = paymentRows.map((row) => EodPaymentSummary(
-          method: (row['method'] as String?) ?? 'OTHER',
-          amount: (row['total'] as num?)?.toDouble() ?? 0.0,
-        )).toList();
+    final Map<String, double> combinedPaymentMap = {};
+    for (final r in paymentRows) {
+      final m = ((r['method'] as String?) ?? 'OTHER').toUpperCase();
+      final a = (r['total'] as num?)?.toDouble() ?? 0.0;
+      combinedPaymentMap[m] = (combinedPaymentMap[m] ?? 0.0) + a;
+    }
+    // Also include open invoice payments into combined payment breakdown
+    for (final c in openInvoiceCollections) {
+      final m = c.paymentMethod.toUpperCase();
+      combinedPaymentMap[m] = (combinedPaymentMap[m] ?? 0.0) + c.amount;
+    }
 
-    // ── 5. VAT Breakdown per tax rate ─────────────────────────────────────────
+    final paymentSummaries = combinedPaymentMap.entries
+        .map((e) => EodPaymentSummary(method: e.key, amount: e.value))
+        .toList()
+      ..sort((a, b) => b.amount.compareTo(a.amount));
+
+    // ── 8. VAT Breakdown per tax rate ─────────────────────────────────────────
     final vatRows = await db.rawQuery('''
       SELECT L.taxRule,
              COALESCE(TR.taxRatePercent, 0) as taxRatePercent,
@@ -632,12 +793,17 @@ class TransactionHistoryRepository {
           tax: (row['tax'] as num?)?.toDouble() ?? 0.0,
         )).toList();
 
-    // ── 6. Cash Balance ───────────────────────────────────────────────────────
-    final cashTotal = paymentSummaries
-        .where((p) => p.method.toUpperCase() == 'CASH')
-        .fold(0.0, (sum, p) => sum + p.amount);
+    // ── 9. Cash Balance Model ─────────────────────────────────────────────────
+    final totalCashInHand = cashInvoices.fold(0.0, (s, i) => s + i.cashAmount) +
+        openInvoiceCollections
+            .where((c) => c.paymentMethod == 'CASH')
+            .fold(0.0, (s, c) => s + c.amount) -
+        cashRefunded;
 
-    final cashBalance = EodCashBalance(cashGrossSales: cashTotal);
+    final cashBalance = EodCashBalance(
+      cashGrossSales: totalCashInHand.clamp(0.0, double.infinity),
+      withdrawals: cashRefunded,
+    );
 
     return EodReportModel(
       reportDate: DateFormat('dd.MM.yyyy').format(date),
@@ -654,6 +820,11 @@ class TransactionHistoryRepository {
       cashBalance: cashBalance,
       vatSummaries: vatSummaries,
       paymentSummaries: paymentSummaries,
+      cashInvoices: cashInvoices,
+      creditInvoices: creditInvoices,
+      openInvoiceCollections: openInvoiceCollections,
+      chequeList: chequeList,
+      cashRefundedOnReturns: cashRefunded,
     );
   }
 }

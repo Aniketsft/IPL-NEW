@@ -43,7 +43,106 @@
     - **Transaction History Screen (`TransactionHistoryScreen`)**: Scoped AppBar sync icon rendered when filtered/locked to a customer.
     - **Customer Directory List (`CustomerSelectionScreen`)**: Quick sync button removed from unselected customer cards so sync is strictly accessible only after a customer is selected.
 
+## Current Status (Updated: 2026-10-27)
+- **Stock Status Architecture & Return Quarantine (Critical Risk Guard Implemented)**:
+  - **Global Stock Status Parameter (`StockStatus` enum & codes)**:
+    - `A`: Approved / Prime Sellable stock (Strictly available for sales invoices).
+    - `Q`: Returned Goods (Quarantined customer returns awaiting inspection).
+    - `R`: Issue in Stock (Damaged, defective, or rejected inventory).
+  - **Critical Risk Guard (Preventing Re-Selling Customer Returns)**:
+    - `sales_invoice_product_repository.dart`: `getSalesInvoiceProducts`, `getProductByItemCode`, and `getSalesInvoiceItemStockDetails` enforce `WHERE (S.stockStatus = 'A' OR S.stockStatus IS NULL OR S.stockStatus = '')` by default, making returned/quarantined goods completely invisible in product catalog and lot selection during sales order/invoicing.
+    - `add_item_detail_screen.dart`: FOC item queries and specific lot stock lookups restricted strictly to `stockStatus = 'A'`.
+    - `lot_selection_screen.dart`: Lots loaded strictly for `stockStatus = 'A'`.
+    - `payment_processing_screen.dart`: Checkout stock deductions target `stockStatus = 'A'` exclusively.
+    - `credit_note_service.dart`: Physical returns (`stockTransaction == 1`) quarantine items into `stockStatus = 'Q'` (or `'R'` if reason is `DEF`/`DAM`/`REJ`), permanently preventing returns from merging into sellable stock.
+    - `_applyUnsyncedLedgerToStock`: Deducts invoices from `stockStatus = 'A'` and adds back credit notes to `stockStatus = 'Q'`.
+  - **Database Migration v96 (`LocalDatabaseHelper.dart`)**:
+    - Bumped database version to `96`.
+    - `tbl_si_item_stock_details` upgraded with column `stockStatus TEXT DEFAULT 'A'`.
+    - Composite primary key migrated to `PRIMARY KEY (itemCode, lotNumber, location, warehouse, stockStatus)` allowing simultaneous approved and returned lots for the same item.
+  - **Backend Sage X3 Integration (`SalesInvoiceItemStockDto.cs` & `EfSalesInvoiceRepository.cs`)**:
+    - Added `StockStatus` property to `SalesInvoiceItemStockDto`.
+    - `GetItemStockDetailsAsync`: Selects `LTRIM(RTRIM(COALESCE(stk.STA_0, 'A'))) AS StockStatus`, queries `stk.STA_0 IN ('A', 'Q', 'R')`, and groups by `stk.STA_0`.
+    - `GetProductsAsync`: Preserved strictly `stk.STA_0 = 'A'` for commercial catalog.
+  - **Separated Stock Preview Report (`SalesReportPdfService.dart` & `SalesReportsScreen.dart`)**:
+    - `SalesReportsScreen`: Fetches stock with `stockStatus: 'ALL'`.
+    - `SalesReportPdfService.generateStockPreviewPdf`: Clearly partitions report into 3 distinct visual sections:
+      1. `[A] APPROVED / SELLABLE STOCK` (with SKU count and subtotal units).
+      2. `[Q] CUSTOMER RETURNS (QUARANTINE)` (with SKU count and subtotal units, or zero-state indicator).
+      3. `[R] ISSUE IN STOCK (DAMAGED / DEFECTIVE)` (with SKU count and subtotal units, or zero-state indicator).
+      4. **Physical Stock Reconciliation Block**: Detailed breakdown of Approved, Returned, and Damaged units, culminating in **TOTAL PHYSICAL STOCK** and unique SKU counts.
+
+- **Direct 3-Tile Sales Architecture & Granular Permissions**:
+  - **Permission Restructuring**:
+    - Renamed "Sales Invoice" permission to "Salesman" (`logistics.salesman`) while preserving legacy `logistics.sales_invoice` fallback.
+    - Added dedicated permission for "Reports" (`logistics.reports`).
+    - Added dedicated permission for "OTP Generation" (`logistics.otp_generation`).
+    - Seeded in `DbInitializer.cs` and managed in User Management (`user_management_screen.dart`).
+  - **Clean 3-Tile Home Screen Architecture**:
+    - **Tile 1 — Sales**: Guarded by `logistics.salesman.read` (or legacy `logistics.sales_invoice.read`). Reverted to the clean, original direct navigation to [CustomerSelectionScreen](file:///d:/enterprise_auth_system/frontend/lib/features/logistics/presentation/pages/sales_invoice/customer_selection_screen.dart) after checking active sales reps.
+    - **Tile 2 — Sales Reports**: Guarded by `logistics.reports.read`. Directly opens [SalesReportsScreen](file:///d:/enterprise_auth_system/frontend/lib/features/logistics/presentation/pages/sales_invoice/sales_reports_screen.dart) for Invoice Summary, Stock Preview, and EOD Cash Collection PDF reports.
+    - **Tile 3 — OTP Generation**: Guarded by `logistics.otp_generation.read`. Directly opens [OtpGenerationScreen](file:///d:/enterprise_auth_system/frontend/lib/features/logistics/presentation/pages/sales_invoice/otp_generation_screen.dart) for generating time-based supervisor override PINs.
+  - **Codebase Cleanliness & Decoupling**:
+    - Deleted intermediate `sales_operations_screen.dart` completely.
+    - Removed `Sales Operations` hub tile from Home Screen, keeping user navigation lean and direct.
+
+- **Industrial & Futureproof End of Day (EOD) Reconciliation Report (Implemented 2026-10-27)**:
+  - **Data Models (`eod_report_model.dart`)**:
+    - `EodInvoiceItem`: Itemized invoice model capturing `invoiceId`, `customerCode`, `customerName`, `grandTotal`, `paymentTerm`, `tenderSummary`, `cashAmount`, `chequeAmount`, `digitalAmount`, `creditAmount`, and `isCredit`.
+    - `EodOpenInvoiceCollectionItem`: Model for payments collected on the road against open invoices (`tbl_si_open_invoice_payments`), capturing `paymentId`, `documentNo`, `customerNo`, `customerName`, `amount`, `paymentMethod`, `bankName`, `chequeNumber`, `qrTransactionRef`, and sync status.
+    - `EodChequeDetail`: Itemized cheque model for depot deposit slip tracking (`chequeNumber`, `bankName`, `customerName`, `source`, `amount`, `date`).
+    - Upgraded `EodReportModel`: Integrated breakdown lists (`cashInvoices`, `creditInvoices`, `openInvoiceCollections`, `chequeList`) and computed physical cash-in-hand (`netPhysicalCashInHand`), cheque total, digital remittances, and gross turnovers.
+  - **Repository Layer (`TransactionHistoryRepository.dart`)**:
+    - Upgraded `getEodReportData(date)`:
+      - Classifies today's invoices into `cashInvoices` (spot cash, cheque, juice settlement) and `creditInvoices` (unsettled on terms).
+      - Queries `tbl_si_open_invoice_payments` joined with `tbl_si_customers` to capture all debt recoveries.
+      - Queries `tbl_si_credit_note_refunds` to deduct cash paid out for returns from physical cash in hand.
+      - Aggregates multi-tender receipts across all payment channels.
+  - **Industrial PDF Presentation (`SalesReportPdfService.dart`)**:
+    - Re-architected `generateEodReportPdf` into 8 modular, high-contrast sections on standard continuous thermal roll format:
+      1. **Header & Metadata**: INNODIS LTD, Shift closing date/time, Rep, Register ID.
+      2. **Turnover Summary**: Gross sales, credit notes, net sales, VAT, and total invoiced.
+      3. **Section 1: Cash Invoices**: Itemized table (`Inv#`, `Customer`, `Tender`, `Amount`) with subtotal.
+      4. **Section 2: Credit Invoices**: Itemized table (`Inv#`, `Customer`, `Terms`, `Amount`) with subtotal.
+      5. **Section 3: Open Invoice Collections**: Itemized table (`Doc#`, `Customer`, `Method & Ref`, `Amount`) with subtotal.
+      6. **Section 4: Returns & Cancelled Receipts**: Detailed return reversals.
+      7. **Section 5: Cashier & Safe Reconciliation Box**: Framed audit box calculating net physical cash to deposit, itemized physical cheques list, digital remittances, credit extended, and grand funds collected.
+      8. **Section 6 & 7: VAT Breakdown & Combined Payment Summaries**.
+      9. **Section 8: Audit Sign-off**: Dual signatures for Sales Representative and Depot Cashier/Supervisor.
+    - **MultiPage Assertion & Unicode Fix (2026-10-27)**:
+      - Resolved `multi_page.dart:252` assertion error (`pageFormat.height < double.infinity`) by utilizing finite standard height `PdfPageFormat.a4.height` in `generateEodReportPdf`.
+      - Resolved `Helvetica has no Unicode support` font warnings by deploying comprehensive diacritic transliteration (`é, è, à, ç` $\rightarrow$ `e, a, c`, smart quotes/dashes $\rightarrow$ ASCII equivalents) and stripping non-ASCII characters in `_cleanText`.
+      - Wrapped all dynamic report fields across all tables, headers, and footer sign-offs in `_cleanText` to guarantee 100% 7-bit ASCII compatibility for PDF rastering.
+      - Addressed hot reload raster race condition in `PdfPreviewRaster` by ensuring pristine, instant rendering.
+
+- **Centralized Currency Standardization & Universal Right-Alignment (Implemented 2026-10-27)**:
+  - **Core Utility (`CurrencyFormatter.dart`)**:
+    - Centralized under `lib/core/utils/currency_formatter.dart`.
+    - Standard currency symbol: strictly `Rs ` (no `'RS '`, no `'MUR'`).
+    - Format pattern: `#,##0.00` (thousands/millions commas, strictly 2 decimal places).
+    - Methods: `format(amount)`, `formatNumber(amount)`, `formatDiscount(amount)`, and `currencyFormat`.
+  - **Screen-by-Screen Standardization (13 Screens & Widgets Updated)**:
+    - `CustomerSelectionScreen`: `creditLimitStr` and `outstandingStr` use `CurrencyFormatter.format`; OUTSTANDING column right-aligned (`CrossAxisAlignment.end`, `textAlign: TextAlign.right`).
+    - `CustomerHubScreen`: Replaced `'RS '` formatter with `CurrencyFormatter.currencyFormat` and `CurrencyFormatter.format(amount)`.
+    - `AddItemDetailScreen`: Removed double space `'RS  '`; discount and VAT use `formatDiscount` and explicit signed format; form inputs right-aligned with `alignRight: true`; Base Price input upgraded with a balanced single-row tile placing label on the left and a dedicated interactive monetary pill on the right (`Rs ` + number contiguous with zero void gap, right-aligned, locked when `_isReturnMode`); bottom sticky action bar mathematically aligned with both `QUANTITY` and `ITEM TOTAL` headers sharing top baseline (y=0) and both stepper and item total sharing matching 48px heights with total vertically centered.
+    - `OrderSummaryScreen`: Replaced custom patterns; `_buildCalcRow` wraps labels in `Expanded` and right-aligns amounts; Reversal Total and Grand Total right-aligned.
+    - `PaymentProcessingScreen`: Credit limit snackbar uses `CurrencyFormatter.format`; payment methods display right-aligned amounts; payment amount `_amountController` `TextField` right-aligned (`textAlign: TextAlign.right`); sticky footer labels wrapped in `Expanded` with amounts right-aligned.
+    - `OpenInvoicesScreen`: Selection bar, collection item cards, and receipt details modal labels wrapped in `Expanded` and amounts right-aligned.
+    - `OpenInvoiceCard`: Replaced `'RS '` in cards and history modals; Original Due, Already Collected, and Remaining Balance right-aligned; allocation helper text shows `Maximum: Rs ...` with prefix `Rs `.
+    - `SalesOrdersListScreen`: Total order amounts formatted via `CurrencyFormatter.format` with `Expanded` label and right-alignment.
+    - `SalesOrderDetailsScreen`: Subtitle unit price formatted with `Rs `, trailing line total right-aligned, summary rows wrapped in `Expanded` and right-aligned.
+    - `TransactionHistoryScreen`: Formatted via `CurrencyFormatter.currencyFormat` and right-aligned trailing amounts.
+    - `InvoiceItemReversalScreen`: Bottom bar reversal total wrapped in `Expanded` and right-aligned.
+    - `AmountOnlyCreditNoteScreen`: Available balance and checkbox secondary invoice amounts right-aligned.
+    - `InvoicePreviewScreen`: Summary card rows (Subtotal, Discount, VAT, Credited, Refund/Net Due) wrapped in `Expanded` and right-aligned.
+  - **PDF Services Standardization (4 Services Updated)**:
+    - `SalesInvoicePdfService`: Unit price prefixed with `Rs ` (`Rs #,##0.00`), summary value box widened to `85` points, right-aligned with `pw.TextAlign.right`.
+    - `CreditNotePdfService`: Returned unit price prefixed with `Rs `, Total Refund right-aligned and prefixed with `Rs `.
+    - `CashCollectionPdfService`: Replaced legacy uppercase `'RS '` with `'Rs '` across all sections.
+    - `SalesReportPdfService`: Grand Revenue header and total formatted as `GRAND REVENUE` and `'Rs #,##0.00'`; all EOD tables (Cash Invoices, Credit Invoices, Collections, Returns, VAT, Payment Methods) enforce matching `headerAlignments` to ensure headers and figures are right-aligned; reconciliation tallies and sub-rows use `pw.Expanded` labels and `textAlign: pw.TextAlign.right`.
+
 ## Verified Environment:
 - **Device**: Infinix X6528 (`Infinix 2`), Android
-- **Backend**: ASP.NET Core API on `192.168.1.57:5004`
+- **Backend**: ASP.NET Core API on `192.168.100.156:5004` / `192.168.1.57:5004`
 - **ERP**: Sage X3 ERP (`INLDRYRUN` schema)
+

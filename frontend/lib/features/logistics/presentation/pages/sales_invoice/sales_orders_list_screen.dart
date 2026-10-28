@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invo
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 class SalesOrdersListScreen extends StatefulWidget {
   final String? customerCode;
@@ -272,22 +273,26 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                               const SizedBox(height: 6),
                               // Total Amount (Theme-aware with amber highlight)
                               Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    'Total: ',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: isDark ? Colors.white70 : Colors.black87,
+                                  Expanded(
+                                    child: Text(
+                                      'Total: ',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark ? Colors.white70 : Colors.black87,
+                                      ),
                                     ),
                                   ),
                                   Text(
-                                    'Rs ${(order['totalAmount'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                                    CurrencyFormatter.format((order['totalAmount'] as num?)?.toDouble() ?? 0.0),
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
                                       color: isDark ? AppTheme.primaryAmber : Colors.black87,
                                     ),
+                                    textAlign: TextAlign.right,
                                   ),
                                 ],
                               ),

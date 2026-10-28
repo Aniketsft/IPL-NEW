@@ -15,6 +15,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/models/transact
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import 'order_summary_screen.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 /// Screen allowing the user to select specific invoice lines (and quantities)
 /// to reverse, generating a partial Credit Note or entering Customer Return flow.
@@ -42,11 +43,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
   bool _isLoading = true;
   bool _isProcessing = false;
 
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final currencyFormat = CurrencyFormatter.currencyFormat;
 
   @override
   void initState() {
@@ -912,10 +909,13 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('$_selectedCount item(s) selected'),
+                                Expanded(
+                                  child: Text('$_selectedCount item(s) selected'),
+                                ),
                                 Text(
                                   'Total: ${currencyFormat.format(_reversalTotal)}',
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  textAlign: TextAlign.right,
                                 ),
                               ],
                             ),

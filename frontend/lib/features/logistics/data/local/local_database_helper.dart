@@ -10,7 +10,7 @@ import 'package:uuid/uuid.dart';
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 95;
+  static const _databaseVersion = 96;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -277,6 +277,7 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableCachedUsers, colUserSiteCode, 'TEXT');
     await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'siteCode', "TEXT DEFAULT ''");
     await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'salesUnit', "TEXT DEFAULT ''");
+    await _safeAddColumn(_database!, tableSalesInvoiceItemStockDetails, 'stockStatus', "TEXT DEFAULT 'A'");
     await _safeAddColumn(_database!, tableReps, 'assignedSite', 'TEXT');
     await _safeAddColumn(_database!, tableUserSelectedReps, 'username', "TEXT DEFAULT ''");
     await _safeAddColumn(_database!, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
@@ -1997,6 +1998,46 @@ class LocalDatabaseHelper {
       debugPrint('DB Upgrade: Adding stockTransaction to tbl_si_credit_notes (v95)');
       await _safeAddColumn(db, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
     }
+    if (oldVersion < 96) {
+      debugPrint('DB Upgrade: Adding stockStatus to tbl_si_item_stock_details (v96)');
+      await _safeAddColumn(db, tableSalesInvoiceItemStockDetails, 'stockStatus', "TEXT DEFAULT 'A'");
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS tbl_si_item_stock_details_new (
+            itemCode TEXT,
+            itemName TEXT,
+            lotNumber TEXT,
+            warehouse TEXT,
+            warehouseName TEXT,
+            location TEXT,
+            locationType TEXT,
+            totalQty REAL,
+            taxLevel TEXT,
+            cce0 TEXT,
+            salesUnit TEXT,
+            barcode TEXT DEFAULT "",
+            siteCode TEXT DEFAULT "",
+            stockStatus TEXT DEFAULT 'A',
+            isSynced INTEGER NOT NULL DEFAULT 1,
+            createdAt TEXT,
+            updatedAt TEXT,
+            deviceId TEXT,
+            PRIMARY KEY (itemCode, lotNumber, location, warehouse, stockStatus)
+          )
+        ''');
+        await db.execute('''
+          INSERT OR REPLACE INTO tbl_si_item_stock_details_new 
+          (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, salesUnit, barcode, siteCode, stockStatus, isSynced, createdAt, updatedAt, deviceId)
+          SELECT itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, salesUnit, barcode, siteCode, COALESCE(stockStatus, 'A'), isSynced, createdAt, updatedAt, deviceId
+          FROM $tableSalesInvoiceItemStockDetails
+        ''');
+        await db.execute('DROP TABLE $tableSalesInvoiceItemStockDetails');
+        await db.execute('ALTER TABLE tbl_si_item_stock_details_new RENAME TO $tableSalesInvoiceItemStockDetails');
+      } catch (e) {
+        debugPrint('Migration error v96: $e');
+        await _safeAddColumn(db, tableSalesInvoiceItemStockDetails, 'stockStatus', "TEXT DEFAULT 'A'");
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -2015,11 +2056,12 @@ class LocalDatabaseHelper {
         salesUnit TEXT,
         barcode TEXT DEFAULT "",
         siteCode TEXT DEFAULT "",
+        stockStatus TEXT DEFAULT 'A',
         isSynced INTEGER NOT NULL DEFAULT 1,
         createdAt TEXT,
         updatedAt TEXT,
         deviceId TEXT,
-        PRIMARY KEY (itemCode, lotNumber, location, warehouse)
+        PRIMARY KEY (itemCode, lotNumber, location, warehouse, stockStatus)
       )
     ''');
 

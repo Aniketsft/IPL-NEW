@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:async';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_bloc.dart';
@@ -430,11 +431,11 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                           }
                           
                           double creditLimitVal = double.tryParse(creditLimitRaw) ?? 0.0;
-                          final creditLimitStr = 'RS ${creditLimitVal.toStringAsFixed(2)}';
+                          final creditLimitStr = CurrencyFormatter.format(creditLimitVal);
 
                           final outstandingRaw = customer['outstandingBalance']?.toString() ?? '0';
                           double outstandingVal = double.tryParse(outstandingRaw) ?? 0.0;
-                          final outstandingStr = 'RS ${outstandingVal.toStringAsFixed(2)}';
+                          final outstandingStr = CurrencyFormatter.format(outstandingVal);
                           
                           Color outstandingColor = isDark ? Colors.white : Colors.black87;
                           if (creditLimitVal > 0 && outstandingVal > creditLimitVal) {
@@ -611,7 +612,7 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                         ),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.end,
                                             children: [
                                               Text(
                                                 'OUTSTANDING',
@@ -625,6 +626,7 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                               const SizedBox(height: 4),
                                               Text(
                                                 outstandingStr,
+                                                textAlign: TextAlign.right,
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   color: outstandingColor,

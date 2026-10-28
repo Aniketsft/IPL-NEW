@@ -219,7 +219,7 @@ class SalesInvoicePdfService {
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
-                        '${item.quantity.toStringAsFixed(0)} ${item.product.salesUnit} x ${numberFormat.format(item.basePrice)}',
+                        '${item.quantity.toStringAsFixed(0)} ${item.product.salesUnit} x Rs ${numberFormat.format(item.basePrice)}',
                         style: const pw.TextStyle(
                           fontSize: 9,
                           color: PdfColors.grey600,
@@ -280,12 +280,12 @@ class SalesInvoicePdfService {
           child: pw.Column(
             children: [
               pw.Text(
-                isPartiallyReversed ? 'NET BALANCE DUE (Rs)' : 'GRAND TOTAL (Rs)',
+                isPartiallyReversed ? 'NET BALANCE DUE' : 'GRAND TOTAL',
                 style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 4),
               pw.Text(
-                numberFormat.format(isPartiallyReversed ? netBalanceDue : grandTotal),
+                'Rs ${numberFormat.format(isPartiallyReversed ? netBalanceDue : grandTotal)}',
                 style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
               if (isPartiallyReversed) ...[
@@ -314,9 +314,9 @@ class SalesInvoicePdfService {
             style: const pw.TextStyle(fontSize: 10),
           ),
           pw.SizedBox(
-            width: 60,
+            width: 85,
             child: pw.Text(
-              formattedValue,
+              'Rs $formattedValue',
               textAlign: pw.TextAlign.right,
               style: const pw.TextStyle(fontSize: 10),
             ),

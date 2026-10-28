@@ -12,6 +12,7 @@ class SalesInvoiceItemStockModel {
   final String salesUnit;
   final String barcode;
   final String siteCode;
+  final String stockStatus;
   final int isSynced;
 
   SalesInvoiceItemStockModel({
@@ -28,6 +29,7 @@ class SalesInvoiceItemStockModel {
     this.salesUnit = '',
     this.barcode = '',
     this.siteCode = '',
+    this.stockStatus = 'A',
     this.isSynced = 1,
   });
 
@@ -45,6 +47,7 @@ class SalesInvoiceItemStockModel {
     String? salesUnit,
     String? barcode,
     String? siteCode,
+    String? stockStatus,
     int? isSynced,
   }) {
     return SalesInvoiceItemStockModel(
@@ -61,6 +64,7 @@ class SalesInvoiceItemStockModel {
       salesUnit: salesUnit ?? this.salesUnit,
       barcode: barcode ?? this.barcode,
       siteCode: siteCode ?? this.siteCode,
+      stockStatus: stockStatus ?? this.stockStatus,
       isSynced: isSynced ?? this.isSynced,
     );
   }
@@ -80,6 +84,7 @@ class SalesInvoiceItemStockModel {
       salesUnit: (json['salesUnit'] ?? json['unit'] ?? '').toString(),
       barcode: (json['barcode'] ?? '').toString(),
       siteCode: (json['siteCode'] ?? '').toString(),
+      stockStatus: (json['stockStatus'] ?? 'A').toString().trim().toUpperCase(),
     );
   }
 
@@ -98,6 +103,7 @@ class SalesInvoiceItemStockModel {
       salesUnit: (map['salesUnit'] as String?) ?? '',
       barcode: map['barcode'] as String? ?? '',
       siteCode: (map['siteCode'] as String?) ?? '',
+      stockStatus: (map['stockStatus'] as String?)?.trim().toUpperCase() ?? 'A',
       isSynced: map['isSynced'] as int? ?? 1,
     );
   }
@@ -117,6 +123,7 @@ class SalesInvoiceItemStockModel {
       'salesUnit': salesUnit,
       'barcode': barcode,
       'siteCode': siteCode,
+      'stockStatus': stockStatus.isNotEmpty ? stockStatus : 'A',
       'isSynced': isSynced,
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

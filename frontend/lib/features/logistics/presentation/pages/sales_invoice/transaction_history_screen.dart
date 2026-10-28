@@ -20,6 +20,7 @@ import 'invoice_item_reversal_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 
@@ -76,11 +77,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       _selectedDate != null ||
       _selectedType != 'ALL';
 
-  final currencyFormat = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: 'RS ',
-    decimalDigits: 2,
-  );
+  final currencyFormat = CurrencyFormatter.currencyFormat;
 
   bool _isSyncingX3History = false;
 
@@ -720,6 +717,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                   Text(
                                     currencyFormat.format(tx.grandTotal),
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    textAlign: TextAlign.right,
                                   ),
                                   if (tx.isSynced == 1)
                                     const Icon(Icons.cloud_done, size: 16, color: Colors.green)

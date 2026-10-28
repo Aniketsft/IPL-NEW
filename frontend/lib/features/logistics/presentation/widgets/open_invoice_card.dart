@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import '../../data/models/open_invoice_model.dart';
 import '../../data/local/local_database_helper.dart';
 
@@ -23,7 +24,7 @@ class OpenInvoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
+    final currencyFormat = CurrencyFormatter.currencyFormat;
 
     final isCN = invoice.isCreditNote;
     final absRemaining = invoice.remainingAmtLCY.abs();
@@ -189,11 +190,13 @@ class OpenInvoiceCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Original Due:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.textTheme.bodySmall?.color,
+                    Expanded(
+                      child: Text(
+                        'Original Due:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.textTheme.bodySmall?.color,
+                        ),
                       ),
                     ),
                     Text(
@@ -204,6 +207,7 @@ class OpenInvoiceCard extends StatelessWidget {
                         color: theme.textTheme.bodySmall?.color,
                         decoration: TextDecoration.lineThrough,
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),
@@ -211,19 +215,21 @@ class OpenInvoiceCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle_rounded, size: 13, color: Colors.green.shade600),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Already Collected:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.green.shade700,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded, size: 13, color: Colors.green.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Already Collected:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     Text(
                       currencyFormat.format(invoice.allocatedAmount),
@@ -232,6 +238,7 @@ class OpenInvoiceCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         color: Colors.green.shade700,
                       ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
                 ),
@@ -240,16 +247,18 @@ class OpenInvoiceCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    isCN
-                        ? 'Available Credit:'
-                        : (invoice.allocatedAmount > 0.001
-                            ? 'Remaining Due:'
-                            : 'Remaining Balance:'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: invoice.allocatedAmount > 0.001 ? FontWeight.bold : FontWeight.normal,
-                      color: theme.textTheme.bodySmall?.color,
+                  Expanded(
+                    child: Text(
+                      isCN
+                          ? 'Available Credit:'
+                          : (invoice.allocatedAmount > 0.001
+                              ? 'Remaining Due:'
+                              : 'Remaining Balance:'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: invoice.allocatedAmount > 0.001 ? FontWeight.bold : FontWeight.normal,
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
                     ),
                   ),
                   Text(
@@ -261,6 +270,7 @@ class OpenInvoiceCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: isCN ? Colors.amber.shade800 : theme.colorScheme.primary,
                     ),
+                    textAlign: TextAlign.right,
                   ),
                 ],
               ),
@@ -360,12 +370,13 @@ class OpenInvoiceCard extends StatelessWidget {
         title: Text('Enter Amount for ${invoice.documentNo}'),
         content: TextField(
           controller: controller,
+          textAlign: TextAlign.right,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           autofocus: true,
           decoration: InputDecoration(
             labelText: 'Allocation Amount',
-            helperText: 'Maximum: ${maxAmount.toStringAsFixed(2)}',
-            prefixText: 'RS ',
+            helperText: 'Maximum: ${CurrencyFormatter.format(maxAmount)}',
+            prefixText: '${CurrencyFormatter.currencySymbol} ',
           ),
         ),
         actions: [
@@ -394,7 +405,7 @@ class OpenInvoiceCard extends StatelessWidget {
   void _showPaymentHistory(BuildContext context, String documentNo) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: 'RS ', decimalDigits: 2);
+    final currencyFormat = CurrencyFormatter.currencyFormat;
 
     showModalBottomSheet(
       context: context,
@@ -534,9 +545,11 @@ class OpenInvoiceCard extends StatelessWidget {
                               title: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    method,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  Expanded(
+                                    child: Text(
+                                      method,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
                                   ),
                                   Text(
                                     currencyFormat.format(amount),
@@ -545,6 +558,7 @@ class OpenInvoiceCard extends StatelessWidget {
                                       fontSize: 14,
                                       color: Colors.green.shade700,
                                     ),
+                                    textAlign: TextAlign.right,
                                   ),
                                 ],
                               ),

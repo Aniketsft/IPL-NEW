@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 import '../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import '../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart';
@@ -31,10 +32,7 @@ class OrderSummaryScreen extends StatefulWidget {
 }
 
 class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareScannerMixin {
-  final _currencyFormat = NumberFormat.currency(
-    customPattern: "'Rs ' #,##0.00",
-    decimalDigits: 2,
-  );
+  final _currencyFormat = CurrencyFormatter.currencyFormat;
 
   bool _isProcessingScan = false;
   final Map<int, double> _selectedReversalQuantities = {};
@@ -1804,18 +1802,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             Divider(color: Colors.grey.withOpacity(0.2), height: 1),
             const SizedBox(height: 6),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Reversal Total',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
+                Expanded(
+                  child: Text(
+                    'Reversal Total',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                   ),
                 ),
                 Text(
                   _currencyFormat.format(revGrandTotal),
+                  textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1879,18 +1879,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           Divider(color: Colors.grey.withOpacity(0.2), height: 1),
           const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                isInvoicePartiallyReversed ? 'Net Balance Due' : 'Grand Total',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
+              Expanded(
+                child: Text(
+                  isInvoicePartiallyReversed ? 'Net Balance Due' : 'Grand Total',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
                 ),
               ),
               Text(
                 _currencyFormat.format(isInvoicePartiallyReversed ? remainingNetBalance : cart.grandTotal),
+                textAlign: TextAlign.right,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -1911,19 +1913,21 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     required bool isDark,
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: isRed
-                ? Colors.red[700]
-                : (isDark ? Colors.grey[300] : Colors.grey[700]),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isRed
+                  ? Colors.red[700]
+                  : (isDark ? Colors.grey[300] : Colors.grey[700]),
+            ),
           ),
         ),
         Text(
           amount,
+          textAlign: TextAlign.right,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
