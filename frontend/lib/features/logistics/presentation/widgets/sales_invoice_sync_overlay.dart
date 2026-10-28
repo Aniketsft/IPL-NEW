@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../data/repositories/sales_invoice_sync_repository.dart';
 import '../bloc/sales_invoice_sync_bloc.dart';
 import '../bloc/sales_invoice_sync_event.dart';
@@ -38,6 +39,16 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
               }
             });
           }
+        } else if (syncState is SalesInvoiceCustomerSyncSuccess) {
+          // Auto-dismiss cleanly on customer sync success after 3.2s
+          Future.delayed(const Duration(milliseconds: 3200), () {
+            if (context.mounted) {
+              final current = context.read<SalesInvoiceSyncBloc>().state;
+              if (current is SalesInvoiceCustomerSyncSuccess) {
+                context.read<SalesInvoiceSyncBloc>().add(const ResetSalesInvoiceSyncRequested());
+              }
+            }
+          });
         }
       },
       child: BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
@@ -48,7 +59,8 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
           bool isPartial = false;
           bool isError = false;
           bool showOverlay = false;
-          final isSyncing = syncState is SalesInvoiceSyncInProgress;
+          final isSyncing = syncState is SalesInvoiceSyncInProgress ||
+              syncState is SalesInvoiceCustomerSyncInProgress;
           List<SyncEntityReport> reportList = [];
           SyncBatchResult? currentBatchResult;
 
@@ -57,6 +69,19 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
             if (syncState is SalesInvoiceSyncInProgress) {
               title = "Synchronizing";
               message = syncState.message;
+            } else if (syncState is SalesInvoiceCustomerSyncInProgress) {
+              title = "Syncing Customer";
+              message = syncState.message;
+            } else if (syncState is SalesInvoiceCustomerSyncSuccess) {
+              isCleanSuccess = true;
+              title = "Customer Synchronized";
+              final balanceStr = CurrencyFormatter.format(syncState.result.liveBalance);
+              message = "${syncState.customerName}\nBalance: $balanceStr • ${syncState.result.openInvoicesCount} Open Invoices • ${syncState.result.x3HistoryInvoicesCount} X3 Invoices";
+              reportList = [];
+            } else if (syncState is SalesInvoiceCustomerSyncFailure) {
+              isError = true;
+              title = "Customer Sync Failed";
+              message = syncState.error;
             } else if (syncState is SalesInvoiceSyncSuccess) {
               currentBatchResult = syncState.batchResult;
               if (syncState.batchResult.isCleanSuccess) {

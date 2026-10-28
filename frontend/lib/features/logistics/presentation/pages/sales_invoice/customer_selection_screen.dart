@@ -193,9 +193,7 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
           _fetchCustomers();
         }
       },
-      child: Stack(
-        children: [
-          Scaffold(
+      child: Scaffold(
             backgroundColor: theme.scaffoldBackgroundColor,
             appBar: AppBar(
               title: Text(
@@ -651,9 +649,6 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                   ],
                 ),
               ),
-              const SalesInvoiceSyncOverlay(),
-            ],
-          ),
         );
       }
 

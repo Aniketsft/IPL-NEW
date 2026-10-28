@@ -43,6 +43,32 @@
     - **Transaction History Screen (`TransactionHistoryScreen`)**: Scoped AppBar sync icon rendered when filtered/locked to a customer.
     - **Customer Directory List (`CustomerSelectionScreen`)**: Quick sync button removed from unselected customer cards so sync is strictly accessible only after a customer is selected.
 
+- **Universal Asynchronous Sync & Global Touch-Barrier Overlay Architecture (Implemented 2026-10-28)**:
+  - **Core Problem Solved**:
+    - Previously, single customer sync inside `CustomerHubScreen`, `OpenInvoicesScreen`, and `TransactionHistoryScreen` ran in unblocked local futures with floating SnackBars. Users could freely tap transactions, invoice reversals, payment settlement, or back navigation while local tables (`tbl_si_open_invoices`, `tbl_x3_history_*`) were truncated and re-populated, exposing operations to race conditions and dirty reads.
+  - **Universal Root-Mounted Lock (`main.dart` & `MaterialApp.builder`)**:
+    - `SalesInvoiceSyncOverlay` and `SyncOverlay` are mounted globally at the application root inside `MaterialApp.router`'s `builder` `Stack`.
+    - Automatically wraps ALL routes, modal sheets, and child navigators with zero screen-level boilerplate.
+    - Eliminates redundant local overlay instantiations across `HomeScreen`, `CustomerSelectionScreen`, and `SelectTransactionScreen` (unbalanced delimiter artifacts from local Stack removals resolved).
+  - **Touch Barrier & Navigation Guard (`SalesInvoiceSyncOverlay.dart`)**:
+    - Frosted glass backdrop with full touch interception via `Positioned.fill` + `BackdropFilter` (10px Gaussian blur) + dark/light responsive translucent scrim.
+    - `PopScope(canPop: !isSyncing)` blocks Android hardware and gesture back navigation until synchronization concludes.
+    - Minimalist glass HUD card displays live sync states (`Syncing Customer`, `Synchronizing Mobile Sales Data`).
+    - Success presentation: displays customer name, formatted live balance (`Rs #,##0.00`), open invoice count, and X3 history invoice count. Auto-dismisses cleanly after 3.2s via `ResetSalesInvoiceSyncRequested`.
+    - Error presentation: captures offline blocking or network timeouts with detailed copyable diagnostics and manual dismiss.
+  - **BLoC State Orchestration (`SalesInvoiceSyncBloc.dart`, events, and states)**:
+    - Injected `SalesInvoiceSyncRepository` into `SalesInvoiceSyncBloc`.
+    - Added `StartSingleCustomerSyncRequested(customerCode, customerName, siteCode)`.
+    - Added states: `SalesInvoiceCustomerSyncInProgress`, `SalesInvoiceCustomerSyncSuccess(result, customerName)`, `SalesInvoiceCustomerSyncFailure(error)`.
+    - Fully asynchronous background execution preventing UI thread freezing.
+  - **Reactive Screen Reloading (`CustomerHubScreen`, `OpenInvoicesScreen`, `TransactionHistoryScreen`)**:
+    - Wrapped screens in `BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>`.
+    - Upon `SalesInvoiceCustomerSyncSuccess`, triggers reactive reload:
+      - `CustomerHubScreen`: calls `_loadFinancials()` to immediately refresh live balance, terms, credit limit, and hold status.
+      - `OpenInvoicesScreen`: calls `_loadData()` to reload open invoices and reconciliation status.
+      - `TransactionHistoryScreen`: calls `_loadTransactions()` to refresh X3 line history.
+    - Sync trigger buttons (card strip and AppBar icons) dynamically reflect BLoC sync state with spinning indicators and disabled states while sync is in progress.
+
 ## Current Status (Updated: 2026-10-27)
 - **Stock Status Architecture & Return Quarantine (Critical Risk Guard Implemented)**:
   - **Global Stock Status Parameter (`StockStatus` enum & codes)**:

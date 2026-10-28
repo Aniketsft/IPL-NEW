@@ -29,9 +29,7 @@ class SelectTransactionScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Stack(
-      children: [
-        IndustrialModuleLayout(
+    return IndustrialModuleLayout(
           title: 'Select Transaction',
           extraActions: [
             BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
@@ -133,10 +131,7 @@ class SelectTransactionScreen extends StatelessWidget {
               ],
             ),
           ),
-        ),
-        const SalesInvoiceSyncOverlay(),
-      ],
-    );
+      );
   }
 
   Widget _buildTransactionCard({

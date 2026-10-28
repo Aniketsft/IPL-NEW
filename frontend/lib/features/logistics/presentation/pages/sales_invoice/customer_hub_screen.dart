@@ -14,6 +14,9 @@ import 'transaction_history_screen.dart';
 import 'sales_orders_list_screen.dart';
 import 'amount_only_credit_note_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
@@ -32,7 +35,6 @@ class CustomerHubScreen extends StatefulWidget {
 class _CustomerHubScreenState extends State<CustomerHubScreen> {
   late Map<String, dynamic> _customer;
   bool _isLoading = true;
-  bool _isSyncingCustomer = false;
 
   double _effectiveOutstanding = 0.0;
   double _creditLimit = 0.0;
@@ -109,12 +111,12 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
   }
 
   Future<void> _handleSyncCustomer() async {
-    if (_isSyncingCustomer) return;
-
     final code = _customerCode;
     if (code.isEmpty) return;
 
-    setState(() => _isSyncingCustomer = true);
+    final syncBloc = context.read<SalesInvoiceSyncBloc>();
+    final syncState = syncBloc.state;
+    if (syncState is SalesInvoiceSyncInProgress || syncState is SalesInvoiceCustomerSyncInProgress) return;
 
     String siteCode = '';
     try {
@@ -124,88 +126,13 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
       }
     } catch (_) {}
 
-    final syncRepo = context.read<SalesInvoiceSyncRepository>();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Syncing live Sage X3 data for $_customerName...',
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-        duration: const Duration(seconds: 40),
-        behavior: SnackBarBehavior.floating,
+    syncBloc.add(
+      StartSingleCustomerSyncRequested(
+        customerCode: code,
+        customerName: _customerName,
+        siteCode: siteCode,
       ),
     );
-
-    final result = await syncRepo.syncSingleCustomerData(
-      customerCode: code,
-      siteCode: siteCode,
-    );
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-    if (result.success) {
-      await _loadFinancials();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.green.shade800,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Customer Synchronized!\nBalance: ${currencyFormat.format(result.liveBalance)} • ${result.openInvoicesCount} Open Invoices • ${result.x3HistoryInvoicesCount} X3 Invoices',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red.shade800,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  result.errorMessage ?? 'Failed to synchronize customer data from Sage X3.',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (mounted) {
-      setState(() => _isSyncingCustomer = false);
-    }
   }
 
   /// Poka-Yoke: Safeguard against dirty draft cart bleed across customers
@@ -714,49 +641,61 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final syncState = context.watch<SalesInvoiceSyncBloc>().state;
+    final isSyncingThisCustomer = (syncState is SalesInvoiceCustomerSyncInProgress && syncState.customerCode == _customerCode) ||
+        syncState is SalesInvoiceSyncInProgress;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        if (isSyncingThisCustomer) return; // Block back navigation during sync
         final canPop = await _handleCartInvariantGuard();
         if (canPop && context.mounted) {
           Navigator.pop(context, true);
         }
       },
-      child: IndustrialModuleLayout(
-        title: 'Customer Hub',
-        extraActions: [
-          IconButton(
-            icon: const Icon(Icons.swap_horiz_rounded),
-            tooltip: 'Switch Customer',
-            onPressed: _onSwitchCustomer,
-          ),
-          IconButton(
-            icon: _isSyncingCustomer
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.cloud_sync_rounded),
-            tooltip: 'Sync Customer from Sage X3',
-            onPressed: _isSyncingCustomer ? null : _handleSyncCustomer,
-          ),
-        ],
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _handleSyncCustomer,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 1. Customer Hero & Financial Card
-                      _buildCustomerHeroCard(theme, isDark),
-                      const SizedBox(height: 16),
+      child: BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+        listener: (context, syncState) {
+          if (syncState is SalesInvoiceCustomerSyncSuccess) {
+            if (syncState.customerCode == _customerCode) {
+              _loadFinancials();
+            }
+          }
+        },
+        child: IndustrialModuleLayout(
+          title: 'Customer Hub',
+          extraActions: [
+            IconButton(
+              icon: const Icon(Icons.swap_horiz_rounded),
+              tooltip: 'Switch Customer',
+              onPressed: isSyncingThisCustomer ? null : _onSwitchCustomer,
+            ),
+            IconButton(
+              icon: isSyncingThisCustomer
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.cloud_sync_rounded),
+              tooltip: 'Sync Customer from Sage X3',
+              onPressed: isSyncingThisCustomer ? null : _handleSyncCustomer,
+            ),
+          ],
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _handleSyncCustomer,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 1. Customer Hero & Financial Card
+                        _buildCustomerHeroCard(theme, isDark, isSyncingThisCustomer),
+                        const SizedBox(height: 16),
 
                       // 2. Alert Banner if Account is on HOLD
                       if (_isOnHold) ...[
@@ -800,11 +739,12 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                   ),
                 ),
               ),
+        ),
       ),
     );
   }
 
-  Widget _buildCustomerHeroCard(ThemeData theme, bool isDark) {
+  Widget _buildCustomerHeroCard(ThemeData theme, bool isDark, bool isSyncing) {
     Color statusColor = Colors.green;
     String statusText = 'CHECK';
     IconData statusIcon = Icons.check_circle_outline_rounded;
@@ -995,7 +935,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
 
           // Customer Targeted Sync Action Strip
           InkWell(
-            onTap: _isSyncingCustomer ? null : _handleSyncCustomer,
+            onTap: isSyncing ? null : _handleSyncCustomer,
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
@@ -1005,7 +945,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
               ),
               child: Row(
                 children: [
-                  _isSyncingCustomer
+                  isSyncing
                       ? SizedBox(
                           width: 16,
                           height: 16,
@@ -1025,7 +965,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isSyncingCustomer
+                          isSyncing
                               ? 'Syncing customer data from Sage X3...'
                               : 'Sync This Customer',
                           style: TextStyle(
@@ -1035,7 +975,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                           ),
                         ),
                         Text(
-                          _isSyncingCustomer
+                          isSyncing
                               ? 'Updating live balance, open invoices & X3 history'
                               : 'Live balance, open invoices & 6-month X3 history',
                           style: TextStyle(
@@ -1046,7 +986,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                       ],
                     ),
                   ),
-                  if (!_isSyncingCustomer)
+                  if (!isSyncing)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(

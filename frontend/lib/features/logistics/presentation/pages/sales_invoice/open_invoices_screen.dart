@@ -16,6 +16,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
 import '../../../data/repositories/sales_invoice_sync_repository.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
@@ -50,10 +53,12 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   bool _isSyncing = false;
   final currencyFormat = CurrencyFormatter.currencyFormat;
 
-  Future<void> _syncCustomerOpenInvoices() async {
-    if (_isSyncing || _selectedCustomerNo == null || _selectedCustomerNo!.isEmpty) return;
+  void _syncCustomerOpenInvoices() {
+    if (_selectedCustomerNo == null || _selectedCustomerNo!.isEmpty) return;
+    final syncBloc = context.read<SalesInvoiceSyncBloc>();
+    final syncState = syncBloc.state;
+    if (syncState is SalesInvoiceSyncInProgress || syncState is SalesInvoiceCustomerSyncInProgress) return;
 
-    setState(() => _isSyncing = true);
     final custCode = _selectedCustomerNo!;
     final custName = _selectedCustomerName ?? custCode;
 
@@ -65,59 +70,13 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       }
     } catch (_) {}
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Syncing open invoices for $custName from Sage X3...'),
-        duration: const Duration(seconds: 25),
-        behavior: SnackBarBehavior.floating,
+    syncBloc.add(
+      StartSingleCustomerSyncRequested(
+        customerCode: custCode,
+        customerName: custName,
+        siteCode: siteCode,
       ),
     );
-
-    try {
-      final syncRepo = context.read<SalesInvoiceSyncRepository>();
-      final result = await syncRepo.syncSingleCustomerData(
-        customerCode: custCode,
-        siteCode: siteCode,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (result.success) {
-        await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green.shade800,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-            content: Text('Synced ${result.openInvoicesCount} open invoices for $custName'),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red.shade800,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-            content: Text(result.errorMessage ?? 'Failed to sync open invoices.'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red.shade800,
-            content: Text('Sync error: $e'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSyncing = false);
-      }
-    }
   }
 
   int _selectedTab = 0; // 0: Pending Collections, 1: Collection History
@@ -338,24 +297,36 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     final netPayable = _calculatedNetPayable;
     final selectedDocs = _selectedDocuments;
 
-    return IndustrialModuleLayout(
-      title: widget.lockToCustomer && _selectedCustomerName != null
-          ? 'Receipt (Cash Collection) [${_selectedCustomerNo ?? ''}]'
-          : 'Receipt (Cash Collection)',
-      extraActions: [
-        if (_selectedCustomerNo != null && _selectedCustomerNo!.isNotEmpty)
-          IconButton(
-            icon: _isSyncing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.cloud_sync_rounded),
-            tooltip: 'Sync Open Invoices for ${_selectedCustomerName ?? _selectedCustomerNo}',
-            onPressed: _isSyncing ? null : _syncCustomerOpenInvoices,
-          ),
-      ],
+    final syncState = context.watch<SalesInvoiceSyncBloc>().state;
+    final isSyncingThisCustomer = (syncState is SalesInvoiceCustomerSyncInProgress && syncState.customerCode == _selectedCustomerNo) ||
+        syncState is SalesInvoiceSyncInProgress;
+
+    return BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+      listener: (context, syncState) {
+        if (syncState is SalesInvoiceCustomerSyncSuccess) {
+          if (_selectedCustomerNo == null || syncState.customerCode == _selectedCustomerNo) {
+            _loadData();
+          }
+        }
+      },
+      child: IndustrialModuleLayout(
+        title: widget.lockToCustomer && _selectedCustomerName != null
+            ? 'Receipt (Cash Collection) [${_selectedCustomerNo ?? ''}]'
+            : 'Receipt (Cash Collection)',
+        extraActions: [
+          if (_selectedCustomerNo != null && _selectedCustomerNo!.isNotEmpty)
+            IconButton(
+              icon: isSyncingThisCustomer
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.cloud_sync_rounded),
+              tooltip: 'Sync Open Invoices for ${_selectedCustomerName ?? _selectedCustomerNo}',
+              onPressed: isSyncingThisCustomer ? null : _syncCustomerOpenInvoices,
+            ),
+        ],
       body: Column(
         children: [
           // Top Segmented Control Tab Bar
@@ -704,8 +675,9 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
             ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildFilterChip(String type, String label) {
     final isSelected = _selectedDocType == type;

@@ -226,9 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         SystemNavigator.pop();
                       }
                     },
-                    child: Stack(
-                      children: [
-                        Scaffold(
+                    child: Scaffold(
                           backgroundColor: theme.scaffoldBackgroundColor,
                           appBar: AppBar(
                             backgroundColor: theme.colorScheme.surface,
@@ -270,11 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           drawer: isSyncing ? null : _buildDrawer(context),
                           body: _buildBody(context),
                         ),
-                        const SyncOverlay(),
-                        const SalesInvoiceSyncOverlay(),
-                      ],
-                    ),
-                  );
+                    );
                 },
               );
             },

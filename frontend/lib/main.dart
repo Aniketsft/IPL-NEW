@@ -41,6 +41,9 @@ import 'package:enterprise_auth_mobile/core/navigation/app_router.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
 
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_overlay.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_invoice_sync_overlay.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -201,6 +204,7 @@ class _MyAppState extends State<MyApp> {
           BlocProvider(
             create: (context) => SalesInvoiceSyncBloc(
               synchronizeSalesInvoiceUseCase: context.read<SynchronizeSalesInvoiceUseCase>(),
+              repository: context.read<SalesInvoiceSyncRepository>(),
             ),
           ),
           BlocProvider(create: (_) => SalesInvoiceCartCubit()),
@@ -233,7 +237,13 @@ class _MyAppState extends State<MyApp> {
                                 ? const TextScaler.linear(0.85)
                                 : TextScaler.noScaling,
                           ),
-                          child: child!,
+                          child: Stack(
+                            children: [
+                              child!,
+                              const SyncOverlay(),
+                              const SalesInvoiceSyncOverlay(),
+                            ],
+                          ),
                         );
                       },
                     ),

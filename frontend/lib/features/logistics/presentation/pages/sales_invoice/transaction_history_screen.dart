@@ -21,6 +21,9 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/models/transact
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 
 
@@ -81,10 +84,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   bool _isSyncingX3History = false;
 
-  Future<void> _syncCustomerHistory() async {
-    if (_isSyncingX3History || _selectedCustomerCode == null || _selectedCustomerCode!.isEmpty) return;
+  void _syncCustomerHistory() {
+    if (_selectedCustomerCode == null || _selectedCustomerCode!.isEmpty) return;
+    final syncBloc = context.read<SalesInvoiceSyncBloc>();
+    final syncState = syncBloc.state;
+    if (syncState is SalesInvoiceSyncInProgress || syncState is SalesInvoiceCustomerSyncInProgress) return;
 
-    setState(() => _isSyncingX3History = true);
     final custCode = _selectedCustomerCode!;
     final custName = _selectedCustomerName ?? custCode;
 
@@ -96,59 +101,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       }
     } catch (_) {}
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Syncing 6-month X3 history for $custName from Sage X3...'),
-        duration: const Duration(seconds: 25),
-        behavior: SnackBarBehavior.floating,
+    syncBloc.add(
+      StartSingleCustomerSyncRequested(
+        customerCode: custCode,
+        customerName: custName,
+        siteCode: siteCode,
       ),
     );
-
-    try {
-      final syncRepo = context.read<SalesInvoiceSyncRepository>();
-      final result = await syncRepo.syncSingleCustomerData(
-        customerCode: custCode,
-        siteCode: siteCode,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (result.success) {
-        await _loadTransactions();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green.shade800,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-            content: Text('Synced ${result.x3HistoryInvoicesCount} X3 invoices for $custName'),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red.shade800,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-            content: Text(result.errorMessage ?? 'Failed to sync X3 history.'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red.shade800,
-            content: Text('Sync error: $e'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSyncingX3History = false);
-      }
-    }
   }
 
   @override
@@ -251,37 +210,49 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final orange = theme.primaryColor;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          widget.isForReturn
-              ? 'Select X3 Invoice to Return [${_selectedCustomerCode ?? ''}]'
-              : widget.isX3History
-                  ? 'X3 History [${_selectedCustomerCode ?? ''}]'
-                  : widget.lockToCustomer && _selectedCustomerName != null
-                      ? (widget.isForReversal ? 'Select Reversal [${_selectedCustomerCode ?? ''}]' : 'History [${_selectedCustomerCode ?? ''}]')
-                      : (widget.isForReversal ? 'Select Invoice to Reverse' : 'Transaction History'),
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    final syncState = context.watch<SalesInvoiceSyncBloc>().state;
+    final isSyncingThisCustomer = (syncState is SalesInvoiceCustomerSyncInProgress && syncState.customerCode == _selectedCustomerCode) ||
+        syncState is SalesInvoiceSyncInProgress;
+
+    return BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+      listener: (context, syncState) {
+        if (syncState is SalesInvoiceCustomerSyncSuccess) {
+          if (_selectedCustomerCode == null || syncState.customerCode == _selectedCustomerCode) {
+            _loadTransactions();
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(
+            widget.isForReturn
+                ? 'Select X3 Invoice to Return [${_selectedCustomerCode ?? ''}]'
+                : widget.isX3History
+                    ? 'X3 History [${_selectedCustomerCode ?? ''}]'
+                    : widget.lockToCustomer && _selectedCustomerName != null
+                        ? (widget.isForReversal ? 'Select Reversal [${_selectedCustomerCode ?? ''}]' : 'History [${_selectedCustomerCode ?? ''}]')
+                        : (widget.isForReversal ? 'Select Invoice to Reverse' : 'Transaction History'),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            if (_selectedCustomerCode != null && _selectedCustomerCode!.isNotEmpty)
+              IconButton(
+                icon: isSyncingThisCustomer
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.cloud_sync_rounded),
+                tooltip: 'Sync Live Data for ${_selectedCustomerName ?? _selectedCustomerCode}',
+                onPressed: isSyncingThisCustomer ? null : _syncCustomerHistory,
+              ),
+          ],
         ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          if (_selectedCustomerCode != null && _selectedCustomerCode!.isNotEmpty)
-            IconButton(
-              icon: _isSyncingX3History
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.cloud_sync_rounded),
-              tooltip: 'Sync Live Data for ${_selectedCustomerName ?? _selectedCustomerCode}',
-              onPressed: _isSyncingX3History ? null : _syncCustomerHistory,
-            ),
-        ],
-      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -885,6 +856,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
