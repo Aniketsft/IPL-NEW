@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -627,10 +628,13 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                                 side: BorderSide(
-                                  color: isSelected ? Colors.orange : Colors.transparent,
-                                  width: 1.5,
+                                  color: isSelected ? Colors.orange : (theme.brightness == Brightness.dark ? Colors.white12 : Colors.black12),
+                                  width: isSelected ? 1.5 : 1.0,
                                 ),
                               ),
+                              color: isSelected
+                                  ? Colors.orange.withOpacity(theme.brightness == Brightness.dark ? 0.12 : 0.05)
+                                  : null,
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(10),
                                 onTap: isFullyReversed
@@ -638,7 +642,10 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                     : () => _toggleSelection(lineId, remaining, isFullyReversed),
                                 onLongPress: isFullyReversed
                                     ? null
-                                    : () => _toggleSelection(lineId, remaining, isFullyReversed),
+                                    : () {
+                                        HapticFeedback.selectionClick();
+                                        _toggleSelection(lineId, remaining, isFullyReversed);
+                                      },
                                 child: Padding(
                                   padding: const EdgeInsets.all(12.0),
                                   child: Column(
@@ -646,24 +653,6 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                     children: [
                                       Row(
                                         children: [
-                                          Checkbox(
-                                            value: isSelected,
-                                            activeColor: Colors.orange,
-                                            onChanged: isFullyReversed
-                                                ? null
-                                                : (val) {
-                                                    setState(() {
-                                                      _selected[lineId] = val ?? false;
-                                                      if (val == true) {
-                                                        final curText = _qtyControllers[lineId]?.text.trim() ?? '';
-                                                        final curVal = double.tryParse(curText) ?? 0.0;
-                                                        if (curVal <= 0.0001 || curVal > remaining) {
-                                                          _qtyControllers[lineId]?.text = _formatQty(remaining);
-                                                        }
-                                                      }
-                                                    });
-                                                  },
-                                          ),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,13 +676,18 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
                                               child: const Text('Reversed', style: TextStyle(color: Colors.red, fontSize: 11)),
+                                            )
+                                          else if (isSelected)
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Colors.orange,
+                                              size: 20,
                                             ),
                                         ],
                                       ),
                                       const SizedBox(height: 6),
                                       Row(
                                         children: [
-                                          const SizedBox(width: 48),
                                           Flexible(
                                             child: Text(
                                               'Original: ${_formatQty(originalQty)} | Reversed: ${_formatQty(alreadyReversed)} | Remaining: ${_formatQty(remaining)}',
@@ -720,8 +714,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                                               children: [
                                                 Row(
                                                   children: [
-                                                    const SizedBox(width: 48),
-                                                    IconButton(
+                                                             IconButton(
                                                       icon: const Icon(Icons.remove_circle_outline, size: 22),
                                                       color: canDecrease ? Colors.orange : Colors.grey,
                                                       padding: EdgeInsets.zero,

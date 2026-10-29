@@ -175,6 +175,18 @@ class LocalDatabaseHelper {
   static const colLocType = 'locationType';
   static const colLocTypeName = 'locationTypeName';
 
+  static const defaultLocations = [
+    {colLocCode: '57', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '2818 JL 09', colLocSite: 'POD'},
+    {colLocCode: '81', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '9389 OC 18', colLocSite: 'POD'},
+    {colLocCode: '83', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '1618 MR 16', colLocSite: 'POD'},
+    {colLocCode: '85', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '1958 MR 11', colLocSite: 'POD'},
+    {colLocCode: 'E2', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '4408 JL 11', colLocSite: 'POD'},
+    {colLocCode: 'E3', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '3098 AP 22', colLocSite: 'POD'},
+    {colLocCode: 'E4', colLocWrh: 'POD', colLocWrhName: 'Port Louis Cold Store', colLocType: 'LORRY', colLocTypeName: '5459 DC 09', colLocSite: 'POD'},
+    {colLocCode: '82', colLocWrh: 'IPL', colLocWrhName: 'IPL Warehouse', colLocType: 'LORRY', colLocTypeName: '5873 DC 09', colLocSite: 'IPL'},
+    {colLocCode: 'E1', colLocWrh: 'IPL', colLocWrhName: 'IPL Warehouse', colLocType: 'LORRY', colLocTypeName: '8465 DC 11', colLocSite: 'IPL'},
+  ];
+
   // tbl_products columns
   static const colProdCode = 'productCode';
   static const colProdDesc = 'productDescription';
@@ -304,6 +316,16 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'salesSite', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'customerCode', 'TEXT');
 
+    // Device fleet management & licensing healing
+    await _safeAddColumn(_database!, tableDeviceLocations, 'hardwareModel', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'hepProfileId', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'hepApiKey', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'isLocked', 'INTEGER DEFAULT 1');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'isLicensed', 'INTEGER DEFAULT 1');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'licenseStatus', "TEXT DEFAULT 'VALID'");
+    await _safeAddColumn(_database!, tableDeviceLocations, 'licenseUpdatedAt', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'licenseUpdatedBy', 'TEXT');
+
     try {
       await _database!.execute('''
         UPDATE $tableSiInvoices
@@ -426,11 +448,18 @@ class LocalDatabaseHelper {
       await _database!.execute('''
         CREATE TABLE IF NOT EXISTS $tableDeviceLocations (
           deviceId TEXT PRIMARY KEY,
-          macAddress TEXT,
           deviceName TEXT NOT NULL,
+          hardwareModel TEXT,
           siteCode TEXT NOT NULL,
           warehouseCode TEXT,
           locationCode TEXT NOT NULL,
+          hepProfileId TEXT,
+          hepApiKey TEXT,
+          isLocked INTEGER NOT NULL DEFAULT 1,
+          isLicensed INTEGER NOT NULL DEFAULT 1,
+          licenseStatus TEXT NOT NULL DEFAULT 'VALID',
+          licenseUpdatedAt TEXT,
+          licenseUpdatedBy TEXT,
           assignedUserId TEXT,
           assignedUserName TEXT,
           isActive INTEGER NOT NULL DEFAULT 1,
@@ -439,7 +468,6 @@ class LocalDatabaseHelper {
         )
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_site ON $tableDeviceLocations(siteCode)');
-      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_mac ON $tableDeviceLocations(macAddress)');
     } catch (_) {}
 
     try {
@@ -506,6 +534,23 @@ class LocalDatabaseHelper {
           batch.insert(
             tableSiBanks,
             b,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+    } catch (_) {}
+
+    try {
+      final locCount = Sqflite.firstIntValue(
+        await _database!.rawQuery('SELECT COUNT(*) FROM $tableLocations'),
+      ) ?? 0;
+      if (locCount == 0) {
+        final batch = _database!.batch();
+        for (final l in defaultLocations) {
+          batch.insert(
+            tableLocations,
+            l,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
@@ -4294,13 +4339,11 @@ class LocalDatabaseHelper {
 
         if (docNo.isEmpty || dueDate.isEmpty) continue;
 
+        // Strictly exclude credit notes from open invoices storage
+        if (docType == 'CN' || rawRemaining <= 0.001) continue;
+
         final pendingDeduction = pendingPayments[docNo] ?? 0.0;
-        double effectiveRemaining = rawRemaining;
-        if (docType == 'INV') {
-          effectiveRemaining = rawRemaining - pendingDeduction;
-        } else if (docType == 'CN') {
-          effectiveRemaining = rawRemaining + pendingDeduction;
-        }
+        double effectiveRemaining = rawRemaining - pendingDeduction;
         effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
 
         final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
@@ -4373,13 +4416,11 @@ class LocalDatabaseHelper {
 
         if (docNo.isEmpty || dueDate.isEmpty) continue;
 
+        // Strictly exclude credit notes from open invoices storage
+        if (docType == 'CN' || rawRemaining <= 0.001) continue;
+
         final pendingDeduction = pendingPayments[docNo] ?? 0.0;
-        double effectiveRemaining = rawRemaining;
-        if (docType == 'INV') {
-          effectiveRemaining = rawRemaining - pendingDeduction;
-        } else if (docType == 'CN') {
-          effectiveRemaining = rawRemaining + pendingDeduction;
-        }
+        double effectiveRemaining = rawRemaining - pendingDeduction;
         effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
 
         final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
@@ -4465,6 +4506,9 @@ class LocalDatabaseHelper {
     if (docType != null && docType.isNotEmpty && docType != 'ALL') {
       whereClauses.add('docType = ?');
       whereArgs.add(docType);
+    } else if (docType != 'ALL') {
+      whereClauses.add("docType = 'INV'");
+      whereClauses.add('remainingAmtLCY > 0.001');
     }
 
     if (searchQuery != null && searchQuery.trim().isNotEmpty) {
@@ -4478,6 +4522,14 @@ class LocalDatabaseHelper {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: 'dueDate ASC, documentNo ASC',
+    );
+  }
+
+  Future<int> purgeCreditNotesFromOpenInvoices() async {
+    final db = await database;
+    return await db.delete(
+      tableSiOpenInvoices,
+      where: "docType = 'CN' OR remainingAmtLCY <= 0.001",
     );
   }
 
@@ -4863,8 +4915,15 @@ class LocalDatabaseHelper {
   Future<int> insertOrUpdateDeviceLocation(Map<String, dynamic> row) async {
     final db = await database;
     final sanitized = Map<String, dynamic>.from(row);
+    sanitized.remove('macAddress');
     if (sanitized.containsKey('isActive')) {
       sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
+    }
+    if (sanitized.containsKey('isLocked')) {
+      sanitized['isLocked'] = (sanitized['isLocked'] == true || sanitized['isLocked'] == 1) ? 1 : 0;
+    }
+    if (sanitized.containsKey('isLicensed')) {
+      sanitized['isLicensed'] = (sanitized['isLicensed'] == true || sanitized['isLicensed'] == 1) ? 1 : 0;
     }
     return await db.insert(
       tableDeviceLocations,
@@ -4878,8 +4937,15 @@ class LocalDatabaseHelper {
     final batch = db.batch();
     for (final item in items) {
       final sanitized = Map<String, dynamic>.from(item);
+      sanitized.remove('macAddress');
       if (sanitized.containsKey('isActive')) {
         sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
+      }
+      if (sanitized.containsKey('isLocked')) {
+        sanitized['isLocked'] = (sanitized['isLocked'] == true || sanitized['isLocked'] == 1) ? 1 : 0;
+      }
+      if (sanitized.containsKey('isLicensed')) {
+        sanitized['isLicensed'] = (sanitized['isLicensed'] == true || sanitized['isLicensed'] == 1) ? 1 : 0;
       }
       batch.insert(
         tableDeviceLocations,
@@ -4903,14 +4969,6 @@ class LocalDatabaseHelper {
   }
 
   Future<Map<String, dynamic>?> getDeviceLocationByMac(String mac) async {
-    final db = await database;
-    final results = await db.query(
-      tableDeviceLocations,
-      where: 'macAddress = ?',
-      whereArgs: [mac],
-      limit: 1,
-    );
-    if (results.isNotEmpty) return results.first;
     return null;
   }
 
@@ -4936,6 +4994,16 @@ class LocalDatabaseHelper {
     );
   }
 
+  Future<void> purgeLegacyDeviceIds() async {
+    final db = await database;
+    try {
+      await db.delete(
+        tableDeviceLocations,
+        where: 'length(deviceId) != 36 OR deviceId NOT LIKE "%-%-%-%-%"',
+      );
+    } catch (_) {}
+  }
+
   Future<List<Map<String, dynamic>>> getLocations({String? siteCode}) async {
     final db = await database;
     if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
@@ -4947,6 +5015,41 @@ class LocalDatabaseHelper {
       );
     }
     return await db.query(tableLocations, orderBy: '$colLocCode ASC');
+  }
+
+  Future<List<Map<String, dynamic>>> getLorryLocations({required String siteCode}) async {
+    final db = await database;
+    final cleanSite = siteCode.trim().toUpperCase();
+    return await db.query(
+      tableLocations,
+      where: '$colLocSite = ? AND $colLocCode NOT LIKE "%DAM%" AND $colLocCode NOT LIKE "%SCRAP%" AND $colLocCode NOT LIKE "%RETURN%" AND $colLocCode NOT LIKE "%REJ%" AND $colLocCode NOT LIKE "%QUAR%"',
+      whereArgs: [cleanSite],
+      orderBy: '$colLocCode ASC',
+    );
+  }
+
+  Future<void> saveLocations(List<dynamic> locations, {String? siteCode}) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final loc in locations) {
+      if (loc is Map) {
+        final locCode = (loc['location'] ?? loc['code'] ?? '').toString().trim();
+        if (locCode.isEmpty) continue;
+        batch.insert(
+          tableLocations,
+          {
+            colLocCode: locCode,
+            colLocWrh: loc['warehouse']?.toString(),
+            colLocWrhName: loc['warehouseName']?.toString(),
+            colLocType: loc['locationType']?.toString() ?? 'LORRY',
+            colLocTypeName: loc['locationTypeName']?.toString() ?? loc['plateNumber']?.toString(),
+            colLocSite: (loc['site'] ?? siteCode ?? 'POD').toString().trim().toUpperCase(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    }
+    await batch.commit(noResult: true);
   }
 
   // --- Credit Note Reasons (Sage X3 Miscellaneous Table 8) ---

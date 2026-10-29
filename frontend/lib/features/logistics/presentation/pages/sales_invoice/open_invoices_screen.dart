@@ -19,7 +19,6 @@ import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
-import '../../../data/repositories/sales_invoice_sync_repository.dart';
 
 class OpenInvoicesScreen extends StatefulWidget {
   final String? initialCustomerNo;
@@ -42,16 +41,48 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   List<OpenInvoiceModel> _allInvoices = [];
   List<OpenInvoiceModel> _filteredInvoices = [];
 
-  String _selectedDocType = 'ALL'; // 'ALL', 'INV', 'CN'
+  // Top tabs: 0 = Pending Collections, 1 = Collection History
+  int _selectedTab = 0;
+
   String? _selectedCustomerNo;
   String? _selectedCustomerName;
+
+  // Collection Budget entered upfront by user
+  double? _targetCollectionAmount;
 
   // Selected allocations: documentNo -> allocated amount
   final Map<String, double> _selectedAllocations = {};
 
   bool _isLoading = true;
-  bool _isSyncing = false;
+  List<Map<String, dynamic>> _paymentHistory = [];
+  bool _isLoadingHistory = false;
+
   final currencyFormat = CurrencyFormatter.currencyFormat;
+
+  double get _totalUnpaidInvoices => _allInvoices
+      .fold(0.0, (sum, d) => sum + d.remainingAmtLCY.abs());
+
+  int get _totalUnpaidInvoicesCount => _allInvoices.length;
+
+  int get _overdueInvoicesCount {
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    return _allInvoices.where((d) {
+      final dt = DateTime.tryParse(d.dueDate);
+      return dt != null && dt.isBefore(today);
+    }).length;
+  }
+
+  double get _totalAllocated => _selectedAllocations.values.fold(0.0, (sum, a) => sum + a);
+
+  double get _remainingBudget {
+    if (_targetCollectionAmount == null) return 0.0;
+    final diff = _targetCollectionAmount! - _totalAllocated;
+    return diff > 0.001 ? double.parse(diff.toStringAsFixed(2)) : 0.0;
+  }
+
+  List<OpenInvoiceModel> get _selectedDocuments {
+    return _allInvoices.where((d) => _selectedAllocations.containsKey(d.documentNo)).toList();
+  }
 
   void _syncCustomerOpenInvoices() {
     if (_selectedCustomerNo == null || _selectedCustomerNo!.isEmpty) return;
@@ -78,10 +109,6 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       ),
     );
   }
-
-  int _selectedTab = 0; // 0: Pending Collections, 1: Collection History
-  List<Map<String, dynamic>> _paymentHistory = [];
-  bool _isLoadingHistory = false;
 
   @override
   void initState() {
@@ -119,14 +146,21 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
           ? authState.siteCode
           : null;
 
+      // Ensure any legacy cached credit notes are purged from open invoices table
+      await LocalDatabaseHelper.instance.purgeCreditNotesFromOpenInvoices();
+
       final rawList = await LocalDatabaseHelper.instance.getOpenInvoices(
         siteCode: siteCode,
         customerNo: _selectedCustomerNo,
+        docType: 'INV',
       );
 
-      final list = rawList.map((m) => OpenInvoiceModel.fromMap(m)).toList();
+      final list = rawList
+          .map((m) => OpenInvoiceModel.fromMap(m))
+          .where((m) => m.isInvoice)
+          .toList();
 
-        if (mounted) {
+      if (mounted) {
         setState(() {
           _allInvoices = list;
           _isLoading = false;
@@ -182,11 +216,8 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     final query = _searchController.text.trim().toLowerCase();
     setState(() {
       _filteredInvoices = _allInvoices.where((doc) {
-        // Document type filter
-        if (_selectedDocType != 'ALL') {
-          if (_selectedDocType == 'INV' && !doc.isInvoice) return false;
-          if (_selectedDocType == 'CN' && !doc.isCreditNote) return false;
-        }
+        // Strictly exclude credit notes
+        if (!doc.isInvoice) return false;
 
         // Search query filter
         if (query.isNotEmpty) {
@@ -201,12 +232,40 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     });
   }
 
-  void _toggleSelect(OpenInvoiceModel doc, bool selected) {
+  void _toggleSelect(OpenInvoiceModel doc, bool select) {
+    if (!doc.isInvoice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Credit notes (${doc.documentNo}) cannot be selected for cash collection receipts.'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      if (selected) {
-        _selectedAllocations[doc.documentNo] = doc.remainingAmtLCY.abs();
-      } else {
+      if (!select) {
         _selectedAllocations.remove(doc.documentNo);
+      } else {
+        final due = doc.remainingAmtLCY.abs();
+        if (_targetCollectionAmount != null) {
+          final remaining = _remainingBudget;
+          if (remaining <= 0.001) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Collection budget of ${CurrencyFormatter.format(_targetCollectionAmount!)} is fully allocated. Uncheck an invoice or adjust budget.',
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+          final toAllocate = due <= remaining ? due : remaining;
+          _selectedAllocations[doc.documentNo] = double.parse(toAllocate.toStringAsFixed(2));
+        } else {
+          _selectedAllocations[doc.documentNo] = double.parse(due.toStringAsFixed(2));
+        }
       }
     });
   }
@@ -217,26 +276,209 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     });
   }
 
-  double get _calculatedNetPayable {
-    double totalInvoices = 0.0;
-    double totalCN = 0.0;
-
-    for (final doc in _allInvoices) {
-      final amt = _selectedAllocations[doc.documentNo];
-      if (amt != null && amt > 0) {
-        if (doc.isInvoice) {
-          totalInvoices += amt;
-        } else if (doc.isCreditNote) {
-          totalCN += amt;
-        }
-      }
+  void _autoAllocateFifo() {
+    if (_targetCollectionAmount == null || _targetCollectionAmount! <= 0) {
+      _showSetCollectionAmountDialog();
+      return;
     }
 
-    return double.parse((totalInvoices - totalCN).toStringAsFixed(2));
+    final invoices = _allInvoices.where((d) => d.isInvoice).toList();
+    // Sort oldest due date first (FIFO)
+    invoices.sort((a, b) {
+      final dtA = DateTime.tryParse(a.dueDate) ?? DateTime(2099);
+      final dtB = DateTime.tryParse(b.dueDate) ?? DateTime(2099);
+      return dtA.compareTo(dtB);
+    });
+
+    double remaining = _targetCollectionAmount!;
+    final Map<String, double> newAllocations = {};
+
+    for (final inv in invoices) {
+      if (remaining <= 0.001) break;
+      final due = inv.remainingAmtLCY.abs();
+      final toAllocate = due <= remaining ? due : remaining;
+      newAllocations[inv.documentNo] = double.parse(toAllocate.toStringAsFixed(2));
+      remaining -= toAllocate;
+    }
+
+    setState(() {
+      _selectedAllocations.clear();
+      _selectedAllocations.addAll(newAllocations);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Auto-allocated ${CurrencyFormatter.format(_totalAllocated)} across ${_selectedAllocations.length} invoice(s).',
+        ),
+        backgroundColor: Colors.green.shade800,
+      ),
+    );
   }
 
-  List<OpenInvoiceModel> get _selectedDocuments {
-    return _allInvoices.where((d) => _selectedAllocations.containsKey(d.documentNo)).toList();
+  void _showSetCollectionAmountDialog() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final controller = TextEditingController(
+      text: _targetCollectionAmount != null && _targetCollectionAmount! > 0
+          ? _targetCollectionAmount!.toStringAsFixed(2)
+          : (_selectedAllocations.isNotEmpty
+              ? _totalAllocated.toStringAsFixed(2)
+              : ''),
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: theme.primaryColor.withValues(alpha: 0.15),
+                      child: Icon(Icons.payments_rounded, color: theme.primaryColor),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Enter Collection Amount',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            _selectedCustomerName != null
+                                ? '$_selectedCustomerName (${_selectedCustomerNo ?? ''})'
+                                : 'Set collection budget to allocate across invoices',
+                            style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                // Quick shortcut: Total unpaid debt
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Total Outstanding Invoices', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text(
+                            CurrencyFormatter.format(_totalUnpaidInvoices),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          controller.text = _totalUnpaidInvoices.toStringAsFixed(2);
+                        },
+                        icon: const Icon(Icons.bolt_rounded, size: 16),
+                        label: const Text('Pay All Dues', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  textAlign: TextAlign.right,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Collection Amount',
+                    prefixText: '${CurrencyFormatter.currencySymbol} ',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    if (_targetCollectionAmount != null) ...[
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _targetCollectionAmount = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Clear Budget'),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          final val = double.tryParse(controller.text.trim()) ?? 0.0;
+                          if (val <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter a valid collection amount.')),
+                            );
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _targetCollectionAmount = double.parse(val.toStringAsFixed(2));
+                          });
+                        },
+                        child: const Text('Set Amount', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _pickCustomer() async {
@@ -247,7 +489,6 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       return;
     }
     try {
-      // Load unique customers from local database
       final customers = await LocalDatabaseHelper.instance.getSalesInvoiceCustomers();
       if (!mounted) return;
 
@@ -269,6 +510,8 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
             setState(() {
               _selectedCustomerNo = selectedCode;
               _selectedCustomerName = match['name'];
+              _selectedAllocations.clear();
+              _targetCollectionAmount = null;
             });
             _loadData();
           }
@@ -286,6 +529,8 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     setState(() {
       _selectedCustomerNo = null;
       _selectedCustomerName = null;
+      _selectedAllocations.clear();
+      _targetCollectionAmount = null;
     });
     _loadData();
   }
@@ -294,8 +539,6 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final netPayable = _calculatedNetPayable;
-    final selectedDocs = _selectedDocuments;
 
     final syncState = context.watch<SalesInvoiceSyncBloc>().state;
     final isSyncingThisCustomer = (syncState is SalesInvoiceCustomerSyncInProgress && syncState.customerCode == _selectedCustomerNo) ||
@@ -327,320 +570,442 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
               onPressed: isSyncingThisCustomer ? null : _syncCustomerOpenInvoices,
             ),
         ],
-      body: Column(
-        children: [
-          // Top Segmented Control Tab Bar
-          Container(
-            color: theme.cardColor,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      setState(() => _selectedTab = 0);
-                      _filterData();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _selectedTab == 0 ? theme.primaryColor : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _selectedTab == 0
-                              ? theme.primaryColor
-                              : (isDark ? Colors.white12 : Colors.black12),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.receipt_long_rounded,
-                            size: 16,
-                            color: _selectedTab == 0 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+        body: Column(
+          children: [
+            // Top Segmented Control Tab Bar: 0 = Pending Collections, 1 = Collection History
+            Container(
+              color: theme.cardColor,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _selectedTab = 0);
+                        _filterData();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _selectedTab == 0 ? theme.primaryColor : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _selectedTab == 0
+                                ? theme.primaryColor
+                                : (isDark ? Colors.white12 : Colors.black12),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Pending Collections (${_allInvoices.length})',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.receipt_long_rounded,
+                              size: 16,
                               color: _selectedTab == 0 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              'Pending Collections (${_allInvoices.length})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _selectedTab == 0 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      setState(() => _selectedTab = 1);
-                      _loadHistoryData();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _selectedTab == 1 ? theme.primaryColor : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _selectedTab == 1
-                              ? theme.primaryColor
-                              : (isDark ? Colors.white12 : Colors.black12),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.history_rounded,
-                            size: 16,
-                            color: _selectedTab == 1 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _selectedTab = 1);
+                        _loadHistoryData();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _selectedTab == 1 ? theme.primaryColor : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _selectedTab == 1
+                                ? theme.primaryColor
+                                : (isDark ? Colors.white12 : Colors.black12),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Collection History (${_paymentHistory.length})',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.history_rounded,
+                              size: 16,
                               color: _selectedTab == 1 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Search & Customer Filter Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: theme.cardColor,
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: _selectedTab == 0
-                        ? (widget.lockToCustomer ? 'Search Document No...' : 'Search Document No or Customer...')
-                        : 'Search Document No, Tender or Customer...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded),
-                            onPressed: () {
-                              _searchController.clear();
-                              _filterData();
-                            },
-                          )
-                        : null,
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Customer Filter Chip & Clear button
-                if (widget.lockToCustomer)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor.withOpacity(0.08),
-                      border: Border.all(color: theme.primaryColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.lock_rounded, size: 16, color: theme.primaryColor),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Customer: ${_selectedCustomerName ?? ''} (${_selectedCustomerNo ?? ''})',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: theme.primaryColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: _pickCustomer,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: _selectedCustomerNo != null
-                                    ? theme.primaryColor
-                                    : (isDark ? Colors.white10 : Colors.black12),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Collection History (${_paymentHistory.length})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _selectedTab == 1 ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
                               ),
-                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.person_search_rounded,
-                                  size: 18,
-                                  color: _selectedCustomerNo != null ? theme.primaryColor : Colors.grey,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _selectedCustomerName != null
-                                        ? '$_selectedCustomerName (${_selectedCustomerNo!})'
-                                        : 'All Customers (Tap to filter)',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: _selectedCustomerNo != null ? FontWeight.bold : FontWeight.normal,
-                                      color: _selectedCustomerNo != null ? theme.primaryColor : null,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
                       ),
-                      if (_selectedCustomerNo != null) ...[
-                        const SizedBox(width: 6),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          tooltip: 'Clear customer filter',
-                          onPressed: _clearCustomerFilter,
-                        ),
-                      ],
-                    ],
-                  ),
-                if (_selectedTab == 0) ...[
-                  const SizedBox(height: 6),
-                  // Type Segmented Filter Chips
-                  Row(
-                    children: [
-                      _buildFilterChip('ALL', 'All (${_allInvoices.length})'),
-                      const SizedBox(width: 6),
-                      _buildFilterChip('INV', 'Invoices (${_allInvoices.where((d) => d.isInvoice).length})'),
-                      const SizedBox(width: 6),
-                      _buildFilterChip('CN', 'Credit Notes (${_allInvoices.where((d) => d.isCreditNote).length})'),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Body Content: Tab 0 (Pending Collections) or Tab 1 (Collection History)
-          Expanded(
-            child: _selectedTab == 0
-                ? (_isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filteredInvoices.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'No open invoices or credit notes found for cash collection.',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: _loadData,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: _filteredInvoices.length,
-                              itemBuilder: (context, index) {
-                                final doc = _filteredInvoices[index];
-                                final isSelected = _selectedAllocations.containsKey(doc.documentNo);
-                                final allocated = _selectedAllocations[doc.documentNo] ?? 0.0;
-
-                                return OpenInvoiceCard(
-                                  invoice: doc,
-                                  isSelected: isSelected,
-                                  selectedAmount: allocated,
-                                  onToggleSelect: (sel) => _toggleSelect(doc, sel),
-                                  onAmountChanged: (amt) => _updateAmount(doc, amt),
-                                );
-                              },
-                            ),
-                          ))
-                : _buildHistoryList(),
-          ),
-
-          // Bottom Checkout / Allocation Bar (Only for Tab 0)
-          if (_selectedTab == 0 && selectedDocs.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
+                    ),
                   ),
                 ],
               ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+            ),
+
+            // Search, Customer Filter & 2-Tab Sub Filter Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: theme.cardColor,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: _selectedTab == 0
+                          ? (widget.lockToCustomer ? 'Search Document No...' : 'Search Document No or Customer...')
+                          : 'Search Document No, Tender or Customer...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                _searchController.clear();
+                                _filterData();
+                              },
+                            )
+                          : null,
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Customer Filter Chip & Clear button
+                  if (widget.lockToCustomer)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor.withValues(alpha: 0.08),
+                        border: Border.all(color: theme.primaryColor),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock_rounded, size: 16, color: theme.primaryColor),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Customer: ${_selectedCustomerName ?? ''} (${_selectedCustomerNo ?? ''})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: theme.primaryColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text(
-                            '${selectedDocs.length} Document(s) Selected',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          child: InkWell(
+                            onTap: _pickCustomer,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _selectedCustomerNo != null
+                                      ? theme.primaryColor
+                                      : (isDark ? Colors.white10 : Colors.black12),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_search_rounded,
+                                    size: 18,
+                                    color: _selectedCustomerNo != null ? theme.primaryColor : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedCustomerName != null
+                                          ? '$_selectedCustomerName (${_selectedCustomerNo!})'
+                                          : 'All Customers (Tap to filter)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: _selectedCustomerNo != null ? FontWeight.bold : FontWeight.normal,
+                                        color: _selectedCustomerNo != null ? theme.primaryColor : null,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                        Text(
-                          netPayable < 0
-                              ? 'Refund: -${currencyFormat.format(netPayable.abs())}'
-                              : 'Net: ${currencyFormat.format(netPayable)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: netPayable < 0 ? Colors.amber.shade800 : theme.colorScheme.primary,
+                        if (_selectedCustomerNo != null) ...[
+                          const SizedBox(width: 6),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            tooltip: 'Clear customer filter',
+                            onPressed: _clearCustomerFilter,
                           ),
-                          textAlign: TextAlign.right,
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () async {
+
+                ],
+              ),
+            ),
+
+            // Metrics Summary Tile (Always Invoices Summary Tile)
+            if (_selectedTab == 0)
+              _buildInvoicesSummaryTile(theme, isDark),
+
+            // Body List: Tab 0 (Pending Collections) or Tab 1 (Collection History)
+            Expanded(
+              child: _selectedTab == 0
+                  ? (_isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredInvoices.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.receipt_long_outlined,
+                                    size: 64,
+                                    color: Colors.grey.withValues(alpha: 0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No open unpaid invoices found.',
+                                    style: TextStyle(fontSize: 15, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadData,
+                              child: ListView.builder(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                itemCount: _filteredInvoices.length,
+                                itemBuilder: (context, index) {
+                                  final doc = _filteredInvoices[index];
+                                  final isSelected = _selectedAllocations.containsKey(doc.documentNo);
+                                  final allocated = _selectedAllocations[doc.documentNo] ?? 0.0;
+                                  final remBudget = _remainingBudget;
+                                  final maxAllowed = (allocated + remBudget).clamp(0.0, doc.remainingAmtLCY.abs());
+
+                                  return OpenInvoiceCard(
+                                    invoice: doc,
+                                    isSelectable: true,
+                                    isSelected: isSelected,
+                                    selectedAmount: allocated,
+                                    maxAllowedAllocation: maxAllowed,
+                                    onToggleSelect: (sel) => _toggleSelect(doc, sel),
+                                    onAmountChanged: (amt) => _updateAmount(doc, amt),
+                                  );
+                                },
+                              ),
+                            ))
+                  : _buildHistoryList(),
+            ),
+
+            // Persistent Footer Bar: Visible on Pending Collections tab
+            if (_selectedTab == 0)
+              _buildPersistentFooter(theme, isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInvoicesSummaryTile(ThemeData theme, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.primaryColor.withValues(alpha: isDark ? 0.3 : 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: theme.primaryColor.withValues(alpha: 0.15),
+            child: Icon(Icons.account_balance_wallet_rounded, color: theme.primaryColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TOTAL UNPAID INVOICES',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Colors.grey),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  CurrencyFormatter.format(_totalUnpaidInvoices),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryColor,
+                  ),
+                ),
+                Text(
+                  '$_totalUnpaidInvoicesCount Open Invoices • $_overdueInvoicesCount Overdue',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _overdueInvoicesCount > 0 ? Colors.red.shade400 : Colors.grey,
+                    fontWeight: _overdueInvoicesCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_targetCollectionAmount != null)
+            IconButton(
+              icon: const Icon(Icons.bolt_rounded),
+              tooltip: 'Auto-allocate FIFO',
+              onPressed: _autoAllocateFifo,
+              color: theme.primaryColor,
+            ),
+        ],
+      ),
+    );
+  }
+
+
+
+  Widget _buildPersistentFooter(ThemeData theme, bool isDark) {
+    final hasBudget = _targetCollectionAmount != null;
+    final hasAllocations = _selectedAllocations.isNotEmpty;
+    final remaining = _remainingBudget;
+    final selectedDocs = _selectedDocuments;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!hasBudget && !hasAllocations)
+              // Initial State: Prompt user to enter collection amount or select directly
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _showSetCollectionAmountDialog,
+                  icon: const Icon(Icons.payments_rounded),
+                  label: const Text(
+                    'Enter Collection Amount',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              )
+            else ...[
+              // Active Budget / Selection HUD
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  InkWell(
+                    onTap: _showSetCollectionAmountDialog,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        children: [
+                          Text(
+                            hasBudget
+                                ? 'Budget: ${CurrencyFormatter.format(_targetCollectionAmount!)}'
+                                : 'Allocated: ${CurrencyFormatter.format(_totalAllocated)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.edit_rounded, size: 14, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (hasBudget)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (remaining <= 0.001 ? Colors.green : Colors.amber).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (remaining <= 0.001 ? Colors.green : Colors.amber).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Text(
+                        remaining <= 0.001
+                            ? 'Fully Allocated'
+                            : 'Remaining: ${CurrencyFormatter.format(remaining)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: remaining <= 0.001 ? Colors.green : Colors.amber.shade900,
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      '${selectedDocs.length} Invoice(s) Selected',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: hasAllocations
+                      ? () async {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => PaymentProcessingScreen(
                                 openInvoiceDocuments: selectedDocs,
                                 openInvoiceAllocations: Map.from(_selectedAllocations),
-                                openInvoiceNetPayable: netPayable,
+                                openInvoiceNetPayable: _totalAllocated,
                                 customCustomer: _selectedCustomerNo != null
                                     ? {
                                         'code': _selectedCustomerNo,
@@ -652,62 +1017,27 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                           );
 
                           if (result == true) {
-                            _selectedAllocations.clear();
+                            setState(() {
+                              _selectedAllocations.clear();
+                              _targetCollectionAmount = null;
+                            });
                             _loadData();
                           }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: Text(
-                          netPayable.abs() <= 0.001
-                              ? 'Complete Balance Offset'
-                              : (netPayable < 0
-                                  ? 'Process Credit Refund (${currencyFormat.format(netPayable.abs())})'
-                                  : 'Proceed to Payment (${currencyFormat.format(netPayable)})'),
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
+                        }
+                      : _showSetCollectionAmountDialog,
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text(
+                    hasAllocations
+                        ? 'Proceed with Payment (${CurrencyFormatter.format(_totalAllocated)})'
+                        : 'Select Invoices or Set Amount',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
-        ],
-      ),
-    ),
-  );
-}
-
-  Widget _buildFilterChip(String type, String label) {
-    final isSelected = _selectedDocType == type;
-    final theme = Theme.of(context);
-
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() => _selectedDocType = type);
-          _filterData();
-        },
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? theme.primaryColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isSelected ? theme.primaryColor : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12),
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.white : theme.textTheme.bodyMedium?.color,
-            ),
-          ),
+            ],
+          ],
         ),
       ),
     );
@@ -723,11 +1053,11 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history_rounded, size: 64, color: Colors.grey.withOpacity(0.5)),
+            Icon(Icons.history_rounded, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             const Text(
               'No collections recorded on this device yet.',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(fontSize: 15, color: Colors.grey),
             ),
           ],
         ),
@@ -758,8 +1088,6 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
     final userName = item['userName']?.toString() ?? '';
     final isSynced = (item['isSynced'] ?? 0) == 1;
     final chequeNo = item['chequeNumber']?.toString() ?? '';
-    final bankName = item['bankName']?.toString() ?? '';
-    final qrRef = item['qrTransactionRef']?.toString() ?? '';
 
     String formattedDate = createdAt;
     try {
@@ -767,25 +1095,11 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
       formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(dt);
     } catch (_) {}
 
-    final Color tenderColor = method == 'CASH'
-        ? Colors.green
-        : (method == 'CHEQUE' ? Colors.blue : Colors.purple);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
       ),
       child: InkWell(
         onTap: () => _showReceiptDetailsModal(item),
@@ -796,91 +1110,59 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: tenderColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: tenderColor.withOpacity(0.3)),
-                    ),
+                  Expanded(
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          method == 'CASH'
-                              ? Icons.payments_rounded
-                              : (method == 'CHEQUE'
-                                  ? Icons.account_balance_rounded
-                                  : Icons.qr_code_rounded),
-                          color: tenderColor,
-                          size: 14,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            method,
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          method,
-                          style: TextStyle(
-                            color: tenderColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            docNo,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      docNo,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
                   Text(
-                    currencyFormat.format(amount),
+                    CurrencyFormatter.format(amount),
                     style: TextStyle(
-                      fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      fontSize: 15,
                       color: Colors.green.shade700,
                     ),
                     textAlign: TextAlign.right,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(Icons.person_outline_rounded, size: 14, color: theme.textTheme.bodySmall?.color),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Customer: $custNo',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.textTheme.bodyMedium?.color),
-                  ),
+                  Text('Customer: $custNo', style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
                   const Spacer(),
-                  Text(
-                    formattedDate,
-                    style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
-                  ),
+                  Text(formattedDate, style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
                 ],
               ),
-              if (chequeNo.isNotEmpty || qrRef.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    if (chequeNo.isNotEmpty)
-                      Text(
-                        'Cheque: $chequeNo ${bankName.isNotEmpty ? "($bankName)" : ""}',
-                        style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
-                      ),
-                    if (qrRef.isNotEmpty)
-                      Text(
-                        'Ref: $qrRef',
-                        style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
-                      ),
-                  ],
-                ),
+              if (chequeNo.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text('Cheque: $chequeNo', style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
               ],
               const Divider(height: 16),
               Row(
@@ -901,10 +1183,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                   ),
                   const Spacer(),
                   if (userName.isNotEmpty)
-                    Text(
-                      'Collected by $userName',
-                      style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
-                    ),
+                    Text('By $userName', style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
                 ],
               ),
             ],
@@ -993,7 +1272,7 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
                       child: Text('Total Amount Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     ),
                     Text(
-                      currencyFormat.format(amount),
+                      CurrencyFormatter.format(amount),
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700),
                       textAlign: TextAlign.right,
                     ),

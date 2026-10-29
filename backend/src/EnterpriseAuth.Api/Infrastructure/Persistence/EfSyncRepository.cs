@@ -148,7 +148,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 $@"SELECT DISTINCT c.BPCNUM_0 as Code, c.ZFULLBUSNAM_0 as Name 
                 FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.BPARTNER b WITH (NOLOCK) ON c.BPCNUM_0 = b.BPRNUM_0
-                WHERE (@Site = 'ALL' OR @Site = '' OR c.SALFCY_0 = @Site OR c.BPCSHO_0 = @Site)", new { Site = site });
+                WHERE (@Site = 'ALL' OR @Site = '' OR c.BPCSHO_0 = @Site)", new { Site = site });
             
             var repsTask = FetchCachedOrLiveAsync<SalesRepLookupDto>(
                 $"reps_{schema}",

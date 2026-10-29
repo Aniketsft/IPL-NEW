@@ -314,7 +314,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<OpenInvoiceDto>> GetOpenInvoicesAsync(
             string? siteCode = null, 
             string? customerNo = null, 
-            int daysCutoff = 90)
+            int daysCutoff = 0)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
@@ -327,10 +327,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     DUD.DUDDAT_0                                                         AS DueDate,
                     LTRIM(RTRIM(DUD.FCY_0))                                              AS Site,
                     LTRIM(RTRIM(DUD.CPY_0))                                              AS Company,
-                    CASE 
-                        WHEN SUM((DUD.AMTCUR_0 - DUD.PAYCUR_0) * DUD.SNS_0) < 0 THEN 'CN'
-                        ELSE 'INV'
-                    END                                                                  AS DocType,
+                    'INV'                                                                AS DocType,
                     SUM((DUD.AMTCUR_0 - DUD.PAYCUR_0) * DUD.SNS_0)                       AS RemainingAmtLCY
                 FROM {_syncSettings.X3DatabaseName}.{schema}.[GACCDUDATE] DUD WITH (NOLOCK),  
                      {_syncSettings.X3DatabaseName}.{schema}.[COMPANY] CPY WITH (NOLOCK), 
@@ -342,8 +339,9 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND DUD.BPRPAY_0 = BPC.BPCNUM_0
                   AND DUD.AMTCUR_0 > DUD.PAYCUR_0 + DUD.TMPCUR_0 
                   AND DUD.DUDSTA_0 = 2
+                  AND DUD.SNS_0    = 1
                   AND (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
-                  AND DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE))
+                  AND (@DaysCutoff <= 0 OR DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE)))
                   AND (@CustomerNo = '' OR BPC.BPCNUM_0 = @CustomerNo)
                 GROUP BY  
                     BPC.BPCNUM_0,
@@ -352,6 +350,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     DUD.DUDDAT_0, 
                     DUD.FCY_0, 
                     DUD.CPY_0
+                HAVING SUM((DUD.AMTCUR_0 - DUD.PAYCUR_0) * DUD.SNS_0) > 0.001
                 ORDER BY DUD.DUDDAT_0 ASC, DUD.NUM_0 ASC;
             ";
 
@@ -359,7 +358,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             { 
                 SiteCode = (siteCode ?? "").Trim(),
                 CustomerNo = (customerNo ?? "").Trim(),
-                DaysCutoff = daysCutoff > 0 ? daysCutoff : 90
+                DaysCutoff = daysCutoff
             });
         }
 
@@ -584,7 +583,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return watermark ?? "EMPTY";
         }
 
-        public async Task<string> GetOpenInvoicesWatermarkAsync(string siteCode, int daysCutoff = 90)
+        public async Task<string> GetOpenInvoicesWatermarkAsync(string siteCode, int daysCutoff = 0)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
@@ -600,12 +599,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM {_syncSettings.X3DatabaseName}.{schema}.[GACCDUDATE] DUD WITH (NOLOCK)
                 WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
                   AND DUD.DUDSTA_0 = 2
-                  AND DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE));
+                  AND DUD.SNS_0 = 1
+                  AND (@DaysCutoff <= 0 OR DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE)));
             ";
             var watermark = await db.ExecuteScalarAsync<string>(sql, new 
             { 
                 SiteCode = (siteCode ?? "").Trim(),
-                DaysCutoff = daysCutoff > 0 ? daysCutoff : 90
+                DaysCutoff = daysCutoff
             });
             return watermark ?? "EMPTY";
         }

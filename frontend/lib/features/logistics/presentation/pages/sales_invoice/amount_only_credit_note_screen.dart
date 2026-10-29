@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
@@ -615,24 +616,72 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                           final total = (inv['grandTotal'] as num?)?.toDouble() ?? 0.0;
                           final isChecked = _selectedInvoiceIds.contains(id);
 
-                          return CheckboxListTile(
-                            value: isChecked,
-                            title: Text(id, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('Date: ${inv['createdAt']}'),
-                            secondary: Text(
-                              currencyFormat.format(total),
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.right,
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(
+                                color: isChecked
+                                    ? Colors.orange
+                                    : (Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.black12),
+                                width: isChecked ? 1.5 : 1.0,
+                              ),
                             ),
-                            onChanged: (bool? val) {
-                              setState(() {
-                                if (val == true) {
-                                  _selectedInvoiceIds.add(id);
-                                } else {
-                                  _selectedInvoiceIds.remove(id);
-                                }
-                              });
-                            },
+                            color: isChecked
+                                ? Colors.orange.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.12 : 0.05)
+                                : null,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                setState(() {
+                                  if (isChecked) {
+                                    _selectedInvoiceIds.remove(id);
+                                  } else {
+                                    _selectedInvoiceIds.add(id);
+                                  }
+                                });
+                              },
+                              onLongPress: () {
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  if (isChecked) {
+                                    _selectedInvoiceIds.remove(id);
+                                  } else {
+                                    _selectedInvoiceIds.add(id);
+                                  }
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                          const SizedBox(height: 4),
+                                          Text('Date: ${inv['createdAt']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      currencyFormat.format(total),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: isChecked ? Colors.orange : null,
+                                      ),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                    if (isChecked) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.check_circle_rounded, color: Colors.orange, size: 20),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
                           );
                         },
                       ),

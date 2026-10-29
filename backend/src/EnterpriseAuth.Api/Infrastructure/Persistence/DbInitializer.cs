@@ -1076,12 +1076,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeviceLocations]') AND type in (N'U'))
                     BEGIN
                         CREATE TABLE [dbo].[DeviceLocations] (
-                            [DeviceId] NVARCHAR(100) NOT NULL PRIMARY KEY,
-                            [MacAddress] NVARCHAR(50) NULL,
-                            [DeviceName] NVARCHAR(150) NOT NULL,
+                            [DeviceId] NVARCHAR(64) NOT NULL PRIMARY KEY,
+                            [DeviceName] NVARCHAR(100) NOT NULL,
+                            [HardwareModel] NVARCHAR(150) NULL,
                             [SiteCode] NVARCHAR(20) NOT NULL,
                             [WarehouseCode] NVARCHAR(20) NULL,
                             [LocationCode] NVARCHAR(30) NOT NULL,
+                            [HepProfileId] NVARCHAR(100) NULL,
+                            [HepApiKey] NVARCHAR(255) NULL,
+                            [IsLocked] BIT NOT NULL DEFAULT 1,
+                            [IsLicensed] BIT NOT NULL DEFAULT 1,
+                            [LicenseStatus] NVARCHAR(30) NOT NULL DEFAULT 'VALID',
+                            [LicenseUpdatedAt] DATETIME2 NULL,
+                            [LicenseUpdatedBy] NVARCHAR(100) NULL,
                             [AssignedUserId] UNIQUEIDENTIFIER NULL,
                             [AssignedUserName] NVARCHAR(100) NULL,
                             [IsActive] BIT NOT NULL DEFAULT 1,
@@ -1090,8 +1097,61 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             [UpdatedBy] NVARCHAR(100) NOT NULL DEFAULT 'SYSTEM'
                         );
                         CREATE INDEX [IX_DeviceLocations_Site] ON [dbo].[DeviceLocations] ([SiteCode]);
-                        CREATE INDEX [IX_DeviceLocations_Mac] ON [dbo].[DeviceLocations] ([MacAddress]);
                         PRINT 'Created DeviceLocations table';
+                    END
+                    ELSE
+                    BEGIN
+                        -- Migrate existing table columns
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HardwareModel')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HardwareModel] NVARCHAR(150) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HepProfileId')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HepProfileId] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HepApiKey')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HepApiKey] NVARCHAR(255) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'IsLocked')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [IsLocked] BIT NOT NULL DEFAULT 1;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'IsLicensed')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [IsLicensed] BIT NOT NULL DEFAULT 1;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'LicenseStatus')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [LicenseStatus] NVARCHAR(30) NOT NULL DEFAULT ''VALID'';');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'LicenseUpdatedAt')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [LicenseUpdatedAt] DATETIME2 NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'LicenseUpdatedBy')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [LicenseUpdatedBy] NVARCHAR(100) NULL;');
+                    END
+
+                    -- Clean up old MAC index if present
+                    IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DeviceLocations_Mac' AND object_id = OBJECT_ID(N'[dbo].[DeviceLocations]'))
+                        EXEC('DROP INDEX [IX_DeviceLocations_Mac] ON [dbo].[DeviceLocations];');
+
+                    -- Enforce unique DeviceName across active devices
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_DeviceLocations_DeviceName' AND object_id = OBJECT_ID(N'[dbo].[DeviceLocations]'))
+                    BEGIN
+                        EXEC('CREATE UNIQUE NONCLUSTERED INDEX [UQ_DeviceLocations_DeviceName] ON [dbo].[DeviceLocations] ([DeviceName]) WHERE [IsActive] = 1;');
+                        PRINT 'Created unique index UQ_DeviceLocations_DeviceName';
+                    END
+
+                    -- Create Site & Licensing index
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DeviceLocations_Site_Licensed' AND object_id = OBJECT_ID(N'[dbo].[DeviceLocations]'))
+                    BEGIN
+                        EXEC('CREATE NONCLUSTERED INDEX [IX_DeviceLocations_Site_Licensed] ON [dbo].[DeviceLocations] ([SiteCode], [IsLicensed]);');
+                        PRINT 'Created index IX_DeviceLocations_Site_Licensed';
+                    END
+
+                    -- Heal legacy tablet site codes to POD
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeviceLocations]') AND type in (N'U'))
+                    BEGIN
+                        EXEC('UPDATE [dbo].[DeviceLocations] SET [SiteCode] = ''POD'' WHERE [SiteCode] = ''IPL'' OR [SiteCode] IS NULL OR [SiteCode] = '''';');
+                        
+                        -- Heal legacy non-UUID DeviceId in dbo.DeviceLocations (replace hardware strings with genuine RFC 4122 GUIDs)
+                        EXEC('
+                            UPDATE [dbo].[DeviceLocations]
+                            SET 
+                                [HardwareModel] = CASE WHEN [HardwareModel] IS NULL OR [HardwareModel] = '''' THEN [DeviceName] ELSE [HardwareModel] END,
+                                [DeviceId] = LOWER(CONVERT(NVARCHAR(36), NEWID()))
+                            WHERE [DeviceId] NOT LIKE ''________-____-____-____-____________'';
+                        ');
+                        PRINT 'Healed legacy non-UUID DeviceIds in DeviceLocations';
                     END
 
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[X3SoapAudits]') AND type in (N'U'))

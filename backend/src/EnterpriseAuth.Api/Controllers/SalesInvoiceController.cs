@@ -967,19 +967,19 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<IActionResult> GetOpenInvoices(
             [FromQuery] string? sitecode = null, 
             [FromQuery] string? customerno = null,
-            [FromQuery] int daysCutoff = 90)
+            [FromQuery] int daysCutoff = 0)
         {
             var (effectiveSite, errorResult) = ResolveEffectiveSiteCode(sitecode);
             if (errorResult != null) return errorResult;
 
             try
             {
-                if (_snapshotService != null && string.IsNullOrWhiteSpace(customerno) && daysCutoff == 90)
+                if (_snapshotService != null && string.IsNullOrWhiteSpace(customerno) && daysCutoff <= 0)
                 {
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
                         effectiveSite!,
                         "OpenInvoices",
-                        () => _repository.GetOpenInvoicesWatermarkAsync(effectiveSite!),
+                        () => _repository.GetOpenInvoicesWatermarkAsync(effectiveSite!, daysCutoff),
                         () => _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff));
 
                     return ServeSnapshotResult(snapshot);

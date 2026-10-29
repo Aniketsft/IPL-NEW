@@ -79,7 +79,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       // On Login: Resolve and map device location from SQLite & Backend Heartbeat
-      unawaited(_syncDeviceLocationOnLogin(user.siteCode ?? 'IPL'));
+      unawaited(_syncDeviceLocationOnLogin(user.siteCode ?? 'POD'));
     } catch (e) {
       emit(AuthFailure(e.toString()));
     }
@@ -326,14 +326,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final deviceService = DeviceInfoService.instance;
       final devId = deviceService.deviceId;
-      final mac = deviceService.macAddress;
       final db = LocalDatabaseHelper.instance;
 
       // 1. Immediately read local SQLite mapping if available
       var localMapping = await db.getDeviceLocation(devId);
-      if (localMapping == null && mac.isNotEmpty) {
-        localMapping = await db.getDeviceLocationByMac(mac);
-      }
       if (localMapping != null && localMapping['locationCode'] != null) {
         await deviceService.setAssignedLocation(
           siteCode: localMapping['siteCode'] ?? siteCode,
@@ -342,7 +338,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
       }
 
-      // 2. Online Heartbeat: auto-register and replicate assigned location
+      // 2. Online Heartbeat: reconcile assigned lorry, identity, and licensing
       final token = await _storageService.getToken();
       final url = Uri.parse('${ApiConfig.baseUrl}Devices/heartbeat');
       final resp = await http.post(
@@ -354,28 +350,38 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         },
         body: jsonEncode({
           'deviceId': devId,
-          'macAddress': mac.isNotEmpty ? mac : null,
-          'deviceName': devId,
+          'hardwareModel': deviceService.hardwareModel,
           'siteCode': siteCode,
         }),
       ).timeout(const Duration(seconds: 5));
 
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
-        if (data != null && data['locationCode'] != null) {
-          final loc = data['locationCode'].toString();
+        if (data != null && data['deviceId'] != null) {
+          final loc = data['locationCode']?.toString() ?? '';
           final wrh = data['warehouseCode']?.toString();
           final site = data['siteCode']?.toString() ?? siteCode;
-          final returnedMac = data['macAddress']?.toString();
+          final uuid = data['deviceId']?.toString() ?? '';
+          final name = data['deviceName']?.toString() ?? deviceService.deviceName;
+          final isLicensed = data['isLicensed'] == true;
+          final licenseStatus = data['licenseStatus']?.toString() ?? 'VALID';
+          final isLocked = data['isLocked'] == true;
+          final hepProfile = data['hepProfileId']?.toString();
 
-          if (returnedMac != null && returnedMac.isNotEmpty) {
-            await deviceService.setMacAddress(returnedMac);
+          if (DeviceInfoService.isValidUuid(uuid)) {
+            await deviceService.setDeviceIdentity(
+              uuid: uuid,
+              name: name,
+              siteCode: site,
+              warehouseCode: wrh,
+              locationCode: loc,
+              isLicensed: isLicensed,
+              licenseStatus: licenseStatus,
+              isLocked: isLocked,
+              hepProfileId: hepProfile,
+              hepApiKey: data['hepApiKey']?.toString(),
+            );
           }
-          await deviceService.setAssignedLocation(
-            siteCode: site,
-            warehouseCode: wrh,
-            locationCode: loc,
-          );
           await db.insertOrUpdateDeviceLocation(Map<String, dynamic>.from(data));
         }
       }

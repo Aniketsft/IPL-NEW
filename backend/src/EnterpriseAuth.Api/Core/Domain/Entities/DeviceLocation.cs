@@ -8,18 +8,18 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
     public class DeviceLocation
     {
         [Key]
-        [MaxLength(100)]
+        [MaxLength(64)]
         [Column("DeviceId")]
         public string DeviceId { get; set; } = string.Empty;
 
-        [MaxLength(50)]
-        [Column("MacAddress")]
-        public string? MacAddress { get; set; }
-
         [Required]
-        [MaxLength(150)]
+        [MaxLength(100)]
         [Column("DeviceName")]
         public string DeviceName { get; set; } = string.Empty;
+
+        [MaxLength(150)]
+        [Column("HardwareModel")]
+        public string? HardwareModel { get; set; }
 
         [Required]
         [MaxLength(20)]
@@ -34,6 +34,32 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(30)]
         [Column("LocationCode")]
         public string LocationCode { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        [Column("HepProfileId")]
+        public string? HepProfileId { get; set; }
+
+        [MaxLength(255)]
+        [Column("HepApiKey")]
+        public string? HepApiKey { get; set; }
+
+        [Column("IsLocked")]
+        public bool IsLocked { get; set; } = true;
+
+        [Column("IsLicensed")]
+        public bool IsLicensed { get; set; } = true;
+
+        [Required]
+        [MaxLength(30)]
+        [Column("LicenseStatus")]
+        public string LicenseStatus { get; set; } = "VALID";
+
+        [Column("LicenseUpdatedAt")]
+        public DateTime? LicenseUpdatedAt { get; set; }
+
+        [MaxLength(100)]
+        [Column("LicenseUpdatedBy")]
+        public string? LicenseUpdatedBy { get; set; }
 
         [Column("AssignedUserId")]
         public Guid? AssignedUserId { get; set; }

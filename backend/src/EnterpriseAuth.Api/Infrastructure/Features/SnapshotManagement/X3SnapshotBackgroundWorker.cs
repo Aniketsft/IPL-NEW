@@ -106,8 +106,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement
                     await snapshotService.GetOrUpdateSnapshotAsync(
                         site,
                         "open_invoices",
-                        () => repo.GetOpenInvoicesWatermarkAsync(site, 90),
-                        () => repo.GetOpenInvoicesAsync(site, null, 90)
+                        () => repo.GetOpenInvoicesWatermarkAsync(site, 0),
+                        () => repo.GetOpenInvoicesAsync(site, null, 0)
                     );
                 }
                 catch (Exception ex)

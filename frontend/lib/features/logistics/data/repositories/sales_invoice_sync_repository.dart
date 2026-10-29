@@ -696,7 +696,7 @@ class SalesInvoiceSyncRepository {
       final custParams = <String, dynamic>{};
       if (siteCode.isNotEmpty) custParams['sitecode'] = siteCode;
 
-      final openInvParams = <String, dynamic>{'daysCutoff': 90};
+      final openInvParams = <String, dynamic>{'daysCutoff': 0};
       if (siteCode.isNotEmpty) openInvParams['sitecode'] = siteCode;
 
       final x3Params = <String, dynamic>{'months': 6};
@@ -957,7 +957,7 @@ class SalesInvoiceSyncRepository {
 
       final openInvParams = <String, dynamic>{
         'customerno': code,
-        'daysCutoff': 90,
+        'daysCutoff': 0,
       };
       if (effectiveSite.isNotEmpty) openInvParams['sitecode'] = effectiveSite;
 
