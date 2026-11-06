@@ -10,6 +10,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 
 class InvoicePreviewScreen extends StatefulWidget {
   final String invoiceId;
@@ -57,6 +58,21 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   Future<void> _handlePrint() async {
     setState(() => _isPrinting = true);
     try {
+      final defaultBt = PrinterService.instance.defaultBluetoothPrinter;
+      Printer? targetBtPrinter;
+      if (defaultBt != null) {
+        try {
+          final available = await Printing.listPrinters();
+          targetBtPrinter = available.firstWhere(
+            (p) =>
+                p.name.toLowerCase() == defaultBt.name.toLowerCase() ||
+                (defaultBt.macAddress != null &&
+                    defaultBt.macAddress!.isNotEmpty &&
+                    p.url.toLowerCase().contains(defaultBt.macAddress!.toLowerCase())),
+          );
+        } catch (_) {}
+      }
+
       if (widget.isCreditNote) {
         final creditNote = widget.creditNoteModel ??
             CreditNoteModel(
@@ -75,25 +91,41 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               createdBy: 'USER',
             );
 
-        await Printing.layoutPdf(
-          onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
-            pageFormat: format,
-            creditNote: creditNote,
-            resolvedLines: widget.items.map((i) => {
-              'sku': i.product.sku,
-              'name': i.product.name,
-              'quantity': i.quantity,
-              'basePrice': i.basePrice,
-            }).toList(),
-          ),
-          name: 'CreditNote_${widget.invoiceId}.pdf',
-        );
+        if (targetBtPrinter != null) {
+          await Printing.directPrintPdf(
+            printer: targetBtPrinter,
+            onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+              pageFormat: format,
+              creditNote: creditNote,
+              resolvedLines: widget.items.map((i) => {
+                'sku': i.product.sku,
+                'name': i.product.name,
+                'quantity': i.quantity,
+                'basePrice': i.basePrice,
+              }).toList(),
+            ),
+          );
+        } else {
+          await Printing.layoutPdf(
+            onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+              pageFormat: format,
+              creditNote: creditNote,
+              resolvedLines: widget.items.map((i) => {
+                'sku': i.product.sku,
+                'name': i.product.name,
+                'quantity': i.quantity,
+                'basePrice': i.basePrice,
+              }).toList(),
+            ),
+            name: 'CreditNote_${widget.invoiceId}.pdf',
+          );
+        }
       } else {
         final pdfService = SalesInvoicePdfService();
-        await Printing.layoutPdf(
-          dynamicLayout: true,
-          onLayout: (PdfPageFormat format) async {
-            final pdfBytes = await pdfService.generateInvoicePdf(
+        if (targetBtPrinter != null) {
+          await Printing.directPrintPdf(
+            printer: targetBtPrinter,
+            onLayout: (format) async => await pdfService.generateInvoicePdf(
               pageFormat: format,
               invoiceId: widget.invoiceId,
               customer: widget.customer,
@@ -107,11 +139,32 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               isPartiallyReversed: widget.isPartiallyReversed,
               creditedAmount: widget.totalCreditedAmount,
               netBalanceDue: widget.netBalanceDue,
-            );
-            return pdfBytes;
-          },
-          name: 'Invoice_${widget.invoiceId}.pdf',
-        );
+            ),
+          );
+        } else {
+          await Printing.layoutPdf(
+            dynamicLayout: true,
+            onLayout: (PdfPageFormat format) async {
+              final pdfBytes = await pdfService.generateInvoicePdf(
+                pageFormat: format,
+                invoiceId: widget.invoiceId,
+                customer: widget.customer,
+                items: widget.items,
+                subtotal: widget.subtotal,
+                discountAmount: widget.discountAmount,
+                vatAmount: widget.vatAmount,
+                grandTotal: widget.grandTotal,
+                paymentMethod: widget.paymentMethod,
+                paymentStatus: widget.paymentStatus,
+                isPartiallyReversed: widget.isPartiallyReversed,
+                creditedAmount: widget.totalCreditedAmount,
+                netBalanceDue: widget.netBalanceDue,
+              );
+              return pdfBytes;
+            },
+            name: 'Invoice_${widget.invoiceId}.pdf',
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -6052,8 +6052,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\UsersController.cs": {
-    "mtime": 1793255946.789441,
-    "ast_hash": "5050c9465f3c215f54dc096e4ad6f5d0",
+    "mtime": 1793941511.331911,
+    "ast_hash": "c896369991355df921fafc44951e6b24",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\WeatherForecastController.cs": {
@@ -6327,7 +6327,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\SageX3SoapService.cs": {
-    "mtime": 1793803717.6631105,
+    "mtime": 1793803830.698741,
     "ast_hash": "1e3249249ec78e7d6b88dc20665f281e",
     "semantic_hash": ""
   },
@@ -6542,8 +6542,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfSitesRepository.cs": {
-    "mtime": 1793791505.2304957,
-    "ast_hash": "1709cd52350a2bffa140a05511f23241",
+    "mtime": 1793939521.8539932,
+    "ast_hash": "ac7a1536807cb417539d8193d05bf65b",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfSyncRepository.cs": {
@@ -6557,8 +6557,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfUserRepository.cs": {
-    "mtime": 1791355027.9776237,
-    "ast_hash": "2874017794b8c1ca0a019033dae75a6e",
+    "mtime": 1793940476.823283,
+    "ast_hash": "4a7d1b004e4ac06f3de154961283d0bb",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\Migrations\\20260415111437_AddExcessTable.Designer.cs": {
@@ -6907,8 +6907,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Program.cs": {
-    "mtime": 1792750136.8524697,
-    "ast_hash": "7773468d9eb5590a0fcb8b0acb1a0381",
+    "mtime": 1793940476.8565278,
+    "ast_hash": "da9918adc7e05a5bbc82427e1d3d420a",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Properties\\launchSettings.json": {
@@ -6992,8 +6992,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\android\\app\\src\\main\\kotlin\\com\\enterprise\\auth\\enterprise_auth_mobile\\MainActivity.kt": {
-    "mtime": 1791355030.5498993,
-    "ast_hash": "9b999991f47a7b80e0944a9a9a91c305",
+    "mtime": 1793978492.639534,
+    "ast_hash": "d2043cf3973bac677ec23f225391d6b7",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\android\\build.gradle.kts": {
@@ -7077,8 +7077,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\models\\printer_device.dart": {
-    "mtime": 1791355030.6695304,
-    "ast_hash": "a3903fa1faf5d05ef523d52832c5a4c1",
+    "mtime": 1793974618.7997315,
+    "ast_hash": "e3986f5eec66a63b6f4e130b06da86de",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\navigation\\app_router.dart": {
@@ -7107,8 +7107,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\printer_service.dart": {
-    "mtime": 1791355030.9096885,
-    "ast_hash": "e52cbecf6154fb28191ac8aad81f937b",
+    "mtime": 1793979525.1749935,
+    "ast_hash": "bc525f3576666ad799401f08e6584f52",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\tcp_print_service.dart": {
@@ -7227,8 +7227,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\ui\\screens\\user_management_screen.dart": {
-    "mtime": 1793258331.019856,
-    "ast_hash": "34cb47a28f62f274384930fcd6f0b094",
+    "mtime": 1793939522.477943,
+    "ast_hash": "b4f64355e1fff7f502ac31c1b55e77d3",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\data\\models\\user_dto.dart": {
@@ -7302,8 +7302,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\local\\local_database_helper.dart": {
-    "mtime": 1793469337.8178277,
-    "ast_hash": "1f5bf3674fd1885f8003d3f9979aa61a",
+    "mtime": 1793963986.7194014,
+    "ast_hash": "cee54ac5421c24e13227c8a5e7a66ad0",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\credit_note_model.dart": {
@@ -7462,8 +7462,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\models\\transaction_config.dart": {
-    "mtime": 1793012958.7488415,
-    "ast_hash": "b2f4c5ab0b8cd939e6382d9624867efe",
+    "mtime": 1793944725.8413618,
+    "ast_hash": "a6d241aa53c0d18858efd47aaf02352d",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\repositories\\i_sales_repository.dart": {
@@ -7497,8 +7497,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\pricing_engine_service.dart": {
-    "mtime": 1792597069.408838,
-    "ast_hash": "ed0fb3917f5c77a03a7d577008738c99",
+    "mtime": 1793963986.9521575,
+    "ast_hash": "64f1e319b6a882671b3b8a3a5b9000c1",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\sales_invoice_pdf_service.dart": {
@@ -7587,8 +7587,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_bloc.dart": {
-    "mtime": 1793464545.1340108,
-    "ast_hash": "64dffcba9b94db4be01518901dd19d91",
+    "mtime": 1793954507.7239232,
+    "ast_hash": "bd03f02882675f6aeb0be34ce228c2df",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_cart_cubit.dart": {
@@ -7597,8 +7597,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_event.dart": {
-    "mtime": 1793464525.259719,
-    "ast_hash": "ec3360bf21139e71d9b5b1ec8e3b03d9",
+    "mtime": 1793944762.3301704,
+    "ast_hash": "771612dbc0123ba69ed3c984a5fee59e",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_state.dart": {
@@ -7677,8 +7677,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\add_item_detail_screen.dart": {
-    "mtime": 1793791505.9582472,
-    "ast_hash": "d5ab85cdc7e2bc8f0bb3cdd3b637417e",
+    "mtime": 1793969847.7906375,
+    "ast_hash": "f5830a08318a76fb5d70218f96cb6954",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\amount_only_credit_note_screen.dart": {
@@ -7702,13 +7702,13 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\invoice_item_reversal_screen.dart": {
-    "mtime": 1793270076.7997582,
-    "ast_hash": "58e29a685a8cb41fed11479e9f062fdd",
+    "mtime": 1793946885.6095495,
+    "ast_hash": "0b98007f11e281e6fe5d0af16fd615a4",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\invoice_preview_screen.dart": {
-    "mtime": 1793127125.9443684,
-    "ast_hash": "be626c198d3c471268a487159f96d7d9",
+    "mtime": 1793974619.0580688,
+    "ast_hash": "c189d740a90efb024d5ac03da82cb814",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\lot_selection_screen.dart": {
@@ -7722,8 +7722,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\order_summary_screen.dart": {
-    "mtime": 1793465022.0578647,
-    "ast_hash": "eda47b4b857eeea421622a003b51258d",
+    "mtime": 1793954508.6578305,
+    "ast_hash": "1b3e0754fb2e7f2c5131633af8f3c754",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\otp_generation_screen.dart": {
@@ -7742,8 +7742,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\sales_invoice_product_selection_screen.dart": {
-    "mtime": 1792736903.706937,
-    "ast_hash": "beeecc2c3016d3407abc68a76cd77967",
+    "mtime": 1793963987.5560813,
+    "ast_hash": "7394da101e2a6c156b59cde117b9d4d0",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\sales_menu_screen.dart": {
@@ -7752,13 +7752,13 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\sales_order_details_screen.dart": {
-    "mtime": 1793126839.9295726,
-    "ast_hash": "006ef6b242dcd9f1090b5a263703d58f",
+    "mtime": 1793945495.9539013,
+    "ast_hash": "ec875799cf912accd8ca72eb3de834ff",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\sales_orders_list_screen.dart": {
-    "mtime": 1793126800.3315163,
-    "ast_hash": "6ed4c1e2df743389bbd9b7af24591589",
+    "mtime": 1793945496.1936202,
+    "ast_hash": "e50db62967d266a055e5dad59f7d9cf8",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\sales_reports_screen.dart": {
@@ -7902,8 +7902,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\ui\\screens\\printer_settings_screen.dart": {
-    "mtime": 1791355033.387565,
-    "ast_hash": "2f731102949de0217d7718b90b1d2a44",
+    "mtime": 1793979828.6714504,
+    "ast_hash": "601fb79214ea37a0aed7505679f02c14",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\settings\\ui\\screens\\settings_modules_screen.dart": {

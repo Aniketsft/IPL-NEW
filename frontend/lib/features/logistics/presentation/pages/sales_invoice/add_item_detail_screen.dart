@@ -55,6 +55,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   final TextEditingController _discountController = TextEditingController(
     text: '0.00',
   );
+  final TextEditingController _discountAmtController = TextEditingController(
+    text: '0.00',
+  );
+  bool _isManualDiscount = false;
 
   double _vatRatePercent = 0.0; // Automatically resolved via VAT Matrix
   String _taxRuleCode = ''; // Tax Code resolved from Matrix
@@ -110,6 +114,13 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           .toStringAsFixed(2);
       _discountPercent = widget.existingItem!.discountPercent;
       _discountController.text = _discountPercent.toString();
+      final initDiscAmt = widget.existingItem!.basePrice *
+          widget.existingItem!.quantity *
+          (_discountPercent / 100);
+      _discountAmtController.text = initDiscAmt.toStringAsFixed(2);
+      if (widget.existingItem!.pricingSource == 'MANUAL') {
+        _isManualDiscount = true;
+      }
       _vatRatePercent = widget.existingItem!.vatRatePercent;
       _taxRuleCode = widget.existingItem!.taxRule;
       _priceSource = widget.existingItem!.pricingSource;
@@ -180,12 +191,20 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       if (mounted) {
         setState(() {
           _basePriceController.text = result.basePrice.toStringAsFixed(2);
-          _discountPercent = result.discountPct;
-          _discountController.text = result.discountPct.toString();
-          _discountAmountFlat = result.discountAmountFlat;
+          if (!_isManualDiscount) {
+            _discountPercent = result.discountPct;
+            _discountController.text = result.discountPct.toString();
+            final initDiscAmt = result.basePrice * _quantity * (_discountPercent / 100);
+            _discountAmtController.text = initDiscAmt.toStringAsFixed(2);
+            _discountAmountFlat = result.discountAmountFlat;
+            _priceSource = result.source;
+          } else {
+            final lineGross = result.basePrice * _quantity;
+            final amt = lineGross * (_discountPercent / 100.0);
+            _discountAmtController.text = amt.toStringAsFixed(2);
+          }
           _priceListCode = result.priceListCode;
           _reasonType = result.reasonType;
-          _priceSource = result.source;
           _isResolvingPrice = false;
           _hasFoc = result.hasFoc;
           _focQuantity = result.focQuantity;
@@ -332,6 +351,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   void dispose() {
     _qtyController.dispose();
     _discountController.dispose();
+    _discountAmtController.dispose();
     _basePriceController.dispose();
     super.dispose();
   }
@@ -358,6 +378,45 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     return maxQty;
   }
 
+  void _syncDiscountAmtFromPercent() {
+    final lineGross = _basePrice * _quantity;
+    final amt = lineGross * (_discountPercent / 100.0);
+    _discountAmtController.text = amt.toStringAsFixed(2);
+  }
+
+  void _onDiscountPercentChanged(String val) {
+    _isManualDiscount = true;
+    final parsedPct = double.tryParse(val.trim());
+    if (parsedPct == null) {
+      _discountPercent = 0.0;
+      _discountAmtController.text = '0.00';
+      setState(() {});
+      return;
+    }
+    _discountPercent = parsedPct.clamp(0.0, 100.0);
+    final lineGross = _basePrice * _quantity;
+    final amt = lineGross * (_discountPercent / 100.0);
+    _discountAmtController.text = amt.toStringAsFixed(2);
+    setState(() {});
+  }
+
+  void _onDiscountAmtChanged(String val) {
+    _isManualDiscount = true;
+    final parsedAmt = double.tryParse(val.trim());
+    final lineGross = _basePrice * _quantity;
+    if (parsedAmt == null || lineGross <= 0) {
+      _discountPercent = 0.0;
+      _discountController.text = '0.00';
+      setState(() {});
+      return;
+    }
+    final clampedAmt = parsedAmt.clamp(0.0, lineGross);
+    final pct = (clampedAmt / lineGross) * 100.0;
+    _discountPercent = double.parse(pct.toStringAsFixed(2));
+    _discountController.text = _discountPercent.toStringAsFixed(2);
+    setState(() {});
+  }
+
   void _updateQuantity(int change) {
     setState(() {
       int newQty = _quantity + change;
@@ -377,6 +436,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       }
       _quantity = newQty;
       _qtyController.text = _quantity.toString();
+      _syncDiscountAmtFromPercent();
     });
 
     _resolvePrice();
@@ -426,6 +486,13 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     final bool canOverridePrice = perms.isEmpty ||
         perms.contains('logistics.sales.price_override.update') ||
         perms.contains('logistics.sales.price_override.create');
+
+    final bool canOverrideDiscount = perms.contains('logistics.sales.discount_override.update') ||
+        perms.contains('logistics.sales.discount_override.create') ||
+        perms.contains('logistics.sales.discount_override') ||
+        perms.any((p) => p.startsWith('logistics.sales.discount_override')) ||
+        perms.contains('admin') ||
+        perms.contains('*');
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -595,6 +662,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     alignRight: true,
                     enabled: !_isReturnMode && !isFocLocked && canOverridePrice,
                     onChanged: (val) {
+                      _syncDiscountAmtFromPercent();
                       setState(() {});
                     },
                   ),
@@ -625,28 +693,42 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Dynamic Math Fields
+                  // Dynamic Math Fields - Editable when permitted
                   Row(
                     children: [
                       Expanded(
-                        child: _buildReadOnlyField(
+                        child: _buildInputField(
                           'Discount %',
-                          _discountPercent.toString(),
+                          _discountController,
                           isDark,
+                          suffixText: '%',
+                          enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
+                          onChanged: _onDiscountPercentChanged,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildReadOnlyField(
+                        child: _buildInputField(
                           'Discount Amt',
-                          CurrencyFormatter.formatDiscount(_discountAmount),
+                          _discountAmtController,
                           isDark,
+                          prefixText: 'Rs ',
+                          cardAlignRight: true,
                           isRed: true,
-                          alignRight: true,
+                          enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
+                          onChanged: _onDiscountAmtChanged,
                         ),
                       ),
                     ],
                   ),
+                  if (!canOverrideDiscount)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'Discount editing locked (discount authorization required)',
+                        style: TextStyle(fontSize: 11, color: Colors.orange),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -781,6 +863,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                         return;
                                       }
                                       setState(() => _quantity = updatedQty);
+                                      _syncDiscountAmtFromPercent();
                                       _resolvePrice();
                                     }
                                   },
@@ -796,6 +879,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                       _quantity = _maxValidQty.toInt();
                                       _qtyController.text = _quantity.toString();
                                     });
+                                    _syncDiscountAmtFromPercent();
                                     _resolvePrice();
                                   }
                                 },
@@ -955,7 +1039,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               vatRatePercent: _vatRatePercent,
                               taxRule: _taxRuleCode,
                               isFoc: isFocLocked,
-                              pricingSource: _priceSource,
+                              pricingSource: _isManualDiscount ? 'MANUAL' : _priceSource,
                               discountAmountFlat: _discountAmountFlat,
                               priceListCode: _priceListCode,
                               reasonType: _reasonType,
@@ -1294,6 +1378,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     String? suffixText,
     Function(String)? onChanged,
     bool alignRight = false,
+    bool cardAlignRight = false,
+    bool isRed = false,
     bool enabled = true,
   }) {
     if (alignRight) {
@@ -1383,6 +1469,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       );
     }
 
+    final Color textColor = isRed
+        ? (isDark ? const Color(0xFFEF5350) : const Color(0xFFD32F2F))
+        : (isDark ? Colors.white : Colors.black87);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4, right: 12),
@@ -1392,10 +1482,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: cardAlignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: cardAlignRight ? MainAxisAlignment.end : MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
             ],
@@ -1404,12 +1494,13 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           TextField(
             controller: controller,
             enabled: enabled,
+            textAlign: cardAlignRight ? TextAlign.right : TextAlign.left,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: onChanged,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: enabled ? textColor : Colors.grey,
             ),
             decoration: InputDecoration(
               filled: false,
@@ -1423,12 +1514,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
               prefixText: prefixText,
               prefixStyle: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+                color: enabled ? textColor : Colors.grey,
               ),
               suffixText: suffixText,
               suffixStyle: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+                color: enabled ? textColor : Colors.grey,
               ),
             ),
           ),

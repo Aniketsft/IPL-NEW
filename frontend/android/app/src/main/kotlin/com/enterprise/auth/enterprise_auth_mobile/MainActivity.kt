@@ -1,5 +1,7 @@
 package com.enterprise.auth.enterprise_auth_mobile
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
     private val DEVICE_NAME_CHANNEL = "com.enterprise.auth/device_name"
+    private val BLUETOOTH_CHANNEL = "com.enterprise.auth/bluetooth"
     private val QUNSUO_EVENT_CHANNEL = "com.qunsuo.scanner/stream"
 
     // Supported Actions (configured action + factory defaults)
@@ -35,6 +38,56 @@ class MainActivity: FlutterActivity() {
                 result.success(deviceName)
             } else {
                 result.notImplemented()
+            }
+        }
+
+        // Bluetooth paired devices MethodChannel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BLUETOOTH_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getPairedDevices" -> {
+                    try {
+                        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                        val adapter = bluetoothManager?.adapter ?: BluetoothAdapter.getDefaultAdapter()
+                        if (adapter == null || !adapter.isEnabled) {
+                            result.success(emptyList<Map<String, String>>())
+                            return@setMethodCallHandler
+                        }
+                        val paired = adapter.bondedDevices ?: emptySet()
+                        val list = paired.map { device ->
+                            mapOf(
+                                "name" to (device.name ?: "Unknown Device"),
+                                "address" to device.address
+                            )
+                        }
+                        result.success(list)
+                    } catch (e: SecurityException) {
+                        result.error("PERMISSION_DENIED", e.message, null)
+                    } catch (e: Exception) {
+                        result.error("ERROR", e.message, null)
+                    }
+                }
+                "openBluetoothSettings" -> {
+                    try {
+                        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        try {
+                            val generalIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(generalIntent)
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            result.error("ERROR", e2.message, null)
+                        }
+                    }
+                }
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
 

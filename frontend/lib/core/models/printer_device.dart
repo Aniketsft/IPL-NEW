@@ -6,6 +6,7 @@ class PrinterDevice {
   final String printerModel;
   final String? ipAddress;
   final int? port;
+  final String? macAddress;
   final PrintMode mode;
 
   PrinterDevice({
@@ -14,6 +15,7 @@ class PrinterDevice {
     required this.printerModel,
     this.ipAddress,
     this.port,
+    this.macAddress,
     required this.mode,
   });
 
@@ -24,6 +26,7 @@ class PrinterDevice {
       printerModel: json['printerModel'] as String,
       ipAddress: json['ipAddress'] as String?,
       port: json['port'] as int?,
+      macAddress: json['macAddress'] as String?,
       mode: PrintMode.values.firstWhere(
         (e) => e.name == json['mode'],
         orElse: () => PrintMode.directIp,
@@ -38,6 +41,7 @@ class PrinterDevice {
       'printerModel': printerModel,
       'ipAddress': ipAddress,
       'port': port,
+      'macAddress': macAddress,
       'mode': mode.name,
     };
   }
@@ -48,6 +52,7 @@ class PrinterDevice {
     String? printerModel,
     String? ipAddress,
     int? port,
+    String? macAddress,
     PrintMode? mode,
   }) {
     return PrinterDevice(
@@ -56,6 +61,7 @@ class PrinterDevice {
       printerModel: printerModel ?? this.printerModel,
       ipAddress: ipAddress ?? this.ipAddress,
       port: port ?? this.port,
+      macAddress: macAddress ?? this.macAddress,
       mode: mode ?? this.mode,
     );
   }

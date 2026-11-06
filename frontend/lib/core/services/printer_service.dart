@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:enterprise_auth_mobile/core/models/printer_device.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -7,21 +10,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enterprise_auth_mobile/core/services/tcp_print_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/zpl_generator.dart';
 
-enum PrintMode { system, directIp }
+enum PrintMode { system, directIp, bluetooth }
 
 class PrinterService {
   static final PrinterService instance = PrinterService._internal();
   PrinterService._internal();
+
+  static const MethodChannel _bluetoothChannel = MethodChannel('com.enterprise.auth/bluetooth');
 
   late SharedPreferences _prefs;
   PrintMode _mode = PrintMode.directIp;
   List<PrinterDevice> _printers = [];
   String? _defaultDirectIpPrinterId;
   String? _defaultSystemPrinterId;
+  String? _defaultBluetoothPrinterId;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    _mode = PrintMode.values[_prefs.getInt('print_mode') ?? 1];
+    final modeIndex = _prefs.getInt('print_mode') ?? 1;
+    _mode = modeIndex < PrintMode.values.length ? PrintMode.values[modeIndex] : PrintMode.directIp;
     
     final printersJson = _prefs.getString('printers_list');
     if (printersJson != null) {
@@ -51,6 +58,7 @@ class PrinterService {
     
     _defaultDirectIpPrinterId = _prefs.getString('default_direct_ip_printer_id') ?? _defaultDirectIpPrinterId;
     _defaultSystemPrinterId = _prefs.getString('default_system_printer_id');
+    _defaultBluetoothPrinterId = _prefs.getString('default_bluetooth_printer_id');
   }
 
   Future<void> _savePrinters() async {
@@ -81,6 +89,14 @@ class PrinterService {
     }
   }
 
+  PrinterDevice? get defaultBluetoothPrinter {
+    try {
+      return _printers.firstWhere((p) => p.id == _defaultBluetoothPrinterId && p.mode == PrintMode.bluetooth);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> addPrinter(PrinterDevice printer) async {
     _printers.add(printer);
     await _savePrinters();
@@ -88,6 +104,8 @@ class PrinterService {
     // Auto-assign default if it's the first of its mode
     if (printer.mode == PrintMode.directIp && _defaultDirectIpPrinterId == null) {
       await setDefaultPrinter(printer.id, PrintMode.directIp);
+    } else if (printer.mode == PrintMode.bluetooth && _defaultBluetoothPrinterId == null) {
+      await setDefaultPrinter(printer.id, PrintMode.bluetooth);
     } else if (printer.mode == PrintMode.system && _defaultSystemPrinterId == null) {
       await setDefaultPrinter(printer.id, PrintMode.system);
     }
@@ -111,6 +129,11 @@ class PrinterService {
       await _prefs.remove('default_direct_ip_printer_id');
       final fallback = _printers.where((p) => p.mode == PrintMode.directIp).firstOrNull;
       if (fallback != null) await setDefaultPrinter(fallback.id, PrintMode.directIp);
+    } else if (printer.mode == PrintMode.bluetooth && _defaultBluetoothPrinterId == id) {
+      _defaultBluetoothPrinterId = null;
+      await _prefs.remove('default_bluetooth_printer_id');
+      final fallback = _printers.where((p) => p.mode == PrintMode.bluetooth).firstOrNull;
+      if (fallback != null) await setDefaultPrinter(fallback.id, PrintMode.bluetooth);
     } else if (printer.mode == PrintMode.system && _defaultSystemPrinterId == id) {
       _defaultSystemPrinterId = null;
       await _prefs.remove('default_system_printer_id');
@@ -123,6 +146,9 @@ class PrinterService {
     if (mode == PrintMode.directIp) {
       _defaultDirectIpPrinterId = id;
       await _prefs.setString('default_direct_ip_printer_id', id);
+    } else if (mode == PrintMode.bluetooth) {
+      _defaultBluetoothPrinterId = id;
+      await _prefs.setString('default_bluetooth_printer_id', id);
     } else {
       _defaultSystemPrinterId = id;
       await _prefs.setString('default_system_printer_id', id);
@@ -500,5 +526,105 @@ class PrinterService {
     // instead, the UI will still call EodPdfGenerator if needed.
     // However, to make PrinterService the 'main' router, 
     // we can eventually move the logic here.
+  }
+
+  Future<void> testPrintBluetooth() async {
+    final printer = defaultBluetoothPrinter;
+    if (printer == null) {
+      throw Exception("No default Bluetooth printer configured. Please add and set a default Bluetooth printer first.");
+    }
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, 80 * PdfPageFormat.mm),
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(12),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text('ENTERPRISE MOBILE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                pw.Text('BLUETOOTH TEST PRINT', style: const pw.TextStyle(fontSize: 10)),
+                pw.Divider(thickness: 1),
+                pw.SizedBox(height: 4),
+                pw.Text('Printer: ${printer.name}', style: const pw.TextStyle(fontSize: 10)),
+                pw.Text('Model: ${printer.printerModel}', style: const pw.TextStyle(fontSize: 10)),
+                if (printer.macAddress != null && printer.macAddress!.isNotEmpty)
+                  pw.Text('MAC: ${printer.macAddress}', style: const pw.TextStyle(fontSize: 8)),
+                pw.SizedBox(height: 8),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: 'BT_TEST_${DateTime.now().millisecondsSinceEpoch}',
+                  width: 60,
+                  height: 60,
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text('STATUS: OK', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                pw.Text(DateTime.now().toString().substring(0, 19), style: const pw.TextStyle(fontSize: 8)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    Printer? targetPrinter;
+    try {
+      final available = await Printing.listPrinters();
+      targetPrinter = available.firstWhere(
+        (p) => p.name.toLowerCase() == printer.name.toLowerCase() ||
+               (printer.macAddress != null && p.url.toLowerCase().contains(printer.macAddress!.toLowerCase())),
+      );
+    } catch (_) {}
+
+    if (targetPrinter != null) {
+      await Printing.directPrintPdf(
+        printer: targetPrinter,
+        onLayout: (format) async => doc.save(),
+      );
+    } else {
+      await Printing.layoutPdf(
+        onLayout: (format) async => doc.save(),
+        name: 'BT_Test_${printer.name}',
+      );
+    }
+  }
+
+  Future<List<Map<String, String>>> getPairedBluetoothDevices() async {
+    try {
+      // On Android 12+ (API 31+), bluetoothConnect runtime permission is required.
+      // Wrap in try-catch so older Android versions (which don't have this permission) don't throw.
+      try {
+        if (await Permission.bluetoothConnect.isDenied) {
+          await Permission.bluetoothConnect.request();
+        }
+      } catch (e) {
+        debugPrint('BluetoothConnect permission check skipped: $e');
+      }
+
+      final result = await _bluetoothChannel.invokeMethod<List<dynamic>>('getPairedDevices');
+      if (result == null) return [];
+      return result.map((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        return {
+          'name': (map['name'] ?? 'Unknown Device').toString(),
+          'address': (map['address'] ?? '').toString(),
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('getPairedBluetoothDevices error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> openBluetoothSettings() async {
+    try {
+      final res = await _bluetoothChannel.invokeMethod<bool>('openBluetoothSettings');
+      return res ?? true;
+    } catch (e) {
+      debugPrint('openBluetoothSettings native channel failed: $e');
+      return false;
+    }
   }
 }
