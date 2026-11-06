@@ -68,7 +68,8 @@ class TransactionHistoryRepository {
       }
 
       if (cleanDocId != null && cleanDocId.isNotEmpty) {
-        whereClause += ' AND invoiceId LIKE ?';
+        whereClause += ' AND (invoiceId LIKE ? OR x3DocumentId LIKE ?)';
+        whereArgs.add('%$cleanDocId%');
         whereArgs.add('%$cleanDocId%');
       }
 
@@ -98,7 +99,7 @@ class TransactionHistoryRepository {
 
         // Check if there are linked credit notes for this invoice
         final cnRows = await db.rawQuery(
-          'SELECT creditNoteId, grandTotal FROM ${LocalDatabaseHelper.tableSiCreditNotes} WHERE originalInvoiceId = ? ORDER BY createdAt DESC',
+          'SELECT creditNoteId, grandTotal, x3DocumentId FROM ${LocalDatabaseHelper.tableSiCreditNotes} WHERE originalInvoiceId = ? ORDER BY createdAt DESC',
           [invId],
         );
 
@@ -107,7 +108,11 @@ class TransactionHistoryRepository {
             0.0,
             (sum, row) => sum + ((row['grandTotal'] as num?)?.toDouble() ?? 0.0),
           );
-          mutableMap['reversalCreditNoteId'] = cnRows.first['creditNoteId'];
+          final firstRow = cnRows.first;
+          final x3Doc = (firstRow['x3DocumentId'] as String?)?.trim();
+          mutableMap['reversalCreditNoteId'] = (x3Doc != null && x3Doc.isNotEmpty)
+              ? x3Doc
+              : firstRow['creditNoteId'];
           mutableMap['remainingAmount'] = (invTotal - totalReversedAmt).clamp(0.0, invTotal);
 
           // If fully covered by credit notes, ensure marked reversed in model
@@ -147,7 +152,8 @@ class TransactionHistoryRepository {
       }
 
       if (cleanDocId != null && cleanDocId.isNotEmpty) {
-        cnWhere += ' AND creditNoteId LIKE ?';
+        cnWhere += ' AND (creditNoteId LIKE ? OR x3DocumentId LIKE ?)';
+        cnArgs.add('%$cleanDocId%');
         cnArgs.add('%$cleanDocId%');
       }
 
@@ -189,6 +195,7 @@ class TransactionHistoryRepository {
           status: 'CONFIRMED',
           isSynced: (cn['isSynced'] as int?) ?? 0,
           isReversed: 0,
+          x3DocumentId: cn['x3DocumentId'] as String?,
           auditMetadata: AuditMetadata(
             createdByUserName: cn['createdBy'] as String?,
             deviceId: cn['deviceId'] as String?,
@@ -331,12 +338,18 @@ class TransactionHistoryRepository {
     return lines;
   }
 
+  /// Returns distinct products present in the X3 history documents for [customerCode]
+  Future<List<Map<String, String>>> getX3ProductsForCustomer(String customerCode) async {
+    return await _dbHelper.getX3ProductsForCustomer(customerCode);
+  }
+
   Future<List<TransactionModel>> getX3HistoryTransactions({
     required String customerCode,
     String? type,
     String? startDate,
     String? endDate,
     String? searchQuery,
+    String? productSku,
     String? siteCode,
     bool forceRefresh = false,
   }) async {
@@ -345,6 +358,7 @@ class TransactionHistoryRepository {
       customerCode: customerCode,
       type: type,
       searchQuery: searchQuery,
+      productSku: productSku,
       startDate: startDate,
       endDate: endDate,
     );
@@ -383,6 +397,7 @@ class TransactionHistoryRepository {
       customerCode: customerCode,
       type: type,
       searchQuery: searchQuery,
+      productSku: productSku,
       startDate: startDate,
       endDate: endDate,
     );
@@ -416,6 +431,7 @@ class TransactionHistoryRepository {
         isSynced: 1,
         isReversed: 0,
         isPartiallyReversed: 0,
+        x3DocumentId: invNum,
         auditMetadata: AuditMetadata(
           createdByUserName: user,
         ),

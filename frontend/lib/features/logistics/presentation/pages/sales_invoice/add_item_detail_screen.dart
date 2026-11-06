@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../../auth/presentation/bloc/auth_state.dart';
 import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'dart:async';
@@ -16,6 +18,7 @@ import '../../../domain/services/vat_calculator_service.dart';
 import '../../../domain/services/pricing_engine_service.dart';
 import '../../../domain/models/transaction_config.dart';
 import '../../../../../core/secure_storage_service.dart';
+import '../../../../../core/services/device_info_service.dart';
 import 'lot_selection_screen.dart';
 
 class AddItemDetailScreen extends StatefulWidget {
@@ -65,10 +68,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   int _reasonType = 0;
 
   String _lotNumber = ''; // dynamically loaded
-  String _warehouse = 'Main (WH-01)';
+  String _warehouse = '';
   String _warehouseName = '';
-  String _location = 'A4-S2-B12';
-  String _locationType = 'Standard Storage (Pickable)';
+  String _location = '';
+  String _locationType = '';
   double _lotTotalQty = 0.0;
 
   bool _hasFoc = false;
@@ -97,7 +100,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     super.initState();
     _warehouse = widget.product.warehouse.isNotEmpty
         ? widget.product.warehouse
-        : 'Main (WH-01)';
+        : (DeviceInfoService.instance.assignedWarehouse ?? '');
+    _location = DeviceInfoService.instance.assignedLocation ?? '';
     if (widget.existingItem != null) {
       _quantity = widget.existingItem!.quantity.toInt();
       _originalInvoicedQty = widget.existingItem!.quantity;
@@ -414,6 +418,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
     final actualTotalStock = widget.product.stockQty - totalCartQtyOfProduct;
 
+    final authState = context.watch<AuthBloc>().state;
+    final perms = authState is Authenticated ? authState.permissions : <String>[];
+    final bool canOverridePrice = perms.isEmpty ||
+        perms.contains('logistics.sales.price_override.update') ||
+        perms.contains('logistics.sales.price_override.create');
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -581,11 +591,19 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     isDark,
                     prefixText: 'Rs ',
                     alignRight: true,
-                    enabled: !_isReturnMode,
+                    enabled: !_isReturnMode && !isFocLocked && canOverridePrice,
                     onChanged: (val) {
                       setState(() {});
                     },
                   ),
+                  if (!canOverridePrice)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'Base price editing locked (supervisor authorization required)',
+                        style: TextStyle(fontSize: 11, color: Colors.orange),
+                      ),
+                    ),
                   if (_isResolvingPrice)
                     const Padding(
                       padding: EdgeInsets.only(top: 4.0),

@@ -91,6 +91,9 @@ class TransactionConfig {
   bool get isInvoiceMode => mode.isInvoice;
   bool get isCreditNoteMode => mode.isCreditNote;
   bool get isLinkedReversal => mode.isLinkedToInvoice;
+  bool get isSalesOrder =>
+      mode == AppTransactionMode.salesOrder ||
+      category == TransactionTypeCategory.salesOrder;
 
   static TransactionConfig forType(String type) {
     switch (type) {

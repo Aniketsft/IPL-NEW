@@ -177,7 +177,8 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
         originalDocumentId: widget.order['id'].toString(),
       ));
       
-      bloc.add(SetCustomer({
+      final fullCust = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(widget.order['customerCode']?.toString() ?? '');
+      bloc.add(SetCustomer(fullCust ?? {
         'code': widget.order['customerCode'],
         'name': widget.order['customerName'],
       }));

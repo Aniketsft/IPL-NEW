@@ -22,7 +22,12 @@ import 'sales_invoice_product_selection_screen.dart';
 import 'add_item_detail_screen.dart';
 import 'invoice_preview_screen.dart';
 import '../../../domain/models/transaction_config.dart';
+import '../../../domain/models/stock_status.dart';
 import '../../../data/repositories/transaction_history_repository.dart';
+import '../../../domain/services/pricing_engine_service.dart';
+import '../../../domain/services/vat_calculator_service.dart';
+import '../../../../../core/secure_storage_service.dart';
+import '../../../data/models/sales_invoice_item_stock_model.dart';
 
 class OrderSummaryScreen extends StatefulWidget {
   const OrderSummaryScreen({super.key});
@@ -36,6 +41,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
   bool _isProcessingScan = false;
   final Map<int, double> _selectedReversalQuantities = {};
+  bool _isReturnTransaction = false;
 
   List<Map<String, dynamic>> _linkedCreditNotes = [];
   Map<String, dynamic>? _invoiceRecord;
@@ -477,6 +483,84 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                           ),
                         ),
                       ],
+                      if (cartState.transactionType == 'RETURN' ||
+                          cartState.transactionType == 'CUSTOMER_RETURN' ||
+                          cartState.returnCondition != null) ...[
+                        Builder(
+                          builder: (context) {
+                            final cond = ReturnCondition.fromId(cartState.returnCondition);
+                            final isSellable = cond.stockStatus == 'A';
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: cond.color.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: cond.color.withOpacity(0.4)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: cond.color.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(cond.icon, color: cond.color, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'RETURN CONDITION: ${cond.label.toUpperCase()}',
+                                              style: TextStyle(
+                                                color: cond.color,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isSellable
+                                                    ? Colors.green.withOpacity(0.15)
+                                                    : Colors.amber.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isSellable ? Colors.green : Colors.amber.shade800,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          cond.description,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDark ? Colors.white60 : Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                       if (isInvoiceFullyReversed) ...[
                         Container(
                           width: double.infinity,
@@ -563,6 +647,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       if (cartState.transactionType == 'SI_SALES_ORDER') ...[
                         _buildDeliveryDateCard(context, cartState, isDark),
                         const SizedBox(height: 16),
+                      ],
+                      if (cartState.config.requireItemSelectionForAction) ...[
+                        _buildReversalTypeSelector(theme, isDark),
                       ],
                       Text(
                         'Line Items (${cartState.cartItems.length})',
@@ -915,7 +1002,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                               cartState.transactionType == 'CREDIT_NOTE' ||
                               cartState.transactionType == 'RETURN' ||
                               cartState.transactionType == 'CUSTOMER_RETURN';
-                          final isZeroAmount = cartState.grandTotal <= 0;
+                          final isZeroAmount = !cartState.config.isSalesOrder && cartState.grandTotal <= 0;
                           final bool showConfirmButton = !cartState.config.requireItemSelectionForAction || _selectedReversalQuantities.isNotEmpty;
 
                           return Column(
@@ -988,6 +1075,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                           context.read<SalesInvoiceBloc>().add(PrepareReversalCreditNote(
                                             items: selectedItems,
                                             originalInvoiceId: cartState.originalDocumentId ?? '',
+                                            category: _isReturnTransaction ? 3 : 2,
+                                            isReturn: _isReturnTransaction,
                                           ));
 
                                           await context.push(
@@ -1131,12 +1220,18 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }
 
   IconData _getConfirmIcon(TransactionConfig config) {
+    if (config.requireItemSelectionForAction && _selectedReversalQuantities.isNotEmpty) {
+      return _isReturnTransaction ? Icons.inventory_2_rounded : Icons.receipt_long_rounded;
+    }
     return config.confirmIcon;
   }
 
   String _getConfirmText(TransactionConfig config, int selectedCount) {
     if (config.requireItemSelectionForAction && selectedCount > 0) {
-      return 'Reverse Invoice ($selectedCount ${selectedCount == 1 ? "item" : "items"})';
+      final itemStr = '$selectedCount ${selectedCount == 1 ? "item" : "items"}';
+      return _isReturnTransaction
+          ? 'Process Return ($itemStr)'
+          : 'Reverse as Credit Note ($itemStr)';
     }
     return config.confirmButtonText;
   }
@@ -1188,13 +1283,393 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }
 
   Future<void> _handleOrderConversion(BuildContext context, SalesInvoiceLoaded cartState) async {
+    final theme = Theme.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Provide a small delay to simulate processing or allow future stock check API integration
+    try {
+      final repo = SalesInvoiceProductRepository(context.read<NetworkService>());
+      final siteCode = await SecureStorageService().getSiteCode();
+      final pricingEngine = PricingEngineService();
+      final vatCalculator = VatCalculatorService();
+
+      // 1. Resolve full customer details (with taxRule, bcgcod, etc.)
+      final customerCode = cartState.customer?['code']?.toString() ??
+          cartState.customer?['customerCode']?.toString() ??
+          '';
+      Map<String, dynamic> resolvedCustomer = cartState.customer ?? {};
+      if (customerCode.isNotEmpty) {
+        final dbCustomer = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(customerCode);
+        if (dbCustomer != null) {
+          resolvedCustomer = Map<String, dynamic>.from(dbCustomer);
+        }
+      }
+
+      final customerTaxRule = resolvedCustomer['taxRule']?.toString() ?? '';
+      final bcgcod = resolvedCustomer['bcgcod']?.toString() ?? '';
+      final tsccod = resolvedCustomer['tsccod']?.toString() ?? '';
+      final bpcsho = (resolvedCustomer['bpcsho'] ?? resolvedCustomer['Bpcsho'])?.toString() ?? '';
+      final int? facilityFlag = resolvedCustomer['facilityFlag'] != null
+          ? int.tryParse(resolvedCustomer['facilityFlag'].toString())
+          : (resolvedCustomer['FacilityFlag'] != null
+              ? int.tryParse(resolvedCustomer['FacilityFlag'].toString())
+              : null);
+
+      // 2. Stock Verification
+      final List<Map<String, dynamic>> stockIssues = [];
+      final Map<String, List<SalesInvoiceItemStockModel>> stockBySku = {};
+
+      for (final item in cartState.cartItems) {
+        final sku = item.product.sku;
+        final stocks = await repo.getSalesInvoiceItemStockDetails(sku);
+        stockBySku[sku] = stocks;
+
+        final availableStock = stocks.fold<double>(0.0, (sum, s) => sum + s.totalQty);
+        if (availableStock <= 0.0001) {
+          stockIssues.add({
+            'item': item,
+            'reason': 'Out of Stock (Available: 0, Requested: ${item.quantity})',
+            'available': 0.0,
+            'isZero': true,
+          });
+        } else if (availableStock < item.quantity) {
+          stockIssues.add({
+            'item': item,
+            'reason': 'Insufficient Stock (Available: $availableStock, Requested: ${item.quantity})',
+            'available': availableStock,
+            'isZero': false,
+          });
+        }
+      }
+
+      if (!context.mounted) return;
+      Navigator.pop(context); // Close initial loading dialog
+
+      // 3. Prompt user if there are stock issues
+      List<CartItem> workingItems = List<CartItem>.from(cartState.cartItems);
+      if (stockIssues.isNotEmpty) {
+        final bool? userChoice = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Stock Discrepancy Found'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'The following ordered products do not have full stock available:',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  ...stockIssues.map((issue) {
+                    final CartItem ci = issue['item'] as CartItem;
+                    final bool isZero = issue['isZero'] as bool;
+                    final double avail = issue['available'] as double;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isZero ? Colors.red.withOpacity(0.08) : Colors.orange.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: isZero ? Colors.red.withOpacity(0.4) : Colors.orange.withOpacity(0.4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ci.product.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'SKU: ${ci.product.sku} • Ordered: ${ci.quantity} • In Stock: $avail',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isZero ? Colors.red.shade700 : Colors.orange.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            isZero ? 'Line will be removed' : 'Line will be adjusted to available $avail',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: isZero ? Colors.red.shade600 : Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Would you like to proceed with the available quantities or cancel conversion?',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                child: const Text('PROCEED WITH AVAILABLE', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+
+        if (userChoice != true) {
+          return; // User cancelled conversion
+        }
+
+        // Apply adjustments chosen by user
+        final List<CartItem> adjustedItems = [];
+        for (final item in workingItems) {
+          final issue = stockIssues.firstWhere(
+            (iss) => (iss['item'] as CartItem).product.sku == item.product.sku,
+            orElse: () => {},
+          );
+          if (issue.isNotEmpty) {
+            final double avail = issue['available'] as double;
+            if (avail > 0.0001) {
+              adjustedItems.add(item.copyWith(quantity: avail));
+            }
+          } else {
+            adjustedItems.add(item);
+          }
+        }
+        workingItems = adjustedItems;
+
+        if (workingItems.isEmpty) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('No items remaining with available stock. Conversion aborted.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Re-show spinner while calculating live prices & VAT
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // 4. Resolve Live Prices, Taxes, and FOC for each item
+      final List<CartItem> finalInvoiceItems = [];
+      final List<Map<String, dynamic>> qualifiedFocList = [];
+
+      for (final item in workingItems) {
+        final stocks = stockBySku[item.product.sku] ?? await repo.getSalesInvoiceItemStockDetails(item.product.sku);
+        final itemTaxLevel = stocks.isNotEmpty ? stocks.first.taxLevel : '';
+        final defaultLot = stocks.isNotEmpty ? stocks.first.lotNumber : item.lotNumber;
+        final defaultWarehouse = stocks.isNotEmpty ? stocks.first.warehouse : item.warehouse;
+        final defaultLocation = stocks.isNotEmpty ? stocks.first.location : item.location;
+        final defaultWarehouseName = stocks.isNotEmpty ? stocks.first.warehouseName : item.warehouseName;
+        final defaultLocationType = stocks.isNotEmpty ? stocks.first.locationType : item.locationType;
+
+        final pricingResult = await pricingEngine.resolvePrice(
+          customerCode: customerCode,
+          bcgcod: bcgcod,
+          tsccod: tsccod,
+          bpcsho: bpcsho,
+          facilityFlag: facilityFlag,
+          sku: item.product.sku,
+          qty: item.quantity,
+          siteCode: siteCode,
+        );
+
+        final vatDetails = await vatCalculator.resolveVatDetails(customerTaxRule, itemTaxLevel);
+
+        finalInvoiceItems.add(
+          item.copyWith(
+            basePrice: pricingResult.basePrice,
+            discountPercent: pricingResult.discountPct,
+            discountAmountFlat: pricingResult.discountAmountFlat,
+            vatRatePercent: vatDetails.rate,
+            taxRule: vatDetails.code.isNotEmpty ? vatDetails.code : item.taxRule,
+            pricingSource: pricingResult.source,
+            priceListCode: pricingResult.priceListCode,
+            reasonType: pricingResult.reasonType,
+            lotNumber: item.lotNumber.isNotEmpty ? item.lotNumber : defaultLot,
+            warehouse: item.warehouse.isNotEmpty ? item.warehouse : defaultWarehouse,
+            warehouseName: item.warehouseName.isNotEmpty ? item.warehouseName : defaultWarehouseName,
+            location: item.location.isNotEmpty ? item.location : defaultLocation,
+            locationType: item.locationType.isNotEmpty ? item.locationType : defaultLocationType,
+          ),
+        );
+
+        if (pricingResult.hasFoc && pricingResult.focQuantity > 0 && pricingResult.focItemSku.isNotEmpty) {
+          qualifiedFocList.add({
+            'mainItem': item,
+            'focSku': pricingResult.focItemSku,
+            'focQty': pricingResult.focQuantity,
+          });
+        }
+      }
+
+      if (!context.mounted) return;
+      Navigator.pop(context); // Close calculation spinner
+
+      // 5. Prompt user if FOC items are qualified
+      for (final focEntry in qualifiedFocList) {
+        final String focSku = focEntry['focSku'] as String;
+        final double focQty = focEntry['focQty'] as double;
+        final CartItem mainItem = focEntry['mainItem'] as CartItem;
+
+        // Check stock for FOC item
+        final focStocks = await repo.getSalesInvoiceItemStockDetails(focSku);
+        final focAvailStock = focStocks.fold<double>(0.0, (s, l) => s + l.totalQty);
+
+        if (!context.mounted) return;
+
+        if (focAvailStock <= 0.0001) {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('FOC Promotion Unavailable'),
+              content: Text(
+                'Purchasing ${mainItem.product.name} qualifies for free item ($focSku), but $focSku is currently out of stock. It will not be added.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          continue;
+        }
+
+        final bool? addFoc = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.card_giftcard, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Free Promotion Qualified!'),
+              ],
+            ),
+            content: Text(
+              'Order qualifies for Free of Charge (FOC) item:\n\n'
+              '• Promotion: ${focQty % 1 == 0 ? focQty.toInt() : focQty}x $focSku (Free)\n'
+              '• In Stock: $focAvailStock\n\n'
+              'Would you like to add this free item to the invoice?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('SKIP FOC'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('ADD FOC ITEM', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+
+        if (addFoc == true) {
+          final focProductModel = await repo.getProductByItemCode(focSku);
+          final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
+          final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
+          final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
+          final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
+          final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
+          final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
+              ? focStocks.first.salesUnit
+              : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+
+          finalInvoiceItems.add(
+            CartItem(
+              product: focProductModel ??
+                  SalesInvoiceProductModel(
+                    sku: focSku,
+                    name: focSku,
+                    stockQty: focAvailStock,
+                    warehouse: focWarehouse,
+                    salesUnit: focSalesUnit,
+                  ),
+              quantity: focQty,
+              basePrice: 0.0,
+              discountPercent: 0.0,
+              vatRatePercent: 0.0,
+              isFoc: true,
+              mainItemSku: mainItem.product.sku,
+              pricingSource: 'FOC',
+              lotNumber: focLot,
+              warehouse: focWarehouse,
+              warehouseName: focWarehouseName,
+              location: focLocation,
+              locationType: focLocationType,
+            ),
+          );
+        }
+      }
+
+      if (!context.mounted) return;
+
+      // 6. Convert to INVOICE in SalesInvoiceBloc with real-time calculated items and full customer
+      context.read<SalesInvoiceBloc>().add(
+        InitializeTransaction(
+          transactionType: 'INVOICE',
+          originalDocumentId: cartState.originalDocumentId,
+          customer: resolvedCustomer,
+          cartItems: finalInvoiceItems,
+        ),
+      );
+
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Order converted to Invoice with live pricing. Please proceed to payment.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).popUntil((route) => route is! PopupRoute || !route.isCurrent);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Error during order conversion: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _oldMethodRemoved(BuildContext context, SalesInvoiceLoaded cartState) async {
+    return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Processing order conversion with live pricing and stock validation
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!context.mounted) return;
@@ -1516,7 +1991,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                     text: TextSpan(
                       children: [
                         TextSpan(
-                          text: _currencyFormat.format(item.basePrice),
+                          text: config.isSalesOrder ? '' : _currencyFormat.format(item.basePrice),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -1525,7 +2000,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         ),
                         TextSpan(
                           text:
-                              ' /${item.product.salesUnit.isNotEmpty ? item.product.salesUnit : 'ea'}',
+                              config.isSalesOrder ? '' : ' /${item.product.salesUnit.isNotEmpty ? item.product.salesUnit : 'ea'}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[500],
@@ -1578,69 +2053,73 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Flexible(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Qty: ',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, size: 20),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            color: selectedQty > 1 ? theme.primaryColor : Colors.grey,
-                            onPressed: selectedQty > 1
-                                ? () {
-                                    setState(() {
-                                      _selectedReversalQuantities[index] = selectedQty - 1;
-                                    });
-                                  }
-                                : null,
-                          ),
-                          const SizedBox(width: 4),
-                          InkWell(
-                            onTap: () => _showQtyInputDialog(context, index, item.quantity),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: theme.primaryColor),
-                                borderRadius: BorderRadius.circular(4),
-                                color: theme.primaryColor.withOpacity(0.12),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Qty: ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
                               ),
-                              child: Text(
-                                selectedQty % 1 == 0 ? selectedQty.toInt().toString() : selectedQty.toStringAsFixed(2),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.primaryColor,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              color: selectedQty > 1 ? theme.primaryColor : Colors.grey,
+                              onPressed: selectedQty > 1
+                                  ? () {
+                                      setState(() {
+                                        _selectedReversalQuantities[index] = selectedQty - 1;
+                                      });
+                                    }
+                                  : null,
+                            ),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => _showQtyInputDialog(context, index, item.quantity),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: theme.primaryColor),
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: theme.primaryColor.withOpacity(0.12),
+                                ),
+                                child: Text(
+                                  selectedQty % 1 == 0 ? selectedQty.toInt().toString() : selectedQty.toStringAsFixed(2),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.primaryColor,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline, size: 20),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            color: selectedQty < item.quantity ? theme.primaryColor : Colors.grey,
-                            onPressed: selectedQty < item.quantity
-                                ? () {
-                                    setState(() {
-                                      _selectedReversalQuantities[index] = selectedQty + 1;
-                                    });
-                                  }
-                                : null,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '(Max: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity})',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle_outline, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              color: selectedQty < item.quantity ? theme.primaryColor : Colors.grey,
+                              onPressed: selectedQty < item.quantity
+                                  ? () {
+                                      setState(() {
+                                        _selectedReversalQuantities[index] = selectedQty + 1;
+                                      });
+                                    }
+                                  : null,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '(Max: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity})',
+                              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -1648,7 +2127,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       text: TextSpan(
                         children: [
                           TextSpan(
-                            text: 'Total: ',
+                            text: config.isSalesOrder ? '' : 'Total: ',
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[600],
@@ -1682,7 +2161,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                             ),
                           ),
                           TextSpan(
-                            text: '${item.quantity}',
+                            text: '${item.quantity}${config.isSalesOrder && item.product.salesUnit.isNotEmpty ? " ${item.product.salesUnit}" : ""}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -1696,14 +2175,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       text: TextSpan(
                         children: [
                           TextSpan(
-                            text: 'Total: ',
+                            text: config.isSalesOrder ? '' : 'Total: ',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
                             ),
                           ),
                           TextSpan(
-                            text: _currencyFormat.format(item.total),
+                            text: config.isSalesOrder ? '' : _currencyFormat.format(item.total),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -1731,6 +2210,86 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     double totalCreditedAmt = 0.0,
     double remainingNetBalance = 0.0,
   }) {
+    if (cart.config.isSalesOrder) {
+      final totalUnits = cart.cartItems.fold<double>(0.0, (sum, item) => sum + item.quantity);
+      final totalLines = cart.cartItems.length;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[900] : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.receipt_outlined,
+                  size: 16,
+                  color: theme.primaryColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Sales Order Overview',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildCalcRow(
+              'Total Line Items',
+              '$totalLines lines',
+              isDark: isDark,
+            ),
+            const SizedBox(height: 4),
+            _buildCalcRow(
+              'Total Ordered Qty',
+              '${totalUnits % 1 == 0 ? totalUnits.toInt() : totalUnits.toStringAsFixed(1)} units',
+              isDark: isDark,
+            ),
+            const SizedBox(height: 8),
+            Divider(color: Colors.grey.withOpacity(0.2), height: 1),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 14,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Pricing, discounts & VAT will be calculated dynamically upon converting to invoice.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     if (cart.config.requireItemSelectionForAction && _selectedReversalQuantities.isNotEmpty) {
       double revSubtotal = 0.0;
       double revDiscount = 0.0;
@@ -1767,14 +2326,18 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           children: [
             Row(
               children: [
-                Icon(Icons.assignment_return_rounded, size: 16, color: theme.primaryColor),
+                Icon(
+                  _isReturnTransaction ? Icons.inventory_2_rounded : Icons.receipt_long_rounded,
+                  size: 16,
+                  color: _isReturnTransaction ? Colors.deepOrange.shade600 : theme.primaryColor,
+                ),
                 const SizedBox(width: 6),
                 Text(
-                  'Reversal Summary (${_selectedReversalQuantities.length} selected)',
+                  'Reversal Summary (${_selectedReversalQuantities.length} selected) • ${_isReturnTransaction ? "Return [RTN]" : "Credit Note [CRN]"}',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: theme.primaryColor,
+                    color: _isReturnTransaction ? Colors.deepOrange.shade600 : theme.primaryColor,
                   ),
                 ),
               ],
@@ -1937,6 +2500,169 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildReversalTypeSelector(ThemeData theme, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                if (_isReturnTransaction) {
+                  setState(() => _isReturnTransaction = false);
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: !_isReturnTransaction
+                      ? (isDark ? const Color(0xFF2A2A2A) : Colors.white)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: !_isReturnTransaction
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : [],
+                  border: !_isReturnTransaction
+                      ? Border.all(color: Colors.amber.shade700.withOpacity(0.8), width: 1.5)
+                      : Border.all(color: Colors.transparent),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      size: 18,
+                      color: !_isReturnTransaction
+                          ? Colors.amber.shade700
+                          : (isDark ? Colors.white54 : Colors.black45),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Credit Note',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: !_isReturnTransaction ? FontWeight.bold : FontWeight.w500,
+                              color: !_isReturnTransaction
+                                  ? (isDark ? Colors.white : Colors.black87)
+                                  : (isDark ? Colors.white60 : Colors.black54),
+                            ),
+                          ),
+                          Text(
+                            'Financial Only (CRN)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: !_isReturnTransaction
+                                  ? Colors.amber.shade700
+                                  : (isDark ? Colors.white38 : Colors.black38),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                if (!_isReturnTransaction) {
+                  setState(() => _isReturnTransaction = true);
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: _isReturnTransaction
+                      ? (isDark ? const Color(0xFF2A2A2A) : Colors.white)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: _isReturnTransaction
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : [],
+                  border: _isReturnTransaction
+                      ? Border.all(color: Colors.deepOrange.shade600, width: 1.5)
+                      : Border.all(color: Colors.transparent),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_rounded,
+                      size: 18,
+                      color: _isReturnTransaction
+                          ? Colors.deepOrange.shade600
+                          : (isDark ? Colors.white54 : Colors.black45),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Return',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: _isReturnTransaction ? FontWeight.bold : FontWeight.w500,
+                              color: _isReturnTransaction
+                                  ? (isDark ? Colors.white : Colors.black87)
+                                  : (isDark ? Colors.white60 : Colors.black54),
+                            ),
+                          ),
+                          Text(
+                            'Stock to Inventory (RTN)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _isReturnTransaction
+                                  ? Colors.deepOrange.shade600
+                                  : (isDark ? Colors.white38 : Colors.black38),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

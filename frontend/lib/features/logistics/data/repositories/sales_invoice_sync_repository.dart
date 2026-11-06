@@ -30,6 +30,8 @@ class SyncEntityReport {
   final String? userMessage;
   final String? technicalDetails;
   final Duration duration;
+  final String? documentId;
+  final List<String> messages;
 
   const SyncEntityReport({
     required this.entityName,
@@ -40,6 +42,8 @@ class SyncEntityReport {
     this.userMessage,
     this.technicalDetails,
     this.duration = Duration.zero,
+    this.documentId,
+    this.messages = const [],
   });
 }
 
@@ -98,6 +102,11 @@ class SyncBatchResult {
   List<SyncEntityReport> get successfulReports =>
       reports.where((r) => r.status == SyncStatus.success || r.status == SyncStatus.cached304).toList();
 
+  bool get hasUploadItems => reports.any((r) => r.direction == SyncDirection.upload);
+
+  List<SyncEntityReport> get uploadReports =>
+      reports.where((r) => r.direction == SyncDirection.upload).toList();
+
   String toDiagnosticJson({String? siteCode, String? schema, String? baseUrl, String? deviceId}) {
     final Map<String, dynamic> data = {
       'timestamp': timestamp.toIso8601String(),
@@ -138,6 +147,31 @@ class SalesInvoiceSyncRepository {
 
   Dio get _dio => _networkService.dio;
 
+  Future<String> _resolveTabletSource([String? storedDeviceId]) async {
+    final currentName = DeviceInfoService.instance.deviceName.trim();
+    if (RegExp(r'^HM\d+$', caseSensitive: false).hasMatch(currentName) &&
+        currentName.toUpperCase() != 'HM1') {
+      return currentName.toUpperCase();
+    }
+
+    final lookupId = DeviceInfoService.instance.deviceId.isNotEmpty
+        ? DeviceInfoService.instance.deviceId
+        : (storedDeviceId ?? '');
+    if (lookupId.isNotEmpty) {
+      try {
+        final devLoc = await LocalDatabaseHelper.instance.getDeviceLocation(lookupId);
+        final dbName = devLoc?['deviceName']?.toString().trim() ?? '';
+        if (dbName.isNotEmpty && !DeviceInfoService.isHardwareOrLegacyName(dbName)) {
+          return dbName.toUpperCase();
+        }
+      } catch (_) {}
+    }
+
+    return currentName.isNotEmpty && !DeviceInfoService.isHardwareOrLegacyName(currentName)
+        ? currentName.toUpperCase()
+        : 'HM1';
+  }
+
   String _extractX3InvoiceId(String fallbackInvoiceId, dynamic responseData) {
     String displayId = fallbackInvoiceId;
     if (responseData is Map) {
@@ -157,7 +191,10 @@ class SalesInvoiceSyncRepository {
     return displayId;
   }
 
-  Future<SyncBatchResult> synchronizeSalesInvoiceData(String siteCode) async {
+  Future<SyncBatchResult> synchronizeSalesInvoiceData(
+    String siteCode, {
+    bool uploadOnly = false,
+  }) async {
     final stopwatch = Stopwatch()..start();
     final List<String> successes = [];
     final List<String> failures = [];
@@ -196,6 +233,15 @@ class SalesInvoiceSyncRepository {
         final payments = await LocalDatabaseHelper.instance.getPaymentsForInvoice(invoiceId);
 
         try {
+          final resolvedTablet = await _resolveTabletSource(invoice['deviceId']?.toString());
+          final cleanDeviceId = DeviceInfoService.instance.deviceId.isNotEmpty
+              ? DeviceInfoService.instance.deviceId
+              : ((invoice['deviceId'] != null &&
+                      (invoice['deviceId'] as String).isNotEmpty &&
+                      !DeviceInfoService.isHardwareOrLegacyName(invoice['deviceId'] as String))
+                  ? invoice['deviceId']
+                  : resolvedTablet);
+
           final payload = {
             "invoiceId": invoiceId,
             "salesSite": invoice['salesSite'] ?? siteCode,
@@ -206,9 +252,8 @@ class SalesInvoiceSyncRepository {
             "createdAt": invoice['createdAt'] ?? DateTime.now().toIso8601String(),
             "userName": invoice['userName'] ?? invoice['createdBy'] ?? '',
             "createdBy": invoice['createdBy'] ?? invoice['userName'] ?? '',
-            "deviceId": (invoice['deviceId'] != null && (invoice['deviceId'] as String).isNotEmpty)
-                ? invoice['deviceId']
-                : DeviceInfoService.instance.deviceInfo,
+            "deviceId": cleanDeviceId,
+            "tabletSource": resolvedTablet,
             "reference": invoice['reference'] ?? '',
             "invoiceType": invoice['invoiceType'] ?? 'STD',
             "transactionalId": invoice['transactionalId'] ?? invoiceId,
@@ -262,22 +307,33 @@ class SalesInvoiceSyncRepository {
                await LocalDatabaseHelper.instance.markPaymentsSynced(invoiceId, x3PaymentId: x3PayId, x3InvoiceDocumentId: displayId);
              }
              successes.add(displayId);
+             final List<String> msgs = [];
+             if (response.data is Map && response.data['messages'] is List) {
+               msgs.addAll((response.data['messages'] as List).map((m) => m.toString()));
+             }
+             if (msgs.isEmpty) {
+               msgs.add('Created in Sage X3: $displayId');
+             }
              entityReports.add(SyncEntityReport(
-               entityName: 'Invoice $displayId',
+               entityName: displayId,
                direction: SyncDirection.upload,
                status: SyncStatus.success,
                count: 1,
+               documentId: displayId,
+               messages: msgs,
              ));
           } else {
              final err = '$invoiceId: ${response.data}';
              failures.add(err);
              entityReports.add(SyncEntityReport(
-               entityName: 'Invoice $invoiceId',
+               entityName: invoiceId,
                direction: SyncDirection.upload,
                status: SyncStatus.failed,
                errorCode: 'ERR_UPLOAD_INVOICE',
                userMessage: err,
                technicalDetails: 'HTTP ${response.statusCode}: ${response.data}',
+               documentId: invoiceId,
+               messages: [err],
              ));
           }
         } catch (e) {
@@ -295,32 +351,33 @@ class SalesInvoiceSyncRepository {
                 }
                 successes.add(displayId);
                 entityReports.add(SyncEntityReport(
-                  entityName: 'Invoice $displayId',
+                  entityName: displayId,
                   direction: SyncDirection.upload,
                   status: SyncStatus.success,
                   count: 1,
-                ));
-              } else if (data.containsKey('error')) {
-                final err = '$invoiceId: ${data['error']}';
-                failures.add(err);
-                entityReports.add(SyncEntityReport(
-                  entityName: 'Invoice $invoiceId',
-                  direction: SyncDirection.upload,
-                  status: SyncStatus.failed,
-                  errorCode: 'ERR_UPLOAD_INVOICE',
-                  userMessage: err,
-                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                  documentId: displayId,
+                  messages: ['Recovered in Sage X3: $displayId'],
                 ));
               } else {
-                final err = '$invoiceId: [HTTP ${e.response?.statusCode}] $data';
-                failures.add(err);
+                final List<String> msgs = [];
+                if (data['messages'] is List) {
+                  msgs.addAll((data['messages'] as List).map((m) => m.toString()));
+                }
+                final err = data['error']?.toString() ?? '$data';
+                if (msgs.isEmpty && err.isNotEmpty) {
+                  msgs.add(err);
+                }
+                final userMsg = '$invoiceId: $err';
+                failures.add(userMsg);
                 entityReports.add(SyncEntityReport(
                   entityName: 'Invoice $invoiceId',
                   direction: SyncDirection.upload,
                   status: SyncStatus.failed,
                   errorCode: 'ERR_UPLOAD_INVOICE',
-                  userMessage: err,
-                  technicalDetails: '$data',
+                  userMessage: userMsg,
+                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                  documentId: invoiceId,
+                  messages: msgs,
                 ));
               }
             } else {
@@ -333,6 +390,8 @@ class SalesInvoiceSyncRepository {
                 errorCode: 'ERR_UPLOAD_INVOICE',
                 userMessage: err,
                 technicalDetails: '$data',
+                documentId: invoiceId,
+                messages: [err],
               ));
             }
           } else {
@@ -345,6 +404,8 @@ class SalesInvoiceSyncRepository {
               errorCode: 'ERR_UPLOAD_INVOICE',
               userMessage: err,
               technicalDetails: e.toString(),
+              documentId: invoiceId,
+              messages: [err],
             ));
           }
         }
@@ -362,7 +423,7 @@ class SalesInvoiceSyncRepository {
         try {
           final originalInvoiceId = (cn['originalInvoiceId'] as String?)?.trim();
           final isLinked = originalInvoiceId != null && originalInvoiceId.isNotEmpty;
-          final category = (cn['creditNoteType'] == 'RETURN') ? 3 : 2;
+          final category = (cn['creditNoteType'] == 'RETURN' || (cn['stockTransaction'] as num?)?.toInt() == 1) ? 3 : 2;
           final transactionMode = (cn['transactionMode'] != null && (cn['transactionMode'] as String).trim().isNotEmpty)
               ? (cn['transactionMode'] as String).trim()
               : (isLinked ? "4" : "1");
@@ -390,14 +451,23 @@ class SalesInvoiceSyncRepository {
             }
           }
 
+          final resolvedCrnTablet = await _resolveTabletSource(cn['deviceId']?.toString());
+          final cleanCrnDeviceId = DeviceInfoService.instance.deviceId.isNotEmpty
+              ? DeviceInfoService.instance.deviceId
+              : ((cn['deviceId'] != null &&
+                      (cn['deviceId'] as String).isNotEmpty &&
+                      !DeviceInfoService.isHardwareOrLegacyName(cn['deviceId'] as String))
+                  ? cn['deviceId']
+                  : resolvedCrnTablet);
+
           final payload = {
             "creditNoteId": creditNoteId,
-            "creditNoteType": cn['creditNoteType'] ?? 'CRN',
+            "creditNoteType": (category == 3) ? 'RETURN' : (cn['creditNoteType'] ?? 'CRN'),
             "salesSite": cn['salesSite'] ?? siteCode,
             "customerCode": cn['customerCode'],
             "customerName": cn['customerName'] ?? '',
             "category": category,
-            "stockTransaction": cn['stockTransaction'] ?? ((cn['creditNoteType'] == 'RETURN' || category == 3) ? 1 : 0),
+            "stockTransaction": (category == 3) ? 1 : 0,
             "salesRep": cn['salesRep'] ?? '',
             "reason": cn['reason'] ?? 'CREDIT_NOTE',
             "originalInvoiceId": resolvedOriginalInvoiceId,
@@ -407,9 +477,8 @@ class SalesInvoiceSyncRepository {
             "dueDate": cn['createdAt'] ?? DateTime.now().toIso8601String(),
             "createdBy": cn['createdBy'] ?? '',
             "userName": cn['createdBy'] ?? '',
-            "deviceId": (cn['deviceId'] != null && (cn['deviceId'] as String).isNotEmpty)
-                ? cn['deviceId']
-                : DeviceInfoService.instance.deviceInfo,
+            "deviceId": cleanCrnDeviceId,
+            "tabletSource": resolvedCrnTablet,
             "transactionalId": creditNoteId,
             "grandTotal": (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
             "lines": lines.map((l) => {
@@ -445,22 +514,33 @@ class SalesInvoiceSyncRepository {
               await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
             }
             successes.add(displayId);
+            final List<String> msgs = [];
+            if (response.data is Map && response.data['messages'] is List) {
+              msgs.addAll((response.data['messages'] as List).map((m) => m.toString()));
+            }
+            if (msgs.isEmpty) {
+              msgs.add('Created in Sage X3: $displayId');
+            }
             entityReports.add(SyncEntityReport(
-              entityName: 'Credit Note $displayId',
+              entityName: displayId,
               direction: SyncDirection.upload,
               status: SyncStatus.success,
               count: 1,
+              documentId: displayId,
+              messages: msgs,
             ));
           } else {
             final err = '$creditNoteId: ${response.data}';
             failures.add(err);
             entityReports.add(SyncEntityReport(
-              entityName: 'Credit Note $creditNoteId',
+              entityName: creditNoteId,
               direction: SyncDirection.upload,
               status: SyncStatus.failed,
               errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
               userMessage: err,
               technicalDetails: 'HTTP ${response.statusCode}: ${response.data}',
+              documentId: creditNoteId,
+              messages: [err],
             ));
           }
         } catch (e) {
@@ -481,28 +561,29 @@ class SalesInvoiceSyncRepository {
                   direction: SyncDirection.upload,
                   status: SyncStatus.success,
                   count: 1,
-                ));
-              } else if (data.containsKey('error')) {
-                final err = '$creditNoteId: ${data['error']}';
-                failures.add(err);
-                entityReports.add(SyncEntityReport(
-                  entityName: 'Credit Note $creditNoteId',
-                  direction: SyncDirection.upload,
-                  status: SyncStatus.failed,
-                  errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
-                  userMessage: err,
-                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                  documentId: displayId,
+                  messages: ['Recovered in Sage X3: $displayId'],
                 ));
               } else {
-                final err = '$creditNoteId: [HTTP ${e.response?.statusCode}] $data';
-                failures.add(err);
+                final List<String> msgs = [];
+                if (data['messages'] is List) {
+                  msgs.addAll((data['messages'] as List).map((m) => m.toString()));
+                }
+                final err = data['error']?.toString() ?? '$data';
+                if (msgs.isEmpty && err.isNotEmpty) {
+                  msgs.add(err);
+                }
+                final userMsg = '$creditNoteId: $err';
+                failures.add(userMsg);
                 entityReports.add(SyncEntityReport(
                   entityName: 'Credit Note $creditNoteId',
                   direction: SyncDirection.upload,
                   status: SyncStatus.failed,
                   errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
-                  userMessage: err,
-                  technicalDetails: '$data',
+                  userMessage: userMsg,
+                  technicalDetails: '[HTTP ${e.response?.statusCode}] $data',
+                  documentId: creditNoteId,
+                  messages: msgs,
                 ));
               }
             } else {
@@ -515,6 +596,8 @@ class SalesInvoiceSyncRepository {
                 errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
                 userMessage: err,
                 technicalDetails: '$data',
+                documentId: creditNoteId,
+                messages: [err],
               ));
             }
           } else {
@@ -527,6 +610,8 @@ class SalesInvoiceSyncRepository {
               errorCode: 'ERR_UPLOAD_CREDIT_NOTE',
               userMessage: err,
               technicalDetails: e.toString(),
+              documentId: creditNoteId,
+              messages: [err],
             ));
           }
         }
@@ -567,16 +652,40 @@ class SalesInvoiceSyncRepository {
             final payResp = await _dio.post('SalesInvoice/sync-payments', data: eligiblePayments);
             if (payResp.statusCode == 200 && payResp.data is Map && payResp.data['results'] is List) {
               for (final res in (payResp.data['results'] as List)) {
-                if (res is Map && res['success'] == true) {
-                  final docId = res['documentId']?.toString();
+                if (res is Map) {
+                  final bool paySuccess = res['success'] == true;
+                  final docId = res['documentId']?.toString() ?? 'Payment';
                   final x3PayId = res['x3PaymentId']?.toString();
                   final x3InvDocId = res['x3InvoiceDocumentId']?.toString();
-                  if (docId != null && docId.isNotEmpty) {
-                    await LocalDatabaseHelper.instance.markPaymentsSynced(
-                      docId,
-                      x3PaymentId: x3PayId,
-                      x3InvoiceDocumentId: x3InvDocId,
-                    );
+                  if (paySuccess) {
+                    if (docId.isNotEmpty) {
+                      await LocalDatabaseHelper.instance.markPaymentsSynced(
+                        docId,
+                        x3PaymentId: x3PayId,
+                        x3InvoiceDocumentId: x3InvDocId,
+                      );
+                    }
+                    successes.add(x3PayId ?? docId);
+                    entityReports.add(SyncEntityReport(
+                      entityName: 'Payment for $docId',
+                      direction: SyncDirection.upload,
+                      status: SyncStatus.success,
+                      count: 1,
+                      documentId: x3PayId,
+                      messages: ['Payment allocated in Sage X3: ${x3PayId ?? 'OK'}'],
+                    ));
+                  } else {
+                    final payErr = res['error']?.toString() ?? 'Payment sync failed';
+                    failures.add('Payment for $docId: $payErr');
+                    entityReports.add(SyncEntityReport(
+                      entityName: 'Payment for $docId',
+                      direction: SyncDirection.upload,
+                      status: SyncStatus.failed,
+                      errorCode: 'ERR_UPLOAD_PAYMENT',
+                      userMessage: payErr,
+                      documentId: docId,
+                      messages: [payErr],
+                    ));
                   }
                 }
               }
@@ -587,6 +696,41 @@ class SalesInvoiceSyncRepository {
         debugPrint('Sync: Standalone payment sync retry warning: $payRetryEx');
       }
 
+      // 4. Push Unsynced Open Invoice Payments
+      try {
+        final unsyncedOpenPayments = await LocalDatabaseHelper.instance.getUnsyncedOpenInvoicePayments();
+        if (unsyncedOpenPayments.isNotEmpty) {
+          debugPrint('Sync: Found ${unsyncedOpenPayments.length} unsynced Open Invoice Payments.');
+          final paymentsPayload = unsyncedOpenPayments.map((p) => {
+            'paymentId': p['paymentId'],
+            'documentNo': p['documentNo'],
+            'customerNo': p['customerNo'],
+            'amount': p['amount'],
+            'paymentMethod': p['paymentMethod'],
+            'bankCode': p['bankCode'],
+            'bankName': p['bankName'],
+            'chequeNumber': p['chequeNumber'],
+            'chequeDate': p['chequeDate'],
+            'qrTransactionRef': p['qrTransactionRef'],
+            'siteCode': p['siteCode'] ?? siteCode,
+            'company': p['company'] ?? '',
+            'createdAt': p['createdAt'],
+            'userName': p['userName'],
+            'deviceId': p['deviceId'],
+          }).toList();
+
+          final payResponse = await _dio.post('SalesInvoice/open-invoices/payments/sync', data: paymentsPayload);
+          if (payResponse.statusCode == 200) {
+            final ids = unsyncedOpenPayments.map((p) => p['paymentId'] as String).toList();
+            await LocalDatabaseHelper.instance.markOpenInvoicePaymentsSynced(ids);
+            debugPrint('Sync: Successfully marked ${ids.length} open invoice payments synced.');
+          }
+        }
+      } catch (e) {
+        debugPrint('Sync: Failed to push open invoice payments: $e');
+      }
+
+      if (!uploadOnly) {
       final prefs = await SharedPreferences.getInstance();
       final effectiveSiteKey = siteCode.isNotEmpty ? siteCode : 'default';
       final openInvEtagKey = 'etag_open_invoices_$effectiveSiteKey';
@@ -703,6 +847,16 @@ class SalesInvoiceSyncRepository {
       if (siteCode.isNotEmpty && siteCode != 'ALL') x3Params['sitecode'] = siteCode;
 
       debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
+      // Download facility mappings first so financial-site lookups are up to date for stock & numbering
+      final facilitiesResp = await safeGet('SalesInvoice/facilities', label: 'Facilities');
+      if (facilitiesResp != null && facilitiesResp.data is List) {
+        final rawFacilities = facilitiesResp.data as List<dynamic>;
+        if (rawFacilities.isNotEmpty) {
+          await LocalDatabaseHelper.instance.refreshFacilities(rawFacilities);
+          debugPrint('Sync: Synced ${rawFacilities.length} Sage X3 Facility Mappings.');
+        }
+      }
+
       final results = await Future.wait([
         safeGet('SalesInvoice/customers', queryParameters: custParams.isNotEmpty ? custParams : null, label: 'Customers'),
         safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
@@ -819,43 +973,20 @@ class SalesInvoiceSyncRepository {
           debugPrint('Sync: Synced ${banksList.length} Sage X3 Banks.');
         }
       }
-
-      // 8. Push Unsynced Open Invoice Payments
-      try {
-        final unsyncedOpenPayments = await LocalDatabaseHelper.instance.getUnsyncedOpenInvoicePayments();
-        if (unsyncedOpenPayments.isNotEmpty) {
-          debugPrint('Sync: Found ${unsyncedOpenPayments.length} unsynced Open Invoice Payments.');
-          final paymentsPayload = unsyncedOpenPayments.map((p) => {
-            'paymentId': p['paymentId'],
-            'documentNo': p['documentNo'],
-            'customerNo': p['customerNo'],
-            'amount': p['amount'],
-            'paymentMethod': p['paymentMethod'],
-            'bankCode': p['bankCode'],
-            'bankName': p['bankName'],
-            'chequeNumber': p['chequeNumber'],
-            'chequeDate': p['chequeDate'],
-            'qrTransactionRef': p['qrTransactionRef'],
-            'siteCode': p['siteCode'] ?? siteCode,
-            'company': p['company'] ?? '',
-            'createdAt': p['createdAt'],
-            'userName': p['userName'],
-            'deviceId': p['deviceId'],
-          }).toList();
-
-          final payResponse = await _dio.post('SalesInvoice/open-invoices/payments/sync', data: paymentsPayload);
-          if (payResponse.statusCode == 200) {
-            final ids = unsyncedOpenPayments.map((p) => p['paymentId'] as String).toList();
-            await LocalDatabaseHelper.instance.markOpenInvoicePaymentsSynced(ids);
-            debugPrint('Sync: Successfully marked ${ids.length} open invoice payments synced.');
-          }
+      } else {
+        if (entityReports.isEmpty) {
+          entityReports.add(SyncEntityReport(
+            entityName: 'Sage X3 SOAP Export',
+            direction: SyncDirection.upload,
+            status: SyncStatus.success,
+            count: 0,
+            messages: ['No pending SOAP records to export. All local transactions are up to date.'],
+          ));
         }
-      } catch (e) {
-        debugPrint('Sync: Failed to push open invoice payments: $e');
       }
 
       final duration = stopwatch.elapsedMilliseconds;
-      debugPrint('Sales Invoice Sync completed in ${duration}ms (Reports: ${entityReports.length}, Successes: ${successes.length}, Failures: ${failures.length})');
+      debugPrint('${uploadOnly ? "Export to Sage X3" : "Sales Invoice Sync"} completed in ${duration}ms (Reports: ${entityReports.length}, Successes: ${successes.length}, Failures: ${failures.length})');
       
       String? finalError;
       if (failures.isNotEmpty) {
@@ -863,16 +994,67 @@ class SalesInvoiceSyncRepository {
         if (successfulDownloads.isEmpty && successes.isEmpty) {
           finalError = failures.first;
         } else {
-          finalError = 'Sync completed with ${failures.length} issue(s).';
+          finalError = '${uploadOnly ? "Export" : "Sync"} completed with ${failures.length} issue(s).';
         }
       }
 
-      return SyncBatchResult(
+      final result = SyncBatchResult(
         successes: successes,
         failures: failures,
         errorMessage: finalError,
         reports: entityReports,
       );
+
+      try {
+        final historyStatus = result.isCleanSuccess
+            ? 'Success'
+            : (result.hasFailures ? 'Partial' : 'Failed');
+        final historyMsg = uploadOnly
+            ? (result.isCleanSuccess
+                ? 'Export to X3 completed (${result.successes.length} items)'
+                : (result.failures.isNotEmpty
+                    ? 'Export to X3 finished with ${result.failures.length} errors'
+                    : 'Export to X3 completed'))
+            : (result.isCleanSuccess
+                ? 'Sales sync completed (${result.successes.length} items)'
+                : (result.failures.isNotEmpty
+                    ? 'Sales sync finished with ${result.failures.length} errors'
+                    : 'Sales sync completed'));
+        await LocalDatabaseHelper.instance.insertSyncHistory(
+          status: historyStatus,
+          message: historyMsg,
+          site: siteCode,
+          counts: {
+            'successes': result.successes.length,
+            'failures': result.failures.length,
+          },
+        );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_sync_timestamp', DateTime.now().toIso8601String());
+      } catch (histErr) {
+        debugPrint('Failed to save local sync history: $histErr');
+      }
+
+      try {
+        final devId = DeviceInfoService.instance.deviceId.isNotEmpty 
+            ? DeviceInfoService.instance.deviceId 
+            : DeviceInfoService.instance.deviceInfo;
+        await _dio.post('Sync/log-event', data: {
+          'deviceId': devId,
+          'actionType': uploadOnly ? 'EXPORT_PENDING_X3' : 'SYNC_SALES_CATALOG',
+          'site': siteCode,
+          'payload': jsonEncode({
+            'successCount': successes.length,
+            'failureCount': failures.length,
+            'isCleanSuccess': result.isCleanSuccess,
+            'uploadOnly': uploadOnly,
+          }),
+        });
+      } catch (logErr) {
+        debugPrint('DeviceSync log-event error: $logErr');
+      }
+
+      return result;
     } on DioException catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data (DioException): $e');
       if (e.response != null) {
@@ -886,6 +1068,15 @@ class SalesInvoiceSyncRepository {
           ? 'Cannot sync while offline. All records are safely saved locally.'
           : (e.response?.data?.toString() ?? e.message ?? 'Network error');
       failures.add(serverError);
+
+      try {
+        await LocalDatabaseHelper.instance.insertSyncHistory(
+          status: 'Failed',
+          message: 'Sales sync error: $serverError',
+          site: siteCode,
+        );
+      } catch (_) {}
+
       return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError, reports: entityReports);
     } catch (e) {
       debugPrint('Failed to synchronize Sales Invoice data: $e');
@@ -897,6 +1088,15 @@ class SalesInvoiceSyncRepository {
           ? 'Cannot sync while offline. All records are safely saved locally.'
           : errStr;
       failures.add(serverError);
+
+      try {
+        await LocalDatabaseHelper.instance.insertSyncHistory(
+          status: 'Failed',
+          message: 'Sales sync error: $serverError',
+          site: siteCode,
+        );
+      } catch (_) {}
+
       return SyncBatchResult(successes: successes, failures: failures, errorMessage: serverError, reports: entityReports);
     }
   }
@@ -1080,6 +1280,22 @@ class SalesInvoiceSyncRepository {
         customerCode: code,
         errorMessage: 'Failed to sync customer: $e',
       );
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLatestBackendSyncResponses({String? siteCode, int limit = 20}) async {
+    try {
+      final resp = await _dio.get('SalesInvoice/sync-responses/latest', queryParameters: {
+        if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') 'siteCode': siteCode,
+        'limit': limit,
+      });
+      if (resp.statusCode == 200 && resp.data is List) {
+        return (resp.data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching backend sync responses: $e');
+      return [];
     }
   }
 }

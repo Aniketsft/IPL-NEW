@@ -65,47 +65,32 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
           SyncBatchResult? currentBatchResult;
 
           if (syncState is! SalesInvoiceSyncInitial) {
-            showOverlay = true;
             if (syncState is SalesInvoiceSyncInProgress) {
+              showOverlay = true;
               title = "Synchronizing";
               message = syncState.message;
             } else if (syncState is SalesInvoiceCustomerSyncInProgress) {
+              showOverlay = true;
               title = "Syncing Customer";
               message = syncState.message;
             } else if (syncState is SalesInvoiceCustomerSyncSuccess) {
+              showOverlay = true;
               isCleanSuccess = true;
               title = "Customer Synchronized";
               final balanceStr = CurrencyFormatter.format(syncState.result.liveBalance);
               message = "${syncState.customerName}\nBalance: $balanceStr • ${syncState.result.openInvoicesCount} Open Invoices • ${syncState.result.x3HistoryInvoicesCount} X3 Invoices";
               reportList = [];
-            } else if (syncState is SalesInvoiceCustomerSyncFailure) {
-              isError = true;
-              title = "Customer Sync Failed";
-              message = syncState.error;
-            } else if (syncState is SalesInvoiceSyncSuccess) {
+            } else if (syncState is SalesInvoiceSyncSuccess && syncState.batchResult.isCleanSuccess) {
+              showOverlay = true;
               currentBatchResult = syncState.batchResult;
-              if (syncState.batchResult.isCleanSuccess) {
-                isCleanSuccess = true;
-                title = "Sync Complete";
-                message = "All records updated successfully";
-                reportList = []; // Clean success: no details box needed
-              } else {
-                isPartial = true;
-                title = "Sync Attention";
-                final successCount = syncState.batchResult.successfulReports.length;
-                final failCount = syncState.batchResult.failedReports.length;
-                message = "Completed with issues ($successCount updated, $failCount failed)";
-                reportList = syncState.batchResult.failedReports; // Only show failed items
-              }
-            } else if (syncState is SalesInvoiceSyncFailure) {
-              isError = true;
-              currentBatchResult = syncState.batchResult;
-              if (syncState.batchResult != null) {
-                reportList = syncState.batchResult!.failedReports;
-              }
-              final isOfflineBlocked = syncState.error.toLowerCase().contains('offline');
-              title = isOfflineBlocked ? "Sync Blocked" : "Sync Failed";
-              message = syncState.error;
+              isCleanSuccess = true;
+              title = "Sync Complete";
+              message = "All records updated successfully";
+              reportList = [];
+            } else {
+              // Errors and partial failures are suppressed from the global overlay so they do not pop up across other screens.
+              // Detailed SOAP diagnostics are presented via SyncSoapErrorModal exclusively when global sync is run from the Home Screen.
+              showOverlay = false;
             }
           }
 

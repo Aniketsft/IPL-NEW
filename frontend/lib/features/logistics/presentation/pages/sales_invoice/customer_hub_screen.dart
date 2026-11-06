@@ -13,6 +13,7 @@ import 'open_invoices_screen.dart';
 import 'transaction_history_screen.dart';
 import 'sales_orders_list_screen.dart';
 import 'amount_only_credit_note_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
@@ -345,6 +346,8 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                     newActionLabel: 'New Return',
                     onNewAction: () async {
                       Navigator.pop(ctx);
+                      final condition = await showReturnConditionDialog(context);
+                      if (condition == null) return;
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -354,6 +357,7 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
                             lockToCustomer: true,
                             isX3History: true,
                             isForReturn: true,
+                            returnCondition: condition,
                           ),
                         ),
                       );

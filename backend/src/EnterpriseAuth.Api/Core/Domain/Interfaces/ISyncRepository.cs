@@ -8,5 +8,6 @@ namespace EnterpriseAuth.Api.Core.Domain.Interfaces
         Task<SyncPackageDto> GetRefreshPackageAsync(string site, string? deviceId = null, string? performedBy = null);
         Task<int> PushUpdatesAsync(SyncPushRequestDto request, string performedBy);
         Task<IEnumerable<DeviceSyncLogDto>> GetLatestDeviceSyncsAsync(string? siteCode = null);
+        Task LogDeviceSyncAsync(string deviceId, string actionType, string site, string performedBy, string? payload = null);
     }
 }

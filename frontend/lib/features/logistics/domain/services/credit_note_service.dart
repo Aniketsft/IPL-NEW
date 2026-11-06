@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/document_sequence_service.dart';
 
 typedef DbProvider = Future<Database> Function();
 
@@ -19,6 +20,7 @@ class CreditNoteService {
     String? salesRep,
     String? deviceId,
     int stockTransaction = 0,
+    String? stockStatus,
   }) async {
     final db = await _dbProvider();
 
@@ -64,15 +66,20 @@ class CreditNoteService {
       orderBy: 'lineId ASC',
     );
 
-    final creditNoteId = 'CN-$invoiceId';
+    final salesSite = (invoice['salesSite'] as String?) ?? 'POD';
+    final customerCode = (invoice['customerCode'] as String?) ?? '';
+    final customerName = (invoice['customerName'] as String?) ?? '';
+    final docType = (stockTransaction == 1) ? 'RTN' : 'CRN';
+    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
+      docType: docType,
+      salesSite: salesSite,
+      deviceId: deviceId,
+    );
     final now = DateTime.now().toIso8601String();
     final grandTotal = (invoice['grandTotal'] as num?)?.toDouble() ?? 0.0;
     if (grandTotal <= 0) {
       throw StateError('Cannot reverse invoice: amount must be greater than zero.');
     }
-    final salesSite = (invoice['salesSite'] as String?) ?? 'POD';
-    final customerCode = (invoice['customerCode'] as String?) ?? '';
-    final customerName = (invoice['customerName'] as String?) ?? '';
 
     final originX3Id = (invoice['x3DocumentId'] as String?)?.trim();
     final resolvedOriginInvoiceId = (originX3Id != null && originX3Id.isNotEmpty)
@@ -81,8 +88,8 @@ class CreditNoteService {
 
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
-      creditNoteType: CreditNoteType.reversal,
-      x3CreditNoteType: 'CRN',
+      creditNoteType: stockTransaction == 1 ? 'RETURN' : CreditNoteType.reversal,
+      x3CreditNoteType: stockTransaction == 1 ? 'RTN' : 'CRN',
       salesSite: salesSite,
       customerCode: customerCode,
       customerName: customerName,
@@ -133,11 +140,15 @@ class CreditNoteService {
         final lotNumber = line['lotNumber'] as String?;
         final warehouse = line['warehouse'] as String?;
         final location = line['location'] as String?;
-        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
-                reason?.toUpperCase().contains('DAM') == true ||
-                reason?.toUpperCase().contains('REJ') == true)
-            ? StockStatus.codeRejected
-            : StockStatus.codeQuarantine;
+        final returnStatus = (stockStatus != null)
+            ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
+                ? StockStatus.codeApproved
+                : StockStatus.codeQuarantine)
+            : ((reason?.toUpperCase().contains('DEF') == true ||
+                    reason?.toUpperCase().contains('DAM') == true ||
+                    reason?.toUpperCase().contains('REJ') == true)
+                ? StockStatus.codeRejected
+                : StockStatus.codeQuarantine);
 
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
@@ -230,6 +241,7 @@ class CreditNoteService {
     String? salesRep,
     String? deviceId,
     int stockTransaction = 0,
+    String? stockStatus,
   }) async {
     if (selectedLines.isEmpty) {
       throw ArgumentError('At least one line must be selected for partial reversal.');
@@ -324,11 +336,16 @@ class CreditNoteService {
       throw StateError('Cannot create partial reversal credit note: total amount must be greater than zero.');
     }
 
-    final creditNoteId = 'CN-P-${DateTime.now().millisecondsSinceEpoch}';
-    final now = DateTime.now().toIso8601String();
     final salesSite = (invoice['salesSite'] as String?) ?? 'POD';
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
+    final docType = (stockTransaction == 1) ? 'RTN' : 'CRN';
+    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
+      docType: docType,
+      salesSite: salesSite,
+      deviceId: deviceId,
+    );
+    final now = DateTime.now().toIso8601String();
 
     final originX3Id = (invoice['x3DocumentId'] as String?)?.trim();
     final resolvedOriginInvoiceId = (originX3Id != null && originX3Id.isNotEmpty)
@@ -337,8 +354,8 @@ class CreditNoteService {
 
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
-      creditNoteType: CreditNoteType.reversal,
-      x3CreditNoteType: 'CRN',
+      creditNoteType: stockTransaction == 1 ? 'RETURN' : CreditNoteType.reversal,
+      x3CreditNoteType: stockTransaction == 1 ? 'RTN' : 'CRN',
       salesSite: salesSite,
       customerCode: customerCode,
       customerName: customerName,
@@ -399,11 +416,15 @@ class CreditNoteService {
         final lotNumber = originalLine['lotNumber'] as String?;
         final warehouse = originalLine['warehouse'] as String?;
         final location = originalLine['location'] as String?;
-        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
-                reason?.toUpperCase().contains('DAM') == true ||
-                reason?.toUpperCase().contains('REJ') == true)
-            ? StockStatus.codeRejected
-            : StockStatus.codeQuarantine;
+        final returnStatus = (stockStatus != null)
+            ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
+                ? StockStatus.codeApproved
+                : StockStatus.codeQuarantine)
+            : ((reason?.toUpperCase().contains('DEF') == true ||
+                    reason?.toUpperCase().contains('DAM') == true ||
+                    reason?.toUpperCase().contains('REJ') == true)
+                ? StockStatus.codeRejected
+                : StockStatus.codeQuarantine);
 
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
@@ -492,6 +513,7 @@ class CreditNoteService {
     String? salesRep,
     String? originInvoiceId,
     int stockTransaction = 0,
+    String? stockStatus,
   }) async {
     final methodUpper = refundMethod.toUpperCase();
     if (methodUpper == 'QR' || methodUpper.contains('QR')) {
@@ -507,15 +529,22 @@ class CreditNoteService {
     }
 
     final db = await _dbProvider();
-    final creditNoteId = 'CN-ST-${DateTime.now().millisecondsSinceEpoch}';
+    final docType = (stockTransaction == 1) ? 'RTN' : 'CRN';
+    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
+      docType: docType,
+      salesSite: salesSite,
+      deviceId: deviceId,
+    );
     final now = DateTime.now().toIso8601String();
 
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
-      creditNoteType: (originInvoiceId != null && originInvoiceId.isNotEmpty)
-          ? CreditNoteType.reversal
-          : CreditNoteType.standalone,
-      x3CreditNoteType: 'CRN',
+      creditNoteType: stockTransaction == 1
+          ? 'RETURN'
+          : ((originInvoiceId != null && originInvoiceId.isNotEmpty)
+              ? CreditNoteType.reversal
+              : CreditNoteType.standalone),
+      x3CreditNoteType: stockTransaction == 1 ? 'RTN' : 'CRN',
       salesSite: salesSite,
       customerCode: customerCode,
       customerName: customerName,
@@ -622,11 +651,15 @@ class CreditNoteService {
               : salesSite;
           final resolvedLot = lot.isNotEmpty ? lot : 'RETURN';
           final loc = 'LOC1'; // default location if not specified
-          final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
-                  reason?.toUpperCase().contains('DAM') == true ||
-                  reason?.toUpperCase().contains('REJ') == true)
-              ? StockStatus.codeRejected
-              : StockStatus.codeQuarantine;
+          final returnStatus = (stockStatus != null)
+              ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
+                  ? StockStatus.codeApproved
+                  : StockStatus.codeQuarantine)
+              : ((reason?.toUpperCase().contains('DEF') == true ||
+                      reason?.toUpperCase().contains('DAM') == true ||
+                      reason?.toUpperCase().contains('REJ') == true)
+                  ? StockStatus.codeRejected
+                  : StockStatus.codeQuarantine);
 
           if (sku.isNotEmpty) {
             final updated = await txn.rawUpdate(
@@ -785,7 +818,11 @@ class CreditNoteService {
       );
     }
 
-    final creditNoteId = 'CN-AMT-${DateTime.now().millisecondsSinceEpoch}';
+    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
+      docType: 'CRN',
+      salesSite: salesSite,
+      deviceId: deviceId,
+    );
     final now = DateTime.now().toIso8601String();
 
     final creditNote = CreditNoteModel(

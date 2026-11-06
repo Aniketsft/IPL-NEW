@@ -16,9 +16,11 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/document_sequence_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
@@ -112,25 +114,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   }
 
   Future<void> _loadBanks() async {
-    final authState = context.read<AuthBloc>().state;
-    String site = (authState is Authenticated && authState.siteCode != null && authState.siteCode!.isNotEmpty && authState.siteCode != 'ALL')
-        ? authState.siteCode!
-        : 'POD';
-    final banks = await LocalDatabaseHelper.instance.getBanks(siteCode: site);
-    if (!mounted) return;
-    setState(() {
-      _availableBanks = banks;
-      if (_bankCodeController.text.isEmpty && banks.isNotEmpty) {
-        final defaultBank = banks.firstWhere(
-          (b) => (b['bankCode'] as String? ?? '').toUpperCase().startsWith('MCB'),
-          orElse: () => banks.first,
-        );
-        _bankCodeController.text = defaultBank['bankCode']?.toString() ?? '';
-        if (_bankNameController.text.isEmpty) {
-          _bankNameController.text = defaultBank['bankName']?.toString() ?? '';
-        }
-      }
-    });
+    // Banks are assigned on the backend per payment method.
+    // Users do not see or manage bank accounts on mobile terminals.
   }
 
   Future<void> _loadCreditNoteReasons() async {
@@ -139,10 +124,19 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     setState(() {
       _availableReasons = reasons;
       if (reasons.isNotEmpty) {
-        final currentText = _reasonController.text.trim();
+        final blocState = context.read<SalesInvoiceBloc>().state;
+        String? targetCode;
+        if (blocState is SalesInvoiceLoaded && blocState.returnCondition != null) {
+          final cond = ReturnCondition.fromId(blocState.returnCondition);
+          targetCode = cond.reasonCode;
+        }
+        final currentText = targetCode ?? _reasonController.text.trim();
         final match = reasons.firstWhere(
-          (r) => r['code'] == currentText,
-          orElse: () => reasons.first,
+          (r) => r['code']?.toString().toUpperCase() == currentText.toUpperCase(),
+          orElse: () => reasons.firstWhere(
+            (r) => r['code'] == _reasonController.text.trim(),
+            orElse: () => reasons.first,
+          ),
         );
         _selectedReasonCode = match['code'];
         _selectedReasonDesc = match['description'];
@@ -215,27 +209,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
 
-    final authState = context.read<AuthBloc>().state;
-    String currentSite = (authState is Authenticated && authState.siteCode != null && authState.siteCode!.isNotEmpty && authState.siteCode != 'ALL')
-        ? authState.siteCode!
-        : 'POD';
+    String resolvedBankCode = '';
+    String resolvedBankName = '';
 
-    String resolvedBankCode = _bankCodeController.text.trim();
-    String resolvedBankName = _bankNameController.text.trim();
-
-    if (resolvedBankCode.isEmpty) {
-      if (_availableBanks.isNotEmpty) {
-        final defB = _availableBanks.firstWhere(
-          (b) => (b['bankCode'] as String? ?? '').toUpperCase().startsWith('MCB'),
-          orElse: () => _availableBanks.first,
-        );
-        resolvedBankCode = defB['bankCode']?.toString() ?? '';
-        resolvedBankName = defB['bankName']?.toString() ?? '';
-      } else {
-        final defB = await LocalDatabaseHelper.instance.getDefaultBank(currentSite);
-        resolvedBankCode = defB['bankCode'] ?? '';
-        resolvedBankName = defB['bankName'] ?? '';
-      }
+    if (_selectedMethod == 'CHEQUE') {
+      resolvedBankName = _bankNameController.text.trim();
     }
 
     if (_selectedMethod == 'CHEQUE') {
@@ -244,13 +222,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           _chequeDateController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please fill all required cheque details.'),
+            content: Text('Please fill all required cheque details (Bank Name, Cheque Number, Cheque Date).'),
           ),
         );
         return;
       }
     } else if (_selectedMethod == 'QR CODE' ||
         _selectedMethod == 'BLINK' ||
+        _selectedMethod == 'JUICE' ||
         _selectedMethod == 'MYT MONEY') {
       if (_qrRefController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -480,15 +459,20 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       // Fetch audit details
       final secureStorage = SecureStorageService();
       final username = await secureStorage.getUsername() ?? 'Unknown User';
-      final deviceId = DeviceInfoService.instance.deviceInfo;
+      final deviceId = DeviceInfoService.instance.deviceId.isNotEmpty
+          ? DeviceInfoService.instance.deviceId
+          : DeviceInfoService.instance.deviceName;
       final appVersion = '1.0.0';
 
       final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
       final salesRepString = selectedReps.isNotEmpty
           ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
           : username;
-      final repCodeSafe = salesRepString.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-      final invoiceId = 'INV-${repCodeSafe.isNotEmpty ? repCodeSafe : 'REP'}-${DateTime.now().millisecondsSinceEpoch}';
+      final invoiceId = await DocumentSequenceService().generateDocumentNumber(
+        docType: 'INV',
+        salesSite: userSiteCode,
+        deviceId: deviceId,
+      );
 
       // Determine main invoice status
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
@@ -508,6 +492,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                 cartState.config.screenTitle.toLowerCase().contains('return'));
         final stockTransaction = isReturnTransaction ? 1 : 0;
 
+        final condition = ReturnCondition.fromId(cartState.returnCondition);
+        final stockStatus = cartState.returnStockStatus ?? condition.stockStatus;
+        final resolvedReason = _reasonController.text.trim().isNotEmpty
+            ? _reasonController.text.trim()
+            : condition.reasonCode;
+
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
           salesSite: userSiteCode,
           customerCode: customer['code'],
@@ -517,10 +507,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           createdBy: username,
           deviceId: deviceId,
           reference: _referenceController.text.trim(),
-          reason: _reasonController.text.trim(),
+          reason: resolvedReason,
           salesRep: salesRepString,
           originInvoiceId: cartState.originalDocumentId,
           stockTransaction: stockTransaction,
+          stockStatus: stockStatus,
           items: cartState.cartItems.asMap().entries.map((entry) {
             final item = entry.value;
             return CreditNoteLineModel(
@@ -1280,6 +1271,25 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       _amountController.text = remaining.toStringAsFixed(2);
     }
 
+    final authState = context.read<AuthBloc>().state;
+    final perms = authState is Authenticated ? authState.permissions : <String>[];
+    final bool canTenderCash = perms.isEmpty ||
+        perms.contains('logistics.sales.tender_cash.read') ||
+        perms.contains('logistics.sales.tender_cash.create') ||
+        perms.contains('logistics.salesman.read');
+    final bool canTenderCheque = perms.isEmpty ||
+        perms.contains('logistics.sales.tender_cheque.read') ||
+        perms.contains('logistics.sales.tender_cheque.create') ||
+        perms.contains('logistics.salesman.read');
+    final bool canTenderCredit = perms.isEmpty ||
+        perms.contains('logistics.sales.tender_credit.read') ||
+        perms.contains('logistics.sales.tender_credit.create') ||
+        perms.contains('logistics.salesman.read');
+    final bool canTenderDigital = perms.isEmpty ||
+        perms.contains('logistics.sales.tender_digital.read') ||
+        perms.contains('logistics.sales.tender_digital.create') ||
+        perms.contains('logistics.salesman.read');
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -1394,6 +1404,76 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (widget.isCreditNoteRefund) ...[
+                    Builder(
+                      builder: (ctx) {
+                        final blocState = ctx.read<SalesInvoiceBloc>().state;
+                        final condId = blocState is SalesInvoiceLoaded ? blocState.returnCondition : null;
+                        if (condId == null && !isReturn) return const SizedBox.shrink();
+                        final cond = ReturnCondition.fromId(condId);
+                        final isSellable = cond.stockStatus == 'A';
+                        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: cond.color.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: cond.color.withOpacity(0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(cond.icon, color: cond.color, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'RETURN CONDITION: ${cond.label.toUpperCase()}',
+                                          style: TextStyle(
+                                            color: cond.color,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isSellable
+                                                ? Colors.green.withOpacity(0.15)
+                                                : Colors.amber.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSellable ? Colors.green : Colors.amber.shade800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      cond.description,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isDark ? Colors.white60 : Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                     DropdownButtonFormField<String>(
                       value: _selectedReasonCode,
                       isExpanded: true,
@@ -1503,13 +1583,18 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        _buildMethodButton('CASH', Icons.payments_outlined, 'CASH'),
+                        _buildMethodButton(
+                          'CASH',
+                          Icons.payments_outlined,
+                          'CASH',
+                          isEnabled: canTenderCash,
+                        ),
                         if (!widget.isCreditNoteRefund)
                           _buildMethodButton(
                             'CHEQUE',
                             Icons.receipt_long,
                             'CHEQUE',
-                            isEnabled: isChequeEnabled,
+                            isEnabled: isChequeEnabled && canTenderCheque,
                           ),
                       ],
                     ),
@@ -1521,21 +1606,28 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                             'CREDIT',
                             Icons.account_balance_wallet,
                             'CREDIT',
-                            isEnabled: isCreditEnabled,
+                            isEnabled: isCreditEnabled && canTenderCredit,
                           ),
                         if (!widget.isCreditNoteRefund)
                           _buildMethodButton(
                             'BLINK',
                             Icons.qr_code_2,
                             'BLINK',
-                            isEnabled: true,
+                            isEnabled: canTenderDigital,
+                          ),
+                        if (!widget.isCreditNoteRefund)
+                          _buildMethodButton(
+                            'JUICE',
+                            Icons.bolt_rounded,
+                            'JUICE',
+                            isEnabled: canTenderDigital,
                           ),
                         if (!widget.isCreditNoteRefund)
                           _buildMethodButton(
                             'MYT MONEY',
                             Icons.phone_android,
                             'MYT MONEY',
-                            isEnabled: true,
+                            isEnabled: canTenderDigital,
                           ),
                       ],
                     ),
@@ -1563,53 +1655,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
                     // Dynamic Fields
                     if (_selectedMethod == 'CHEQUE') ...[
-                      if (_availableBanks.isNotEmpty) ...[
-                        DropdownButtonFormField<String>(
-                          value: _availableBanks.any((b) => b['bankCode'] == _bankCodeController.text)
-                              ? _bankCodeController.text
-                              : null,
-                          decoration: const InputDecoration(
-                            labelText: 'Select Sage X3 Bank *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: _availableBanks.map((b) {
-                            final code = b['bankCode']?.toString() ?? '';
-                            final name = b['bankName']?.toString() ?? '';
-                            return DropdownMenuItem<String>(
-                              value: code,
-                              child: Text('$code - $name', overflow: TextOverflow.ellipsis),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              final matched = _availableBanks.firstWhere((b) => b['bankCode'] == val);
-                              setState(() {
-                                _bankCodeController.text = val;
-                                _bankNameController.text = matched['bankName']?.toString() ?? val;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                      ],
                       TextField(
                         controller: _bankNameController,
                         decoration: const InputDecoration(
                           labelText: 'Bank Name *',
+                          hintText: 'e.g. MCB, SBM, Absa',
                           border: OutlineInputBorder(),
                           isDense: true,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _bankCodeController,
-                        maxLength: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'Bank Code (Max 5 chars) *',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          counterText: '',
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -1650,6 +1702,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                     ],
                     if (_selectedMethod == 'QR CODE' ||
                         _selectedMethod == 'BLINK' ||
+                        _selectedMethod == 'JUICE' ||
                         _selectedMethod == 'MYT MONEY') ...[
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -1665,7 +1718,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                             Icon(
                               _selectedMethod == 'MYT MONEY'
                                   ? Icons.phone_android
-                                  : Icons.qr_code_2,
+                                  : (_selectedMethod == 'JUICE'
+                                      ? Icons.bolt_rounded
+                                      : Icons.qr_code_2),
                               size: 64,
                               color: AppTheme.primaryAmber,
                             ),
@@ -1724,7 +1779,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                         String subtitle = '';
                         if (p.method == 'CHEQUE')
                           subtitle = '${p.bankName} - ${p.chequeNumber}';
-                        if (p.method == 'QR CODE' || p.method == 'BLINK' || p.method == 'MYT MONEY')
+                        if (p.method == 'QR CODE' || p.method == 'BLINK' || p.method == 'JUICE' || p.method == 'MYT MONEY')
                           subtitle = 'Ref: ${p.qrTransactionRef}';
 
                         return Card(
@@ -1742,6 +1797,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                                     ? Icons.account_balance_wallet
                                     : p.method == 'MYT MONEY'
                                     ? Icons.phone_android
+                                    : p.method == 'JUICE'
+                                    ? Icons.bolt_rounded
                                     : Icons.qr_code_2,
                                 color: AppTheme.primaryAmber,
                                 size: 20,

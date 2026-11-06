@@ -29,11 +29,23 @@ class DeviceInfoService {
 
   static bool isValidUuid(String? id) => id != null && _uuidRegex.hasMatch(id.trim());
 
+  static bool isHardwareOrLegacyName(String? name) {
+    if (name == null || name.trim().isEmpty) return true;
+    final lower = name.trim().toLowerCase();
+    return lower.contains('infinix') ||
+        lower.contains('android') ||
+        lower.contains('samsung') ||
+        lower.contains('windows') ||
+        lower.contains('unknowndevice') ||
+        lower.contains('platform:') ||
+        lower.contains('terminal-');
+  }
+
   String get hardwareModel => _hardwareModel;
   String get deviceInfo => _hardwareModel;
   String get deviceUuid => _deviceUuid;
   String get deviceId => isValidUuid(_deviceUuid) ? _deviceUuid : '';
-  String get deviceName => _deviceName.isNotEmpty ? _deviceName : _hardwareModel;
+  String get deviceName => !isHardwareOrLegacyName(_deviceName) ? _deviceName : 'HM1';
   String? get assignedLocation => _assignedLocation;
   String? get assignedWarehouse => _assignedWarehouse;
   String? get assignedSite => _assignedSite;
@@ -81,7 +93,8 @@ class DeviceInfoService {
       final prefs = await SharedPreferences.getInstance();
       final savedUuid = prefs.getString('device_assigned_uuid') ?? '';
       _deviceUuid = isValidUuid(savedUuid) ? savedUuid.toLowerCase() : '';
-      _deviceName = prefs.getString('device_assigned_name') ?? '';
+      final savedName = prefs.getString('device_assigned_name') ?? '';
+      _deviceName = !isHardwareOrLegacyName(savedName) ? savedName : 'HM1';
       _assignedSite = prefs.getString('device_assigned_site');
       _assignedWarehouse = prefs.getString('device_assigned_warehouse');
       _assignedLocation = prefs.getString('device_assigned_location');
@@ -108,8 +121,9 @@ class DeviceInfoService {
     bool? isLocked,
   }) async {
     final cleanUuid = isValidUuid(uuid) ? uuid.toLowerCase() : '';
+    final cleanName = !isHardwareOrLegacyName(name) ? name.trim() : 'HM1';
     _deviceUuid = cleanUuid;
-    _deviceName = name;
+    _deviceName = cleanName;
     if (siteCode != null) _assignedSite = siteCode;
     if (warehouseCode != null) _assignedWarehouse = warehouseCode;
     if (locationCode != null) _assignedLocation = locationCode;
@@ -125,7 +139,7 @@ class DeviceInfoService {
     } else {
       await prefs.remove('device_assigned_uuid');
     }
-    await prefs.setString('device_assigned_name', name);
+    await prefs.setString('device_assigned_name', cleanName);
     if (siteCode != null) await prefs.setString('device_assigned_site', siteCode);
     if (warehouseCode != null) await prefs.setString('device_assigned_warehouse', warehouseCode);
     if (locationCode != null) await prefs.setString('device_assigned_location', locationCode);

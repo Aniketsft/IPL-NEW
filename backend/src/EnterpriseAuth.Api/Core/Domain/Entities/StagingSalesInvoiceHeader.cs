@@ -73,6 +73,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string? TransactionMode { get; set; }
 
         [NotMapped]
+        [MaxLength(50)]
+        public string? TabletSource { get; set; }
+
+        [NotMapped]
         public int Category => int.TryParse(InvoiceType, out var v) ? v : (InvoiceType == "CRN" ? 2 : (InvoiceType == "RTN" ? 3 : 1));
 
         // Navigation properties

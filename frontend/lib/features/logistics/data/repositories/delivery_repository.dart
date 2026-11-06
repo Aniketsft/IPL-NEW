@@ -832,7 +832,8 @@ class DeliveryRepository implements ILogisticsRepository {
             'createdAt': l[LocalDatabaseHelper.colCreatedAt],
             'isOfflineCreated': true,
           }).toList(),
-          'deviceId': DeviceInfoService.instance.deviceInfo,
+          'site': activeSite,
+          'deviceId': DeviceInfoService.instance.deviceId.isNotEmpty ? DeviceInfoService.instance.deviceId : DeviceInfoService.instance.deviceInfo,
           'globalSettingsUpdates': settingsPayload,
           'stagingEodEntries': unsyncedStagingEod.map((e) => {
             'id': e['id'],
@@ -900,6 +901,11 @@ class DeliveryRepository implements ILogisticsRepository {
       final response = await _dio.get(
         'Sync/refresh',
         queryParameters: {'site': activeSite},
+        options: Options(
+          headers: {
+            'X-Device-Id': DeviceInfoService.instance.deviceId.isNotEmpty ? DeviceInfoService.instance.deviceId : DeviceInfoService.instance.deviceInfo,
+          },
+        ),
       );
       final rawData = response.data;
 
@@ -1107,7 +1113,8 @@ class DeliveryRepository implements ILogisticsRepository {
             'soNumber': o[LocalDatabaseHelper.colOrderNum],
             'status': o[LocalDatabaseHelper.colStatus],
           }).toList(),
-          'deviceId': DeviceInfoService.instance.deviceInfo,
+          'site': activeSite,
+          'deviceId': DeviceInfoService.instance.deviceId.isNotEmpty ? DeviceInfoService.instance.deviceId : DeviceInfoService.instance.deviceInfo,
           'stagingEodEntries': unsyncedStagingEod.map((e) => {
             'id': e['id'],
             'workOrderNumber': e['soNumber'],
@@ -1188,6 +1195,11 @@ class DeliveryRepository implements ILogisticsRepository {
           'site': activeSite,
           if (lastSync != null) 'since': lastSync,
         },
+        options: Options(
+          headers: {
+            'X-Device-Id': DeviceInfoService.instance.deviceId.isNotEmpty ? DeviceInfoService.instance.deviceId : DeviceInfoService.instance.deviceInfo,
+          },
+        ),
       );
       
       final rawData = response.data;
@@ -1196,7 +1208,7 @@ class DeliveryRepository implements ILogisticsRepository {
       yield SyncProgress(status: 'Processing data...', progress: 0.6);
       final processedData = await compute(_parseAndSanitizeData, rawData);
 
-      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots', 'taxDeterminations', 'taxRates'];
+      final tables = ['orders', 'details', 'customers', 'reps', 'locations', 'products', 'sites', 'lots', 'taxDeterminations', 'taxRates', 'facilities'];
       for (var i = 0; i < tables.length; i++) {
         final table = tables[i];
         final data = processedData[table];
@@ -1222,6 +1234,12 @@ class DeliveryRepository implements ILogisticsRepository {
         taxRates: processedData['taxRates'] as List<Map<String, dynamic>>?,
         eodProcessAudits: processedData['eodProcessAudits'] as List<Map<String, dynamic>>?,
       );
+
+      if (processedData['facilities'] != null && (processedData['facilities'] as List).isNotEmpty) {
+        await LocalDatabaseHelper.instance.refreshFacilities(
+          processedData['facilities'] as List<Map<String, dynamic>>,
+        );
+      }
 
       // 3. Mark preparation status updates as synced AFTER refresh
       // We re-fetch from DB to get the current list of what was dirty BEFORE refresh (and preserved)
@@ -2082,5 +2100,6 @@ Map<String, List<Map<String, dynamic>>> _parseAndSanitizeData(dynamic data) {
     'eodProcessAudits': eodProcessAudits,
     'taxDeterminations': (data['taxDeterminations'] as List? ?? []).map((j) => Map<String, dynamic>.from(j)).toList(),
     'taxRates': (data['taxRates'] as List? ?? []).map((j) => Map<String, dynamic>.from(j)).toList(),
+    'facilities': (data['facilities'] as List? ?? []).map((j) => Map<String, dynamic>.from(j)).toList(),
   };
 }

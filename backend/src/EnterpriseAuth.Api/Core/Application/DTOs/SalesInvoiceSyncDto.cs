@@ -18,6 +18,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string InvoiceType { get; set; } = "STD";
         public string? TransactionalId { get; set; }
         public string? PaymentTerm { get; set; }
+        public string? TabletSource { get; set; }
 
         public List<SalesInvoiceLineDto> Lines { get; set; } = new List<SalesInvoiceLineDto>();
         public List<SalesInvoicePaymentSyncDto> Payments { get; set; } = new List<SalesInvoicePaymentSyncDto>();

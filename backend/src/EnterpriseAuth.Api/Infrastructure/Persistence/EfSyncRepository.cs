@@ -61,21 +61,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task<SyncPackageDto> GetRefreshPackageAsync(string site, string? deviceId = null, string? performedBy = null)
         {
-            if (!string.IsNullOrEmpty(deviceId))
+            var devId = !string.IsNullOrEmpty(deviceId) ? deviceId : (!string.IsNullOrEmpty(performedBy) ? performedBy : "UnknownDevice");
+            _scanContext.AuditLogs.Add(new AuditLog
             {
-                _scanContext.AuditLogs.Add(new AuditLog
-                {
-                    EntityName = "DeviceSync",
-                    EntityIdString = deviceId,
-                    ActionType = "SYNC_PULL",
-                    Site = site,
-                    Payload = $"{{\"Site\": \"{site}\"}}",
-                    PerformedBy = performedBy ?? "system",
-                    PerformedAt = DateTime.UtcNow,
-                    DeviceId = deviceId
-                });
-                await _scanContext.SaveChangesAsync();
-            }
+                EntityName = "DeviceSync",
+                EntityIdString = devId,
+                ActionType = "SYNC_PULL",
+                Site = site,
+                Payload = $"{{\"Site\": \"{site}\"}}",
+                PerformedBy = performedBy ?? "system",
+                PerformedAt = DateTime.UtcNow,
+                DeviceId = devId
+            });
+            await _scanContext.SaveChangesAsync();
 
 
             var package = new SyncPackageDto();
@@ -174,6 +172,21 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 $@"SELECT DISTINCT FCY_0 as Code, FCYNAM_0 as Name 
                 FROM {_syncSettings.X3DatabaseName}.{schema}.FACILITY WITH (NOLOCK)
                 WHERE (@Site = 'ALL' OR FCY_0 = @Site)", new { Site = site });
+            
+            var facilitiesTask = FetchCachedOrLiveAsync<FacilityDto>(
+                $"facilities_{schema}",
+                TimeSpan.FromMinutes(10),
+                $@"SELECT 
+                    LTRIM(RTRIM(f.FCY_0)) AS SalesSiteCode,
+                    LTRIM(RTRIM(f.FCYNAM_0)) AS SalesSiteName,
+                    f.SALFLG_0 AS SalesFlag,
+                    LTRIM(RTRIM(f.FINRSPFCY_0)) AS FinancialSiteCode,
+                    LTRIM(RTRIM(rf.FCYNAM_0)) AS FinancialSiteName,
+                    LTRIM(RTRIM(f.LEGCPY_0)) AS LegalCompany
+                FROM {_syncSettings.X3DatabaseName}.{schema}.FACILITY f WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.FACILITY rf WITH (NOLOCK) ON f.FINRSPFCY_0 = rf.FCY_0
+                WHERE f.LEGCPY_0 = 'INL'
+                ORDER BY f.FCY_0");
             
             var locSql = $@"
                 SELECT 
@@ -285,6 +298,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             package.Customers = customersTask.Result.ToList();
             package.Reps = repsTask.Result.ToList();
             package.Sites = sitesTask.Result.ToList();
+            package.Facilities = facilitiesTask.Result.ToList();
             package.Locations = locationsTask.Result.ToList();
             package.Products = productsTask.Result.ToList();
             package.Lots = lotsTask.Result.ToList();
@@ -1372,21 +1386,19 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
-            if (!string.IsNullOrEmpty(request.DeviceId))
+            var devId = !string.IsNullOrEmpty(request.DeviceId) ? request.DeviceId : (!string.IsNullOrEmpty(performedBy) ? performedBy : "UnknownDevice");
+            _scanContext.AuditLogs.Add(new AuditLog
             {
-                _scanContext.AuditLogs.Add(new AuditLog
-                {
-                    EntityName = "DeviceSync",
-                    EntityIdString = request.DeviceId,
-                    ActionType = "SYNC_PUSH",
-                    Site = request.Site ?? "ALL",
-                    Payload = $"{{\"TotalItems\": {totalCount}}}",
-                    PerformedBy = performedBy,
-                    PerformedAt = DateTime.UtcNow,
-                    DeviceId = request.DeviceId
-                });
-                await _scanContext.SaveChangesAsync();
-            }
+                EntityName = "DeviceSync",
+                EntityIdString = devId,
+                ActionType = "SYNC_PUSH",
+                Site = request.Site ?? "ALL",
+                Payload = $"{{\"TotalItems\": {totalCount}}}",
+                PerformedBy = performedBy,
+                PerformedAt = DateTime.UtcNow,
+                DeviceId = devId
+            });
+            await _scanContext.SaveChangesAsync();
 
             return totalCount;
         }
@@ -1401,19 +1413,41 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 query = query.Where(a => a.Site == siteCode);
             }
 
-            var logs = await query
-                .GroupBy(a => a.EntityIdString)
-                .Select(g => g.OrderByDescending(a => a.PerformedAt).FirstOrDefault())
+            var rawLogs = await query
+                .OrderByDescending(a => a.PerformedAt)
+                .Take(300)
                 .ToListAsync();
 
-            return logs.Where(l => l != null).Select(l => new DeviceSyncLogDto
+            var logs = rawLogs
+                .GroupBy(a => a.EntityIdString)
+                .Select(g => g.First())
+                .ToList();
+
+            return logs.Select(l => new DeviceSyncLogDto
             {
-                DeviceId = l?.EntityIdString ?? string.Empty,
-                LastSyncedBy = l?.PerformedBy ?? string.Empty,
-                LastSyncTime = l?.PerformedAt ?? DateTime.MinValue,
-                ActionType = l?.ActionType ?? string.Empty,
-                Site = l?.Site ?? string.Empty
+                DeviceId = l.EntityIdString ?? string.Empty,
+                LastSyncedBy = l.PerformedBy ?? string.Empty,
+                LastSyncTime = l.PerformedAt,
+                ActionType = l.ActionType ?? string.Empty,
+                Site = l.Site ?? string.Empty
             }).OrderByDescending(d => d.LastSyncTime);
+        }
+
+        public async Task LogDeviceSyncAsync(string deviceId, string actionType, string site, string performedBy, string? payload = null)
+        {
+            var devId = !string.IsNullOrWhiteSpace(deviceId) ? deviceId : performedBy;
+            _scanContext.AuditLogs.Add(new AuditLog
+            {
+                EntityName = "DeviceSync",
+                EntityIdString = devId,
+                ActionType = actionType,
+                Site = site,
+                Payload = payload ?? $"{{\"Site\": \"{site}\"}}",
+                PerformedBy = performedBy,
+                PerformedAt = DateTime.UtcNow,
+                DeviceId = devId
+            });
+            await _scanContext.SaveChangesAsync();
         }
 
         private async Task SyncEnterpriseOrdersAndLinesAsync(IEnumerable<SalesOrderHeaderDto> orderDtos, IEnumerable<SalesOrderDetailDto> detailDtos)

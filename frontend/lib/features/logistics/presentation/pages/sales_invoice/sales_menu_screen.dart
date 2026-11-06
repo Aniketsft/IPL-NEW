@@ -96,6 +96,19 @@ class SalesMenuScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool canAccessCashCollection = permissions.isEmpty ||
+        permissions.contains('logistics.sales.cash_collection.read') ||
+        permissions.contains('logistics.sales.cash_collection.create');
+    final bool canAccessReports = permissions.isEmpty ||
+        permissions.contains('logistics.reports.read') ||
+        permissions.contains('logistics.sales.reports.read');
+    final bool canAccessSalesOrder = permissions.isEmpty ||
+        permissions.contains('logistics.sales.sales_order.read') ||
+        permissions.contains('logistics.sales.sales_order.create');
+    final bool canAccessSalesRep = permissions.isEmpty ||
+        permissions.contains('logistics.sales.sales_rep_select.read') ||
+        permissions.contains('logistics.sales.sales_rep_select.update');
+
     return IndustrialModuleLayout(
       title: 'Sales',
       body: GridView.count(
@@ -155,28 +168,32 @@ class SalesMenuScreen extends StatelessWidget {
               }
             },
           ),
-          _buildMenuButton(
-            context,
-            'Receipt (Cash Collection)',
-            Icons.payments_rounded,
-            const OpenInvoicesScreen(),
-          ),
-          _buildMenuButton(
-            context,
-            'Reports',
-            Icons.analytics_rounded,
-            SalesReportsScreen(permissions: permissions),
-          ),
-          _buildMenuButton(
-            context,
-            'Sales Order',
-            Icons.list_alt_rounded,
-            const SalesOrdersListScreen(),
-          ),
-          _buildActionButton(
-            context,
-            'Sales Reps',
-            Icons.badge_rounded,
+          if (canAccessCashCollection)
+            _buildMenuButton(
+              context,
+              'Receipt (Cash Collection)',
+              Icons.payments_rounded,
+              const OpenInvoicesScreen(),
+            ),
+          if (canAccessReports)
+            _buildMenuButton(
+              context,
+              'Reports',
+              Icons.analytics_rounded,
+              SalesReportsScreen(permissions: permissions),
+            ),
+          if (canAccessSalesOrder)
+            _buildMenuButton(
+              context,
+              'Sales Order',
+              Icons.list_alt_rounded,
+              const SalesOrdersListScreen(),
+            ),
+          if (canAccessSalesRep)
+            _buildActionButton(
+              context,
+              'Sales Reps',
+              Icons.badge_rounded,
             () async {
               final authState = context.read<AuthBloc>().state;
               final siteCode = (authState is Authenticated &&

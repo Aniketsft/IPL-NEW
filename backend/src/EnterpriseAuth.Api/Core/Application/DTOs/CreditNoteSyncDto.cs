@@ -27,6 +27,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Reason { get; set; }
         public string? TransactionMode { get; set; } // "1" = Direct, "4" = Linked
         public string? DueDate { get; set; }
+        public string? TabletSource { get; set; }
 
         public List<CreditNoteLineSyncDto> Lines { get; set; } = new List<CreditNoteLineSyncDto>();
         public List<CreditNoteRefundSyncDto> Refunds { get; set; } = new List<CreditNoteRefundSyncDto>();

@@ -21,15 +21,18 @@ import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
   final bool isPickerMode;
   final bool isReturnMode;
+  final ReturnCondition? returnCondition;
 
   const CustomerSelectionScreen({
     Key? key,
     this.isPickerMode = false,
     this.isReturnMode = false,
+    this.returnCondition,
   }) : super(key: key);
 
   @override
@@ -458,6 +461,11 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                 context.read<SalesInvoiceBloc>().add(SetCustomer(customer));
 
                                 if (widget.isReturnMode) {
+                                  ReturnCondition? condition = widget.returnCondition;
+                                  if (condition == null) {
+                                    condition = await showReturnConditionDialog(context);
+                                    if (condition == null) return;
+                                  }
                                   final code = (customer['code'] ?? customer['customerCode'] ?? '').toString();
                                   final name = (customer['name'] ?? customer['customerName'] ?? '').toString();
                                   await Navigator.push(
@@ -469,6 +477,7 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                                         lockToCustomer: true,
                                         isX3History: true,
                                         isForReturn: true,
+                                        returnCondition: condition,
                                       ),
                                     ),
                                   );

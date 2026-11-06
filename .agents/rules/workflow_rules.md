@@ -1,11 +1,11 @@
 ---
 trigger: always_on
-description: Core workflow rules for multi-agent skill orchestration, proceed gates, and git branching.
+description: Workspace fast-path execution rules complementing global workflow rules.
 ---
 
-# Global Workflow Rules
+# Workspace Fast-Path Execution Rules
 
-- Always use @multi-agent-tasks-orcehstrator to use the best skills for any prompt I am sending and always tell me what skills are being used.
-- Always use graphify for every prompt: consult the graphify knowledge graph (via `graphify query` / MCP `query_graph`, `get_node`, `shortest_path`) to navigate codebase relationships and architecture before analyzing files or proposing solutions.
-- Do not write any code until I say proceed.
-- Only when i say commit to git then branch out and commit to git hub.
+- **Skill Selection**: State active skills concisely at the top of each reply. Only call `read_file` on a `SKILL.md` when the task actively requires its specialized workflow (skip re-reading `SKILL.md` files on simple conversational or status prompts).
+- **Silent Search Only**: Use `graphify` MCP (`query_graph`, `get_node`, `shortest_path`) and `read_file` exclusively for codebase navigation—never `grep_search` or shell search commands.
+- **Proceed & Git Gates**: Ask before writing structural code changes (wait for `proceed`), and only branch/commit when explicitly instructed.
+

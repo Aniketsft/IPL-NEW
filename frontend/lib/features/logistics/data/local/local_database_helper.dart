@@ -8,6 +8,35 @@ import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+class UnsyncedSummary {
+  final int invoices;
+  final int payments;
+  final int creditNotes;
+  final int creditRefunds;
+  final int openInvoicePayments;
+  final int scans;
+  final int stagingEod;
+  final int orders;
+  final int settings;
+
+  const UnsyncedSummary({
+    this.invoices = 0,
+    this.payments = 0,
+    this.creditNotes = 0,
+    this.creditRefunds = 0,
+    this.openInvoicePayments = 0,
+    this.scans = 0,
+    this.stagingEod = 0,
+    this.orders = 0,
+    this.settings = 0,
+  });
+
+  int get salesCount => invoices + payments + creditNotes + creditRefunds + openInvoicePayments;
+  int get logisticsCount => scans + stagingEod + orders;
+  int get totalCount => salesCount + logisticsCount + settings;
+  bool get hasUnsynced => totalCount > 0;
+}
+
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
   static const _databaseVersion = 96;
@@ -76,6 +105,30 @@ class LocalDatabaseHelper {
     {'code': 'LTE', 'description': 'Late delivery'},
     {'code': 'NOD', 'description': 'Not ordered'},
     {'code': 'DSC', 'description': 'Discount'},
+  ];
+
+  static const tableFacilities = 'tbl_facilities';
+  static const tableDocumentSequences = 'tbl_document_sequences';
+
+  static const defaultFacilities = [
+    {
+      'salesSiteCode': 'POD',
+      'salesSiteName': 'Port Louis Cold Store',
+      'salesFlag': 1,
+      'financialSiteCode': 'POD',
+      'financialSiteName': 'Port Louis Cold Store',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'IPL',
+      'salesSiteName': 'Innodis Poulet Ltée',
+      'salesFlag': 1,
+      'financialSiteCode': 'IPL',
+      'financialSiteName': 'Innodis Poulet Ltée',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
   ];
 
   // tbl_tax_matrix columns
@@ -490,6 +543,7 @@ class LocalDatabaseHelper {
         )
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3l_invoice ON $tableX3HistoryLines(invoiceNumber)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS ix_x3l_product ON $tableX3HistoryLines(productCode)');
     } catch (_) {}
 
     try {
@@ -556,6 +610,52 @@ class LocalDatabaseHelper {
         }
         await batch.commit(noResult: true);
       }
+    } catch (_) {}
+
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableFacilities (
+          salesSiteCode TEXT PRIMARY KEY,
+          salesSiteName TEXT NOT NULL,
+          salesFlag INTEGER NOT NULL DEFAULT 1,
+          financialSiteCode TEXT NOT NULL,
+          financialSiteName TEXT,
+          legalCompany TEXT NOT NULL DEFAULT 'INL',
+          updatedAt TEXT NOT NULL
+        )
+      ''');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_facilities_fin ON $tableFacilities(financialSiteCode)');
+
+      final facCount = Sqflite.firstIntValue(
+        await _database!.rawQuery('SELECT COUNT(*) FROM $tableFacilities'),
+      ) ?? 0;
+      if (facCount == 0) {
+        final batch = _database!.batch();
+        for (final f in defaultFacilities) {
+          batch.insert(
+            tableFacilities,
+            f,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+    } catch (_) {}
+
+    try {
+      await _database!.execute('''
+        CREATE TABLE IF NOT EXISTS $tableDocumentSequences (
+          docType TEXT NOT NULL,
+          financialSite TEXT NOT NULL,
+          lorryCode TEXT NOT NULL,
+          deviceTag TEXT NOT NULL,
+          yearMonth TEXT NOT NULL,
+          lastSequence INTEGER NOT NULL DEFAULT 0,
+          updatedAt TEXT NOT NULL,
+          PRIMARY KEY (docType, financialSite, lorryCode, deviceTag, yearMonth)
+        )
+      ''');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_docseq_lookup ON $tableDocumentSequences(docType, financialSite, lorryCode, deviceTag, yearMonth)');
     } catch (_) {}
 
     return _database!;
@@ -2928,6 +3028,49 @@ class LocalDatabaseHelper {
     return await db.query(tableSyncHistory, orderBy: '$colSyncTimestamp DESC');
   }
 
+  Future<UnsyncedSummary> getUnsyncedSummary() async {
+    try {
+      final db = await database;
+
+      Future<int> countTable(String table, String whereClause) async {
+        try {
+          final res = await db.rawQuery('SELECT COUNT(*) as cnt FROM $table WHERE $whereClause');
+          if (res.isNotEmpty && res.first['cnt'] != null) {
+            return (res.first['cnt'] as num).toInt();
+          }
+        } catch (_) {}
+        return 0;
+      }
+
+      final results = await Future.wait([
+        countTable(tableSiInvoices, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiPayments, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiCreditNotes, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiCreditNoteRefunds, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiOpenInvoicePayments, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableScans, '$columnIsSynced = 0'),
+        countTable(tableStagingEod, '$columnIsSynced = 0'),
+        countTable(tableOrders, '$columnIsSynced = 0 AND ($colIsPreparedForShipment = 1 OR $colIsProcessed = 1)'),
+        countTable(tableGlobalSettings, '$colSettingIsSynced = 0'),
+      ]);
+
+      return UnsyncedSummary(
+        invoices: results[0],
+        payments: results[1],
+        creditNotes: results[2],
+        creditRefunds: results[3],
+        openInvoicePayments: results[4],
+        scans: results[5],
+        stagingEod: results[6],
+        orders: results[7],
+        settings: results[8],
+      );
+    } catch (e) {
+      debugPrint('LocalDatabaseHelper: Error querying unsynced summary: $e');
+      return const UnsyncedSummary();
+    }
+  }
+
   // Perform bulk refresh of logistics data
   Future<void> refreshLogisticsData({
     required List<Map<String, dynamic>> orders,
@@ -4860,6 +5003,7 @@ class LocalDatabaseHelper {
     required String customerCode,
     String? type,
     String? searchQuery,
+    String? productSku,
     String? startDate,
     String? endDate,
   }) async {
@@ -4877,13 +5021,20 @@ class LocalDatabaseHelper {
     }
 
     if (startDate != null && startDate.isNotEmpty) {
-      whereClauses.add('invoiceDate >= ?');
-      whereArgs.add(startDate);
+      final startDay = startDate.length >= 10 ? startDate.substring(0, 10) : startDate;
+      whereClauses.add('substr(invoiceDate, 1, 10) >= ?');
+      whereArgs.add(startDay);
     }
 
     if (endDate != null && endDate.isNotEmpty) {
-      whereClauses.add('invoiceDate <= ?');
-      whereArgs.add(endDate);
+      final endDay = endDate.length >= 10 ? endDate.substring(0, 10) : endDate;
+      whereClauses.add('substr(invoiceDate, 1, 10) <= ?');
+      whereArgs.add(endDay);
+    }
+
+    if (productSku != null && productSku.trim().isNotEmpty) {
+      whereClauses.add('invoiceNumber IN (SELECT invoiceNumber FROM $tableX3HistoryLines WHERE productCode = ?)');
+      whereArgs.add(productSku.trim());
     }
 
     if (searchQuery != null && searchQuery.trim().isNotEmpty) {
@@ -4908,6 +5059,26 @@ class LocalDatabaseHelper {
       whereArgs: [invoiceNumber],
       orderBy: 'lineNumber ASC',
     );
+  }
+
+  /// Returns distinct products present in the X3 history documents for [customerCode]
+  Future<List<Map<String, String>>> getX3ProductsForCustomer(String customerCode) async {
+    final cleanCust = customerCode.trim();
+    if (cleanCust.isEmpty) return [];
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT l.productCode AS sku, l.productDescription AS name
+      FROM $tableX3HistoryLines l
+      JOIN $tableX3HistoryHeader h ON l.invoiceNumber = h.invoiceNumber
+      WHERE (h.customerCode = ? OR h.billToCustomer = ?)
+        AND l.productCode IS NOT NULL AND l.productCode != ''
+      ORDER BY l.productDescription COLLATE NOCASE ASC
+    ''', [cleanCust, cleanCust]);
+
+    return maps.map((m) => {
+      'sku': (m['sku'] ?? '').toString(),
+      'name': ((m['name'] == null || m['name'].toString().trim().isEmpty) ? (m['sku'] ?? '') : m['name']).toString(),
+    }).toList();
   }
 
   // --- DEVICE LOCATIONS (Offline Replication & Local Mapping) ---
@@ -5182,5 +5353,74 @@ class LocalDatabaseHelper {
     final bank = await getDefaultBank(siteCode);
     return bank['bankCode'] ?? '';
   }
+
+  // --- Facilities & Financial Sites ---
+
+  Future<String> getFinancialSiteForSalesSite(String? salesSite) async {
+    final cleanSite = (salesSite ?? '').trim().toUpperCase();
+    if (cleanSite.isEmpty || cleanSite == 'ALL') return 'POD';
+
+    try {
+      final db = await database;
+      final rows = await db.query(
+        tableFacilities,
+        columns: ['financialSiteCode'],
+        where: 'salesSiteCode = ?',
+        whereArgs: [cleanSite],
+        limit: 1,
+      );
+      if (rows.isNotEmpty && rows.first['financialSiteCode'] != null) {
+        final fin = rows.first['financialSiteCode'].toString().trim().toUpperCase();
+        if (fin.isNotEmpty) return fin;
+      }
+    } catch (e) {
+      debugPrint('getFinancialSiteForSalesSite error: $e');
+    }
+    return cleanSite;
+  }
+
+  Future<List<Map<String, dynamic>>> getFacilities() async {
+    final db = await database;
+    try {
+      final rows = await db.query(tableFacilities, orderBy: 'salesSiteCode ASC');
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {}
+    return defaultFacilities;
+  }
+
+  Future<void> refreshFacilities(List<dynamic> rawFacilities) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final item in rawFacilities) {
+        if (item is Map) {
+          final salesCode = (item['salesSiteCode'] ?? item['SalesSiteCode'] ?? item['code'] ?? '').toString().trim().toUpperCase();
+          final salesName = (item['salesSiteName'] ?? item['SalesSiteName'] ?? item['name'] ?? salesCode).toString().trim();
+          final finCode = (item['financialSiteCode'] ?? item['FinancialSiteCode'] ?? salesCode).toString().trim().toUpperCase();
+          final finName = (item['financialSiteName'] ?? item['FinancialSiteName'] ?? salesName).toString().trim();
+          final company = (item['legalCompany'] ?? item['LegalCompany'] ?? 'INL').toString().trim().toUpperCase();
+          final flag = int.tryParse((item['salesFlag'] ?? item['SalesFlag'] ?? 1).toString()) ?? 1;
+
+          if (salesCode.isNotEmpty) {
+            batch.insert(
+              tableFacilities,
+              {
+                'salesSiteCode': salesCode,
+                'salesSiteName': salesName,
+                'salesFlag': flag,
+                'financialSiteCode': finCode,
+                'financialSiteName': finName,
+                'legalCompany': company,
+                'updatedAt': DateTime.now().toIso8601String(),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
 }
+
 

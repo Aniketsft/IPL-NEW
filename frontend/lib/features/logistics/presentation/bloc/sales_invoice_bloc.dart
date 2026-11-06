@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/i_sales_repository.dart';
 import 'sales_invoice_event.dart';
 import 'sales_invoice_state.dart';
+import 'sales_invoice_cart_cubit.dart';
 
 class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   final ISalesRepository repository;
@@ -32,8 +33,9 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onPrepareReversalCreditNote(PrepareReversalCreditNote event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
+      final txType = (event.isReturn || event.category == 3) ? 'RETURN' : 'CREDIT_NOTE';
       emit(currentState.copyWith(
-        transactionType: 'CREDIT_NOTE',
+        transactionType: txType,
         originalDocumentId: event.originalInvoiceId,
         cartItems: event.items,
       ));
@@ -54,11 +56,15 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
 
   void _onInitializeTransaction(InitializeTransaction event, Emitter<SalesInvoiceState> emit) {
     final currentCustomer = state is SalesInvoiceLoaded ? (state as SalesInvoiceLoaded).customer : null;
+    final currentCart = state is SalesInvoiceLoaded ? (state as SalesInvoiceLoaded).cartItems : const <CartItem>[];
     emit(SalesInvoiceLoaded(
       customer: event.customer ?? currentCustomer,
+      cartItems: event.cartItems ?? currentCart,
       transactionType: event.transactionType,
       originalDocumentId: event.originalDocumentId,
       config: event.config,
+      returnCondition: event.returnCondition,
+      returnStockStatus: event.returnStockStatus,
     ));
   }
 

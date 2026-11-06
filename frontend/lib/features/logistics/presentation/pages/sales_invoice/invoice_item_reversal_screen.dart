@@ -15,6 +15,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invo
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'order_summary_screen.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
@@ -23,11 +24,13 @@ import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 class InvoiceItemReversalScreen extends StatefulWidget {
   final TransactionModel transaction;
   final bool isReturnMode;
+  final ReturnCondition? returnCondition;
 
   const InvoiceItemReversalScreen({
     super.key,
     required this.transaction,
     this.isReturnMode = false,
+    this.returnCondition,
   });
 
   @override
@@ -437,11 +440,14 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
 
       final bloc = context.read<SalesInvoiceBloc>();
       bloc.add(ClearCart());
+      final condition = widget.returnCondition ?? ReturnCondition.normal;
       bloc.add(InitializeTransaction(
         transactionType: 'RETURN',
         originalDocumentId: widget.transaction.id,
         customer: resolvedCustomer,
         config: TransactionConfig.forType('RETURN'),
+        returnCondition: condition.id,
+        returnStockStatus: condition.stockStatus,
       ));
       bloc.add(SetCustomer(resolvedCustomer));
 
@@ -529,6 +535,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return IndustrialModuleLayout(
       title: widget.isReturnMode ? 'Select Return Items' : 'Reverse Items',
       body: _isLoading
@@ -580,6 +587,59 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                         ],
                       ),
                     ),
+
+                    // Return Condition Indicator Banner (if in return mode)
+                    if (widget.isReturnMode && widget.returnCondition != null) ...[
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: widget.returnCondition!.color.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: widget.returnCondition!.color.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(widget.returnCondition!.icon, size: 18, color: widget.returnCondition!.color),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Return Condition: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              widget.returnCondition!.label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: widget.returnCondition!.color,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: widget.returnCondition!.stockStatus == 'A'
+                                    ? Colors.green.withOpacity(0.15)
+                                    : Colors.amber.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                widget.returnCondition!.stockStatus == 'A' ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.returnCondition!.stockStatus == 'A' ? Colors.green : Colors.amber.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     // 2. Header info
                     Container(

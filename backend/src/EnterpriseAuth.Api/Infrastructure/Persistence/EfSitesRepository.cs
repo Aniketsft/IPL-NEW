@@ -39,8 +39,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 SELECT 
                     LTRIM(RTRIM(T1.FCY_0)) AS SiteCode, 
                     LTRIM(RTRIM(T1.FCYNAM_0)) AS SiteName,
-                    SALFLG_0 AS IsSalesSite
+                    T1.SALFLG_0 AS IsSalesSite,
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(T1.FINRSPFCY_0)), ''), T1.FCY_0))) AS FinancialSiteCode,
+                    LTRIM(RTRIM(COALESCE(rf.FCYNAM_0, T1.FCYNAM_0))) AS FinancialSiteName
                 FROM [{databaseName}].[{schemaName}].[FACILITY] T1 WITH (NOLOCK)
+                LEFT JOIN [{databaseName}].[{schemaName}].[FACILITY] rf WITH (NOLOCK) ON T1.FINRSPFCY_0 = rf.FCY_0
                 WHERE T1.SALFLG_0 = 2 
                 ORDER BY T1.FCY_0;
             ";

@@ -52,9 +52,12 @@ class SalesInvoiceProductRepository {
     }
 
     if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
-      conditions.add('(S.siteCode = ? OR S.warehouse = ?)');
+      final financialSite = await LocalDatabaseHelper.instance.getFinancialSiteForSalesSite(siteCode);
+      conditions.add('(S.siteCode IN (?, ?) OR S.warehouse IN (?, ?))');
       whereArgs.add(siteCode);
+      whereArgs.add(financialSite);
       whereArgs.add(siteCode);
+      whereArgs.add(financialSite);
     }
 
     if (warehouse != null && warehouse.isNotEmpty && warehouse != 'ALL') {
@@ -174,12 +177,13 @@ class SalesInvoiceProductRepository {
 
   Future<List<String>> getDistinctWarehouses([String? siteCode]) async {
     final db = await LocalDatabaseHelper.instance.database;
-    final String whereClause = (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL')
-        ? 'WHERE (siteCode = ? OR warehouse = ?) AND warehouse IS NOT NULL AND warehouse != ""'
-        : 'WHERE warehouse IS NOT NULL AND warehouse != ""';
-    final List<dynamic> whereArgs = (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL')
-        ? [siteCode, siteCode]
-        : [];
+    String whereClause = 'WHERE warehouse IS NOT NULL AND warehouse != ""';
+    List<dynamic> whereArgs = [];
+    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+      final financialSite = await LocalDatabaseHelper.instance.getFinancialSiteForSalesSite(siteCode);
+      whereClause = 'WHERE (siteCode IN (?, ?) OR warehouse IN (?, ?)) AND warehouse IS NOT NULL AND warehouse != ""';
+      whereArgs = [siteCode, financialSite, siteCode, financialSite];
+    }
 
     final result = await db.rawQuery('''SELECT DISTINCT warehouse 
          FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 

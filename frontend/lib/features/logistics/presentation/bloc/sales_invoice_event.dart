@@ -14,29 +14,47 @@ class InitializeTransaction extends SalesInvoiceEvent {
   final String? originalDocumentId;
   final TransactionConfig? config;
   final Map<String, dynamic>? customer;
+  final String? returnCondition;
+  final String? returnStockStatus;
+  final List<CartItem>? cartItems;
 
   const InitializeTransaction({
     required this.transactionType,
     this.originalDocumentId,
     this.config,
     this.customer,
+    this.returnCondition,
+    this.returnStockStatus,
+    this.cartItems,
   });
 
   @override
-  List<Object?> get props => [transactionType, originalDocumentId, config, customer];
+  List<Object?> get props => [
+        transactionType,
+        originalDocumentId,
+        config,
+        customer,
+        returnCondition,
+        returnStockStatus,
+        cartItems,
+      ];
 }
 
 class PrepareReversalCreditNote extends SalesInvoiceEvent {
   final List<CartItem> items;
   final String originalInvoiceId;
+  final int category;
+  final bool isReturn;
 
   const PrepareReversalCreditNote({
     required this.items,
     required this.originalInvoiceId,
+    this.category = 2,
+    this.isReturn = false,
   });
 
   @override
-  List<Object?> get props => [items, originalInvoiceId];
+  List<Object?> get props => [items, originalInvoiceId, category, isReturn];
 }
 
 class SetCustomer extends SalesInvoiceEvent {

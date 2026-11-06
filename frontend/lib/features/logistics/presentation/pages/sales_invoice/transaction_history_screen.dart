@@ -25,7 +25,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
-
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String transactionType; // To support launching with a default filter, though the class might manage its own.
@@ -35,6 +35,7 @@ class TransactionHistoryScreen extends StatefulWidget {
   final bool lockToCustomer;
   final bool isX3History;
   final bool isForReturn;
+  final ReturnCondition? returnCondition;
 
   const TransactionHistoryScreen({
     super.key,
@@ -45,6 +46,7 @@ class TransactionHistoryScreen extends StatefulWidget {
     this.lockToCustomer = false,
     this.isX3History = false,
     this.isForReturn = false,
+    this.returnCondition,
   });
 
   @override
@@ -129,6 +131,44 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       } catch (_) {}
     }
     _loadTransactions();
+    if (_selectedCustomerCode != null && _selectedCustomerCode!.isNotEmpty) {
+      _loadAvailableCustomerProducts();
+    }
+  }
+
+  Future<void> _loadAvailableCustomerProducts() async {
+    final code = _selectedCustomerCode;
+    if (code == null || code.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _availableCustomerProducts = [];
+          _isLoadingProducts = false;
+        });
+      }
+      return;
+    }
+    if (mounted) setState(() => _isLoadingProducts = true);
+    try {
+      final List<Map<String, String>> products;
+      if (widget.isX3History) {
+        products = await _repository.getX3ProductsForCustomer(code);
+      } else {
+        products = await _repository.getProductsSoldToCustomer(code);
+      }
+      if (mounted) {
+        setState(() {
+          _availableCustomerProducts = products.map((p) => {
+            'code': p['sku'] ?? '',
+            'name': (p['name'] != null && p['name']!.isNotEmpty) ? p['name']! : (p['sku'] ?? ''),
+          }).toList();
+          _isLoadingProducts = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingProducts = false);
+      }
+    }
   }
 
   @override
@@ -152,6 +192,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           startDate: _startDate,
           endDate: _endDate,
           searchQuery: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+          productSku: _selectedProductSku,
           forceRefresh: forceRefresh,
         );
       } else {
@@ -192,6 +233,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       if (!widget.lockToCustomer) {
         _selectedCustomerCode = null;
         _selectedCustomerName = null;
+        _availableCustomerProducts = [];
       }
       _selectedProductSku = null;
       _selectedProductName = null;
@@ -199,7 +241,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       _startDate = null;
       _endDate = null;
       _selectedType = 'ALL';
-      _availableCustomerProducts = [];
     });
     _loadTransactions();
   }
@@ -219,6 +260,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         if (syncState is SalesInvoiceCustomerSyncSuccess) {
           if (_selectedCustomerCode == null || syncState.customerCode == _selectedCustomerCode) {
             _loadTransactions();
+            _loadAvailableCustomerProducts();
           }
         }
       },
@@ -324,28 +366,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                   _selectedCustomerName = customer['name'];
                                   _selectedProductSku = null;
                                   _selectedProductName = null;
-                                  _isLoadingProducts = true;
                                 });
                                 setModalState(() {});
-
-                                try {
-                                  final products = await _repository.getProductsSoldToCustomer(code);
-                                  if (mounted) {
-                                    setState(() {
-                                      _availableCustomerProducts = products.map((p) => {
-                                        'code': p['sku'] ?? '',
-                                        'name': p['name'] ?? '',
-                                      }).toList();
-                                      _isLoadingProducts = false;
-                                    });
-                                    setModalState(() {});
-                                  }
-                                } catch (_) {
-                                  if (mounted) {
-                                    setState(() => _isLoadingProducts = false);
-                                    setModalState(() {});
-                                  }
-                                }
+                                await _loadAvailableCustomerProducts();
+                                if (mounted) setModalState(() {});
                               },
                             );
                           }
@@ -362,7 +386,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             ? '$_selectedProductName (${_selectedProductSku ?? ''})'
                             : (_selectedCustomerCode == null ? 'Select Client first' : _selectedProductSku),
                         icon: Icons.inventory_2_outlined,
-                        onTap: () {
+                        onTap: () async {
                           if (_selectedCustomerCode == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -370,6 +394,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                               ),
                             );
                             return;
+                          }
+                          if (_availableCustomerProducts.isEmpty && !_isLoadingProducts) {
+                            await _loadAvailableCustomerProducts();
+                            if (mounted) setModalState(() {});
                           }
                           if (_isLoadingProducts) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +409,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'No products found that were sold to ${_selectedCustomerName ?? _selectedCustomerCode}.',
+                                  widget.isX3History
+                                      ? 'No products found in X3 invoices for ${_selectedCustomerName ?? _selectedCustomerCode}.'
+                                      : 'No products found that were sold to ${_selectedCustomerName ?? _selectedCustomerCode}.',
                                 ),
                               ),
                             );
@@ -626,7 +656,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      widget.isX3History ? tx.id : '${tx.type} - ${tx.id}', 
+                                      (tx.x3DocumentId != null && tx.x3DocumentId!.isNotEmpty)
+                                          ? tx.x3DocumentId!
+                                          : tx.id,
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -665,11 +697,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(tx.customerName),
+                                  if (tx.x3DocumentId != null && tx.x3DocumentId!.isNotEmpty && tx.x3DocumentId != tx.id)
+                                    Text(
+                                      'Ref: ${tx.id}',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
+                                    ),
                                   if (tx.reversalCreditNoteId != null && tx.reversalCreditNoteId!.isNotEmpty)
                                     Text(
                                       tx.isReversed == 1
                                           ? 'Reversed by: ${tx.reversalCreditNoteId}'
-                                          : 'Credit Note: ${tx.reversalCreditNoteId}',
+                                          : tx.reversalCreditNoteId!,
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -698,7 +735,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                               ),
                               onTap: () async {
                                 if (widget.isForReturn) {
-                                  final isCreditNote = tx.type == 'CREDIT_NOTE' || tx.id.startsWith('CN-');
+                                  final isCreditNote = tx.type == 'CREDIT_NOTE' || tx.id.startsWith('CN-') || tx.id.startsWith('HC') || tx.id.startsWith('HR');
                                   if (isCreditNote) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -709,12 +746,19 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                     return;
                                   }
 
+                                  ReturnCondition? condition = widget.returnCondition;
+                                  if (condition == null && widget.isForReturn) {
+                                    condition = await showReturnConditionDialog(context);
+                                    if (condition == null) return;
+                                  }
+
                                   final result = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => InvoiceItemReversalScreen(
                                         transaction: tx,
                                         isReturnMode: true,
+                                        returnCondition: condition,
                                       ),
                                     ),
                                   );

@@ -25,10 +25,17 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
   ) async {
     if (state is SalesInvoiceSyncInProgress || state is SalesInvoiceCustomerSyncInProgress) return;
 
-    emit(const SalesInvoiceSyncInProgress('Synchronizing Mobile Sales Data...'));
+    emit(SalesInvoiceSyncInProgress(
+      event.uploadOnly
+          ? 'Exporting Pending Documents to Sage X3...'
+          : 'Synchronizing Mobile Sales Data...',
+    ));
 
     try {
-      final batchResult = await _useCase.execute(siteCode: event.siteCode);
+      final batchResult = await _useCase.execute(
+        siteCode: event.siteCode,
+        uploadOnly: event.uploadOnly,
+      );
       if (batchResult.isTotalFailure) {
         emit(SalesInvoiceSyncFailure(
           batchResult.errorMessage ?? 'Synchronization failed. Could not communicate with server.',

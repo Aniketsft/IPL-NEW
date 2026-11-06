@@ -100,6 +100,24 @@ namespace EnterpriseAuth.Api.Controllers
                 var dbPermissions = await _context.Permissions
                     .Where(p => names.Contains(p.Name.ToLower()))
                     .ToListAsync();
+                var existingNames = dbPermissions.Select(p => p.Name.ToLower()).ToHashSet();
+
+                foreach (var name in names)
+                {
+                    if (!existingNames.Contains(name))
+                    {
+                        var newPerm = new Permission
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = name,
+                            Description = $"Permission for {name}"
+                        };
+                        _context.Permissions.Add(newPerm);
+                        dbPermissions.Add(newPerm);
+                        existingNames.Add(name);
+                    }
+                }
+
                 foreach (var p in dbPermissions)
                 {
                     role.Permissions.Add(p);
@@ -141,6 +159,24 @@ namespace EnterpriseAuth.Api.Controllers
                 var dbPermissions = await _context.Permissions
                     .Where(p => names.Contains(p.Name.ToLower()))
                     .ToListAsync();
+                var existingNames = dbPermissions.Select(p => p.Name.ToLower()).ToHashSet();
+
+                foreach (var name in names)
+                {
+                    if (!existingNames.Contains(name))
+                    {
+                        var newPerm = new Permission
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = name,
+                            Description = $"Permission for {name}"
+                        };
+                        _context.Permissions.Add(newPerm);
+                        dbPermissions.Add(newPerm);
+                        existingNames.Add(name);
+                    }
+                }
+
                 foreach (var p in dbPermissions)
                 {
                     existingRole.Permissions.Add(p);

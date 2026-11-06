@@ -14,6 +14,7 @@ import '../../bloc/sales_invoice_bloc.dart';
 import '../../bloc/sales_invoice_state.dart';
 import '../../bloc/sales_invoice_event.dart';
 import '../../../domain/models/transaction_config.dart';
+import '../../../domain/models/stock_status.dart';
 import 'order_summary_screen.dart';
 
 class SelectTransactionScreen extends StatelessWidget {
@@ -80,56 +81,89 @@ class SelectTransactionScreen extends StatelessWidget {
               },
             ),
           ],
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select Transaction Type',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
+          body: Builder(
+            builder: (context) {
+              final bool canAccessInvoice = permissions.isEmpty ||
+                  permissions.contains('logistics.sales_invoice.read') ||
+                  permissions.contains('logistics.sales_invoice.create') ||
+                  permissions.contains('logistics.salesman.read');
+
+              final bool canAccessCNReversal = permissions.isEmpty ||
+                  permissions.contains('logistics.sales.credit_reversal.read') ||
+                  permissions.contains('logistics.sales.credit_reversal.create');
+
+              final bool canAccessCNStandalone = permissions.isEmpty ||
+                  permissions.contains('logistics.sales.credit_standalone.read') ||
+                  permissions.contains('logistics.sales.credit_standalone.create');
+
+              final bool canAccessCNRefund = permissions.isEmpty ||
+                  permissions.contains('logistics.sales.credit_refund.read') ||
+                  permissions.contains('logistics.sales.credit_refund.create');
+
+              final bool canAccessAnyCN = canAccessCNReversal || canAccessCNStandalone || canAccessCNRefund;
+
+              final bool canAccessReturn = permissions.isEmpty ||
+                  permissions.contains('logistics.sales.customer_return.read') ||
+                  permissions.contains('logistics.sales.customer_return.create');
+
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select Transaction Type',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Choose the type of transaction you would like to process.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    if (canAccessInvoice) ...[
+                      _buildTransactionCard(
+                        context: context,
+                        title: 'Invoice',
+                        description: 'Standard customer billing and sales processing.',
+                        icon: Icons.receipt_long_rounded,
+                        color: theme.primaryColor,
+                        onTap: () => _showActionPrompt(context, 'Invoice', 'INVOICE'),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (canAccessAnyCN) ...[
+                      _buildTransactionCard(
+                        context: context,
+                        title: 'Credit Note',
+                        description: 'Issue credit for overpayments or adjustments.',
+                        icon: Icons.description_rounded,
+                        color: theme.primaryColor,
+                        onTap: () => _showCreditNotePrompt(context),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (canAccessReturn) ...[
+                      _buildTransactionCard(
+                        context: context,
+                        title: 'Customer Return',
+                        description: 'Process inventory returns and customer refunds.',
+                        icon: Icons.assignment_return_rounded,
+                        color: theme.primaryColor,
+                        onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Choose the type of transaction you would like to process.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _buildTransactionCard(
-                  context: context,
-                  title: 'Invoice',
-                  description: 'Standard customer billing and sales processing.',
-                  icon: Icons.receipt_long_rounded,
-                  color: theme.primaryColor,
-                  onTap: () => _showActionPrompt(context, 'Invoice', 'INVOICE'),
-                ),
-                const SizedBox(height: 16),
-                _buildTransactionCard(
-                  context: context,
-                  title: 'Credit Note',
-                  description: 'Issue credit for overpayments or adjustments.',
-                  icon: Icons.description_rounded,
-                  color: theme.primaryColor,
-                  onTap: () => _showCreditNotePrompt(context),
-                ),
-                const SizedBox(height: 16),
-                _buildTransactionCard(
-                  context: context,
-                  title: 'Customer Return',
-                  description: 'Process inventory returns and customer refunds.',
-                  icon: Icons.assignment_return_rounded,
-                  color: theme.primaryColor,
-                  onTap: () => _showActionPrompt(context, 'Customer Return', 'RETURN'),
-                ),
-              ],
-            ),
+              );
+            },
           ),
       );
   }
@@ -243,7 +277,7 @@ class SelectTransactionScreen extends StatelessWidget {
                 ListTile(
                   leading: Icon(Icons.add_circle_outline_rounded, color: theme.primaryColor),
                   title: const Text('Create New'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context); // close bottom sheet
                     final bloc = context.read<SalesInvoiceBloc>();
                     final currentCustomer = bloc.state is SalesInvoiceLoaded
@@ -252,6 +286,8 @@ class SelectTransactionScreen extends StatelessWidget {
                     bloc.add(ClearCart());
 
                     if (txType == 'RETURN') {
+                      final condition = await showReturnConditionDialog(context);
+                      if (condition == null) return;
                       if (currentCustomer != null) {
                         final code = (currentCustomer['code'] ?? currentCustomer['customerCode'] ?? '').toString();
                         final name = (currentCustomer['name'] ?? currentCustomer['customerName'] ?? '').toString();
@@ -264,6 +300,7 @@ class SelectTransactionScreen extends StatelessWidget {
                               lockToCustomer: true,
                               isX3History: true,
                               isForReturn: true,
+                              returnCondition: condition,
                             ),
                           ),
                         );
@@ -271,7 +308,10 @@ class SelectTransactionScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const CustomerSelectionScreen(isReturnMode: true),
+                            builder: (context) => CustomerSelectionScreen(
+                              isReturnMode: true,
+                              returnCondition: condition,
+                            ),
                           ),
                         );
                       }
@@ -365,99 +405,108 @@ class SelectTransactionScreen extends StatelessWidget {
                 ),
                 const Divider(),
                 // 1. Select Invoice to Reverse
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.undo_rounded, color: Colors.red, size: 22),
-                  ),
-                  title: const Text(
-                    '1. Select Invoice to Reverse',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: const Text('Auto-reverses matching original settlement and returns stock'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TransactionHistoryScreen(
-                          transactionType: 'INVOICE',
-                          isForReversal: true,
-                        ),
+                if (permissions.isEmpty ||
+                    permissions.contains('logistics.sales.credit_reversal.read') ||
+                    permissions.contains('logistics.sales.credit_reversal.create'))
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                ),
+                      child: const Icon(Icons.undo_rounded, color: Colors.red, size: 22),
+                    ),
+                    title: const Text(
+                      '1. Select Invoice to Reverse',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text('Auto-reverses matching original settlement and returns stock'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TransactionHistoryScreen(
+                            transactionType: 'INVOICE',
+                            isForReversal: true,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 // 2. Standalone Return
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.blue, size: 22),
-                  ),
-                  title: const Text(
-                    '2. Open Credit Note',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: const Text('Select customer & products directly; pick Cash or Credit refund'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.read<SalesInvoiceBloc>().add(ClearCart());
-                    context.read<SalesInvoiceBloc>().add(InitializeTransaction(
-                      transactionType: 'STANDALONE_CREDIT_NOTE',
-                      config: TransactionConfig.forType('STANDALONE_CREDIT_NOTE'),
-                    ));
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CustomerSelectionScreen(),
+                if (permissions.isEmpty ||
+                    permissions.contains('logistics.sales.credit_standalone.read') ||
+                    permissions.contains('logistics.sales.credit_standalone.create'))
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                ),
-                // 3. Amount Only
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
+                      child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.blue, size: 22),
                     ),
-                    child: const Icon(Icons.payments_rounded, color: Colors.green, size: 22),
-                  ),
-                  title: const Text(
-                    '3. Cash Refund',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: const Text('Enter refund amount linked to 1 or multiple invoices'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    final bloc = context.read<SalesInvoiceBloc>();
-                    final currentCustomer = bloc.state is SalesInvoiceLoaded
-                        ? (bloc.state as SalesInvoiceLoaded).customer
-                        : null;
-                    final currentCode = currentCustomer?['code']?.toString() ??
-                        currentCustomer?['customerCode']?.toString() ??
-                        currentCustomer?['CustomerNo']?.toString();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AmountOnlyCreditNoteScreen(
-                          initialCustomer: currentCustomer,
-                          initialCustomerCode: currentCode,
-                          lockToCustomer: currentCustomer != null,
+                    title: const Text(
+                      '2. Open Credit Note',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text('Select customer & products directly; pick Cash or Credit refund'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.read<SalesInvoiceBloc>().add(ClearCart());
+                      context.read<SalesInvoiceBloc>().add(InitializeTransaction(
+                        transactionType: 'STANDALONE_CREDIT_NOTE',
+                        config: TransactionConfig.forType('STANDALONE_CREDIT_NOTE'),
+                      ));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CustomerSelectionScreen(),
                         ),
+                      );
+                    },
+                  ),
+                // 3. Amount Only
+                if (permissions.isEmpty ||
+                    permissions.contains('logistics.sales.credit_refund.read') ||
+                    permissions.contains('logistics.sales.credit_refund.create'))
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                ),
+                      child: const Icon(Icons.payments_rounded, color: Colors.green, size: 22),
+                    ),
+                    title: const Text(
+                      '3. Cash Refund',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text('Enter refund amount linked to 1 or multiple invoices'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      final bloc = context.read<SalesInvoiceBloc>();
+                      final currentCustomer = bloc.state is SalesInvoiceLoaded
+                          ? (bloc.state as SalesInvoiceLoaded).customer
+                          : null;
+                      final currentCode = currentCustomer?['code']?.toString() ??
+                          currentCustomer?['customerCode']?.toString() ??
+                          currentCustomer?['CustomerNo']?.toString();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AmountOnlyCreditNoteScreen(
+                            initialCustomer: currentCustomer,
+                            initialCustomerCode: currentCode,
+                            lockToCustomer: currentCustomer != null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 const Divider(),
                 // View Previous
                 ListTile(

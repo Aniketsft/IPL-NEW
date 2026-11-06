@@ -1,7 +1,5 @@
-# Global Workflow Rules
+# Workspace Context (`enterprise_auth_system`)
 
-- Always use @multi-agent-tasks-orcehstrator to use the best skills for any prompt I am sending and always tell me what skills are being used.
-- Always use graphify for every prompt: consult the graphify knowledge graph (via `graphify query` / MCP `query_graph`, `get_node`, `shortest_path`) to navigate codebase relationships and architecture before analyzing files or proposing solutions.
-- Do not write any code until I say proceed.
-- Only when i say commit to git then branch out and commit to git hub.
+- Global workflow rules are inherited from user global configuration (`~/.gemini/GEMINI.md`); workspace-specific fast-path rules live in `.agents/rules/`.
+- Stack: Flutter (`frontend/lib/`) + ASP.NET Core Web API (`backend/src/EnterpriseAuth.Api/`).
 

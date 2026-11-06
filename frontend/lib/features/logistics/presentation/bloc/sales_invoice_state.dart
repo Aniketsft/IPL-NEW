@@ -21,6 +21,9 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
   final DateTime? deliveryDate;
   final TransactionConfig config;
 
+  final String? returnCondition; // 'NORMAL', 'DAMAGED', 'EXPIRED'
+  final String? returnStockStatus; // 'A' or 'Q'
+
   SalesInvoiceLoaded({
     this.customer,
     this.cartItems = const [],
@@ -28,6 +31,8 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
     this.originalDocumentId,
     this.deliveryDate,
     TransactionConfig? config,
+    this.returnCondition,
+    this.returnStockStatus,
   }) : config = config ?? TransactionConfig.forType(transactionType);
 
   SalesInvoiceLoaded copyWith({
@@ -37,6 +42,8 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
     String? originalDocumentId,
     DateTime? deliveryDate,
     TransactionConfig? config,
+    String? returnCondition,
+    String? returnStockStatus,
   }) {
     final newType = transactionType ?? this.transactionType;
     return SalesInvoiceLoaded(
@@ -46,6 +53,8 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
       originalDocumentId: originalDocumentId ?? this.originalDocumentId,
       deliveryDate: deliveryDate ?? this.deliveryDate,
       config: config ?? (transactionType != null ? TransactionConfig.forType(newType) : this.config),
+      returnCondition: returnCondition ?? this.returnCondition,
+      returnStockStatus: returnStockStatus ?? this.returnStockStatus,
     );
   }
 
@@ -56,7 +65,16 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
   double get totalAmount => grandTotal;
 
   @override
-  List<Object?> get props => [customer, cartItems, transactionType, originalDocumentId, deliveryDate, config];
+  List<Object?> get props => [
+        customer,
+        cartItems,
+        transactionType,
+        originalDocumentId,
+        deliveryDate,
+        config,
+        returnCondition,
+        returnStockStatus,
+      ];
 }
 
 class SalesInvoiceError extends SalesInvoiceState {

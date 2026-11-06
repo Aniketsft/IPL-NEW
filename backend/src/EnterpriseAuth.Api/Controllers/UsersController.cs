@@ -32,7 +32,7 @@ namespace EnterpriseAuth.Api.Controllers
             
             var users = await _userRepository.GetAllAsync();
             
-            if (!string.IsNullOrEmpty(currentUserSiteCode))
+            if (!string.IsNullOrEmpty(currentUserSiteCode) && !string.Equals(currentUserSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) && !CanSetSiteCode())
             {
                 users = users.Where(u => u.SiteCode == currentUserSiteCode);
             }
@@ -57,7 +57,7 @@ namespace EnterpriseAuth.Api.Controllers
             if (user == null) return NotFound();
             
             var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            if (!IsSiteAuthorized(user.SiteCode))
             {
                 return Forbid();
             }
@@ -73,6 +73,25 @@ namespace EnterpriseAuth.Api.Controllers
                 Permissions = user.Roles.SelectMany(r => r.Permissions).Concat(user.Permissions).Select(p => p.Name).Distinct().ToList()
             };
             return Ok(dto);
+        }
+
+        private Guid? GetCurrentUserId()
+        {
+            var sub = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                      ?? User.FindFirst("sub")?.Value;
+            return Guid.TryParse(sub, out var id) ? id : null;
+        }
+
+        private bool IsSiteAuthorized(string? targetSiteCode)
+        {
+            var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
+            if (string.IsNullOrEmpty(currentUserSiteCode) || 
+                string.Equals(currentUserSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) || 
+                CanSetSiteCode())
+            {
+                return true;
+            }
+            return string.Equals(currentUserSiteCode, targetSiteCode, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool CanSetSiteCode()
@@ -136,6 +155,24 @@ namespace EnterpriseAuth.Api.Controllers
                 }
 
                 var allPermissions = await _context.Permissions.ToListAsync();
+                var existingNames = allPermissions.Select(p => p.Name.ToLowerInvariant()).ToHashSet();
+
+                foreach (var permName in normalizedRequestPermissions)
+                {
+                    if (!existingNames.Contains(permName))
+                    {
+                        var newPerm = new Permission
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = permName,
+                            Description = $"Permission for {permName}"
+                        };
+                        _context.Permissions.Add(newPerm);
+                        allPermissions.Add(newPerm);
+                        existingNames.Add(permName);
+                    }
+                }
+
                 var permissions = allPermissions
                     .Where(p => normalizedRequestPermissions.Contains(p.Name.ToLowerInvariant()))
                     .ToList();
@@ -170,7 +207,7 @@ namespace EnterpriseAuth.Api.Controllers
             if (user == null) return NotFound();
 
             var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            if (!IsSiteAuthorized(user.SiteCode))
             {
                 return Forbid();
             }
@@ -248,7 +285,7 @@ namespace EnterpriseAuth.Api.Controllers
             if (user == null) return NotFound();
 
             var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            if (!IsSiteAuthorized(user.SiteCode))
             {
                 return Forbid();
             }
@@ -269,7 +306,7 @@ namespace EnterpriseAuth.Api.Controllers
             if (user == null) return NotFound();
 
             var currentUserSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(currentUserSiteCode) && user.SiteCode != currentUserSiteCode)
+            if (!IsSiteAuthorized(user.SiteCode))
             {
                 return Forbid();
             }
@@ -307,6 +344,24 @@ namespace EnterpriseAuth.Api.Controllers
 
             // Load all permissions first to avoid EF Core translation issues with ToLower inside Contains
             var allPermissions = await _context.Permissions.ToListAsync();
+            var existingNames = allPermissions.Select(p => p.Name.ToLowerInvariant()).ToHashSet();
+
+            foreach (var permName in normalizedRequestPermissions)
+            {
+                if (!existingNames.Contains(permName))
+                {
+                    var newPerm = new Permission
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = permName,
+                        Description = $"Permission for {permName}"
+                    };
+                    _context.Permissions.Add(newPerm);
+                    allPermissions.Add(newPerm);
+                    existingNames.Add(permName);
+                }
+            }
+
             var permissions = allPermissions
                 .Where(p => normalizedRequestPermissions.Contains(p.Name.ToLowerInvariant()))
                 .ToList();
@@ -318,7 +373,11 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             // Invalidate active JWTs so modified permissions take effect immediately
-            user.TokenVersion = Guid.NewGuid();
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null || currentUserId.Value != user.Id)
+            {
+                user.TokenVersion = Guid.NewGuid();
+            }
 
             await _context.SaveChangesAsync();
             return Ok();

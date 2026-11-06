@@ -181,6 +181,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnTokenValidated = async context =>
             {
+                var path = context.Request.Path.Value?.ToLowerInvariant();
+                var isRefreshEndpoint = path != null && path.Contains("auth/refresh");
+
                 var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 var userIdString = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 var tokenVersionString = context.Principal?.FindFirst("TokenVersion")?.Value;
@@ -192,14 +195,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                         .Select(u => u.TokenVersion)
                         .FirstOrDefaultAsync();
 
-                    if (userTokenVersion != tokenVersion)
+                    if (!isRefreshEndpoint && userTokenVersion != tokenVersion)
                     {
                         context.Fail("Token is invalid because permissions have changed.");
                     }
                 }
                 else
                 {
-                    context.Fail("Token is missing required claims.");
+                    if (!isRefreshEndpoint)
+                    {
+                        context.Fail("Token is missing required claims.");
+                    }
                 }
             }
         };

@@ -34,6 +34,7 @@ class TransactionModel {
   final int isPartiallyReversed;
   final double? remainingAmount;
   final String? reversalCreditNoteId;
+  final String? x3DocumentId;
   final AuditMetadata auditMetadata;
 
   const TransactionModel({
@@ -49,6 +50,7 @@ class TransactionModel {
     this.isPartiallyReversed = 0,
     this.remainingAmount,
     this.reversalCreditNoteId,
+    this.x3DocumentId,
     required this.auditMetadata,
   });
 
@@ -66,6 +68,7 @@ class TransactionModel {
       isPartiallyReversed: json['isPartiallyReversed'] ?? 0,
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble(),
       reversalCreditNoteId: json['reversalCreditNoteId']?.toString(),
+      x3DocumentId: json['x3DocumentId']?.toString(),
       auditMetadata: AuditMetadata.fromJson(json),
     );
   }

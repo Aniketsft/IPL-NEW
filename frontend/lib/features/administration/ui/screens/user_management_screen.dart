@@ -11,11 +11,19 @@ import '../../../../core/secure_storage_service.dart';
 class PermissionNode {
   final String label;
   final String? moduleId;
+  final String category; // 'sales', 'manufacturing', 'system'
+  final String description;
+  final IconData icon;
+  final Color? iconColor;
   final List<PermissionNode> children;
 
-  PermissionNode({
+  const PermissionNode({
     required this.label,
     this.moduleId,
+    this.category = 'sales',
+    this.description = '',
+    this.icon = Icons.folder_outlined,
+    this.iconColor,
     this.children = const [],
   });
 }
@@ -60,20 +68,221 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-    final List<PermissionNode> _permissionTree = [
-      PermissionNode(label: 'Home Screen', moduleId: 'app.home'),
-      PermissionNode(label: 'Settings', moduleId: 'settings.general'),
-      PermissionNode(label: 'Administration', moduleId: 'administration.user_management'),
-      PermissionNode(label: 'Devices', moduleId: 'administration.devices'),
-      PermissionNode(label: 'Sync Logs', moduleId: 'administration.sync_logs'),
-      PermissionNode(label: 'Delivery', moduleId: 'logistics.delivery'),
-      PermissionNode(label: 'Manufacturing', moduleId: 'manufacturing.all'),
-      PermissionNode(label: 'QR Label', moduleId: 'inventory.by_identifier'),
-      PermissionNode(label: 'Printer Settings', moduleId: 'settings.printer'),
-      PermissionNode(label: 'Salesman', moduleId: 'logistics.salesman'),
-      PermissionNode(label: 'Reports', moduleId: 'logistics.reports'),
-      PermissionNode(label: 'OTP Generation', moduleId: 'logistics.otp_generation'),
-    ];
+
+  static const List<PermissionNode> _salesPermissionNodes = [
+    PermissionNode(
+      label: 'Sales Invoicing',
+      moduleId: 'logistics.sales_invoice',
+      category: 'sales',
+      description: 'Standard sales catalog, cart ordering & invoice posting',
+      icon: Icons.point_of_sale_rounded,
+      iconColor: Color(0xFF4A90D9),
+    ),
+    PermissionNode(
+      label: 'Invoice Reversal Credit Note',
+      moduleId: 'logistics.sales.credit_reversal',
+      category: 'sales',
+      description: 'Select invoice to reverse settlement and restore stock',
+      icon: Icons.undo_rounded,
+      iconColor: Colors.redAccent,
+    ),
+    PermissionNode(
+      label: 'Open / Standalone Credit Note',
+      moduleId: 'logistics.sales.credit_standalone',
+      category: 'sales',
+      description: 'Create standalone credit note with direct item selection',
+      icon: Icons.description_rounded,
+      iconColor: Colors.blueAccent,
+    ),
+    PermissionNode(
+      label: 'Cash Refund Credit Note',
+      moduleId: 'logistics.sales.credit_refund',
+      category: 'sales',
+      description: 'Process amount-only cash refunds against customer balance',
+      icon: Icons.payments_rounded,
+      iconColor: Colors.green,
+    ),
+    PermissionNode(
+      label: 'Customer Return',
+      moduleId: 'logistics.sales.customer_return',
+      category: 'sales',
+      description: 'Process inventory returns and customer refund slips',
+      icon: Icons.assignment_return_rounded,
+      iconColor: Colors.teal,
+    ),
+    PermissionNode(
+      label: 'Receipt (Cash Collection)',
+      moduleId: 'logistics.sales.cash_collection',
+      category: 'sales',
+      description: 'Collect payments & allocate against open customer invoices',
+      icon: Icons.receipt_long_rounded,
+      iconColor: Colors.amber,
+    ),
+    PermissionNode(
+      label: 'Sales Orders',
+      moduleId: 'logistics.sales.sales_order',
+      category: 'sales',
+      description: 'Create & view pre-sales customer orders',
+      icon: Icons.list_alt_rounded,
+      iconColor: Colors.indigoAccent,
+    ),
+    PermissionNode(
+      label: 'Price Override',
+      moduleId: 'logistics.sales.price_override',
+      category: 'sales',
+      description: 'Allow manual base price editing on products in cart',
+      icon: Icons.edit_note_rounded,
+      iconColor: Colors.deepOrange,
+    ),
+    PermissionNode(
+      label: 'Discount Override',
+      moduleId: 'logistics.sales.discount_override',
+      category: 'sales',
+      description: 'Allow applying custom line and document discounts',
+      icon: Icons.percent_rounded,
+      iconColor: Colors.purple,
+    ),
+    PermissionNode(
+      label: 'Sales Rep Selection',
+      moduleId: 'logistics.sales.rep_selection',
+      category: 'sales',
+      description: 'Select and change active sales representative on transactions',
+      icon: Icons.badge_rounded,
+      iconColor: Colors.cyan,
+    ),
+    PermissionNode(
+      label: 'Tender: Cash',
+      moduleId: 'logistics.sales.tender_cash',
+      category: 'sales',
+      description: 'Allow accepting Cash payments on mobile terminal',
+      icon: Icons.payments_outlined,
+      iconColor: Colors.green,
+    ),
+    PermissionNode(
+      label: 'Tender: Credit',
+      moduleId: 'logistics.sales.tender_credit',
+      category: 'sales',
+      description: 'Allow charging sales to Customer Credit line',
+      icon: Icons.account_balance_wallet_outlined,
+      iconColor: Colors.blue,
+    ),
+    PermissionNode(
+      label: 'Tender: Cheque',
+      moduleId: 'logistics.sales.tender_cheque',
+      category: 'sales',
+      description: 'Allow accepting Cheques with drawer bank details',
+      icon: Icons.receipt_outlined,
+      iconColor: Colors.brown,
+    ),
+    PermissionNode(
+      label: 'Tender: Digital (Juice / Blink)',
+      moduleId: 'logistics.sales.tender_digital',
+      category: 'sales',
+      description: 'Allow QR code and mobile app tenders (Juice, Blink, Myt Money)',
+      icon: Icons.qr_code_2_rounded,
+      iconColor: Colors.orange,
+    ),
+    PermissionNode(
+      label: 'Sales Reports & EOD',
+      moduleId: 'logistics.reports',
+      category: 'sales',
+      description: 'Daily sales summaries, driver settlement & EOD reports',
+      icon: Icons.analytics_rounded,
+      iconColor: Color(0xFF00B4D8),
+    ),
+    PermissionNode(
+      label: 'Supervisor Override OTP',
+      moduleId: 'logistics.otp_generation',
+      category: 'sales',
+      description: 'Generate supervisor approval PINs for limits and holds',
+      icon: Icons.pin_outlined,
+      iconColor: Color(0xFFFF9F1C),
+    ),
+  ];
+
+  static const List<PermissionNode> _manufacturingPermissionNodes = [
+    PermissionNode(
+      label: 'Manufacturing Execution',
+      moduleId: 'manufacturing.all',
+      category: 'manufacturing',
+      description: 'Sales orders, work order tracking & production reporting',
+      icon: Icons.precision_manufacturing_rounded,
+      iconColor: Colors.amber,
+    ),
+    PermissionNode(
+      label: 'Delivery & Manifests',
+      moduleId: 'logistics.delivery',
+      category: 'manufacturing',
+      description: 'Lorry loading, route manifests & proof of delivery',
+      icon: Icons.local_shipping_outlined,
+      iconColor: Color(0xFF2196F3),
+    ),
+    PermissionNode(
+      label: 'QR Label Printing',
+      moduleId: 'inventory.by_identifier',
+      category: 'manufacturing',
+      description: 'QR aggregation, item identification & label printing',
+      icon: Icons.qr_code_scanner_rounded,
+      iconColor: Color(0xFF4CAF50),
+    ),
+    PermissionNode(
+      label: 'Printer Settings',
+      moduleId: 'settings.printer',
+      category: 'manufacturing',
+      description: 'Configure thermal Bluetooth & network printers',
+      icon: Icons.print_outlined,
+      iconColor: Color(0xFF607D8B),
+    ),
+    PermissionNode(
+      label: 'Device Management',
+      moduleId: 'administration.devices',
+      category: 'manufacturing',
+      description: 'Bind and authorize handheld devices by MAC address',
+      icon: Icons.devices_other_rounded,
+      iconColor: Color(0xFF00897B),
+    ),
+  ];
+
+  static const List<PermissionNode> _systemPermissionNodes = [
+    PermissionNode(
+      label: 'Home Dashboard & Sync',
+      moduleId: 'app.home',
+      category: 'system',
+      description: 'Dashboard access and offline SQLite data sync',
+      icon: Icons.home_outlined,
+      iconColor: Color(0xFFFF9800),
+    ),
+    PermissionNode(
+      label: 'General Settings',
+      moduleId: 'settings.general',
+      category: 'system',
+      description: 'App configuration & network endpoints',
+      icon: Icons.settings_outlined,
+      iconColor: Color(0xFF9C27B0),
+    ),
+    PermissionNode(
+      label: 'User Administration',
+      moduleId: 'administration.user_management',
+      category: 'system',
+      description: 'Create users, assign roles and modify permissions',
+      icon: Icons.admin_panel_settings_outlined,
+      iconColor: Color(0xFFF44336),
+    ),
+    PermissionNode(
+      label: 'Sync Logs',
+      moduleId: 'administration.sync_logs',
+      category: 'system',
+      description: 'Real-time sync audit log inspection',
+      icon: Icons.sync_alt,
+      iconColor: Color(0xFF009688),
+    ),
+  ];
+
+  List<PermissionNode> get _permissionTree => [
+    ..._salesPermissionNodes,
+    ..._manufacturingPermissionNodes,
+    ..._systemPermissionNodes,
+  ];
 
   List<Site> _availableSites = [];
   String? _currentLoggedInUsername;
@@ -115,6 +324,9 @@ class _UserManagementScreenState extends State<UserManagementScreen>
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -275,7 +487,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   }
 
   // ---------------------------------------------------------
-  // PERMISSION SELECTION UI (REUSABLE)
+  // PERMISSION SELECTION UI (SEGREGATED: MOBILE SALES & MANUFACTURING)
   // ---------------------------------------------------------
 
   Widget _buildPermissionMatrixLayout({
@@ -283,304 +495,13 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     required bool isDark,
     required Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            'MODULE ACCESS',
-            style: TextStyle(
-              color: isDark ? Colors.white38 : Colors.black38,
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ),
-        ..._permissionTree.map(
-          (node) => _buildModuleCard(node, permissions, isDark, onUpdate),
-        ),
-      ],
+    return _SegregatedPermissionMatrix(
+      permissions: permissions,
+      isDark: isDark,
+      onUpdate: onUpdate,
     );
   }
 
-  Widget _buildModuleCard(
-    PermissionNode node,
-    List<ModuleAccess> permissions,
-    bool isDark,
-    Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate,
-  ) {
-    final access = permissions.firstWhere(
-      (p) => p.moduleId == node.moduleId,
-      orElse: () => ModuleAccess(moduleId: node.moduleId!),
-    );
-
-    final bool isRead = access.canRead;
-    final bool isCrud = access.canCreate && access.canRead && access.canUpdate && access.canDelete;
-
-    // Card tint based on access level
-    Color cardBg;
-    Color borderColor;
-    if (isCrud) {
-      cardBg = isDark
-          ? const Color(0xFF003D3D)
-          : const Color(0xFFE0F7F7);
-      borderColor = Theme.of(context).primaryColor.withValues(alpha: isDark ? 0.5 : 0.3);
-    } else if (isRead) {
-      cardBg = isDark
-          ? const Color(0xFF1A2A3D)
-          : const Color(0xFFE8F0FB);
-      borderColor = const Color(0xFF4A90D9).withValues(alpha: isDark ? 0.4 : 0.3);
-    } else {
-      cardBg = isDark ? const Color(0xFF1E1E24) : const Color(0xFFF5F5FA);
-      borderColor = isDark
-          ? Colors.white.withValues(alpha: 0.07)
-          : Colors.black.withValues(alpha: 0.07);
-    }
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-        boxShadow: isDark ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Module header row
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _getModuleIconColor(node.label).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _getModuleIcon(node.label),
-                  color: _getModuleIconColor(node.label),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      node.label,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
-                      ),
-                    ),
-                    Text(
-                      _getModuleDescription(node.label),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white38 : Colors.black38,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Access badge
-              if (isCrud)
-                _accessBadge('FULL', Theme.of(context).primaryColor, isDark)
-              else if (isRead)
-                _accessBadge('READ', const Color(0xFF4A90D9), isDark)
-              else
-                _accessBadge('NONE', Colors.grey, isDark),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // Toggle row
-          Row(
-            children: [
-              Expanded(
-                child: _buildSwitchTile(
-                  label: 'Read Only',
-                  sublabel: 'View access',
-                  value: isRead,
-                  activeColor: const Color(0xFF4A90D9),
-                  isDark: isDark,
-                  onChanged: (v) {
-                    onUpdate(node.moduleId!, 'read', v);
-                    if (!v) {
-                      onUpdate(node.moduleId!, 'create', false);
-                      onUpdate(node.moduleId!, 'update', false);
-                      onUpdate(node.moduleId!, 'delete', false);
-                    }
-                  },
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 40,
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                color: isDark ? Colors.white12 : Colors.black12,
-              ),
-              Expanded(
-                child: _buildSwitchTile(
-                  label: 'Full CRUD',
-                  sublabel: 'Create, edit, delete',
-                  value: isCrud,
-                  activeColor: Theme.of(context).primaryColor,
-                  isDark: isDark,
-                  onChanged: (v) {
-                    onUpdate(node.moduleId!, 'create', v);
-                    onUpdate(node.moduleId!, 'read', v);
-                    onUpdate(node.moduleId!, 'update', v);
-                    onUpdate(node.moduleId!, 'delete', v);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile({
-    required String label,
-    required String sublabel,
-    required bool value,
-    required Color activeColor,
-    required bool isDark,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Row(
-      children: [
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: Colors.white,
-          activeTrackColor: activeColor,
-          inactiveThumbColor: isDark ? Colors.grey[600] : Colors.grey[400],
-          inactiveTrackColor: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.black.withValues(alpha: 0.08),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: value
-                      ? activeColor
-                      : (isDark ? Colors.white54 : Colors.black54),
-                ),
-              ),
-              Text(
-                sublabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isDark ? Colors.white24 : Colors.black26,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _accessBadge(String text, Color color, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-
-  IconData _getModuleIcon(String label) {
-    switch (label) {
-      case 'Home Screen':      return Icons.home_outlined;
-      case 'Settings':         return Icons.settings_outlined;
-      case 'Administration':   return Icons.admin_panel_settings_outlined;
-      case 'Devices':          return Icons.devices_other_rounded;
-      case 'Sync Logs':        return Icons.sync_alt;
-      case 'Delivery':         return Icons.local_shipping_outlined;
-      case 'Manufacturing':    return Icons.precision_manufacturing_outlined;
-      case 'QR Label':         return Icons.qr_code_scanner_rounded;
-      case 'Printer Settings': return Icons.print_outlined;
-      case 'Salesman':
-      case 'Sales Invoice':    return Icons.point_of_sale_rounded;
-      case 'Reports':          return Icons.analytics_rounded;
-      case 'OTP Generation':   return Icons.pin_outlined;
-      default:                 return Icons.folder_outlined;
-    }
-  }
-
-  Color _getModuleIconColor(String label) {
-    switch (label) {
-      case 'Home Screen':      return const Color(0xFFFF9800);
-      case 'Settings':         return const Color(0xFF9C27B0);
-      case 'Administration':   return const Color(0xFFF44336);
-      case 'Devices':          return const Color(0xFF00897B);
-      case 'Sync Logs':        return const Color(0xFF009688);
-      case 'Delivery':         return const Color(0xFF2196F3);
-      case 'Manufacturing':    return Theme.of(context).primaryColor;
-      case 'QR Label':         return const Color(0xFF4CAF50);
-      case 'Printer Settings': return const Color(0xFF607D8B);
-      case 'Salesman':
-      case 'Sales Invoice':    return const Color(0xFF4A90D9);
-      case 'Reports':          return const Color(0xFF00B4D8);
-      case 'OTP Generation':   return const Color(0xFFFF9F1C);
-      default:                 return Colors.grey;
-    }
-  }
-
-  String _getModuleDescription(String label) {
-    switch (label) {
-      case 'Home Screen':      return 'Dashboard & data sync';
-      case 'Settings':         return 'App configuration';
-      case 'Administration':   return 'User & role management';
-      case 'Devices':          return 'Assign locations to handheld devices by MAC address';
-      case 'Sync Logs':        return 'Real-time device sync tracking';
-      case 'Delivery':         return 'EOD, scanning & manifests';
-      case 'Manufacturing':    return 'Sales orders & tracking';
-      case 'QR Label':         return 'QR aggregation & printing';
-      case 'Printer Settings': return 'Printer configuration';
-      case 'Salesman':
-      case 'Sales Invoice':    return 'Customer invoicing & returns';
-      case 'Reports':          return 'Sales summaries, stock & EOD reports';
-      case 'OTP Generation':   return 'Generate override PINs for limits/holds';
-      default:                 return '';
-    }
-  }
 
   // ---------------------------------------------------------
   // ROLES TAB
@@ -893,9 +814,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                               const SizedBox(height: 16),
                               DropdownButtonFormField<String>(
                                 value: selectedSite,
+                                isExpanded: true,
                                 decoration: const InputDecoration(labelText: 'Site Code'),
-                                items: _availableSites.map((site) => DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'))).toList()
-                                  ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+                                items: _availableSites.map((site) => DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}', overflow: TextOverflow.ellipsis))).toList()
+                                  ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin', overflow: TextOverflow.ellipsis))),
                                 onChanged: (val) {
                                   setStateDialog(() {
                                     selectedSite = val;
@@ -1049,7 +971,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                 isExpanded: true,
                 dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 items: _localRoles.map((r) {
-                  return DropdownMenuItem(value: r, child: Text(r.name));
+                  return DropdownMenuItem(value: r, child: Text(r.name, overflow: TextOverflow.ellipsis));
                 }).toList(),
                 onChanged: (val) {
                   setState(() {
@@ -1119,9 +1041,9 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                       isExpanded: true,
                       dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                       items: _availableSites.map((site) {
-                        return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
+                        return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}', overflow: TextOverflow.ellipsis));
                       }).toList()
-                        ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+                        ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin', overflow: TextOverflow.ellipsis))),
                       onChanged: canSetSite ? (val) {
                         setState(() {
                           _selectedCreationSite = val;
@@ -1391,6 +1313,28 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                           child: _buildUserSiteSelector(isDark, canSetSite),
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'PERMISSIONS OVERRIDE',
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AbsorbPointer(
+                        absorbing: isLocked,
+                        child: Opacity(
+                          opacity: isLocked ? 0.6 : 1.0,
+                          child: _buildPermissionMatrixLayout(
+                            permissions: _selectedManagementUser!.permissions,
+                            isDark: isDark,
+                            onUpdate: _updateExistingUserPermissions,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1424,9 +1368,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               try {
                 // Update User details (like roleId)
                 await _repository.updateUser(_selectedManagementUser!);
+                // Update User custom permissions
+                await _repository.updateUserPermissions(
+                  _selectedManagementUser!.id,
+                  _selectedManagementUser!.permissions,
+                );
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('User details updated!')),
+                    const SnackBar(content: Text('User details and permissions updated!')),
                   );
                   await _loadData();
                 }
@@ -1460,7 +1409,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           items: _allUsers.map((u) {
-            return DropdownMenuItem(value: u, child: Text(u.username));
+            return DropdownMenuItem(value: u, child: Text(u.username, overflow: TextOverflow.ellipsis));
           }).toList(),
           onChanged: (val) => setState(() => _selectedManagementUser = val),
         ),
@@ -1486,7 +1435,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           items: _localRoles.map((r) {
-            return DropdownMenuItem(value: r, child: Text(r.name));
+            return DropdownMenuItem(value: r, child: Text(r.name, overflow: TextOverflow.ellipsis));
           }).toList(),
           onChanged: (val) {
             if (val != null) {
@@ -1528,9 +1477,9 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           items: _availableSites.map((site) {
-            return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}'));
+            return DropdownMenuItem(value: site.siteCode, child: Text('${site.siteCode} - ${site.siteName}', overflow: TextOverflow.ellipsis));
           }).toList()
-            ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin'))),
+            ..insert(0, const DropdownMenuItem(value: 'ALL', child: Text('ALL - Global Admin', overflow: TextOverflow.ellipsis))),
           onChanged: canSetSite ? (val) {
             if (val != null) {
               setState(() {
@@ -1628,3 +1577,687 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     );
   }
 }
+
+// ============================================================================
+// SEGREGATED PERMISSION MATRIX (MOBILE SALES & MANUFACTURING)
+// ============================================================================
+
+class _SegregatedPermissionMatrix extends StatefulWidget {
+  final List<ModuleAccess> permissions;
+  final bool isDark;
+  final Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate;
+
+  const _SegregatedPermissionMatrix({
+    required this.permissions,
+    required this.isDark,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_SegregatedPermissionMatrix> createState() => _SegregatedPermissionMatrixState();
+}
+
+class _SegregatedPermissionMatrixState extends State<_SegregatedPermissionMatrix> {
+  int _activeCategory = 0; // 0 = Mobile Sales, 1 = Manufacturing
+  bool _isSystemExpanded = false;
+
+  int _countActive(List<PermissionNode> nodes) {
+    int count = 0;
+    for (final node in nodes) {
+      final access = widget.permissions.firstWhere(
+        (p) => p.moduleId == node.moduleId,
+        orElse: () => ModuleAccess(moduleId: node.moduleId ?? ''),
+      );
+      if (access.canRead || access.canCreate || access.canUpdate || access.canDelete) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  void _applySalesPreset(String preset) {
+    final salesIds = _UserManagementScreenState._salesPermissionNodes
+        .map((n) => n.moduleId!)
+        .toList();
+
+    if (preset == 'ALL') {
+      widget.onUpdate('', 'all_cat', true, subModuleIds: salesIds);
+      widget.onUpdate('app.home', 'read', true);
+    } else if (preset == 'CLEAR') {
+      widget.onUpdate('', 'all_cat', false, subModuleIds: salesIds);
+    } else if (preset == 'STANDARD') {
+      widget.onUpdate('', 'all_cat', false, subModuleIds: salesIds);
+      const standardSales = [
+        'logistics.sales_invoice',
+        'logistics.sales.tender_cash',
+        'logistics.sales.tender_credit',
+        'logistics.sales.sales_order',
+      ];
+      for (final id in standardSales) {
+        widget.onUpdate(id, 'create', true);
+        widget.onUpdate(id, 'read', true);
+        widget.onUpdate(id, 'update', true);
+        widget.onUpdate(id, 'delete', true);
+      }
+      widget.onUpdate('logistics.reports', 'read', true);
+      widget.onUpdate('logistics.sales.reports', 'read', true);
+      widget.onUpdate('app.home', 'read', true);
+    }
+  }
+
+  void _applyMfgPreset(String preset) {
+    final mfgIds = _UserManagementScreenState._manufacturingPermissionNodes
+        .map((n) => n.moduleId!)
+        .toList();
+
+    if (preset == 'ALL') {
+      widget.onUpdate('', 'all_cat', true, subModuleIds: mfgIds);
+      widget.onUpdate('app.home', 'read', true);
+    } else if (preset == 'CLEAR') {
+      widget.onUpdate('', 'all_cat', false, subModuleIds: mfgIds);
+    } else if (preset == 'STANDARD') {
+      widget.onUpdate('', 'all_cat', false, subModuleIds: mfgIds);
+      const standardMfg = [
+        'manufacturing.execution',
+        'manufacturing.delivery',
+        'manufacturing.qr_label',
+      ];
+      for (final id in standardMfg) {
+        widget.onUpdate(id, 'create', true);
+        widget.onUpdate(id, 'read', true);
+        widget.onUpdate(id, 'update', true);
+        widget.onUpdate(id, 'delete', true);
+      }
+      widget.onUpdate('app.home', 'read', true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = widget.isDark;
+    final primary = theme.primaryColor;
+
+    final salesActiveCount = _countActive(_UserManagementScreenState._salesPermissionNodes);
+    final mfgActiveCount = _countActive(_UserManagementScreenState._manufacturingPermissionNodes);
+    final sysActiveCount = _countActive(_UserManagementScreenState._systemPermissionNodes);
+
+    final activeNodes = _activeCategory == 0
+        ? _UserManagementScreenState._salesPermissionNodes
+        : _UserManagementScreenState._manufacturingPermissionNodes;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Category Header / Count
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'MODULE ACCESS CATEGORY',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black38,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                letterSpacing: 1.4,
+              ),
+            ),
+            Text(
+              '${_activeCategory == 0 ? salesActiveCount : mfgActiveCount}/${activeNodes.length} Granted',
+              style: TextStyle(
+                color: primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Modern 2-Segment Tab Selector
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141418) : const Color(0xFFE9EBEF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Mobile Sales Tab
+              Expanded(
+                child: _buildCategoryTab(
+                  index: 0,
+                  label: 'Mobile Sales',
+                  icon: Icons.point_of_sale_rounded,
+                  badgeText: '$salesActiveCount/${_UserManagementScreenState._salesPermissionNodes.length}',
+                  isSelected: _activeCategory == 0,
+                  primaryColor: primary,
+                  isDark: isDark,
+                  onTap: () => setState(() => _activeCategory = 0),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Manufacturing Tab
+              Expanded(
+                child: _buildCategoryTab(
+                  index: 1,
+                  label: 'Manufacturing',
+                  icon: Icons.precision_manufacturing_rounded,
+                  badgeText: '$mfgActiveCount/${_UserManagementScreenState._manufacturingPermissionNodes.length}',
+                  isSelected: _activeCategory == 1,
+                  primaryColor: primary,
+                  isDark: isDark,
+                  onTap: () => setState(() => _activeCategory = 1),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Supervisor Quick Presets
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C222B) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: primary.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.bolt_rounded, size: 18, color: primary),
+              const SizedBox(width: 8),
+              Text(
+                'Presets:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: _activeCategory == 0
+                      ? [
+                          _buildPresetChip(
+                            label: 'Grant All',
+                            icon: Icons.check_circle_outline,
+                            color: Colors.green,
+                            onTap: () => _applySalesPreset('ALL'),
+                            isDark: isDark,
+                          ),
+                          _buildPresetChip(
+                            label: 'Standard Salesman',
+                            icon: Icons.badge_outlined,
+                            color: const Color(0xFF4A90D9),
+                            onTap: () => _applySalesPreset('STANDARD'),
+                            isDark: isDark,
+                          ),
+                          _buildPresetChip(
+                            label: 'Clear',
+                            icon: Icons.clear_all_rounded,
+                            color: Colors.redAccent,
+                            onTap: () => _applySalesPreset('CLEAR'),
+                            isDark: isDark,
+                          ),
+                        ]
+                      : [
+                          _buildPresetChip(
+                            label: 'Grant All',
+                            icon: Icons.check_circle_outline,
+                            color: Colors.green,
+                            onTap: () => _applyMfgPreset('ALL'),
+                            isDark: isDark,
+                          ),
+                          _buildPresetChip(
+                            label: 'Standard Operator',
+                            icon: Icons.engineering_outlined,
+                            color: const Color(0xFF00897B),
+                            onTap: () => _applyMfgPreset('STANDARD'),
+                            isDark: isDark,
+                          ),
+                          _buildPresetChip(
+                            label: 'Clear',
+                            icon: Icons.clear_all_rounded,
+                            color: Colors.redAccent,
+                            onTap: () => _applyMfgPreset('CLEAR'),
+                            isDark: isDark,
+                          ),
+                        ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // List of Active Category Permission Cards
+        ...activeNodes.map(
+          (node) => _buildModuleCard(node, widget.permissions, isDark, widget.onUpdate),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Collapsible System & Foundation Settings Section
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF18181E) : const Color(0xFFF7F8FA),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.black12,
+            ),
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () => setState(() => _isSystemExpanded = !_isSystemExpanded),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF9800).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                          size: 20,
+                          color: Color(0xFFFF9800),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Core System & Base Access',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              'Dashboard, Settings, User Admin & Sync ($sysActiveCount/${_UserManagementScreenState._systemPermissionNodes.length} active)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? Colors.white38 : Colors.black38,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        _isSystemExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_isSystemExpanded) ...[
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: _UserManagementScreenState._systemPermissionNodes.map(
+                      (node) => _buildModuleCard(node, widget.permissions, isDark, widget.onUpdate),
+                    ).toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryTab({
+    required int index,
+    required String label,
+    required IconData icon,
+    required String badgeText,
+    required bool isSelected,
+    required Color primaryColor,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? primaryColor.withValues(alpha: 0.25) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: isSelected
+              ? Border.all(color: primaryColor, width: 1.5)
+              : null,
+          boxShadow: isSelected && !isDark
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? primaryColor
+                  : (isDark ? Colors.white54 : Colors.black54),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 13,
+                  color: isSelected
+                      ? (isDark ? Colors.white : primaryColor)
+                      : (isDark ? Colors.white60 : Colors.black54),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primaryColor.withValues(alpha: 0.2)
+                    : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                badgeText,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected
+                      ? primaryColor
+                      : (isDark ? Colors.white38 : Colors.black45),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPresetChip({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModuleCard(
+    PermissionNode node,
+    List<ModuleAccess> permissions,
+    bool isDark,
+    Function(String moduleId, String type, bool value, {List<String>? subModuleIds}) onUpdate,
+  ) {
+    final access = permissions.firstWhere(
+      (p) => p.moduleId == node.moduleId,
+      orElse: () => ModuleAccess(moduleId: node.moduleId!),
+    );
+
+    final bool isRead = access.canRead;
+    final bool isCrud = access.canCreate && access.canRead && access.canUpdate && access.canDelete;
+
+    final theme = Theme.of(context);
+    final iconColor = node.iconColor ?? theme.primaryColor;
+    final icon = node.icon;
+    final description = node.description;
+
+    Color cardBg;
+    Color borderColor;
+    if (isCrud) {
+      cardBg = isDark ? const Color(0xFF003D3D) : const Color(0xFFE0F7F7);
+      borderColor = theme.primaryColor.withValues(alpha: isDark ? 0.5 : 0.3);
+    } else if (isRead) {
+      cardBg = isDark ? const Color(0xFF1A2A3D) : const Color(0xFFE8F0FB);
+      borderColor = const Color(0xFF4A90D9).withValues(alpha: isDark ? 0.4 : 0.3);
+    } else {
+      cardBg = isDark ? const Color(0xFF1E1E24) : const Color(0xFFF5F5FA);
+      borderColor = isDark
+          ? Colors.white.withValues(alpha: 0.07)
+          : Colors.black.withValues(alpha: 0.07);
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+        boxShadow: isDark ? null : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      node.label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+                      ),
+                    ),
+                    if (description.isNotEmpty)
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (isCrud)
+                _accessBadge('FULL', theme.primaryColor, isDark)
+              else if (isRead)
+                _accessBadge('READ', const Color(0xFF4A90D9), isDark)
+              else
+                _accessBadge('NONE', Colors.grey, isDark),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSwitchTile(
+                  label: 'Read Only',
+                  sublabel: 'View access',
+                  value: isRead,
+                  activeColor: const Color(0xFF4A90D9),
+                  isDark: isDark,
+                  onChanged: (v) {
+                    onUpdate(node.moduleId!, 'read', v);
+                    if (!v) {
+                      onUpdate(node.moduleId!, 'create', false);
+                      onUpdate(node.moduleId!, 'update', false);
+                      onUpdate(node.moduleId!, 'delete', false);
+                    }
+                  },
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                color: isDark ? Colors.white12 : Colors.black12,
+              ),
+              Expanded(
+                child: _buildSwitchTile(
+                  label: 'Full CRUD',
+                  sublabel: 'Create, edit, delete',
+                  value: isCrud,
+                  activeColor: theme.primaryColor,
+                  isDark: isDark,
+                  onChanged: (v) {
+                    onUpdate(node.moduleId!, 'create', v);
+                    onUpdate(node.moduleId!, 'read', v);
+                    onUpdate(node.moduleId!, 'update', v);
+                    onUpdate(node.moduleId!, 'delete', v);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required String label,
+    required String sublabel,
+    required bool value,
+    required Color activeColor,
+    required bool isDark,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      children: [
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.white,
+          activeTrackColor: activeColor,
+          inactiveThumbColor: isDark ? Colors.grey[600] : Colors.grey[400],
+          inactiveTrackColor: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.08),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: value
+                      ? activeColor
+                      : (isDark ? Colors.white54 : Colors.black54),
+                ),
+              ),
+              Text(
+                sublabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.white24 : Colors.black26,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _accessBadge(String text, Color color, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+

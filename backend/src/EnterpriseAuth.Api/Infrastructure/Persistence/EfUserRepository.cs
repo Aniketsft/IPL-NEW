@@ -19,6 +19,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _httpContextAccessor = httpContextAccessor;
         }
 
+        private Guid? GetCurrentUserId()
+        {
+            var sub = _httpContextAccessor.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                      ?? _httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
+            return Guid.TryParse(sub, out var id) ? id : null;
+        }
+
         private string GetCurrentUserSiteCode()
         {
             return _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value ?? "ALL";
@@ -80,7 +87,11 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
 
         public async Task UpdateAsync(User user)
         {
-            user.TokenVersion = Guid.NewGuid(); // Invalidate token on update
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null || currentUserId.Value != user.Id)
+            {
+                user.TokenVersion = Guid.NewGuid(); // Invalidate token on update for other users
+            }
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
         }

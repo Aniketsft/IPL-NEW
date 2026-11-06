@@ -100,14 +100,22 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
+            if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
             {
-                payload.SalesSite = userSiteCode;
+                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
+                {
+                    payload.SalesSite = userSiteCode;
+                }
+                else
+                {
+                    payload.SalesSite = "POD";
+                }
             }
-            else if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
-            {
-                payload.SalesSite = "POD";
-            }
+
+            var resolvedTabletSource = await ResolveTabletSourceAsync(
+                payload.TabletSource,
+                payload.DeviceId,
+                payload.UserName ?? payload.CreatedBy ?? User.Identity?.Name);
 
             // Process one invoice at a time, transactionally
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -132,7 +140,8 @@ namespace EnterpriseAuth.Api.Controllers
                         DeviceId = !string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.DeviceId : User.FindFirst("DeviceId")?.Value,
                         SalesRep = payload.SalesRep,
                         PaymentTerm = payload.PaymentTerm,
-                        TransactionalId = !string.IsNullOrWhiteSpace(payload.TransactionalId) ? payload.TransactionalId : payload.InvoiceId
+                        TransactionalId = !string.IsNullOrWhiteSpace(payload.TransactionalId) ? payload.TransactionalId : payload.InvoiceId,
+                        TabletSource = resolvedTabletSource
                     };
 
                     foreach (var l in payload.Lines)
@@ -166,14 +175,18 @@ namespace EnterpriseAuth.Api.Controllers
                     await _dbContext.SaveChangesAsync(); // Generate IDs and save locally
                 }
 
+                // Always assign [NotMapped] TabletSource even when retrying an existing staging header
+                existingHeader.TabletSource = resolvedTabletSource;
+
                 string? x3DocId = recoveredX3DocId;
                 string? x3ReqNum = null;
                 string? x3RawPayload = recoveredRawPayload;
+                X3ImportResult? importResult = null;
 
                 // 2. Sync to X3 using SOAP service if not already recovered from a previous successful call
                 if (string.IsNullOrEmpty(x3DocId))
                 {
-                    var importResult = await _soapService.ImportSalesInvoiceAsync(existingHeader);
+                    importResult = await _soapService.ImportSalesInvoiceAsync(existingHeader);
 
                     bool isSuccess = importResult.Success || 
                         (!string.IsNullOrEmpty(importResult.RawPayload) && importResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase));
@@ -185,7 +198,14 @@ namespace EnterpriseAuth.Api.Controllers
                             ? importResult.TechnicalError 
                             : string.Join(" | ", importResult.Messages);
 
-                        return BadRequest(new { success = false, invoiceId = payload.InvoiceId, error = errorMsg, rawPayload = importResult.RawPayload });
+                        return BadRequest(new 
+                        { 
+                            success = false, 
+                            invoiceId = payload.InvoiceId, 
+                            error = errorMsg, 
+                            rawPayload = importResult.RawPayload,
+                            messages = importResult.Messages != null && importResult.Messages.Count > 0 ? importResult.Messages : new List<string> { errorMsg }
+                        });
                     }
 
                     x3DocId = importResult.DocumentId;
@@ -223,8 +243,8 @@ namespace EnterpriseAuth.Api.Controllers
                         CustomerName = existingHeader.CustomerName,
                         PaymentMethod = p.Method,
                         Amount = p.Amount,
-                        BankCode = p.BankCode,
-                        BankName = p.BankName,
+                        BankCode = string.Equals(p.Method, "CREDIT", StringComparison.OrdinalIgnoreCase) ? null : p.BankCode,
+                        BankName = string.Equals(p.Method, "CREDIT", StringComparison.OrdinalIgnoreCase) ? null : p.BankName,
                         ChequeNumber = p.ChequeNumber,
                         ChequeDate = p.ChequeDate,
                         QrTransactionRef = p.QrTransactionRef,
@@ -291,6 +311,31 @@ namespace EnterpriseAuth.Api.Controllers
                     }
                 }
 
+                var syncSite = !string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" 
+                    ? userSiteCode 
+                    : (!string.IsNullOrWhiteSpace(payload.SalesSite) ? payload.SalesSite : "IPL");
+                var syncUser = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value ?? User.Identity?.Name ?? payload.UserName ?? "sales-user";
+                var syncDevId = !string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.DeviceId : syncUser;
+                try
+                {
+                    _dbContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "DeviceSync",
+                        EntityIdString = syncDevId,
+                        ActionType = "SYNC_SALES_INVOICE",
+                        Site = syncSite,
+                        Payload = $"{{\"InvoiceId\":\"{payload.InvoiceId}\",\"X3DocId\":\"{x3DocId}\"}}",
+                        PerformedBy = syncUser,
+                        PerformedAt = DateTime.UtcNow,
+                        DeviceId = syncDevId
+                    });
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception auditEx)
+                {
+                    _logger.LogWarning("Failed to write DeviceSync audit for Invoice {InvoiceId}: {Msg}", payload.InvoiceId, auditEx.Message);
+                }
+
                 return Ok(new
                 {
                     success = true,
@@ -298,6 +343,9 @@ namespace EnterpriseAuth.Api.Controllers
                     x3Request = x3ReqNum,
                     x3DocumentId = x3DocId,
                     rawPayload = x3RawPayload,
+                    messages = importResult?.Messages != null && importResult.Messages.Count > 0 
+                        ? importResult.Messages 
+                        : new List<string> { $"Created in Sage X3: {x3DocId}" },
                     paymentSynced,
                     x3PaymentId,
                     paymentError
@@ -356,14 +404,22 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
+            if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
             {
-                payload.SalesSite = userSiteCode;
+                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
+                {
+                    payload.SalesSite = userSiteCode;
+                }
+                else
+                {
+                    payload.SalesSite = "POD";
+                }
             }
-            else if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
-            {
-                payload.SalesSite = "POD";
-            }
+
+            var resolvedCrnTabletSource = await ResolveTabletSourceAsync(
+                payload.TabletSource,
+                payload.DeviceId,
+                payload.UserName ?? payload.CreatedBy ?? User.Identity?.Name);
 
             // Atomic transaction: rollback on failure, commit only on confirmed X3 success
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -407,6 +463,7 @@ namespace EnterpriseAuth.Api.Controllers
                         OriginInvoiceId = resolvedOriginX3Id,
                         Reason = payload.Reason,
                         TransactionMode = payload.TransactionMode ?? (string.IsNullOrEmpty(resolvedOriginX3Id) ? "1" : "4"),
+                        TabletSource = resolvedCrnTabletSource,
                         IsProcessedByX3 = false,
                         SyncedAt = DateTime.UtcNow
                     };
@@ -437,14 +494,18 @@ namespace EnterpriseAuth.Api.Controllers
                     await _dbContext.SaveChangesAsync();
                 }
 
+                // Always assign [NotMapped] TabletSource even when retrying an existing staging header
+                existingHeader.TabletSource = resolvedCrnTabletSource;
+
                 string? x3DocId = recoveredX3DocId;
                 string? x3ReqNum = null;
                 string? x3RawPayload = recoveredRawPayload;
+                X3ImportResult? importResult = null;
 
                 // 2. Invoke Sage X3 SOAP if not already recovered
                 if (string.IsNullOrEmpty(x3DocId))
                 {
-                    var importResult = await _soapService.ImportCreditNoteAsync(existingHeader);
+                    importResult = await _soapService.ImportCreditNoteAsync(existingHeader);
 
                     bool isSuccess = importResult.Success ||
                         (!string.IsNullOrEmpty(importResult.RawPayload) && importResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase));
@@ -461,7 +522,8 @@ namespace EnterpriseAuth.Api.Controllers
                             success = false,
                             creditNoteId = payload.CreditNoteId,
                             error = errorMsg,
-                            rawPayload = importResult.RawPayload
+                            rawPayload = importResult.RawPayload,
+                            messages = importResult.Messages != null && importResult.Messages.Count > 0 ? importResult.Messages : new List<string> { errorMsg }
                         });
                     }
 
@@ -569,6 +631,31 @@ namespace EnterpriseAuth.Api.Controllers
                     }
                 }
 
+                var syncSite = !string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" 
+                    ? userSiteCode 
+                    : (!string.IsNullOrWhiteSpace(payload.SalesSite) ? payload.SalesSite : "IPL");
+                var syncUser = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value ?? User.Identity?.Name ?? payload.UserName ?? "sales-user";
+                var syncDevId = !string.IsNullOrWhiteSpace(payload.DeviceId) ? payload.DeviceId : syncUser;
+                try
+                {
+                    _dbContext.AuditLogs.Add(new AuditLog
+                    {
+                        EntityName = "DeviceSync",
+                        EntityIdString = syncDevId,
+                        ActionType = "SYNC_SALES_CREDIT_NOTE",
+                        Site = syncSite,
+                        Payload = $"{{\"CreditNoteId\":\"{payload.CreditNoteId}\",\"X3DocId\":\"{x3DocId}\"}}",
+                        PerformedBy = syncUser,
+                        PerformedAt = DateTime.UtcNow,
+                        DeviceId = syncDevId
+                    });
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception auditEx)
+                {
+                    _logger.LogWarning("Failed to write DeviceSync audit for Credit Note {CreditNoteId}: {Msg}", payload.CreditNoteId, auditEx.Message);
+                }
+
                 return Ok(new
                 {
                     success = true,
@@ -576,6 +663,9 @@ namespace EnterpriseAuth.Api.Controllers
                     x3Request = x3ReqNum,
                     x3DocumentId = x3DocId,
                     rawPayload = x3RawPayload,
+                    messages = importResult?.Messages != null && importResult.Messages.Count > 0 
+                        ? importResult.Messages 
+                        : new List<string> { $"Created in Sage X3: {x3DocId}" },
                     refundSynced,
                     x3RefundPaymentId,
                     refundError
@@ -644,8 +734,8 @@ namespace EnterpriseAuth.Api.Controllers
                     CustomerName = p.CustomerName,
                     PaymentMethod = p.Method,
                     Amount = p.Amount,
-                    BankCode = p.BankCode,
-                    BankName = p.BankName,
+                    BankCode = string.Equals(p.Method, "CREDIT", StringComparison.OrdinalIgnoreCase) ? null : p.BankCode,
+                    BankName = string.Equals(p.Method, "CREDIT", StringComparison.OrdinalIgnoreCase) ? null : p.BankName,
                     ChequeNumber = p.ChequeNumber,
                     ChequeDate = p.ChequeDate,
                     QrTransactionRef = p.QrTransactionRef,
@@ -1057,6 +1147,21 @@ namespace EnterpriseAuth.Api.Controllers
             }
         }
 
+        [HttpGet("facilities")]
+        public async Task<IActionResult> GetFacilities()
+        {
+            try
+            {
+                var data = await _repository.GetFacilitiesAsync();
+                return Ok(data);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving Sage X3 facilities");
+                return StatusCode(500, new { error = "An internal error occurred while retrieving facilities." });
+            }
+        }
+
         [HttpPost("open-invoices/payments/sync")]
         public async Task<IActionResult> SyncOpenInvoicePayments([FromBody] List<OpenInvoicePaymentSyncDto> payments)
         {
@@ -1084,6 +1189,61 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 _logger.LogError(ex, "Error synchronizing open invoice payments");
                 return StatusCode(500, new { error = "An internal error occurred while synchronizing open invoice payments." });
+            }
+        }
+
+        [HttpGet("sync-responses/latest")]
+        public async Task<IActionResult> GetLatestSyncResponses([FromQuery] string? siteCode = null, [FromQuery] int limit = 20)
+        {
+            try
+            {
+                var query = _dbContext.X3SoapAudits.AsNoTracking();
+                var audits = await query
+                    .OrderByDescending(a => a.CreatedAt)
+                    .Take(Math.Min(limit, 50))
+                    .ToListAsync();
+
+                var results = audits.Select(a => {
+                    string? docId = null;
+                    if (!string.IsNullOrEmpty(a.ResponsePayload) && a.ResponsePayload.Contains("Creation of "))
+                    {
+                        var idx = a.ResponsePayload.IndexOf("Creation of ");
+                        var sub = a.ResponsePayload.Substring(idx + "Creation of ".Length);
+                        var parts = sub.Split(new[] { '<', '"', '\r', '\n', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        docId = parts.FirstOrDefault()?.Trim();
+                    }
+
+                    var msgs = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(a.ErrorMessage))
+                    {
+                        msgs.Add(a.ErrorMessage);
+                    }
+                    if (docId != null)
+                    {
+                        msgs.Add($"Sage X3 Document: {docId}");
+                    }
+
+                    return new
+                    {
+                        id = a.Id,
+                        actionName = a.ActionName,
+                        identifier = a.Identifier,
+                        isSuccess = a.IsSuccess,
+                        errorMessage = a.ErrorMessage,
+                        documentId = docId,
+                        triggeredBy = a.TriggeredBy,
+                        deviceId = a.DeviceId,
+                        createdAt = a.CreatedAt,
+                        messages = msgs
+                    };
+                }).ToList();
+
+                return Ok(results);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve latest sync responses");
+                return StatusCode(500, new { error = "Failed to retrieve sync responses." });
             }
         }
 
@@ -1125,6 +1285,86 @@ namespace EnterpriseAuth.Api.Controllers
             // Case 3: Unassigned / unauthorized user
             _logger.LogWarning("Security: Unassigned user {User} attempted to access site-scoped resource.", User.Identity?.Name);
             return (null, StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." }));
+        }
+
+        private async Task<string> ResolveTabletSourceAsync(string? rawTabletSource, string? rawDeviceId, string? userName)
+        {
+            var headerDeviceId = Request.Headers.TryGetValue("X-Device-Id", out var hDev) ? hDev.ToString().Trim() : null;
+            var claimDeviceId = User.FindFirst("DeviceId")?.Value?.Trim();
+            var cleanTablet = (rawTabletSource ?? string.Empty).Trim();
+            var cleanDeviceId = !string.IsNullOrWhiteSpace(rawDeviceId)
+                ? rawDeviceId.Trim()
+                : (!string.IsNullOrWhiteSpace(headerDeviceId) ? headerDeviceId : (claimDeviceId ?? string.Empty));
+            var cleanUser = (userName ?? string.Empty).Trim();
+
+            try
+            {
+                var activeDevices = await _dbContext.DeviceLocations
+                    .AsNoTracking()
+                    .Where(d => d.IsActive)
+                    .ToListAsync();
+
+                // 1. Exact DeviceId or X-Device-Id match
+                if (!string.IsNullOrEmpty(cleanDeviceId))
+                {
+                    var byId = activeDevices.FirstOrDefault(d =>
+                        string.Equals(d.DeviceId, cleanDeviceId, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrWhiteSpace(headerDeviceId) && string.Equals(d.DeviceId, headerDeviceId, StringComparison.OrdinalIgnoreCase)));
+                    if (byId != null && !string.IsNullOrWhiteSpace(byId.DeviceName))
+                    {
+                        return byId.DeviceName.Trim().ToUpperInvariant();
+                    }
+                }
+
+                // 2. Explicit HM* / registered DeviceName match
+                if (!string.IsNullOrEmpty(cleanTablet))
+                {
+                    var byName = activeDevices.FirstOrDefault(d =>
+                        string.Equals(d.DeviceName, cleanTablet, StringComparison.OrdinalIgnoreCase));
+                    if (byName != null && !string.IsNullOrWhiteSpace(byName.DeviceName))
+                    {
+                        return byName.DeviceName.Trim().ToUpperInvariant();
+                    }
+                }
+
+                // 3. HardwareModel match (e.g. "Infinix X6528 (Infinix X6528)")
+                if (!string.IsNullOrEmpty(cleanDeviceId))
+                {
+                    var byHw = activeDevices.FirstOrDefault(d =>
+                        !string.IsNullOrWhiteSpace(d.HardwareModel) &&
+                        (string.Equals(d.HardwareModel.Trim(), cleanDeviceId, StringComparison.OrdinalIgnoreCase) ||
+                         cleanDeviceId.Contains(d.HardwareModel.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                         d.HardwareModel.Contains(cleanDeviceId, StringComparison.OrdinalIgnoreCase)));
+                    if (byHw != null && !string.IsNullOrWhiteSpace(byHw.DeviceName))
+                    {
+                        return byHw.DeviceName.Trim().ToUpperInvariant();
+                    }
+                }
+
+                // 4. AssignedUserName match
+                if (!string.IsNullOrEmpty(cleanUser))
+                {
+                    var byUser = activeDevices.FirstOrDefault(d =>
+                        !string.IsNullOrWhiteSpace(d.AssignedUserName) &&
+                        string.Equals(d.AssignedUserName.Trim(), cleanUser, StringComparison.OrdinalIgnoreCase));
+                    if (byUser != null && !string.IsNullOrWhiteSpace(byUser.DeviceName))
+                    {
+                        return byUser.DeviceName.Trim().ToUpperInvariant();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ResolveTabletSourceAsync lookup warning; falling back to HM pattern check.");
+            }
+
+            if (!string.IsNullOrEmpty(cleanTablet) &&
+                System.Text.RegularExpressions.Regex.IsMatch(cleanTablet, @"^HM\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                return cleanTablet.ToUpperInvariant();
+            }
+
+            return "HM1";
         }
     }
 }

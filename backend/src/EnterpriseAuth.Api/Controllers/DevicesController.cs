@@ -42,6 +42,35 @@ namespace EnterpriseAuth.Api.Controllers
             return new string('•', Math.Min(12, apiKey.Length - 4)) + apiKey.Substring(apiKey.Length - 4);
         }
 
+        private async Task<string> GenerateNextDeviceNameAsync()
+        {
+            var existingNames = await _context.DeviceLocations
+                .Where(d => d.DeviceName.StartsWith("HM"))
+                .Select(d => d.DeviceName)
+                .ToListAsync();
+
+            int maxIndex = 0;
+            foreach (var name in existingNames)
+            {
+                if (name.Length > 2 && int.TryParse(name.Substring(2), out var idx))
+                {
+                    if (idx > maxIndex) maxIndex = idx;
+                }
+            }
+
+            return $"HM{maxIndex + 1}";
+        }
+
+        /// <summary>
+        /// Get next auto-incremented standardized device name (e.g. HM1, HM2).
+        /// </summary>
+        [HttpGet("next-name")]
+        public async Task<ActionResult<object>> GetNextDeviceName()
+        {
+            var nextName = await GenerateNextDeviceNameAsync();
+            return Ok(new { nextDeviceName = nextName });
+        }
+
         /// <summary>
         /// Get all devices. Strictly filtered by caller's SiteCode unless user is SuperAdmin (site == ALL).
         /// </summary>
@@ -142,6 +171,19 @@ namespace EnterpriseAuth.Api.Controllers
                 device.HardwareModel = model;
             }
 
+            // Auto-heal legacy device names (e.g. manufacturer models like Infinix) to standardized HM numbering
+            if (string.IsNullOrWhiteSpace(device.DeviceName) ||
+                device.DeviceName.Contains("Infinix", StringComparison.OrdinalIgnoreCase) ||
+                device.DeviceName.Contains("Android", StringComparison.OrdinalIgnoreCase) ||
+                device.DeviceName.Contains("Samsung", StringComparison.OrdinalIgnoreCase) ||
+                device.DeviceName.Contains("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                !device.DeviceName.StartsWith("HM", StringComparison.OrdinalIgnoreCase))
+            {
+                var standardName = await GenerateNextDeviceNameAsync();
+                device.DeviceName = standardName;
+                await _context.SaveChangesAsync();
+            }
+
             var username = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
                            ?? User.Identity?.Name 
                            ?? "SYSTEM";
@@ -189,17 +231,22 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpPost("provision")]
         public async Task<ActionResult<DeviceLocationDto>> Provision([FromBody] DeviceProvisionRequestDto request)
         {
-            if (string.IsNullOrWhiteSpace(request.DeviceName))
-            {
-                return BadRequest(new { message = "DeviceName is required." });
-            }
-
             if (string.IsNullOrWhiteSpace(request.LocationCode))
             {
                 return BadRequest(new { message = "Lorry / LocationCode is required." });
             }
 
-            var cleanName = request.DeviceName.Trim();
+            var isHardwareName = string.IsNullOrWhiteSpace(request.DeviceName) ||
+                                 request.DeviceName.Trim().Equals("AUTO", StringComparison.OrdinalIgnoreCase) ||
+                                 request.DeviceName.Contains("Infinix", StringComparison.OrdinalIgnoreCase) ||
+                                 request.DeviceName.Contains("Android", StringComparison.OrdinalIgnoreCase) ||
+                                 request.DeviceName.Contains("Samsung", StringComparison.OrdinalIgnoreCase) ||
+                                 request.DeviceName.Contains("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                                 request.DeviceName.StartsWith("Platform:", StringComparison.OrdinalIgnoreCase);
+
+            var cleanName = isHardwareName
+                ? await GenerateNextDeviceNameAsync()
+                : request.DeviceName.Trim();
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
             var username = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
                            ?? User.Identity?.Name 
@@ -314,14 +361,14 @@ namespace EnterpriseAuth.Api.Controllers
 
             if (device == null)
             {
-                // Auto-provision tablet with a genuine UUID
+                // Auto-provision tablet with a genuine UUID and standard HM naming convention
                 var newUuid = Guid.NewGuid().ToString().ToLowerInvariant();
-                var modelName = !string.IsNullOrWhiteSpace(request.HardwareModel) ? request.HardwareModel : (!string.IsNullOrWhiteSpace(targetId) ? targetId : "Tablet-" + newUuid.Substring(0, 8));
+                var standardDeviceName = await GenerateNextDeviceNameAsync();
                 device = new DeviceLocation
                 {
                     DeviceId = newUuid,
-                    DeviceName = modelName,
-                    HardwareModel = request.HardwareModel ?? modelName,
+                    DeviceName = standardDeviceName,
+                    HardwareModel = !string.IsNullOrWhiteSpace(request.HardwareModel) ? request.HardwareModel : standardDeviceName,
                     SiteCode = !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD",
                     LocationCode = "1000",
                     IsLocked = true,
@@ -351,6 +398,18 @@ namespace EnterpriseAuth.Api.Controllers
                         newUuid, model, oldId);
                     device.DeviceId = newUuid;
                     device.HardwareModel = model;
+                }
+
+                // Auto-heal legacy device names (e.g. Infinix) to standardized HM numbering
+                if (string.IsNullOrWhiteSpace(device.DeviceName) ||
+                    device.DeviceName.Contains("Infinix", StringComparison.OrdinalIgnoreCase) ||
+                    device.DeviceName.Contains("Android", StringComparison.OrdinalIgnoreCase) ||
+                    device.DeviceName.Contains("Samsung", StringComparison.OrdinalIgnoreCase) ||
+                    device.DeviceName.Contains("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                    !device.DeviceName.StartsWith("HM", StringComparison.OrdinalIgnoreCase))
+                {
+                    var standardName = await GenerateNextDeviceNameAsync();
+                    device.DeviceName = standardName;
                 }
             }
 

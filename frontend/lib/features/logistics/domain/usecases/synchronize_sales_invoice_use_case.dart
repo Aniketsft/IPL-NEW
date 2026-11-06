@@ -5,7 +5,13 @@ class SynchronizeSalesInvoiceUseCase {
 
   SynchronizeSalesInvoiceUseCase(this._repository);
 
-  Future<SyncBatchResult> execute({required String siteCode}) async {
-    return await _repository.synchronizeSalesInvoiceData(siteCode);
+  Future<SyncBatchResult> execute({
+    required String siteCode,
+    bool uploadOnly = false,
+  }) async {
+    return await _repository.synchronizeSalesInvoiceData(
+      siteCode,
+      uploadOnly: uploadOnly,
+    );
   }
 }

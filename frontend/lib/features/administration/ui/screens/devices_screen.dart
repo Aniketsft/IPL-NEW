@@ -428,7 +428,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       final realUuid = match.deviceId.toLowerCase();
       setState(() {
         _currentDeviceId = realUuid;
-        _currentDeviceName = match!.deviceName;
+        _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(match!.deviceName) ? match.deviceName : 'HM1';
         _currentDeviceLocation = match.locationCode;
         _currentWarehouse = match.warehouseCode;
         _currentHepProfileId = match.hepProfileId;
@@ -489,7 +489,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
             if (mounted) {
               setState(() {
                 _currentDeviceId = realUuid;
-                _currentDeviceName = updatedItem.deviceName;
+                _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(updatedItem.deviceName) ? updatedItem.deviceName : 'HM1';
                 _currentDeviceLocation = updatedItem.locationCode;
                 _currentWarehouse = updatedItem.warehouseCode;
                 _currentHepProfileId = updatedItem.hepProfileId;
@@ -843,7 +843,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   /// Provision a Brand New Tablet
   void _openProvisionDialog() {
-    final nameCtrl = TextEditingController();
+    final nameCtrl = TextEditingController(text: 'HM1');
+    _storage.getToken().then((token) {
+      http.get(
+        Uri.parse('${ApiConfig.baseUrl}Devices/next-name'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).then((res) {
+        if (res.statusCode == 200 && res.body.isNotEmpty) {
+          final data = jsonDecode(res.body);
+          if (data is Map && data['nextDeviceName'] != null) {
+            nameCtrl.text = data['nextDeviceName'].toString();
+          }
+        }
+      }).catchError((_) {});
+    });
     String? selectedLorry = _availableLorries.isNotEmpty ? _availableLorries.first.location : null;
     String? selectedWarehouse = _availableLorries.isNotEmpty ? _availableLorries.first.warehouse : null;
     final hepProfileCtrl = TextEditingController();
@@ -915,10 +931,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Tablet Name *',
-                      hintText: 'e.g. LORRY-04-TABLET',
-                      prefixIcon: Icon(Icons.tablet_android_rounded),
+                    enabled: _isAdminUser,
+                    decoration: InputDecoration(
+                      labelText: 'Tablet Name * (Auto: HM1, HM2...)',
+                      hintText: 'e.g. HM1',
+                      prefixIcon: const Icon(Icons.tablet_android_rounded),
+                      helperText: _isAdminUser ? 'Admin can customize. Global uniqueness enforced.' : 'Standardized name assigned by backend.',
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1506,7 +1524,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _currentDeviceName.isNotEmpty ? _currentDeviceName : 'Unprovisioned Tablet',
+                      (!DeviceInfoService.isHardwareOrLegacyName(_currentDeviceName) && _currentDeviceName.isNotEmpty)
+                          ? _currentDeviceName
+                          : 'HM1',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1800,91 +1820,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
               ],
             ),
           ),
-
-          // Quick Select Lorries
-          if (_availableLorries.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(
-              'QUICK SELECT SITE VEHICLES:',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _availableLorries.map((l) {
-                final isSelected =
-                    l.location.trim().toUpperCase() == (_currentDeviceLocation ?? '').trim().toUpperCase();
-                return InkWell(
-                  onTap: () => _updateLorryLocation(l.location, l.warehouse),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? primary.withOpacity(0.15)
-                          : (isDark ? const Color(0xFF161616) : Colors.grey.shade100),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected
-                            ? primary
-                            : (isDark ? Colors.white12 : Colors.black12),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.local_shipping_rounded,
-                          size: 13,
-                          color: isSelected ? primary : (isDark ? Colors.white60 : Colors.black54),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l.location,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected
-                                ? primary
-                                : (isDark ? Colors.white : Colors.black87),
-                          ),
-                        ),
-                        if (l.plateNumber != null && l.plateNumber!.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '•',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isSelected ? primary : (isDark ? Colors.white38 : Colors.black38),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            l.plateNumber!,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected
-                                  ? primary
-                                  : (isDark ? Colors.white70 : Colors.black54),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
         ],
       ),
     );
