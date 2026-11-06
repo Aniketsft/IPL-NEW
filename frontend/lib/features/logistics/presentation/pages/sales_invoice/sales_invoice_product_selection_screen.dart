@@ -72,7 +72,7 @@ class _SalesInvoiceProductSelectionScreenState
       CartItem? existingItem;
       int? editingIndex;
       for (int i = 0; i < cartItems.length; i++) {
-        if (cartItems[i].product.sku == product.sku) {
+        if (cartItems[i].product.sku == product.sku && !cartItems[i].isFoc) {
           existingItem = cartItems[i];
           editingIndex = i;
           break;
@@ -331,8 +331,11 @@ class _SalesInvoiceProductSelectionScreenState
       var item = cartItems[i];
       if (item.product.sku == product.sku) {
         cartQty += item.quantity;
-        existingItem = item;
-        editingIndex = i;
+        if (!item.isFoc) {
+          existingItem = item;
+          editingIndex = i;
+        }
+
       }
     }
 

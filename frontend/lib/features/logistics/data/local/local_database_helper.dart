@@ -39,7 +39,7 @@ class UnsyncedSummary {
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 96;
+  static const _databaseVersion = 97;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -662,6 +662,13 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 97) {
+      debugPrint('DB Upgrade: Adding missing FOC columns and reasonType to tbl_price_lists (v97)');
+      await _safeAddColumn(db, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
+      await _safeAddColumn(db, tablePriceLists, 'focAmtMin', 'REAL DEFAULT 0');
+      await _safeAddColumn(db, tablePriceLists, 'focAmtBkt', 'REAL DEFAULT 0');
+    }
+
     if (oldVersion < 94) {
       debugPrint('DB Upgrade: Creating Banks table (v94)');
       try {
@@ -2001,12 +2008,15 @@ class LocalDatabaseHelper {
             discountAmt REAL,
             focQtyMin REAL,
             focQtyBkt REAL,
+        focAmtMin REAL,
+        focAmtBkt REAL,
             focItmRef TEXT,
             focQty REAL,
             minQty REAL,
             maxQty REAL,
             validFrom TEXT,
-            validTo TEXT
+            validTo TEXT,
+        reasonType INTEGER
           )
         ''');
       } catch (e) {
@@ -2547,12 +2557,15 @@ class LocalDatabaseHelper {
         discountAmt REAL,
         focQtyMin REAL,
         focQtyBkt REAL,
+        focAmtMin REAL,
+        focAmtBkt REAL,
         focItmRef TEXT,
         focQty REAL,
         minQty REAL,
         maxQty REAL,
         validFrom TEXT,
-        validTo TEXT
+        validTo TEXT,
+        reasonType INTEGER
       )
     ''');
 
@@ -4108,6 +4121,9 @@ class LocalDatabaseHelper {
                 ? key[0].toLowerCase() + key.substring(1)
                 : key;
             row[camelKey] = value;
+          row['focAmtMin'] = row['focAmtMin'] ?? 0.0;
+          row['focAmtBkt'] = row['focAmtBkt'] ?? 0.0;
+          row['reasonType'] = row['reasonType'] ?? 0;
           });
           batch.insert(tablePriceLists, row, conflictAlgorithm: ConflictAlgorithm.replace);
         }

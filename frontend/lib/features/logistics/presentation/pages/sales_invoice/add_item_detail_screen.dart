@@ -141,72 +141,74 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     if (_isReturnMode) return;
 
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      final state = context.read<SalesInvoiceBloc>().state;
-      final customer = state is SalesInvoiceLoaded ? state.customer : null;
-      if (customer == null) return;
+    _debounce = Timer(const Duration(milliseconds: 500), () => _resolvePriceNow());
+  }
+
+  Future<void> _resolvePriceNow() async {
+    final state = context.read<SalesInvoiceBloc>().state;
+    final customer = state is SalesInvoiceLoaded ? state.customer : null;
+    if (customer == null) return;
+
+    if (mounted) {
+      setState(() => _isResolvingPrice = true);
+    }
+
+    final customerCode = customer['code']?.toString() ?? '';
+    final bcgcod = customer['bcgcod']?.toString() ?? '';
+    final tsccod = customer['tsccod']?.toString() ?? '';
+    final bpcsho = (customer['bpcsho'] ?? customer['Bpcsho'])?.toString() ?? '';
+    final int? facilityFlag = customer['facilityFlag'] != null
+        ? int.tryParse(customer['facilityFlag'].toString())
+        : (customer['FacilityFlag'] != null
+            ? int.tryParse(customer['FacilityFlag'].toString())
+            : null);
+
+    try {
+      final siteCode = await SecureStorageService().getSiteCode();
+      final pricingEngine = PricingEngineService();
+      final result = await pricingEngine.resolvePrice(
+        customerCode: customerCode,
+        bcgcod: bcgcod,
+        tsccod: tsccod,
+        bpcsho: bpcsho,
+        facilityFlag: facilityFlag,
+        sku: widget.product.sku,
+        qty: _quantity.toDouble(),
+        siteCode: siteCode,
+      );
 
       if (mounted) {
-        setState(() => _isResolvingPrice = true);
-      }
+        setState(() {
+          _basePriceController.text = result.basePrice.toStringAsFixed(2);
+          _discountPercent = result.discountPct;
+          _discountController.text = result.discountPct.toString();
+          _discountAmountFlat = result.discountAmountFlat;
+          _priceListCode = result.priceListCode;
+          _reasonType = result.reasonType;
+          _priceSource = result.source;
+          _isResolvingPrice = false;
+          _hasFoc = result.hasFoc;
+          _focQuantity = result.focQuantity;
+          _focItemSku = result.focItemSku;
+        });
 
-      final customerCode = customer['code']?.toString() ?? '';
-      final bcgcod = customer['bcgcod']?.toString() ?? '';
-      final tsccod = customer['tsccod']?.toString() ?? '';
-      final bpcsho = (customer['bpcsho'] ?? customer['Bpcsho'])?.toString() ?? '';
-      final int? facilityFlag = customer['facilityFlag'] != null
-          ? int.tryParse(customer['facilityFlag'].toString())
-          : (customer['FacilityFlag'] != null
-              ? int.tryParse(customer['FacilityFlag'].toString())
-              : null);
-
-      try {
-        final siteCode = await SecureStorageService().getSiteCode();
-        final pricingEngine = PricingEngineService();
-        final result = await pricingEngine.resolvePrice(
-          customerCode: customerCode,
-          bcgcod: bcgcod,
-          tsccod: tsccod,
-          bpcsho: bpcsho,
-          facilityFlag: facilityFlag,
-          sku: widget.product.sku,
-          qty: _quantity.toDouble(),
-          siteCode: siteCode,
-        );
-
-        if (mounted) {
-          setState(() {
-            _basePriceController.text = result.basePrice.toStringAsFixed(2);
-            _discountPercent = result.discountPct;
-            _discountController.text = result.discountPct.toString();
-            _discountAmountFlat = result.discountAmountFlat;
-            _priceListCode = result.priceListCode;
-            _reasonType = result.reasonType;
-            _priceSource = result.source;
-            _isResolvingPrice = false;
-            _hasFoc = result.hasFoc;
-            _focQuantity = result.focQuantity; // Double support
-            _focItemSku = result.focItemSku;
-          });
-
-          if (result.hasFoc && result.focQuantity > 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'FOC applied: \${result.focQuantity} of \${result.focItemSku} will be added.',
-                ),
-                duration: const Duration(seconds: 3),
+        if (result.hasFoc && result.focQuantity > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'FOC applied: ${result.focQuantity} of ${result.focItemSku} will be added.',
               ),
-            );
-          }
-        }
-      } catch (e) {
-        debugPrint('Error resolving price: $e');
-        if (mounted) {
-          setState(() => _isResolvingPrice = false);
+              duration: const Duration(seconds: 3),
+            ),
+          );
         }
       }
-    });
+    } catch (e) {
+      debugPrint('Error resolving price: $e');
+      if (mounted) {
+        setState(() => _isResolvingPrice = false);
+      }
+    }
   }
 
   Future<void> _loadSpecificLotStock() async {
@@ -226,7 +228,6 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
             s.warehouse == _warehouse,
       );
 
-      // Calculate cart deduction for this lot
       final state = context.read<SalesInvoiceBloc>().state;
       final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       double cartQty = 0;
@@ -244,6 +245,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           _lotTotalQty = stock.totalQty - cartQty;
           _itemTaxLevel = stock.taxLevel;
         });
+
         _calculateVatRate();
       }
     } catch (e) {
@@ -263,7 +265,6 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     if (mounted && stocks.isNotEmpty) {
       final firstStock = stocks.first;
 
-      // Calculate cart deduction for this lot
       final state = context.read<SalesInvoiceBloc>().state;
       final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
       double cartQty = 0;
@@ -293,6 +294,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         _lotTotalQty = firstStock.totalQty - cartQty;
         _itemTaxLevel = firstStock.taxLevel;
       });
+
       _calculateVatRate();
     } else if (mounted) {
       _calculateVatRate();
@@ -376,6 +378,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _quantity = newQty;
       _qtyController.text = _quantity.toString();
     });
+
     _resolvePrice();
   }
 
@@ -545,9 +548,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           _lotTotalQty = selectedLot.totalQty;
                           _itemTaxLevel = selectedLot.taxLevel;
                         });
+
                         _calculateVatRate();
-                        // Re-run pricing engine after lot change to keep qty-bracket
-                        // and FOC rules consistent with the current quantity.
                         _resolvePrice();
                       }
                     },
@@ -710,7 +712,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         const SizedBox(height: 6),
                         Container(
                           height: 48,
-                          width: 144, // Restored width since MAX button is gone
+                          width: 144,
                           decoration: BoxDecoration(
                             color: isDark 
                                 ? (isFocLocked ? Colors.grey[900]!.withOpacity(0.5) : Colors.grey[800]) 
@@ -860,6 +862,34 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 
+                if (_hasFoc && _focQuantity > 0 && !isFocLocked) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.6), width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.card_giftcard, color: Colors.green, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '🎁 FOC Promotion Qualified: ${_focQuantity % 1 == 0 ? _focQuantity.toInt() : _focQuantity}x ${_focItemSku.isEmpty ? widget.product.sku : _focItemSku} Free of Charge',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Add/Cancel Buttons
                 Row(
                   children: [
@@ -901,6 +931,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () async {
+                            if (_debounce?.isActive == true || _isResolvingPrice) {
+                              _debounce!.cancel();
+                              await _resolvePriceNow();
+                            }
                             if (!_isSalesOrder && _quantity > _maxValidQty) {
                               _showStockErrorDialog(
                                 'Cannot proceed: Insufficient stock in this lot (${_formatQty(_maxValidQty)} available).',
@@ -930,66 +964,125 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                             CartItem? focItem;
                             if (!isFocLocked && _hasFoc && _focQuantity > 0) {
                               final bool isSameItem = _focItemSku.isEmpty || _focItemSku == widget.product.sku;
+                              final String targetFocSku = _focItemSku.isEmpty ? widget.product.sku : _focItemSku;
                               
                               String focName = '';
+                              String focLotNumber = '';
+                              String focWarehouse = '';
+                              String focWarehouseName = '';
+                              String focLocation = '';
+                              String focLocationType = '';
                               String focSalesUnit = 'EA';
                               double focTotalStock = 0.0;
                               
-                              if (!isSameItem && _focItemSku.isNotEmpty) {
-                                final db = await LocalDatabaseHelper.instance.database;
-                                final result = await db.query(
-                                  LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-                                  where: 'itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
-                                  whereArgs: [_focItemSku.trim()],
-                                  limit: 1,
-                                );
-                                if (result.isNotEmpty) {
-                                  final productRow = result.first;
-                                  focName = productRow['itemName']?.toString() ?? '';
-                                  focSalesUnit = (productRow['salesUnit'] as String?)?.trim().isNotEmpty == true
-                                      ? (productRow['salesUnit'] as String).trim()
-                                      : 'UN';
-                                }
+                              final db = await LocalDatabaseHelper.instance.database;
 
-                                final sumResult = await db.rawQuery(
-                                  'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
-                                  [_focItemSku.trim()]
-                                );
-                                if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
-                                  focTotalStock = (sumResult.first['total'] as num).toDouble();
-                                }
+                              final sumResult = await db.rawQuery(
+                                'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
+                                [targetFocSku.trim()]
+                              );
+                              if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
+                                focTotalStock = (sumResult.first['total'] as num).toDouble();
                               }
 
-                              final focProduct = isSameItem 
-                                ? widget.product 
-                                : SalesInvoiceProductModel(
-                                    sku: _focItemSku,
-                                    name: focName,
-                                    stockQty: focTotalStock,
-                                    warehouse: '',
-                                    salesUnit: focSalesUnit,
-                                    cce0: '',
+                              if (focTotalStock <= 0.0001) {
+                                if (mounted) {
+                                  await showDialog<void>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('FOC Promotion Unavailable'),
+                                      content: Text(
+                                        'Purchasing ${widget.product.name} qualifies for free item ($targetFocSku), but $targetFocSku is currently out of stock in van inventory. It will not be added.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
                                   );
+                                }
+                              } else {
+                                if (isSameItem) {
+                                  focName = widget.product.name;
+                                  focSalesUnit = widget.product.salesUnit.isNotEmpty ? widget.product.salesUnit : 'EA';
+                                  focLotNumber = _lotNumber;
+                                  focWarehouse = _warehouse;
+                                  focWarehouseName = _warehouseName;
+                                  focLocation = _location;
+                                  focLocationType = _locationType;
+                                } else {
+                                  final lotRows = await db.query(
+                                    LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+                                    where: 'itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "") AND totalQty > 0',
+                                    whereArgs: [targetFocSku.trim()],
+                                    orderBy: 'totalQty DESC',
+                                    limit: 1,
+                                  );
+                                  if (lotRows.isNotEmpty) {
+                                    final r = lotRows.first;
+                                    focName = r['itemName']?.toString() ?? '';
+                                    focSalesUnit = (r['salesUnit'] as String?)?.trim().isNotEmpty == true
+                                        ? (r['salesUnit'] as String).trim()
+                                        : 'EA';
+                                    focLotNumber = r['lotNumber']?.toString() ?? '';
+                                    focWarehouse = r['warehouse']?.toString() ?? '';
+                                    focWarehouseName = r['warehouseName']?.toString() ?? '';
+                                    focLocation = r['location']?.toString() ?? '';
+                                    focLocationType = r['locationType']?.toString() ?? '';
+                                  }
+                                }
 
-                              focItem = CartItem(
-                                product: focProduct,
-                                quantity: _focQuantity,
-                                basePrice: 0.0,
-                                discountPercent: 100.0,
-                                lotNumber: '',
-                                warehouse: '',
-                                warehouseName: '',
-                                location: '',
-                                locationType: '',
-                                vatRatePercent: _vatRatePercent,
-                                taxRule: _taxRuleCode,
-                                isFoc: true,
-                                mainItemSku: widget.product.sku,
-                                pricingSource: _priceSource,
-                                discountAmountFlat: 0.0,
-                                priceListCode: _priceListCode,
-                                reasonType: _reasonType,
-                              );
+                                if (focLotNumber.isEmpty) {
+                                  final anyLot = await db.query(
+                                    LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+                                    where: 'itemCode = ?',
+                                    whereArgs: [targetFocSku.trim()],
+                                    limit: 1,
+                                  );
+                                  if (anyLot.isNotEmpty) {
+                                    final r = anyLot.first;
+                                    focLotNumber = r['lotNumber']?.toString() ?? '';
+                                    focWarehouse = r['warehouse']?.toString() ?? '';
+                                    focWarehouseName = r['warehouseName']?.toString() ?? '';
+                                    focLocation = r['location']?.toString() ?? '';
+                                    focLocationType = r['locationType']?.toString() ?? '';
+                                    if (focName.isEmpty) focName = r['itemName']?.toString() ?? '';
+                                  }
+                                }
+
+                                final focProduct = isSameItem 
+                                  ? widget.product 
+                                  : SalesInvoiceProductModel(
+                                      sku: targetFocSku,
+                                      name: focName.isNotEmpty ? focName : targetFocSku,
+                                      stockQty: focTotalStock,
+                                      warehouse: focWarehouse,
+                                      salesUnit: focSalesUnit,
+                                      cce0: '',
+                                    );
+
+                                focItem = CartItem(
+                                  product: focProduct,
+                                  quantity: _focQuantity,
+                                  basePrice: 0.0,
+                                  discountPercent: 100.0,
+                                  lotNumber: focLotNumber,
+                                  warehouse: focWarehouse,
+                                  warehouseName: focWarehouseName,
+                                  location: focLocation,
+                                  locationType: focLocationType,
+                                  vatRatePercent: _vatRatePercent,
+                                  taxRule: _taxRuleCode,
+                                  isFoc: true,
+                                  mainItemSku: widget.product.sku,
+                                  pricingSource: _priceSource,
+                                  discountAmountFlat: 0.0,
+                                  priceListCode: _priceListCode,
+                                  reasonType: _reasonType,
+                                );
+                              }
                             }
 
                             if (!mounted) return;
@@ -1000,38 +1093,32 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
                             if (widget.editingIndex != null) {
                               bloc.add(UpdateCartItem(widget.editingIndex!, item));
+                              if (focItem == null) {
+                                final cartItems = state.cartItems;
+                                final linkedFocIndex = cartItems.indexWhere((i) => i.isFoc && i.mainItemSku == widget.product.sku);
+                                if (linkedFocIndex != -1) {
+                                  bloc.add(RemoveCartItem(linkedFocIndex));
+                                }
+                              }
                               if (_isReturnMode && state.transactionType == 'PREVIEW_INVOICE' && _quantity > 0) {
                                 bloc.add(ConvertToCreditNote());
                               }
                               
                               if (focItem != null) {
-                                bool? confirmFoc = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Apply FOC Item?'),
-                                    content: Text('Do you want to apply the FOC item (${focItem!.product.name})?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Yes')),
-                                    ],
-                                  ),
-                                );
-                                if (confirmFoc == true) {
-                                  final cartItems = state.cartItems;
-                                  int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && i.product.sku == focItem!.product.sku);
-                                  if (existingFocIndex != -1) {
-                                    final existingFoc = cartItems[existingFocIndex];
-                                    focItem = focItem!.copyWith(
-                                      lotNumber: existingFoc.lotNumber, 
-                                      location: existingFoc.location, 
-                                      warehouse: existingFoc.warehouse,
-                                      warehouseName: existingFoc.warehouseName,
-                                      locationType: existingFoc.locationType
-                                    );
-                                    bloc.add(UpdateCartItem(existingFocIndex, focItem!));
-                                  } else {
-                                    bloc.add(AddCartItem(focItem!));
-                                  }
+                                final cartItems = state.cartItems;
+                                int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && (i.mainItemSku == widget.product.sku || i.product.sku == focItem!.product.sku));
+                                if (existingFocIndex != -1) {
+                                  final existingFoc = cartItems[existingFocIndex];
+                                  focItem = focItem!.copyWith(
+                                    lotNumber: existingFoc.lotNumber, 
+                                    location: existingFoc.location, 
+                                    warehouse: existingFoc.warehouse,
+                                    warehouseName: existingFoc.warehouseName,
+                                    locationType: existingFoc.locationType
+                                  );
+                                  bloc.add(UpdateCartItem(existingFocIndex, focItem!));
+                                } else {
+                                  bloc.add(AddCartItem(focItem!));
                                 }
                               }
                               if (widget.fromProductSelection) {
@@ -1042,20 +1129,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                             } else {
                               bloc.add(AddCartItem(item));
                               if (focItem != null) {
-                                bool? confirmFoc = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Apply FOC Item?'),
-                                    content: Text('Do you want to apply the FOC item (${focItem!.product.name})?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Yes')),
-                                    ],
-                                  ),
-                                );
-                                if (confirmFoc == true) {
-                                  bloc.add(AddCartItem(focItem!));
-                                }
+                                bloc.add(AddCartItem(focItem!));
                               }
                               Navigator.of(context)
                                 ..pop()

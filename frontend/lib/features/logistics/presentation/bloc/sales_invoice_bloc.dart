@@ -88,7 +88,15 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onRemoveCartItem(RemoveCartItem event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
-      final updatedCart = List.of(currentState.cartItems)..removeAt(event.index);
+      if (event.index < 0 || event.index >= currentState.cartItems.length) return;
+      final itemToRemove = currentState.cartItems[event.index];
+      final updatedCart = List<CartItem>.from(currentState.cartItems)..removeAt(event.index);
+
+      // If a non-FOC item is removed, cascade remove any linked FOC promotion lines
+      if (!itemToRemove.isFoc) {
+        updatedCart.removeWhere((item) => item.isFoc && item.mainItemSku == itemToRemove.product.sku);
+      }
+
       emit(currentState.copyWith(cartItems: updatedCart));
     }
   }

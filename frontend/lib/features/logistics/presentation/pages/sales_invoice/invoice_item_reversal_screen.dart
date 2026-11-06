@@ -664,6 +664,91 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                       ),
                     ),
 
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Invoice Items (${_lines.length})',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          Builder(
+                            builder: (context) {
+                              final reversibleLines = _lines.where((line) {
+                                final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
+                                final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+                                final alreadyReversed = _alreadyReversedQty[lineId] ?? 0.0;
+                                return (originalQty - alreadyReversed) > 0.0001;
+                              }).toList();
+
+                              final bool isAllSelected = reversibleLines.isNotEmpty &&
+                                  reversibleLines.every((line) {
+                                    final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
+                                    return _selected[lineId] == true;
+                                  });
+
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isAllSelected) {
+                                        for (final line in _lines) {
+                                          final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
+                                          _selected[lineId] = false;
+                                        }
+                                      } else {
+                                        for (final line in reversibleLines) {
+                                          final lineId = line['lineId']?.toString() ?? line['id']?.toString() ?? '';
+                                          final originalQty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
+                                          final alreadyReversed = _alreadyReversedQty[lineId] ?? 0.0;
+                                          final remaining = originalQty - alreadyReversed;
+                                          _selected[lineId] = true;
+                                          _qtyControllers[lineId]?.text = _formatQty(remaining);
+                                        }
+                                      }
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isAllSelected ? Icons.deselect_rounded : Icons.done_all_rounded,
+                                          size: 16,
+                                          color: Colors.orange,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          isAllSelected ? 'Deselect All' : 'Select All',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                     // Line items list
                     Expanded(
                       child: ListView.builder(

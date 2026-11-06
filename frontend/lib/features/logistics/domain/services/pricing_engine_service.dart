@@ -37,6 +37,20 @@ class _CandidateRuleEval {
 class PricingEngineService {
   final LocalDatabaseHelper _dbHelper = LocalDatabaseHelper.instance;
 
+  static int _toInt(dynamic v, [int fallback = 0]) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString().trim()) ?? fallback;
+  }
+
+  static double _toDouble(dynamic v, [double fallback = 0.0]) {
+    if (v == null) return fallback;
+    if (v is double) return v;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().trim()) ?? fallback;
+  }
+
   Future<PricingResult> resolvePrice({
     required String customerCode,
     required String bcgcod,
@@ -68,7 +82,7 @@ class PricingEngineService {
                matchKey1 = ? OR ? LIKE matchKey1 || '%' OR
                matchKey1 = ? OR ? LIKE matchKey1 || '%'
              ) AND matchKey2 = ?)
-            OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
+            OR (UPPER(TRIM(fld0)) = 'BPCNUM' AND UPPER(TRIM(fld1)) = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
             OR (fld0 = 'BPCSHO' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
             OR (fld0 = 'ITMREF' AND matchKey1 = ?)
           )
@@ -90,35 +104,36 @@ class PricingEngineService {
         if (validFrom != null && validFrom.isNotEmpty && validFrom != '1753-01-01' && validFrom != '1900-01-01' && validFrom.compareTo(todayStr) > 0) continue;
         if (validTo != null && validTo.isNotEmpty && validTo != '1753-01-01' && validTo != '1900-01-01' && validTo.compareTo(todayStr) < 0) continue;
 
-        final int isQtyBased = row['isQtyBased'] as int? ?? 1;
-        final double minQty = (row['minQty'] as num?)?.toDouble() ?? 0.0;
-        final double maxQty = (row['maxQty'] as num?)?.toDouble() ?? 999999.0;
+        final int isQtyBased = _toInt(row['isQtyBased'], 1);
+        final double minQty = _toDouble(row['minQty']);
+        final double maxQty = _toDouble(row['maxQty'], 999999.0);
         final double mQty = maxQty <= 0 ? 999999.0 : maxQty;
 
         if (isQtyBased == 2) {
           if (qty < minQty || qty > mQty) continue;
         }
 
-        final double basePrice = (row['basePrice'] as num?)?.toDouble() ?? 0.0;
-        final double discountPct = (row['discountPct'] as num?)?.toDouble() ?? 0.0;
-        final double discountAmt = (row['discountAmt'] as num?)?.toDouble() ?? 0.0;
-        final int reasonType = row['reasonType'] as int? ?? 0;
-        final int focType = row['focType'] as int? ?? 1;
+        final double basePrice = _toDouble(row['basePrice']);
+        final double discountPct = _toDouble(row['discountPct']);
+        final double discountAmt = _toDouble(row['discountAmt']);
+        final int reasonType = _toInt(row['reasonType'], 0);
+        final int focType = _toInt(row['focType'], 1);
 
         bool hasFoc = false;
         String focSku = '';
         double focQuantity = 0.0;
 
         if (focType == 2 || focType == 3) {
-          final double focQtyMin = (row['focQtyMin'] as num?)?.toDouble() ?? 0.0;
-          final double focQtyBkt = (row['focQtyBkt'] as num?)?.toDouble() ?? 1.0;
-          final double ruleFocQty = (row['focQty'] as num?)?.toDouble() ?? 0.0;
-          final String ruleFocSku = row['focItmRef']?.toString() ?? '';
+          final double focQtyMin = _toDouble(row['focQtyMin']);
+          final double focQtyBkt = _toDouble(row['focQtyBkt'], 1.0);
+          final double ruleFocQty = _toDouble(row['focQty']);
+          final String ruleFocSku = row['focItmRef']?.toString()?.trim() ?? '';
 
-          if (focQtyMin > 0 && focQtyBkt > 0 && qty >= focQtyMin) {
+          final double effectiveMinQty = focQtyMin > 0 ? focQtyMin : focQtyBkt;
+          if (effectiveMinQty > 0 && focQtyBkt > 0 && qty >= effectiveMinQty) {
             final double buckets = (qty / focQtyBkt).floorToDouble();
             if (buckets > 0) {
-              focQuantity = buckets * ruleFocQty;
+              focQuantity = buckets * (ruleFocQty > 0 ? ruleFocQty : 1.0);
               hasFoc = focQuantity > 0;
               focSku = ruleFocSku.isEmpty ? sku : ruleFocSku;
             }
@@ -166,17 +181,22 @@ class PricingEngineService {
       SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
       WHERE pliCode != 'T40'
         AND (
-          (fld0 = 'BCGCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
-          OR (fld0 = 'TSCCOD' AND fld1 = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
-          OR (fld0 = 'BPCNUM' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
-          OR (fld0 = 'BPCSHO' AND fld1 = 'ITMREF' AND (matchKey1 = ? OR matchKey1 = ?) AND matchKey2 = ?)
-          OR (fld0 IN ('SALFCY', 'STOFCY', 'FCY') AND fld1 = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
-          OR (fld0 = 'ITMREF' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-          OR (fld0 = 'BPCNUM' AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
-          OR (fld0 = 'BPCSHO' AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR matchKey1 = ?))
-          OR (fld0 IN ('SALFCY', 'STOFCY', 'FCY') AND (fld1 IS NULL OR fld1 = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
-          OR (fld0 = 'BCGCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
-          OR (fld0 = 'TSCCOD' AND (fld1 IS NULL OR fld1 = '') AND matchKey1 = ?)
+          (UPPER(TRIM(fld0)) = 'BCGCOD' AND UPPER(TRIM(fld1)) = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'TSCCOD' AND UPPER(TRIM(fld1)) = 'ITMREF' AND matchKey1 = ? AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'BPCNUM' AND UPPER(TRIM(fld1)) = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'BPCSHO' AND UPPER(TRIM(fld1)) = 'ITMREF' AND (matchKey1 = ? OR matchKey1 = ?) AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) IN ('SALFCY', 'STOFCY', 'FCY') AND UPPER(TRIM(fld1)) = 'ITMREF' AND (matchKey1 = ? OR ? LIKE matchKey1 || '%') AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND (fld1 IS NULL OR TRIM(fld1) = '') AND matchKey1 = ?)
+          OR (UPPER(TRIM(fld0)) = 'BPCNUM' AND (fld1 IS NULL OR TRIM(fld1) = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
+          OR (UPPER(TRIM(fld0)) = 'BPCSHO' AND (fld1 IS NULL OR TRIM(fld1) = '') AND (matchKey1 = ? OR matchKey1 = ?))
+          OR (UPPER(TRIM(fld0)) IN ('SALFCY', 'STOFCY', 'FCY') AND (fld1 IS NULL OR TRIM(fld1) = '') AND (matchKey1 = ? OR ? LIKE matchKey1 || '%'))
+          OR (UPPER(TRIM(fld0)) = 'BCGCOD' AND (fld1 IS NULL OR TRIM(fld1) = '') AND matchKey1 = ?)
+          OR (UPPER(TRIM(fld0)) = 'TSCCOD' AND (fld1 IS NULL OR TRIM(fld1) = '') AND matchKey1 = ?)
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND UPPER(TRIM(fld1)) = 'BCGCOD' AND matchKey1 = ? AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND UPPER(TRIM(fld1)) = 'TSCCOD' AND matchKey1 = ? AND matchKey2 = ?)
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND UPPER(TRIM(fld1)) = 'BPCNUM' AND matchKey1 = ? AND (matchKey2 = ? OR ? LIKE matchKey2 || '%'))
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND UPPER(TRIM(fld1)) = 'BPCSHO' AND matchKey1 = ? AND (matchKey2 = ? OR matchKey2 = ?))
+          OR (UPPER(TRIM(fld0)) = 'ITMREF' AND UPPER(TRIM(fld1)) IN ('SALFCY', 'STOFCY', 'FCY') AND matchKey1 = ? AND (matchKey2 = ? OR ? LIKE matchKey2 || '%'))
         )
       ORDER BY priority ASC, reasonType ASC, basePrice ASC, discountPct DESC, discountAmt DESC
     ''', [
@@ -190,7 +210,12 @@ class PricingEngineService {
       customerBpcsho, customerCode,
       effectiveSite, effectiveSite,
       bcgcod,
-      tsccod
+      tsccod,
+      sku, bcgcod,
+      sku, tsccod,
+      sku, customerCode, customerCode,
+      sku, customerBpcsho, customerCode,
+      sku, effectiveSite, effectiveSite,
     ]);
 
     final List<_CandidateRuleEval> candidateLogs = [];
@@ -223,18 +248,33 @@ class PricingEngineService {
     PricingResult? bestDiscount;
     int? bestDiscountPriority;
 
+    bool bestHasFoc = false;
+    String bestFocSku = '';
+    double bestFocQuantity = 0.0;
+    int? bestFocPriority;
+    String? bestFocSource;
+
+    double fallbackBasePrice = 0.0;
+    for (var r in results) {
+      final p = _toDouble(r['basePrice']);
+      if (p > 0) {
+        fallbackBasePrice = p;
+        break;
+      }
+    }
+
     for (var row in results) {
       final String pliCode = row['pliCode']?.toString() ?? '';
-      final int priority = row['priority'] as int? ?? 999;
-      final int ruleType = row['ruleType'] as int? ?? 0;
+      final int priority = _toInt(row['priority'], 999);
+      final int ruleType = _toInt(row['ruleType'], 0);
       final String matchKey1 = row['matchKey1']?.toString() ?? '';
       final String matchKey2 = row['matchKey2']?.toString() ?? '';
 
-      final double basePrice = (row['basePrice'] as num?)?.toDouble() ?? 0.0;
-      final double discountPct = (row['discountPct'] as num?)?.toDouble() ?? 0.0;
-      final double discountAmt = (row['discountAmt'] as num?)?.toDouble() ?? 0.0;
-      final int reasonType = row['reasonType'] as int? ?? 0;
-      final int focType = row['focType'] as int? ?? 1;
+      final double basePrice = _toDouble(row['basePrice']);
+      final double discountPct = _toDouble(row['discountPct']);
+      final double discountAmt = _toDouble(row['discountAmt']);
+      final int reasonType = _toInt(row['reasonType'], 0);
+      final int focType = _toInt(row['focType'], 1);
 
       final String? validFrom = row['validFrom']?.toString()?.trim();
       final String? validTo = row['validTo']?.toString()?.trim();
@@ -272,9 +312,9 @@ class PricingEngineService {
         continue;
       }
 
-      final int isQtyBased = row['isQtyBased'] as int? ?? 1;
-      final double minQty = (row['minQty'] as num?)?.toDouble() ?? 0.0;
-      final double maxQty = (row['maxQty'] as num?)?.toDouble() ?? 999999.0;
+      final int isQtyBased = _toInt(row['isQtyBased'], 1);
+      final double minQty = _toDouble(row['minQty']);
+      final double maxQty = _toDouble(row['maxQty'], 999999.0);
       final double mQty = maxQty <= 0 ? 999999.0 : maxQty;
 
       if (isQtyBased == 2) {
@@ -302,32 +342,45 @@ class PricingEngineService {
 
       // FOC Logic (Step 6 / FOCPRO_0 = 2 or 3)
       if (focType == 2 || focType == 3) {
-        final double focQtyMin = (row['focQtyMin'] as num?)?.toDouble() ?? 0.0;
-        final double focQtyBkt = (row['focQtyBkt'] as num?)?.toDouble() ?? 1.0;
-        final double focAmtMin = (row['focAmtMin'] as num?)?.toDouble() ?? 0.0;
-        final double focAmtBkt = (row['focAmtBkt'] as num?)?.toDouble() ?? 1.0;
-        final double ruleFocQty = (row['focQty'] as num?)?.toDouble() ?? 0.0;
-        final String ruleFocSku = row['focItmRef']?.toString() ?? '';
+        final double focQtyMin = _toDouble(row['focQtyMin']);
+        final double focQtyBkt = _toDouble(row['focQtyBkt'], 1.0);
+        final double focAmtMin = _toDouble(row['focAmtMin']);
+        final double focAmtBkt = _toDouble(row['focAmtBkt'], 1.0);
+        final double ruleFocQty = _toDouble(row['focQty']);
+        final String ruleFocSku = row['focItmRef']?.toString()?.trim() ?? '';
 
         bool criteriaMet = false;
         double buckets = 0;
 
-        if (focQtyMin > 0 && focQtyBkt > 0 && qty >= focQtyMin) {
+        final double effectiveMinQty = focQtyMin > 0 ? focQtyMin : focQtyBkt;
+        if (effectiveMinQty > 0 && focQtyBkt > 0 && qty >= effectiveMinQty) {
           criteriaMet = true;
           buckets = (qty / focQtyBkt).floorToDouble();
         }
         
         // Amount-based FOC implementation (FOCAMTMIN_0 / FOCAMTBKT_0)
-        double lineAmount = qty * basePrice; 
-        if (!criteriaMet && focAmtMin > 0 && focAmtBkt > 0 && lineAmount >= focAmtMin) {
+        final double effectiveBasePrice = basePrice > 0 ? basePrice : (bestBasePrice?.basePrice ?? fallbackBasePrice);
+        final double lineAmount = qty * effectiveBasePrice; 
+        final double effectiveMinAmt = focAmtMin > 0 ? focAmtMin : focAmtBkt;
+        if (!criteriaMet && effectiveMinAmt > 0 && focAmtBkt > 0 && lineAmount >= effectiveMinAmt) {
           criteriaMet = true;
           buckets = (lineAmount / focAmtBkt).floorToDouble();
         }
 
         if (criteriaMet && buckets > 0) {
-           focQuantity = buckets * ruleFocQty;
-           hasFoc = focQuantity > 0;
-           focSku = ruleFocSku.isEmpty ? sku : ruleFocSku;
+          focQuantity = buckets * (ruleFocQty > 0 ? ruleFocQty : 1.0);
+          hasFoc = focQuantity > 0;
+          focSku = ruleFocSku.isEmpty ? sku : ruleFocSku;
+        }
+      }
+
+      if (hasFoc && focQuantity > 0) {
+        if (bestFocPriority == null || priority < bestFocPriority! || (priority == bestFocPriority! && focQuantity > bestFocQuantity)) {
+          bestHasFoc = true;
+          bestFocSku = focSku;
+          bestFocQuantity = focQuantity;
+          bestFocPriority = priority;
+          bestFocSource = pliCode;
         }
       }
 
@@ -445,6 +498,8 @@ class PricingEngineService {
         customerCode: customerCode,
         bcgcod: bcgcod,
         tsccod: tsccod,
+        bpcsho: customerBpcsho,
+        siteCode: effectiveSite,
         facilityFlag: facilityFlag,
         sku: sku,
         qty: qty,
@@ -487,6 +542,24 @@ class PricingEngineService {
              finalSource = "$finalSource & ${bestDiscount.source}";
           }
        }
+    }
+
+    // Apply FOC independently: FOC is an earned promotion and is never suppressed by commercial discount protection
+    if (bestHasFoc && bestFocQuantity > 0) {
+      finalHasFoc = true;
+      finalFocSku = bestFocSku;
+      finalFocQty = bestFocQuantity;
+      if (bestFocSource != null && !finalSource.contains(bestFocSource!)) {
+        finalSource = "$finalSource & ${bestFocSource!} [FOC]";
+      }
+    } else if (bestBasePrice.hasFoc) {
+      finalHasFoc = true;
+      finalFocSku = bestBasePrice.focItemSku;
+      finalFocQty = bestBasePrice.focQuantity;
+    } else if (bestDiscount != null && bestDiscount.hasFoc) {
+      finalHasFoc = true;
+      finalFocSku = bestDiscount.focItemSku;
+      finalFocQty = bestDiscount.focQuantity;
     }
 
     final finalResult = PricingResult(

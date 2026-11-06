@@ -650,6 +650,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       ],
                       if (cartState.config.requireItemSelectionForAction) ...[
                         _buildReversalTypeSelector(theme, isDark),
+                        _buildSelectAllBar(theme, isDark, cartState),
                       ],
                       Text(
                         'Line Items (${cartState.cartItems.length})',
@@ -1564,7 +1565,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           continue;
         }
 
-        final bool? addFoc = await showDialog<bool>(
+        const bool addFoc = true;
+        if (false) await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
@@ -1661,7 +1663,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     }
   }
 
-  Future<void> _oldMethodRemoved(BuildContext context, SalesInvoiceLoaded cartState) async {
+  /* removed old method
     return;
     showDialog(
       context: context,
@@ -1689,6 +1691,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     );
   }
 
+  */
   Widget _buildDeliveryDateCard(
     BuildContext context,
     SalesInvoiceLoaded cartState,
@@ -2134,7 +2137,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                             ),
                           ),
                           TextSpan(
-                            text: _currencyFormat.format(item.basePrice * selectedQty),
+                            text: config.isSalesOrder ? '' : _currencyFormat.format(item.basePrice * selectedQty),
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -2500,6 +2503,99 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSelectAllBar(ThemeData theme, bool isDark, SalesInvoiceLoaded cartState) {
+    final selectableCount = cartState.cartItems.where((i) => i.quantity > 0).length;
+    final bool isAllSelected = selectableCount > 0 && _selectedReversalQuantities.length >= selectableCount;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.fact_check_outlined,
+                size: 18,
+                color: theme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _selectedReversalQuantities.isEmpty
+                    ? 'No products selected'
+                    : '${_selectedReversalQuantities.length} of $selectableCount selected',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  if (isAllSelected) {
+                    _selectedReversalQuantities.clear();
+                  } else {
+                    for (int i = 0; i < cartState.cartItems.length; i++) {
+                      if (cartState.cartItems[i].quantity > 0) {
+                        _selectedReversalQuantities[i] = cartState.cartItems[i].quantity;
+                      }
+                    }
+                  }
+                });
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: theme.primaryColor.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAllSelected ? Icons.deselect_rounded : Icons.done_all_rounded,
+                      size: 16,
+                      color: theme.primaryColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isAllSelected ? 'Deselect All' : 'Select All',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.primaryColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
