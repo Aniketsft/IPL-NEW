@@ -37,6 +37,16 @@ class _CandidateRuleEval {
 class PricingEngineService {
   final LocalDatabaseHelper _dbHelper = LocalDatabaseHelper.instance;
 
+  /// In-memory cache of raw candidate X3 rules for a given (customer, sku, siteCode, isFacility).
+  /// Candidate rules from SQLite are strictly independent of quantity; quantity brackets
+  /// and FOC tiers are evaluated in memory against these exact X3 rows.
+  static final Map<String, List<Map<String, dynamic>>> _candidateRulesCache = {};
+
+  /// Clears the in-memory candidate rules cache.
+  static void clearCache() {
+    _candidateRulesCache.clear();
+  }
+
   static int _toInt(dynamic v, [int fallback = 0]) {
     if (v == null) return fallback;
     if (v is int) return v;
@@ -61,6 +71,7 @@ class PricingEngineService {
     required double qty,
     String? siteCode,
     Database? database,
+    bool forceRefresh = false,
   }) async {
     final db = database ?? await _dbHelper.database;
     final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -74,7 +85,12 @@ class PricingEngineService {
     // Action: Bypass standard logic. Query the local matrix strictly for Price List T40.
     final bool isFacility = (facilityFlag == 2) || (bcgcod.trim().toUpperCase() == 'INTER');
     if (isFacility) {
-      final List<Map<String, dynamic>> t40Results = await db.rawQuery('''
+      final String cacheKey = 'FACILITY|$customerCode|$sku|$effectiveSite|$customerBpcsho';
+      List<Map<String, dynamic>> t40Results;
+      if (!forceRefresh && _candidateRulesCache.containsKey(cacheKey)) {
+        t40Results = _candidateRulesCache[cacheKey]!;
+      } else {
+        t40Results = await db.rawQuery('''
         SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
         WHERE pliCode = 'T40'
           AND (
@@ -93,6 +109,8 @@ class PricingEngineService {
         customerBpcsho, customerBpcsho, sku,
         sku,
       ]);
+        _candidateRulesCache[cacheKey] = t40Results;
+      }
 
       Map<String, dynamic>? winningT40Row;
       PricingResult? facilityResult;
@@ -177,7 +195,12 @@ class PricingEngineService {
     }
 
     // Step 2: Pre-Filtering (Eligibility) for Standard Commercial Customers
-    final List<Map<String, dynamic>> results = await db.rawQuery('''
+    final String cacheKey = 'COMMERCIAL|$customerCode|$sku|$effectiveSite|$bcgcod|$tsccod|$customerBpcsho';
+    List<Map<String, dynamic>> results;
+    if (!forceRefresh && _candidateRulesCache.containsKey(cacheKey)) {
+      results = _candidateRulesCache[cacheKey]!;
+    } else {
+      results = await db.rawQuery('''
       SELECT * FROM ${LocalDatabaseHelper.tablePriceLists}
       WHERE pliCode != 'T40'
         AND (
@@ -217,6 +240,8 @@ class PricingEngineService {
       sku, customerBpcsho, customerCode,
       sku, effectiveSite, effectiveSite,
     ]);
+      _candidateRulesCache[cacheKey] = results;
+    }
 
     final List<_CandidateRuleEval> candidateLogs = [];
 

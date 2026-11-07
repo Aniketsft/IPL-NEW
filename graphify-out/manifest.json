@@ -7302,8 +7302,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\local\\local_database_helper.dart": {
-    "mtime": 1793963986.7194014,
-    "ast_hash": "cee54ac5421c24e13227c8a5e7a66ad0",
+    "mtime": 1794044981.675261,
+    "ast_hash": "5c09af44de78d4916d92a896f8a55ea7",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\credit_note_model.dart": {
@@ -7497,8 +7497,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\pricing_engine_service.dart": {
-    "mtime": 1793963986.9521575,
-    "ast_hash": "64f1e319b6a882671b3b8a3a5b9000c1",
+    "mtime": 1794044981.8895555,
+    "ast_hash": "f7e4d2384e624c24acfd5230852c4ef5",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\sales_invoice_pdf_service.dart": {
@@ -7517,8 +7517,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\vat_calculator_service.dart": {
-    "mtime": 1791355032.3025222,
-    "ast_hash": "bf36c9335687e9897867b4f9e213ab03",
+    "mtime": 1794044981.963752,
+    "ast_hash": "6f443887739a9a904a2ee8ff481c1ad9",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\usecases\\get_customers_use_case.dart": {
@@ -7587,12 +7587,12 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_bloc.dart": {
-    "mtime": 1794043302.1686327,
+    "mtime": 1794043733.8362029,
     "ast_hash": "abe8464bdd4a26a46a227f4a1ff76a8b",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_cart_cubit.dart": {
-    "mtime": 1794043323.7566953,
+    "mtime": 1794043734.1568575,
     "ast_hash": "9b1536348395373b35d9fb5a5fe3605c",
     "semantic_hash": ""
   },
@@ -7677,8 +7677,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\add_item_detail_screen.dart": {
-    "mtime": 1794043342.3229365,
-    "ast_hash": "577d4181ab3ffd1a4c53948acedc05ba",
+    "mtime": 1794044982.1027563,
+    "ast_hash": "08039521e770a66b68dadc808c8cc9fd",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\amount_only_credit_note_screen.dart": {
@@ -7722,7 +7722,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\order_summary_screen.dart": {
-    "mtime": 1794043631.3684351,
+    "mtime": 1794043734.6550732,
     "ast_hash": "4fabd90e9ef6e5a3fd7cfe14be7f4a5e",
     "semantic_hash": ""
   },

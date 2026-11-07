@@ -1,16 +1,16 @@
-# Graph Report - enterprise_auth_system  (2026-11-06)
+# Graph Report - enterprise_auth_system  (2026-11-07)
 
 ## Corpus Check
-- 346 files · ~280,344 words
+- 346 files · ~280,618 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 10876 nodes · 16631 edges · 704 communities (490 shown, 214 thin omitted)
+- 10881 nodes · 16640 edges · 710 communities (489 shown, 221 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 155 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d2ebf0ad`
+- Built from commit: `a2eda489`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -267,6 +267,7 @@
 - [[_COMMUNITY_SalesInvoiceControllerTests|SalesInvoiceControllerTests]]
 - [[_COMMUNITY_CogniLayerCogniLayerhookson_file_change.py|CogniLayer/CogniLayer/hooks/on_file_change.py]]
 - [[_COMMUNITY_Community 251|Community 251]]
+- [[_COMMUNITY_Community 252|Community 252]]
 - [[_COMMUNITY_TestFileChangePerSession|TestFileChangePerSession]]
 - [[_COMMUNITY_CogniLayerhookson_file_change.py|CogniLayer/hooks/on_file_change.py]]
 - [[_COMMUNITY_TestSessionEndPerSession|TestSessionEndPerSession]]
@@ -309,24 +310,30 @@
 - [[_COMMUNITY_Rollout Strategy|Rollout Strategy]]
 - [[_COMMUNITY_ExcessDto|ExcessDto]]
 - [[_COMMUNITY_X3HistoryDocumentDto|X3HistoryDocumentDto]]
+- [[_COMMUNITY_Community 295|Community 295]]
 - [[_COMMUNITY_CogniLayerCogniLayertestsconftest.py|CogniLayer/CogniLayer/tests/conftest.py]]
 - [[_COMMUNITY_CogniLayertestsconftest.py|CogniLayer/tests/conftest.py]]
 - [[_COMMUNITY_Community 298|Community 298]]
 - [[_COMMUNITY_production_scan.dart|production_scan.dart]]
 - [[_COMMUNITY_Community 300|Community 300]]
 - [[_COMMUNITY_Community 301|Community 301]]
+- [[_COMMUNITY_Community 302|Community 302]]
 - [[_COMMUNITY_Community 303|Community 303]]
 - [[_COMMUNITY_Community 304|Community 304]]
 - [[_COMMUNITY_lookup_dto.dart|lookup_dto.dart]]
 - [[_COMMUNITY_Community 306|Community 306]]
 - [[_COMMUNITY_GeneratedPluginRegistrant.java|GeneratedPluginRegistrant.java]]
 - [[_COMMUNITY_gradlew|gradlew]]
+- [[_COMMUNITY_Community 309|Community 309]]
 - [[_COMMUNITY_SalesInvoiceSyncDto|SalesInvoiceSyncDto]]
 - [[_COMMUNITY_UserCreateRequest|UserCreateRequest]]
+- [[_COMMUNITY_Community 312|Community 312]]
 - [[_COMMUNITY_Community 313|Community 313]]
 - [[_COMMUNITY_Community 314|Community 314]]
 - [[_COMMUNITY_Community 315|Community 315]]
+- [[_COMMUNITY_Community 316|Community 316]]
 - [[_COMMUNITY_Community 317|Community 317]]
+- [[_COMMUNITY_Community 318|Community 318]]
 - [[_COMMUNITY_Community 320|Community 320]]
 - [[_COMMUNITY_Community 321|Community 321]]
 - [[_COMMUNITY_Community 323|Community 323]]
@@ -505,7 +512,6 @@
 - [[_COMMUNITY_Community 665|Community 665]]
 - [[_COMMUNITY_Community 666|Community 666]]
 - [[_COMMUNITY_Community 667|Community 667]]
-- [[_COMMUNITY_Community 668|Community 668]]
 - [[_COMMUNITY_Community 669|Community 669]]
 - [[_COMMUNITY_Community 670|Community 670]]
 - [[_COMMUNITY_Community 679|Community 679]]
@@ -650,7 +656,7 @@
 - [[_COMMUNITY_Community 1009|Community 1009]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `SalesInvoiceBloc` - 79 edges
+1. `SalesInvoiceBloc` - 80 edges
 2. `AuthBloc` - 77 edges
 3. `SalesInvoiceBloc` - 77 edges
 4. `Task` - 62 edges
@@ -662,6 +668,8 @@
 10. `Task` - 54 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `FakeSecureStorageService` --implements--> `SecureStorageService`  [EXTRACTED]
+  frontend/test/features/auth/presentation/bloc/auth_bloc_timeout_test.dart → frontend/lib/core/secure_storage_service.dart
 - `_calculateVatRate` --references--> `SalesInvoiceBloc`  [EXTRACTED]
   frontend/lib/features/logistics/presentation/pages/sales_invoice/add_item_detail_screen.dart → frontend/lib/features/logistics/presentation/bloc/sales_invoice_bloc.dart
 - `_resolvePrice` --references--> `SalesInvoiceBloc`  [EXTRACTED]
@@ -670,13 +678,11 @@
   frontend/lib/features/logistics/presentation/pages/sales_invoice/add_item_detail_screen.dart → frontend/lib/features/logistics/presentation/bloc/sales_invoice_bloc.dart
 - `_initCustomer` --references--> `SalesInvoiceBloc`  [EXTRACTED]
   frontend/lib/features/logistics/presentation/pages/sales_invoice/amount_only_credit_note_screen.dart → frontend/lib/features/logistics/presentation/bloc/sales_invoice_bloc.dart
-- `initState` --references--> `SalesInvoiceBloc`  [EXTRACTED]
-  frontend/lib/features/logistics/presentation/pages/sales_invoice/amount_only_credit_note_screen.dart → frontend/lib/features/logistics/presentation/bloc/sales_invoice_bloc.dart
 
 ## Import Cycles
 - None detected.
 
-## Communities (704 total, 214 thin omitted)
+## Communities (710 total, 221 thin omitted)
 
 ### Community 0 - "local_database_helper.dart"
 Cohesion: 0.01
@@ -688,7 +694,7 @@ Nodes (89): _applyFilter, assignedUserName, _availableLorries, build, _buildEmpt
 
 ### Community 4 - "production_tracking_screen.dart"
 Cohesion: 0.03
-Nodes (83): ../../../../core/utils/barcode_scanner/barcode_processor.dart, _fetchLocations, DeliveryRepository, execute, _repository, _handleSave, _loadLookups, _addManualQty (+75 more)
+Nodes (85): ../../../../core/utils/barcode_scanner/barcode_processor.dart, _fetchSites, DeliveryRepository, _handleSave, _loadLookups, _addManualQty, _baseSessionScannedQty, _baseSessionScannedWeight (+77 more)
 
 ### Community 5 - "eod_report_model.dart"
 Cohesion: 0.02
@@ -704,23 +710,23 @@ Nodes (69): addDeliveryScan, bulkUpdateItemStatus, clearDeliveryScans, closeOrde
 
 ### Community 8 - "SalesInvoiceBloc"
 Cohesion: 0.06
-Nodes (83): Bloc, NetworkService, didChangeDependencies, AuthBloc, TransactionConfig, _onAddCartItem, _onClearCart, _onConvertToCreditNote (+75 more)
+Nodes (79): ../../domain/repositories/i_sales_repository.dart, NetworkService, didChangeDependencies, TransactionConfig, _onAddCartItem, _onClearCart, _onConvertToCreditNote, _onInitializeTransaction (+71 more)
 
 ### Community 9 - "credit_note_model.dart"
 Cohesion: 0.03
 Nodes (71): amount, amountOnly, bankCode, bankName, cash, cashOnly, cce0, chequeDate (+63 more)
 
 ### Community 10 - "SageX3SoapService"
-Cohesion: 0.08
-Nodes (34): AssignedLocation, AssignedWarehouse, Dictionary, EndOfDayResult, IConfiguration, IEnumerable, List, ScanProductionDbContext (+26 more)
+Cohesion: 0.06
+Nodes (44): AssignedLocation, AssignedWarehouse, List, EndOfDayResult, X3ImportResult, ConcurrentDictionary, Dictionary, EndOfDayResult (+36 more)
 
 ### Community 11 - "user_management_screen.dart"
 Cohesion: 0.03
-Nodes (69): _accessBadge, _activeCategory, _allUsers, _applyMfgPreset, _applySalesPreset, _availableSites, build, _buildActionFooter (+61 more)
+Nodes (67): _accessBadge, _activeCategory, _allUsers, _applyMfgPreset, _applySalesPreset, _availableSites, build, _buildActionFooter (+59 more)
 
 ### Community 12 - "ScanProductionDbContext"
-Cohesion: 0.05
-Nodes (32): DateTime, AuditLog, DateTime, Guid, DeviceLocation, DateTime, Guid, EodProcessAudit (+24 more)
+Cohesion: 0.04
+Nodes (40): DateTime, AuditLog, DateTime, Guid, DeviceLocation, DateTime, Guid, EodProcessAudit (+32 more)
 
 ### Community 13 - "t"
 Cohesion: 0.03
@@ -728,51 +734,51 @@ Nodes (60): ../../data/models/user_management.dart, ../../data/repositories/user
 
 ### Community 15 - "sales_invoice_pdf_service.dart"
 Cohesion: 0.09
-Nodes (21): dart:typed_data, build, pdfBytes, PdfPreviewScreen, title, _buildFooter, _buildHeader, _buildSigLine (+13 more)
+Nodes (21): dart:typed_data, _buildFooter, _buildHeader, _buildSigLine, _buildTable, EodPdfGenerator, generateAndPrint, _numberFormat (+13 more)
 
 ### Community 16 - "AuthBloc"
 Cohesion: 0.03
-Nodes (60): ../../../../../core/widgets/filter_input_widgets.dart, ../../../../../core/widgets/search_picker_sheet.dart, ../../../../../core/widgets/standard_filter.dart, build, createState, dispose, _hasMore, _initData (+52 more)
+Nodes (59): ../../../../../core/widgets/filter_input_widgets.dart, ../../../../../core/widgets/search_picker_sheet.dart, ../../../../../core/widgets/standard_filter.dart, build, createState, dispose, _hasMore, _initData (+51 more)
 
 ### Community 17 - "product_scan_floating_screen.dart"
-Cohesion: 0.03
-Nodes (76): ../../app_theme.dart, build, _buildOverlayStat, _buildPromptRow, _buildSummaryStat, _confirmDelete, createState, dispose (+68 more)
+Cohesion: 0.05
+Nodes (37): ../../../features/logistics/presentation/widgets/scan_item_card.dart, build, _buildOverlayStat, _buildPromptRow, _buildSummaryStat, _confirmDelete, createState, dispose (+29 more)
 
 ### Community 18 - "auth_bloc.dart"
-Cohesion: 0.07
-Nodes (32): build, _buildFilters, _buildProductCard, _buildStat, createState, initState, _lastSync, permissions (+24 more)
+Cohesion: 0.04
+Nodes (56): build, _buildFilters, _buildProductCard, _buildStat, createState, initState, _lastSync, permissions (+48 more)
 
 ### Community 19 - "customer_selection_screen.dart"
-Cohesion: 0.04
-Nodes (50): add_item_detail_screen.dart, ../../../../../core/navigation/app_routes.dart, ../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart, ../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart, ../../../domain/services/pricing_engine_service.dart, ../../../domain/services/vat_calculator_service.dart, _buildCalcRow, _buildCalculationCard (+42 more)
+Cohesion: 0.03
+Nodes (77): add_item_detail_screen.dart, ../../../../../core/navigation/app_routes.dart, ../../../../../core/network_service.dart, ../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart, ../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart, ../../../data/repositories/sales_invoice_product_repository.dart, ../../../data/repositories/transaction_history_repository.dart, ../../../domain/models/stock_status.dart (+69 more)
 
 ### Community 20 - "EnterpriseAuth.Api.Infrastructure.Persistence.Migrations"
-Cohesion: 0.09
-Nodes (22): _backendError, _backendResponses, build, _buildBackendCard, _buildBackendResponsesTab, _buildCountGrid, _buildEmptyBackendState, _buildEmptyState (+14 more)
+Cohesion: 0.07
+Nodes (29): _backendError, _backendResponses, build, _buildBackendCard, _buildBackendResponsesTab, _buildCountGrid, _buildEmptyBackendState, _buildEmptyState (+21 more)
 
 ### Community 21 - "add_item_detail_screen.dart"
 Cohesion: 0.04
 Nodes (53): _basePrice, _basePriceController, _buildInputField, _buildReadOnlyField, _buildStepperButton, _calculateVatRate, createState, _currencyFormat (+45 more)
 
 ### Community 22 - "EnterpriseAuth.Api.Core.Application.DTOs"
-Cohesion: 0.06
-Nodes (25): BankDto, BomComponentDto, CreditNoteReasonDto, CustomerLiveCreditDto, LotLookupDto, PriceListDto, ProductLiveStockDto, ProductLookupDto (+17 more)
+Cohesion: 0.09
+Nodes (14): LotLookupDto, ProductLookupDto, SiteLookupDto, EnterpriseAuth.Api/Program.cs, EnterpriseAuth.Api.Controllers, EnterpriseAuth.Api.Core.Application.Interfaces, EnterpriseAuth.Api.Infrastructure.Security, EnterpriseAuth.Api.Core.Application.DTOs (+6 more)
 
 ### Community 23 - "EfSalesInvoiceRepository"
-Cohesion: 0.06
-Nodes (29): BankDto, CreditNoteReasonDto, CustomerLiveCreditDto, FacilityDto, IEnumerable, IMemoryCache, IX3SchemaProvider, OpenInvoiceDto (+21 more)
+Cohesion: 0.04
+Nodes (41): BankDto, CreditNoteReasonDto, CustomerLiveCreditDto, PriceListDto, ProductLiveStockDto, SalesInvoiceCustomerDto, SalesInvoiceItemStockDto, SalesInvoiceProductDto (+33 more)
 
 ### Community 24 - "end_of_day_screen.dart"
 Cohesion: 0.04
-Nodes (47): DateTime? get, _actionButton, _amber, build, _buildProductCard, _buildProductList, _buildScanRow, conversion (+39 more)
+Nodes (47): _actionButton, _amber, build, _buildProductCard, _buildProductList, _buildScanRow, conversion, createdAt (+39 more)
 
 ### Community 25 - "new_cuts_bulk_screen.dart"
 Cohesion: 0.04
-Nodes (49): _addProduct, build, _buildBottomBar, _buildDatePicker, _buildDatePickerIcon, _buildDefaultsBanner, _buildDropdownTile, _buildExistingSOPicker (+41 more)
+Nodes (48): _addProduct, build, _buildBottomBar, _buildDatePicker, _buildDatePickerIcon, _buildDefaultsBanner, _buildDropdownTile, _buildExistingSOPicker (+40 more)
 
 ### Community 26 - "SalesInvoiceSyncBloc"
-Cohesion: 0.08
-Nodes (41): SalesInvoiceSyncBloc, customerCode, customerName, ResetSalesInvoiceSyncRequested, SalesInvoiceSyncEvent, siteCode, StartSalesInvoiceSyncRequested, StartSingleCustomerSyncRequested (+33 more)
+Cohesion: 0.09
+Nodes (37): SalesInvoiceSyncBloc, customerCode, customerName, ResetSalesInvoiceSyncRequested, SalesInvoiceSyncEvent, siteCode, StartSalesInvoiceSyncRequested, StartSingleCustomerSyncRequested (+29 more)
 
 ### Community 29 - "Architecture (for the curious)"
 Cohesion: 0.04
@@ -783,12 +789,12 @@ Cohesion: 0.07
 Nodes (27): barcodeType, customerCode, customerName, deliveryDate, description, eaQuantity, fromJson, isPrepared (+19 more)
 
 ### Community 32 - "transaction_history_screen.dart"
-Cohesion: 0.03
-Nodes (83): _dbHelper, ensureHardcodedSalesOrderSeeded, _getDb, getSalesOrderDetails, getSalesOrders, hardcodedCustomerCode, hardcodedCustomerName, hardcodedOrderNumber (+75 more)
+Cohesion: 0.04
+Nodes (60): SISalesOrderService, build, createState, _currentDeliveryDate, _details, _editDeliveryDate, initState, _isLoading (+52 more)
 
 ### Community 33 - "CogniLayer/CogniLayer/mcp-server/search/fts_search.py"
-Cohesion: 0.03
-Nodes (75): _allInvoices, _autoAllocateFifo, _buildHistoryItem, _buildHistoryList, _buildInvoicesSummaryTile, _buildReceiptRow, _clearCustomerFilter, createState (+67 more)
+Cohesion: 0.04
+Nodes (73): Bloc, _triggerSync, CustomerSyncResult, SyncBatchResult, SalesInvoiceSyncBloc, customerCode, customerName, ResetSalesInvoiceSyncRequested (+65 more)
 
 ### Community 34 - "payment_processing_screen.dart"
 Cohesion: 0.04
@@ -796,7 +802,7 @@ Nodes (46): _addPayment, amount, _amountController, _availableBanks, _availableR
 
 ### Community 35 - "sales_invoice_cart_cubit.dart"
 Cohesion: 0.05
-Nodes (42): addItem, basePrice, clearCart, copyWith, customer, deliveryDate, discountAmount, discountAmountFlat (+34 more)
+Nodes (43): ../../../data/models/sales_invoice_product_model.dart, addItem, basePrice, clearCart, copyWith, customer, deliveryDate, discountAmount (+35 more)
 
 ### Community 36 - "t"
 Cohesion: 0.07
@@ -818,25 +824,21 @@ Nodes (25): AllocateExcessDto, Authorize, BulkStatusUpdateDto, CutBulkEntryDto, 
 Cohesion: 0.05
 Nodes (41): build, _buildActiveOtpHeroCard, _buildDurationChip, _buildHistoryItem, _buildNoActiveOtpPlaceholder, _clearExpired, code, _copyToClipboard (+33 more)
 
-### Community 41 - "EfLogisticsRepository"
-Cohesion: 0.07
-Nodes (15): BarcodeMappingDto, BomComponentDto, CustomerLookupDto, DateTime, ExcessDto, IEnumerable, ProductionTrackingDto, SalesOrderDetailDto (+7 more)
-
 ### Community 42 - "CogniLayer/CogniLayer/diagnose.py"
 Cohesion: 0.17
 Nodes (12): ../../data/local/local_database_helper.dart, build, _buildCountGrid, _buildEmptyState, _buildHistoryCard, createState, _history, initState (+4 more)
 
 ### Community 43 - "CogniLayer/diagnose.py"
-Cohesion: 0.09
-Nodes (25): config/api_config.dart, dio, false, isTokenExpired, NetworkService, onError, onRequest, onResponse (+17 more)
+Cohesion: 0.06
+Nodes (38): config/api_config.dart, dio, false, isTokenExpired, NetworkService, onError, onRequest, onResponse (+30 more)
 
 ### Community 44 - "CogniLayer/mcp-server/search/fts_search.py"
-Cohesion: 0.05
-Nodes (41): db, dio, FakeNetworkService, lastRequestOptions, main, onUnauthorized, repository, Dio (+33 more)
+Cohesion: 0.12
+Nodes (18): dart:ui, db, dio, FakeNetworkService, lastRequestOptions, main, onUnauthorized, repository (+10 more)
 
 ### Community 45 - "SyncBloc"
 Cohesion: 0.13
-Nodes (28): SyncBloc, message, progress, props, ResetSyncRequested, siteCode, StartSyncRequested, StartX3SoapExportRequested (+20 more)
+Nodes (26): SyncBloc, message, progress, props, siteCode, StartSyncRequested, StartX3SoapExportRequested, SyncEvent (+18 more)
 
 ### Community 46 - "Result"
 Cohesion: 0.07
@@ -847,8 +849,8 @@ Cohesion: 0.05
 Nodes (36): allocateExcess, closeOrder, completeProductionEod, fetchSalesOrderHeaders, fetchSalesOrders, getCustomers, getExcessByDateAndItem, getExcessPoolSummaries (+28 more)
 
 ### Community 48 - "package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart"
-Cohesion: 0.08
-Nodes (16): AllocateExcessDto, ApplicationDbContext, CutBulkEntryDto, EodSettings, IHttpContextAccessor, IStagingService, IX3SchemaProvider, LabelAuditDto (+8 more)
+Cohesion: 0.07
+Nodes (17): AllocateExcessDto, ApplicationDbContext, BarcodeMappingDto, BomComponentDto, EodSettings, IHttpContextAccessor, IStagingService, IX3SchemaProvider (+9 more)
 
 ### Community 49 - "ILogisticsRepository"
 Cohesion: 0.06
@@ -864,39 +866,39 @@ Nodes (26): _getProductionTracking, _onDashboardSearchChanged, _onLoadProduction
 
 ### Community 54 - "CogniLayer/CogniLayer/tui/data.py"
 Cohesion: 0.06
-Nodes (37): createTestJwt, deleteAll, expTimestamp, forgotPassword, getSchema, getSiteCode, getToken, getUsername (+29 more)
+Nodes (30): createTestJwt, deleteAll, expTimestamp, FakeSecureStorageService, forgotPassword, getSchema, getSiteCode, getToken (+22 more)
 
 ### Community 55 - "agent_context_brief"
 Cohesion: 0.07
-Nodes (27): _detectedManufacturer, _detectedModel, dispose, _handleKeyEvent, init, _initKeyboardWedgeFallback, _initQunsuo, _initSunmi (+19 more)
+Nodes (27): FlutterDataWedge?, _detectedManufacturer, _detectedModel, dispose, _handleKeyEvent, init, _initKeyboardWedgeFallback, _initQunsuo (+19 more)
 
 ### Community 56 - "CogniLayer/tests/test_agent_orchestration.py"
 Cohesion: 0.07
 Nodes (27): addPrinter, _bluetoothChannel, currentMode, _defaultBluetoothPrinterId, _defaultDirectIpPrinterId, _defaultSystemPrinterId, disconnect, getPairedBluetoothDevices (+19 more)
 
 ### Community 57 - "CogniLayer/tui/data.py"
-Cohesion: 0.06
-Nodes (47): _onStartCustomerSyncRequested, _onStartSyncRequested, _repository, _useCase, ../../data/repositories/sales_invoice_sync_repository.dart, ../../domain/usecases/synchronize_sales_invoice_use_case.dart, _triggerSync, CustomerSyncResult (+39 more)
+Cohesion: 0.12
+Nodes (16): _onStartCustomerSyncRequested, _onStartSyncRequested, _repository, _useCase, ../../data/repositories/sales_invoice_sync_repository.dart, ../../domain/usecases/synchronize_sales_invoice_use_case.dart, execute, _repository (+8 more)
 
 ### Community 58 - "home_screen.dart"
-Cohesion: 0.03
-Nodes (113): AppRouter?, ThemeCubit, body, bottomNavigationBar, build, extraActions, floatingActionButton, IndustrialModuleLayout (+105 more)
+Cohesion: 0.04
+Nodes (60): ThemeCubit, ThemeCubit, build, _buildMenuButton, _buildRestrictedUI, _buildSalesRepBanner, _checkAndPromptSalesRepSelection, createState (+52 more)
 
 ### Community 59 - "view_sales_order_screen.dart"
 Cohesion: 0.06
-Nodes (35): _applyLocalFilters, createState, _currentOffset, _customersList, _debounceTimer, dispose, _errorMessage, _fetchMoreOrders (+27 more)
+Nodes (35): _applyLocalFilters, createState, _currentOffset, _customersList, _debounceTimer, dispose, _errorMessage, _filteredOrders (+27 more)
 
 ### Community 60 - "ILogisticsService"
 Cohesion: 0.07
 Nodes (27): Result, LocationLookupDto, DateTime, ProductionTrackingDto, AllocateExcessDto, BarcodeMappingDto, BulkStatusUpdateDto, CustomerLookupDto (+19 more)
 
 ### Community 61 - "CogniLayer/CogniLayer/install.py"
-Cohesion: 0.02
-Nodes (93): LocalDatabaseHelper, _dbHelper, getUnsyncedScans, markScansAsSynced, saveScan, async, cancelInvoice, _dbHelper (+85 more)
+Cohesion: 0.09
+Nodes (21): async, cancelInvoice, _dbHelper, getCustomersWithTransactions, getEodReportData, getProductsSoldToCustomer, getReversedLineIds, getTransactionLines (+13 more)
 
 ### Community 62 - "CogniLayer/install.py"
 Cohesion: 0.06
-Nodes (35): new_cuts_bulk_screen.dart, package:enterprise_auth_mobile/core/widgets/search_picker_sheet.dart, _applyLocalFilters, createState, _currentOffset, _customersList, _debounceTimer, dispose (+27 more)
+Nodes (34): _applyLocalFilters, build, createState, _currentOffset, _customersList, _debounceTimer, dispose, _errorMessage (+26 more)
 
 ### Community 63 - "sales_report_pdf_service.dart"
 Cohesion: 0.06
@@ -912,19 +914,19 @@ Nodes (24): cartItems, config, copyWith, customer, deliveryDate, grandTotal, mes
 
 ### Community 66 - "order_summary_screen.dart"
 Cohesion: 0.07
-Nodes (27): build, _buildLabel, _buildModuleCard, _buildSearchPicker, _buildTextField, createState, _customersList, _filter (+19 more)
+Nodes (28): build, _buildLabel, _buildModuleCard, _buildSearchPicker, _buildTextField, createState, _customersList, _filter (+20 more)
 
 ### Community 67 - "main.dart"
-Cohesion: 0.13
-Nodes (20): AuthRepository, FakeSecureStorageService, SecureStorageService, GetCustomersUseCase, GetProductionTrackingUseCase, GetSalesRepsUseCase, GetSitesUseCase, build (+12 more)
+Cohesion: 0.05
+Nodes (75): AppRouter?, AuthRepository, SecureStorageService, SecureStorageService, AuthRepository, LocalRepository, SalesInvoiceProductRepository, SalesRepository (+67 more)
 
 ### Community 68 - "auth_bloc_timeout_test.dart"
-Cohesion: 0.06
-Nodes (38): Authenticated, AuthFailure, AuthInitial, AuthLoading, AuthState, AuthSuccess, message, permissions (+30 more)
+Cohesion: 0.07
+Nodes (26): createTestJwt, deleteAll, expTimestamp, FakeSecureStorageService, forgotPassword, getSchema, getSiteCode, getToken (+18 more)
 
 ### Community 69 - "CogniLayer/CogniLayer/hooks/on_session_start.py"
-Cohesion: 0.03
-Nodes (102): ../../../auth/presentation/bloc/auth_bloc.dart, ../../../auth/presentation/bloc/auth_state.dart, ../../bloc/sales_invoice_event.dart, ../../bloc/sales_invoice_state.dart, ../bloc/sales_invoice_sync_bloc.dart, ../bloc/sales_invoice_sync_event.dart, ../bloc/sales_invoice_sync_state.dart, ../../../../core/utils/currency_formatter.dart (+94 more)
+Cohesion: 0.05
+Nodes (45): amount_only_credit_note_screen.dart, ../../../auth/presentation/bloc/auth_state.dart, ../../bloc/sales_invoice_bloc.dart, ../../bloc/sales_invoice_event.dart, ../../bloc/sales_invoice_state.dart, ../../../../core/widgets/industrial_module_layout.dart, customer_hub_screen.dart, customer_selection_screen.dart (+37 more)
 
 ### Community 71 - "hardware_scanner_service.dart"
 Cohesion: 0.04
@@ -932,7 +934,7 @@ Nodes (48): _basePrice, _basePriceController, _buildInputField, _buildReadOnlyFi
 
 ### Community 72 - "sales_order_detail_screen.dart"
 Cohesion: 0.06
-Nodes (32): build, _buildCompactInfo, _buildHeaderInfo, _bulkUpdateStatus, _closeOrder, _codeFilter, createState, _descFilter (+24 more)
+Nodes (32): build, _buildCompactInfo, _buildFooter, _buildHeaderInfo, _buildProductCard, _bulkUpdateStatus, _closeOrder, _codeFilter (+24 more)
 
 ### Community 73 - "DevicesController"
 Cohesion: 0.09
@@ -943,8 +945,8 @@ Cohesion: 0.11
 Nodes (21): CustomerLookupDto, DateTime, CutBulkEntryDto, SalesOrderDetailDto, DateTime, SalesOrderHeaderDto, SalesRepLookupDto, DateTime (+13 more)
 
 ### Community 75 - "ensure_vec"
-Cohesion: 0.12
-Nodes (16): ../../../../core/utils/audio/audio_service.dart, ../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart, _addManualOneKg, build, createState, dispose, initialScans, initState (+8 more)
+Cohesion: 0.07
+Nodes (30): ../../../../core/utils/audio/audio_service.dart, ../../../../core/utils/barcode_scanner/barcode_scanner_widget.dart, _addManualOneKg, build, createState, dispose, initialScans, initState (+22 more)
 
 ### Community 76 - "open_test_db"
 Cohesion: 0.19
@@ -952,7 +954,7 @@ Nodes (14): ApplicationDbContext, Authorize, Guid, HttpDelete, HttpGet, HttpPost
 
 ### Community 77 - "index_project"
 Cohesion: 0.05
-Nodes (43): createAmountOnlyCreditNote, createCashOnlyCreditNote, createPartialReversalCreditNote, createReversalCreditNote, createStandaloneCreditNote, CreditNoteService, DbProvider, _amountController (+35 more)
+Nodes (41): createAmountOnlyCreditNote, createCashOnlyCreditNote, createPartialReversalCreditNote, createReversalCreditNote, createStandaloneCreditNote, CreditNoteService, DbProvider, _amountController (+33 more)
 
 ### Community 78 - "sales_order_detail.dart"
 Cohesion: 0.06
@@ -971,12 +973,12 @@ Cohesion: 0.07
 Nodes (28): CogniLayer/docs/codex-safe-multi-agent-review.md, 1. Overall Verdict, 2.1 Central orchestration, 2.2 Single-writer policy, 2.3 Static AGENTS plus dynamic session state, 2.4 Backward-compatible OFF mode, 2. What is solid, 3.10 Code graph freshness is a hidden dependency (+20 more)
 
 ### Community 82 - "production_tracking_list_screen.dart"
-Cohesion: 0.10
-Nodes (20): Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion, fileVersion (+12 more)
+Cohesion: 0.07
+Nodes (27): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Tokens, assemblyVersion, fileVersion, assemblyVersion, fileVersion, assemblyVersion (+19 more)
 
 ### Community 83 - "SalesInvoiceController"
-Cohesion: 0.13
-Nodes (15): EffectiveSiteCode, Error, HttpGet, IActionResult, ILogger, ISageX3SoapService, ISalesInvoiceRepository, ISnapshotService (+7 more)
+Cohesion: 0.10
+Nodes (19): EffectiveSiteCode, Error, HttpGet, HttpPost, IActionResult, ILogger, ISageX3SoapService, ISalesInvoiceRepository (+11 more)
 
 ### Community 84 - "CogniLayer/hooks/on_session_start.py"
 Cohesion: 0.07
@@ -988,15 +990,15 @@ Nodes (88): _applyFilter, assignedUserName, _availableLorries, build, _buildEmpt
 
 ### Community 86 - "invoice_item_reversal_screen.dart"
 Cohesion: 0.03
-Nodes (82): _fetchAppSettings, _fetchSites, DeliveryRepository, _handleSave, _loadLookups, _addManualQty, _baseSessionScannedQty, _baseSessionScannedWeight (+74 more)
+Nodes (84): _fetchAppSettings, _fetchLocations, _fetchSites, DeliveryRepository, _handleSave, _loadLookups, _addManualQty, _baseSessionScannedQty (+76 more)
 
 ### Community 87 - "customer_hub_screen.dart"
-Cohesion: 0.04
-Nodes (70): auth_event.dart, FormState, build, child, createState, didChangeAppLifecycleState, dispose, _handleInteraction (+62 more)
+Cohesion: 0.07
+Nodes (49): FormState, didChangeAppLifecycleState, _handleInteraction, _InactivityWatcherState, AuthBloc, AppStarted, AuthEvent, email (+41 more)
 
 ### Community 88 - "index_project"
-Cohesion: 0.08
-Nodes (25): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.JsonWebTokens, Microsoft.SqlServer.Server, System.Configuration.ConfigurationManager, System.Runtime.Caching, assemblyVersion, fileVersion (+17 more)
+Cohesion: 0.15
+Nodes (13): System.Configuration.ConfigurationManager, assemblyVersion, fileVersion, System.Runtime.Caching/6.0.0, lib/net6.0/System.Runtime.Caching.dll, assemblyVersion, assetType, fileVersion (+5 more)
 
 ### Community 89 - "memory_search"
 Cohesion: 0.17
@@ -1004,7 +1006,7 @@ Nodes (11): amountOnlyCreditNote, AppRoutes, customerSelection, home, login, ord
 
 ### Community 91 - "sales_rep_selection_dialog.dart"
 Cohesion: 0.05
-Nodes (47): ../../../data/repositories/sales_invoice_product_repository.dart, ../../../data/repositories/transaction_history_repository.dart, ../../../domain/services/sales_report_pdf_service.dart, _buildBody, _buildOperationsGrid, _showCreditNoteOptionsSheet, _showTransactionsSheet, _buildPersistentFooter (+39 more)
+Nodes (38): package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart, payment_processing_screen.dart, _allInvoices, _autoAllocateFifo, _buildHistoryItem, _buildHistoryList, _buildInvoicesSummaryTile, _buildReceiptRow (+30 more)
 
 ### Community 92 - "transaction_config.dart"
 Cohesion: 0.07
@@ -1015,8 +1017,8 @@ Cohesion: 0.16
 Nodes (10): ApplicationDbContext, Guid, IEnumerable, IHttpContextAccessor, Role, Task, EfRoleRepository, IRoleRepository (+2 more)
 
 ### Community 94 - "filter_input_widgets.dart"
-Cohesion: 0.09
-Nodes (26): FilterDateInput, FilterDatePicker, FilterDropdown, _FilterModal, StockControlScreen, StatelessWidget, build, controller (+18 more)
+Cohesion: 0.05
+Nodes (47): build, controller, FilterDateInput, FilterDatePicker, FilterDropdown, FilterPickerTile, FilterSearchInput, FilterSegmentedToggle (+39 more)
 
 ### Community 95 - "sales_order.dart"
 Cohesion: 0.07
@@ -1027,28 +1029,28 @@ Cohesion: 0.02
 Nodes (81): amount, bankCode, bankName, cancelledReceipts, cashAmount, cashBalance, cashGrossSales, cashInvoices (+73 more)
 
 ### Community 97 - "settings_modules_screen.dart"
-Cohesion: 0.05
-Nodes (51): HardwareScannerMixin, _SearchPickerSheetState, UserManagementScreen, _UserManagementScreenState, _SearchPickerSheet, _SearchPickerSheetState, ProductionTrackingScreen, _ProductionTrackingScreenState (+43 more)
+Cohesion: 0.06
+Nodes (52): HardwareScannerMixin, ProductScanFloatingScreen, _ProductScanFloatingScreenState, ProductionTrackingScanner, _ProductionTrackingScannerState, HardwareScannerMixin, _SearchPickerSheetState, UserManagementScreen (+44 more)
 
 ### Community 98 - "CogniLayer/CogniLayer/hooks/on_session_end.py"
-Cohesion: 0.07
-Nodes (31): ../../bloc/sales_invoice_bloc.dart, ../../bloc/sales_invoice_cart_cubit.dart, ../../../data/models/sales_invoice_item_stock_model.dart, _allLots, build, _buildLotCard, createState, dispose (+23 more)
+Cohesion: 0.04
+Nodes (52): ../../bloc/sales_invoice_cart_cubit.dart, ../../../data/models/sales_invoice_item_stock_model.dart, build, createState, _filter, _filteredItems, initState, items (+44 more)
 
 ### Community 100 - "CogniLayer/CogniLayer/mcp-server/memory_lifecycle.py"
 Cohesion: 0.04
-Nodes (49): build, _clearManifest, createState, DeliveryScreen, _DeliveryScreenState, dispose, _errorMessage, _fetchOrders (+41 more)
+Nodes (48): build, _clearManifest, createState, DeliveryScreen, _DeliveryScreenState, dispose, _errorMessage, _fetchOrders (+40 more)
 
 ### Community 102 - "label_printing_handler.dart"
-Cohesion: 0.04
-Nodes (43): ../../data/repositories/delivery_repository.dart, ../../domain/entities/sales_order_detail.dart, ../entities/sales_order.dart, execute, GetSalesOrderHeadersUseCase, _repository, _buildPreviewCard, LabelPrintingHandler (+35 more)
+Cohesion: 0.06
+Nodes (32): ../../data/repositories/delivery_repository.dart, ../entities/sales_order.dart, execute, GetSalesOrderHeadersUseCase, _repository, _buildPreviewCard, LabelPrintingHandler, _logAudit (+24 more)
 
 ### Community 103 - "auth_repository.dart"
 Cohesion: 0.07
 Nodes (27): Set, _allReps, build, canDismiss, _clearAll, _confirmSelection, createState, dispose (+19 more)
 
 ### Community 104 - "user_management.dart"
-Cohesion: 0.11
-Nodes (18): canCreate, canDelete, canRead, canUpdate, copyWith, description, email, id (+10 more)
+Cohesion: 0.05
+Nodes (36): ../../app_theme.dart, build, _buildOverlayStat, _buildPromptRow, _buildSummaryStat, _confirmDelete, createState, dispose (+28 more)
 
 ### Community 105 - "package:flutter/material.dart"
 Cohesion: 0.09
@@ -1071,56 +1073,56 @@ Cohesion: 0.03
 Nodes (72): amount, amountOnly, bankCode, bankName, cash, cashOnly, cce0, chequeDate (+64 more)
 
 ### Community 110 - "open_invoice_card.dart"
-Cohesion: 0.08
-Nodes (27): _amountController, AmountOnlyCreditNoteScreen, _AmountOnlyCreditNoteScreenState, build, CashOnlyCreditNoteScreen, createState, _creditNoteService, currencyFormat (+19 more)
+Cohesion: 0.05
+Nodes (37): bool get, code, codeApproved, codeQuarantine, codeRejected, description, fromCode, isSellable (+29 more)
 
 ### Community 111 - "my_application.cc"
-Cohesion: 0.03
-Nodes (64): amount_only_credit_note_screen.dart, bool get, code, codeApproved, codeQuarantine, codeRejected, description, fromCode (+56 more)
+Cohesion: 0.04
+Nodes (58): _buildBody, SalesInvoiceSyncRepository, _availableCredit, _buildActionTile, _buildCustomerHeroCard, _buildFinancialColumn, _buildHoldAlertBanner, _buildOperationsGrid (+50 more)
 
 ### Community 112 - "package:intl/intl.dart"
-Cohesion: 0.07
-Nodes (26): BarcodeModel, BarcodeProcessor, cleanBarcode, formatQuantity, invalid, isValid, isValidBarcode, itemCode (+18 more)
+Cohesion: 0.14
+Nodes (13): BarcodeModel, BarcodeProcessor, cleanBarcode, formatQuantity, invalid, isValid, isValidBarcode, itemCode (+5 more)
 
 ### Community 113 - "Implementation Plan: "Open Invoice" Module (INV & CN)"
 Cohesion: 0.08
 Nodes (25): 1. Executive Summary & Core Mandate, 2. Sage X3 Data Dictionary Mapping & Hardened Query, 3. Rigorous Architectural Challenge: 7 Critical Flaws & Solutions, 4. Local SQLite Architecture (`LocalDatabaseHelper.dart` v88), 5. UI Card Component Design Specification, 6. Phased Implementation Roadmap, 7. Acceptance & Verification Matrix, 8. Implementation Status (Completed) (+17 more)
 
 ### Community 114 - "manufacturing_state.dart"
-Cohesion: 0.08
-Nodes (38): _applyFilters, build, initState, _applyPreparationUpdate, ManufacturingBloc, DashboardSearchChanged, date, isPrepared (+30 more)
+Cohesion: 0.06
+Nodes (51): ResetSyncRequested, _applyFilters, build, _buildPoolBadge, _buildProductCard, _buildStat, createState, dispose (+43 more)
 
 ### Community 115 - "user_management_repository.dart"
 Cohesion: 0.08
 Nodes (25): _assignedLocation, _assignedSite, _assignedWarehouse, deviceId, deviceInfo, DeviceInfoService, _deviceName, _deviceUuid (+17 more)
 
 ### Community 116 - "qr_label_screen.dart"
-Cohesion: 0.04
-Nodes (46): AggregationMode, build, _buildActionBar, _buildEmptyState, _buildItemTile, _buildModeButton, _buildScannedList, _buildStatCard (+38 more)
+Cohesion: 0.09
+Nodes (22): AggregationMode, build, _buildActionBar, _buildEmptyState, _buildItemTile, _buildModeButton, _buildScannedList, _buildStatCard (+14 more)
 
 ### Community 117 - "EfSyncRepository"
-Cohesion: 0.08
-Nodes (25): DateTime, DeviceSyncLogDto, ApplicationDbContext, DeviceSyncLogDto, IEnumerable, ILogisticsRepository, IMemoryCache, IStagingService (+17 more)
+Cohesion: 0.07
+Nodes (26): Task, IStagingService, ApplicationDbContext, DeviceSyncLogDto, IEnumerable, ILogisticsRepository, IMemoryCache, IStagingService (+18 more)
 
 ### Community 118 - "app_router.dart"
-Cohesion: 0.09
-Nodes (30): ChangeNotifier, AppRouter, authBloc, dispose, GoRouterRefreshStream, rootNavigatorKey, router, _subscription (+22 more)
+Cohesion: 0.10
+Nodes (28): ChangeNotifier, AppRouter, authBloc, dispose, GoRouterRefreshStream, rootNavigatorKey, router, _subscription (+20 more)
 
 ### Community 119 - "TypeScriptParser"
 Cohesion: 0.17
-Nodes (11): barcode_processor.dart, barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode, ScanResult (+3 more)
+Nodes (11): barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode, ScanResult, standardWeight (+3 more)
 
 ### Community 120 - "transaction_history_repository.dart"
 Cohesion: 0.03
-Nodes (69): ../../domain/entities/sync_progress.dart, ../../domain/repositories/ilogistics_repository.dart, ../models/location_lookup_dto.dart, ../models/lookup_dto.dart, package:enterprise_auth_mobile/features/settings/data/models/site.dart, addDeliveryScan, bulkUpdateItemStatus, clearDeliveryScans (+61 more)
+Nodes (69): ../../domain/entities/sync_progress.dart, ../../domain/repositories/ilogistics_repository.dart, ../models/sales_order_detail_dto.dart, ../models/sales_order_dto.dart, package:enterprise_auth_mobile/features/settings/data/models/company.dart, addDeliveryScan, bulkUpdateItemStatus, clearDeliveryScans (+61 more)
 
 ### Community 121 - "CogniLayer/CogniLayer/tests/test_code_isolation.py"
 Cohesion: 0.03
-Nodes (69): build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, CreditNoteModel?, build (+61 more)
+Nodes (61): CreditNoteModel?, build, PickingScreen, CreditNoteModel, build, createState, creditNoteModel, creditNoteReason (+53 more)
 
 ### Community 122 - "network_service.dart"
-Cohesion: 0.07
-Nodes (26): _baseUrl, createRole, createUser, deleteRole, _dio, getGroups, getRoles, getSites (+18 more)
+Cohesion: 0.11
+Nodes (17): _baseUrl, createRole, createUser, deleteRole, _dio, getGroups, getRoles, getSites (+9 more)
 
 ### Community 123 - "sync_logs_screen.dart"
 Cohesion: 0.10
@@ -1136,7 +1138,7 @@ Nodes (18): net8.0, net8.0, Microsoft.NET.Sdk, BCrypt.Net-Next (4.0.3), coverlet
 
 ### Community 126 - "order_state.dart"
 Cohesion: 0.10
-Nodes (26): ../../domain/entities/site.dart, OrderBloc, customerCode, date, LoadFiltersRequested, LoadSalesOrderItemsRequested, OrderEvent, props (+18 more)
+Nodes (26): ../../domain/entities/customer.dart, OrderBloc, customerCode, date, LoadFiltersRequested, LoadSalesOrderItemsRequested, OrderEvent, props (+18 more)
 
 ### Community 127 - "app_routes.dart"
 Cohesion: 0.17
@@ -1144,11 +1146,11 @@ Nodes (11): amountOnlyCreditNote, AppRoutes, customerSelection, home, login, ord
 
 ### Community 129 - "sales_repository.dart"
 Cohesion: 0.05
-Nodes (40): ../../domain/services/credit_note_service.dart, createAmountOnlyCreditNote, createStandaloneCreditNote, _creditNoteService, getCustomers, getDistinctWarehouses, getLotsForProduct, getProducts (+32 more)
+Nodes (39): ../../domain/services/credit_note_service.dart, createAmountOnlyCreditNote, createStandaloneCreditNote, _creditNoteService, getCustomers, getDistinctWarehouses, getLotsForProduct, getProducts (+31 more)
 
 ### Community 130 - "sales_invoice_state.dart"
 Cohesion: 0.05
-Nodes (93): AuthBloc, _onAddCartItem, _onClearCart, _onConvertToCreditNote, _onInitializeTransaction, _onPrepareReversalCreditNote, _onRemoveCartItem, _onRestoreOriginalInvoice (+85 more)
+Nodes (89): _onAddCartItem, _onClearCart, _onConvertToCreditNote, _onInitializeTransaction, _onPrepareReversalCreditNote, _onRemoveCartItem, _onRemoveLinkedFocItem, _onRestoreOriginalInvoice (+81 more)
 
 ### Community 131 - "barcode_scanner_widget.dart"
 Cohesion: 0.11
@@ -1156,11 +1158,11 @@ Nodes (19): AppBarcodeScanner, _AppBarcodeScannerState, autoStart, build, create
 
 ### Community 132 - "ISalesInvoiceRepository"
 Cohesion: 0.07
-Nodes (22): DateTime, OpenInvoiceDto, SalesInvoiceCustomerDto, BankDto, CreditNoteReasonDto, CustomerLiveCreditDto, FacilityDto, IEnumerable (+14 more)
+Nodes (19): BankDto, CreditNoteReasonDto, CustomerLiveCreditDto, FacilityDto, IEnumerable, OpenInvoiceDto, PriceListDto, ProductLiveStockDto (+11 more)
 
 ### Community 133 - "standard_filter.dart"
-Cohesion: 0.10
-Nodes (19): build, controller, FilterPickerTile, FilterSearchInput, FilterSegmentedToggle, FilterStateScope, FilterStatusToggle, hint (+11 more)
+Cohesion: 0.06
+Nodes (33): build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart, map (+25 more)
 
 ### Community 134 - "sales_invoice_item_stock_model.dart"
 Cohesion: 0.10
@@ -1168,7 +1170,7 @@ Nodes (20): barcode, cce0, copyWith, fromJson, fromSqlMap, isSynced, itemCode, i
 
 ### Community 136 - "memory_write"
 Cohesion: 0.06
-Nodes (31): barcode_scanner/scan_item_card.dart, build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, CreditNoteModel (+23 more)
+Nodes (31): package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_rep_selection_dialog.dart, _buildFilterChip, createState, _currentOffset, _customers, CustomerSelectionScreen, _CustomerSelectionScreenState, _debounceTimer (+23 more)
 
 ### Community 137 - "sales_order_dto.dart"
 Cohesion: 0.10
@@ -1180,43 +1182,43 @@ Nodes (19): appVersion, AuditMetadata, createdAt, createdByUserId, createdByUser
 
 ### Community 139 - "ILogisticsRepository"
 Cohesion: 0.08
-Nodes (26): call, repository, execute, repository, execute, GetSalesOrderDetailsUseCase, repository, execute (+18 more)
+Nodes (27): call, repository, execute, repository, execute, GetSalesOrderDetailsUseCase, repository, execute (+19 more)
 
 ### Community 140 - "production_tracking_so_breakdown_screen.dart"
-Cohesion: 0.06
-Nodes (36): build, _buildPoolBadge, _buildSoCard, createState, _currentItems, description, initState, itemCode (+28 more)
+Cohesion: 0.04
+Nodes (47): ../../domain/entities/sales_order_detail.dart, build, _buildPoolBadge, _buildSoCard, createState, _currentItems, description, initState (+39 more)
 
 ### Community 141 - "SnapshotService"
 Cohesion: 0.11
-Nodes (17): _baseUrl, createRole, createUser, deleteRole, _dio, getGroups, getRoles, getSites (+9 more)
+Nodes (18): _baseUrl, createRole, createUser, deleteRole, _dio, getGroups, getRoles, getSites (+10 more)
 
 ### Community 142 - "manufacturing_screen.dart"
-Cohesion: 0.13
-Nodes (15): ../../bloc/manufacturing_bloc.dart, ../../bloc/manufacturing_state.dart, ./end_of_day_screen.dart, build, _buildMenuCard, createState, _hasAccess, icon (+7 more)
+Cohesion: 0.08
+Nodes (28): ../../bloc/manufacturing_bloc.dart, ../../bloc/manufacturing_state.dart, ./end_of_day_screen.dart, build, _buildMenuCard, createState, _hasAccess, icon (+20 more)
 
 ### Community 143 - "code_search"
-Cohesion: 0.13
-Nodes (13): dart:convert, dart:io, sendRawData, TcpPrintService, package:path/path.dart, close, databaseFactory, db (+5 more)
+Cohesion: 0.09
+Nodes (22): package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_printing_handler.dart, package:enterprise_auth_mobile/features/logistics/presentation/widgets/label_qr_generator.dart, AggregationMode, build, _buildActionBar, _buildEmptyState, _buildItemTile, _buildModeButton (+14 more)
 
 ### Community 144 - "memory_search"
-Cohesion: 0.14
-Nodes (14): build, _buildLoginForm, _buildLogo, _buildTextFormField, createState, dispose, _formKey, LoginScreen (+6 more)
+Cohesion: 0.09
+Nodes (24): AuthBloc, _buildDrawer, build, _buildLoginForm, _buildLogo, _buildTextFormField, createState, dispose (+16 more)
 
 ### Community 145 - "sales_invoice_product_repository.dart"
 Cohesion: 0.06
-Nodes (36): ../../../../../core/network_service.dart, Dio get, _loadTheme, setTheme, _themeKey, toggleTheme, _applyUnsyncedLedgerToStock, _dio (+28 more)
+Nodes (35): _loadTheme, setTheme, _themeKey, toggleTheme, Dio get, _applyUnsyncedLedgerToStock, _dio, fetchLiveCustomerCredit (+27 more)
 
 ### Community 146 - ".GetLatestDeviceSyncs"
-Cohesion: 0.09
-Nodes (21): ActionResult, DeviceSyncLogDto, HttpGet, HttpPost, IEnumerable, ISyncRepository, SyncPackageDto, SyncPushRequestDto (+13 more)
+Cohesion: 0.08
+Nodes (23): ActionResult, DeviceSyncLogDto, HttpGet, HttpPost, IEnumerable, ISyncRepository, SyncPackageDto, SyncPushRequestDto (+15 more)
 
 ### Community 147 - "CogniLayer/CogniLayer/mcp-server/agent_orchestration.py"
-Cohesion: 0.08
-Nodes (22): DateTime, Func, SnapshotFileResult, T, Task, ISnapshotService, SnapshotFileResult, ConcurrentDictionary (+14 more)
+Cohesion: 0.10
+Nodes (16): DateTime, ISnapshotService, SnapshotFileResult, ConcurrentDictionary, Func, ILogger, SnapshotFileResult, string (+8 more)
 
 ### Community 148 - "session_bridge"
-Cohesion: 0.13
-Nodes (15): package:flutter/services.dart, _addManualOneKg, build, createState, dispose, initialScans, initState, _isProcessingScan (+7 more)
+Cohesion: 0.15
+Nodes (15): ../bloc/sales_invoice_sync_bloc.dart, ../bloc/sales_invoice_sync_event.dart, ../bloc/sales_invoice_sync_state.dart, ../../../../core/utils/currency_formatter.dart, _buildHeaderIcon, _copied, createState, SalesInvoiceSyncOverlay (+7 more)
 
 ### Community 150 - "app_settings.dart"
 Cohesion: 0.12
@@ -1227,16 +1229,16 @@ Cohesion: 0.10
 Nodes (20): build, child, createState, _debounceTimer, didUpdateWidget, dispose, _handleStateChanged, hasActiveFilters (+12 more)
 
 ### Community 152 - "production_tracking_scanner.dart"
-Cohesion: 0.12
-Nodes (16): HardwareScannerMixin, build, createState, details, _handleHardwareScan, _isProcessing, _lastScanTime, onHardwareScan (+8 more)
+Cohesion: 0.11
+Nodes (18): basePrice, _CandidateRuleEval, _dbHelper, discountAmt, discountPct, matchKey1, matchKey2, pli (+10 more)
 
 ### Community 154 - "login_screen.dart"
 Cohesion: 0.04
 Nodes (49): _addProduct, build, _buildBottomBar, _buildDatePicker, _buildDatePickerIcon, _buildDefaultsBanner, _buildDropdownTile, _buildExistingSOPicker (+41 more)
 
 ### Community 155 - "CogniLayer/CogniLayer/mcp-server/utils.py"
-Cohesion: 0.11
-Nodes (19): build, child, createState, _debounceTimer, didUpdateWidget, dispose, _handleStateChanged, hasActiveFilters (+11 more)
+Cohesion: 0.06
+Nodes (32): ../../data/models/open_invoice_model.dart, build, invoice, isSelectable, isSelected, maxAllowedAllocation, onAmountChanged, onToggleSelect (+24 more)
 
 ### Community 156 - "CogniLayer/CogniLayer/tui/app.py"
 Cohesion: 0.11
@@ -1244,15 +1246,15 @@ Nodes (19): AppBarcodeScanner, _AppBarcodeScannerState, autoStart, build, create
 
 ### Community 157 - "CogniLayerTUI"
 Cohesion: 0.04
-Nodes (48): package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_event.dart, package:uuid/uuid.dart, _actionButton, _amber, build, _buildProductCard, _buildProductList, _buildScanRow (+40 more)
+Nodes (47): DateTime? get, package:uuid/uuid.dart, _actionButton, _amber, build, _buildProductCard, _buildProductList, _buildScanRow (+39 more)
 
 ### Community 158 - "CogniLayer/mcp-server/embedder.py"
 Cohesion: 0.04
 Nodes (44): package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart, _addPayment, amount, _amountController, _availableBanks, _availableReasons, bankCode, _bankCodeController (+36 more)
 
 ### Community 160 - "code_index"
-Cohesion: 0.13
-Nodes (14): deleteAll, getSchema, getSiteCode, getToken, getUsername, saveSchema, saveSiteCode, saveToken (+6 more)
+Cohesion: 0.07
+Nodes (28): deleteAll, getSchema, getSiteCode, getToken, getUsername, saveSchema, saveSiteCode, saveToken (+20 more)
 
 ### Community 161 - "CogniLayer/mcp-server/utils.py"
 Cohesion: 0.13
@@ -1267,20 +1269,20 @@ Cohesion: 0.13
 Nodes (15): ASPNETCORE_ENVIRONMENT, applicationUrl, commandName, dotnetRunMessages, environmentVariables, launchBrowser, applicationUrl, commandName (+7 more)
 
 ### Community 166 - "agent_context_brief"
-Cohesion: 0.11
-Nodes (17): ../../domain/entities/sales_order.dart, build, _buildInfoRow, isDeliveryMode, onRefresh, order, permissions, SalesOrderCard (+9 more)
+Cohesion: 0.09
+Nodes (21): DateTime, Guid, ICollection, SalesOrder, ../../domain/entities/sales_order.dart, build, _buildInfoRow, isDeliveryMode (+13 more)
 
 ### Community 167 - "StatsCard"
 Cohesion: 0.04
 Nodes (44): 1. Install (30 seconds), 2. Optional: Turbocharge search, 3. Optional: Add Codex CLI support, 4. Verify, Architecture (for the curious), Clusters - related facts organized into groups, Code Intelligence, Code Intelligence: "What happens if I change processOrder?" (+36 more)
 
 ### Community 168 - "CogniLayer/hooks/on_session_end.py"
-Cohesion: 0.14
-Nodes (14): build, createState, details, _handleHardwareScan, _isProcessing, _lastScanTime, onHardwareScan, order (+6 more)
+Cohesion: 0.08
+Nodes (26): build, createState, details, _handleHardwareScan, _isProcessing, _lastScanTime, onHardwareScan, order (+18 more)
 
 ### Community 169 - "open_test_db"
-Cohesion: 0.15
-Nodes (13): IconData?, package:enterprise_auth_mobile/features/logistics/presentation/pages/view_sales_order_screen.dart, build, _buildMenuCard, createState, _hasAccess, icon, ManufacturingScreen (+5 more)
+Cohesion: 0.19
+Nodes (4): CutBulkEntryDto, List, ProductionScanDto, Task
 
 ### Community 170 - "CogniLayer/tests/test_subagent.py"
 Cohesion: 0.11
@@ -1295,8 +1297,8 @@ Cohesion: 0.12
 Nodes (16): dispose, _initScanner, initState, onHardwareScan, _scannerService, _scannerSubscription, HardwareScannerService, dispose (+8 more)
 
 ### Community 173 - "secure_storage_service.dart"
-Cohesion: 0.13
-Nodes (14): deleteAll, getSchema, getSiteCode, getToken, getUsername, saveSchema, saveSiteCode, saveToken (+6 more)
+Cohesion: 0.11
+Nodes (16): LocalDatabaseHelper, _dbHelper, getUnsyncedScans, markScansAsSynced, saveScan, _dbHelper, ensureHardcodedSalesOrderSeeded, _getDb (+8 more)
 
 ### Community 174 - "manufacturing_event.dart"
 Cohesion: 0.05
@@ -1307,20 +1309,20 @@ Cohesion: 0.08
 Nodes (23): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+15 more)
 
 ### Community 178 - "TestUtilsSessionScan"
-Cohesion: 0.17
-Nodes (12): package:enterprise_auth_mobile/core/widgets/standard_filter.dart, build, createState, _dateController, dispose, initState, ReceiptScreen, _ReceiptScreenState (+4 more)
+Cohesion: 0.11
+Nodes (17): basePrice, _CandidateRuleEval, _dbHelper, discountAmt, discountPct, matchKey1, matchKey2, pli (+9 more)
 
 ### Community 179 - "i_sales_repository.dart"
-Cohesion: 0.08
-Nodes (36): SecureStorageService, AuthRepository, LogoutRequested, _buildDrawer, _HomeScreenState, LocalRepository, SalesInvoiceProductRepository, SalesInvoiceSyncRepository (+28 more)
+Cohesion: 0.12
+Nodes (15): createAmountOnlyCreditNote, createStandaloneCreditNote, getCustomers, getDistinctWarehouses, getLotsForProduct, getProducts, getSalesOrderDetails, getSalesOrders (+7 more)
 
 ### Community 181 - "api_config.dart"
 Cohesion: 0.12
-Nodes (16): customerCode, date, LoadFiltersRequested, LoadSalesOrderItemsRequested, OrderEvent, props, salesRepCode, site (+8 more)
+Nodes (14): email, id, permissions, props, siteCode, username, User, email (+6 more)
 
 ### Community 182 - "CogniLayer/CogniLayer/mcp-server/indexer/chunker.py"
-Cohesion: 0.12
-Nodes (13): DateTime, Guid, ProductionLineState, DateTime, Guid, ProductionScanTransaction, DateTime, Guid (+5 more)
+Cohesion: 0.17
+Nodes (9): DateTime, Guid, ProductionLineState, DateTime, Guid, ProductionScanTransaction, DateTime, Guid (+1 more)
 
 ### Community 183 - "CodeGraphScreen"
 Cohesion: 0.22
@@ -1331,40 +1333,40 @@ Cohesion: 0.19
 Nodes (7): Guid, IEnumerable, Role, Task, IRoleRepository, EnterpriseAuth.Api.Core.Domain.Interfaces, IRoleRepository
 
 ### Community 185 - "CogniLayer/mcp-server/agent_orchestration.py"
-Cohesion: 0.12
-Nodes (14): main, package:enterprise_auth_mobile/core/config/api_config.dart, package:enterprise_auth_mobile/core/config/auth_config.dart, main, build, child, createState, dispose (+6 more)
+Cohesion: 0.18
+Nodes (10): build, child, createState, dispose, _handleInteraction, InactivityWatcher, initState, _lastInteractionDispatched (+2 more)
 
 ### Community 186 - "CogniLayer/mcp-server/indexer/chunker.py"
-Cohesion: 0.11
-Nodes (17): auth_config.dart, ApiConfig, localPort, serverIp, serverPort, sessionTimeout, ApiConfig, localPort (+9 more)
+Cohesion: 0.08
+Nodes (22): auth_config.dart, ApiConfig, localPort, serverIp, serverPort, sessionTimeout, AuthConfig, jwtExpiryWarningThreshold (+14 more)
 
 ### Community 187 - "consolidate"
-Cohesion: 0.17
-Nodes (12): build, createState, _dateController, dispose, initState, ReceiptScreen, _ReceiptScreenState, _searchController (+4 more)
+Cohesion: 0.12
+Nodes (16): async, cancelInvoice, _dbHelper, getCustomersWithTransactions, getEodReportData, getProductsSoldToCustomer, getReversedLineIds, getTransactionLines (+8 more)
 
 ### Community 188 - "FactsScreen"
-Cohesion: 0.17
-Nodes (11): code, creditLimit, facilityFlag, fromJson, isSynced, name, paymentTerm, SalesInvoiceCustomer (+3 more)
+Cohesion: 0.09
+Nodes (22): double?, code, creditLimit, facilityFlag, fromJson, isSynced, name, paymentTerm (+14 more)
 
 ### Community 189 - "sync_manager.dart"
-Cohesion: 0.15
-Nodes (12): _deliveryRepository, _isSyncing, _localRepository, _random, _scheduleNextSync, startPeriodicSync, stopPeriodicSync, SyncManager (+4 more)
+Cohesion: 0.13
+Nodes (13): LocalDatabaseHelper, _dbHelper, getUnsyncedScans, LocalRepository, markScansAsSynced, saveScan, code, _dbHelper (+5 more)
 
 ### Community 190 - "open_invoice_model.dart"
 Cohesion: 0.11
 Nodes (18): allocatedAmount, company, copyWith, customerName, customerNo, docType, documentNo, dueDate (+10 more)
 
 ### Community 191 - "sales_rep_model.dart"
-Cohesion: 0.13
-Nodes (14): allReports, build, _cleanSoapMessage, _copyAllDiagnostics, failedReports, failureCount, onDismiss, onRetry (+6 more)
+Cohesion: 0.05
+Nodes (40): barcode_scanner/scan_item_card.dart, build, _buildStatusBadge, lineNumber, onDelete, scan, ScanItemCard, widgets/scan_item_card.dart (+32 more)
 
 ### Community 192 - "models/site.dart"
 Cohesion: 0.07
 Nodes (24): Company, fromJson, id, mockCompanies, name, models/site.dart, companyId, fromJson (+16 more)
 
 ### Community 193 - "printer_settings_screen.dart"
-Cohesion: 0.04
-Nodes (47): _addPrinterButton, build, createState, _isLoading, permissions, _printerList, PrinterSettingsScreen, _PrinterSettingsScreenState (+39 more)
+Cohesion: 0.06
+Nodes (34): _addBluetoothPrinterButton, _addIpPrinterButton, _addPrinterButton, _bluetoothPrinterList, _BluetoothPrinterPickerDialog, _BluetoothPrinterPickerDialogState, build, _buildBluetoothTab (+26 more)
 
 ### Community 194 - "audio_service.dart"
 Cohesion: 0.10
@@ -1387,8 +1389,8 @@ Cohesion: 0.17
 Nodes (11): copyWith, fromJson, id, ipAddress, mode, name, port, PrinterDevice (+3 more)
 
 ### Community 201 - "sales_invoice_customer.dart"
-Cohesion: 0.17
-Nodes (11): double?, code, creditLimit, facilityFlag, fromJson, isSynced, name, paymentTerm (+3 more)
+Cohesion: 0.14
+Nodes (13): BarcodeModel, BarcodeProcessor, cleanBarcode, formatQuantity, invalid, isValid, isValidBarcode, itemCode (+5 more)
 
 ### Community 202 - "printer_device.dart"
 Cohesion: 0.15
@@ -1407,28 +1409,28 @@ Cohesion: 0.09
 Nodes (22): 1.1 The Problem with the Legacy Flow, 1.2 The Customer-Centric Architecture, 1. Executive Summary & Paradigm Shift, 2.1 Safeguard 1: Cart Invariant Guard (No Cross-Customer Cart Bleed), 2.2 Safeguard 2: Real-Time Dynamic Ledger Balance, 2.3 Safeguard 3: Customer `HOLD` Status (`BPCSTA = 3`) Policy, 2.4 Safeguard 4: Route Dispatch Bar in `CustomerSelectionScreen`, 2.5 Safeguard 5: Open Invoices Unified Horizon (Sage X3 + Local Unsynced Dues) (+14 more)
 
 ### Community 206 - "Community 206"
-Cohesion: 0.10
-Nodes (19): List, EndOfDayResult, X3ImportResult, ConcurrentDictionary, IHttpContextAccessor, IServiceScopeFactory, string, SageX3SoapService (+11 more)
+Cohesion: 0.15
+Nodes (13): _addPrinterButton, build, createState, _isLoading, permissions, _printerList, PrinterSettingsScreen, _PrinterSettingsScreenState (+5 more)
 
 ### Community 207 - "4. Technical Implementation Plan"
 Cohesion: 0.11
 Nodes (18): 1. Executive Summary & Core Mandate, 2. Rigorous Architectural Challenge: 5 Core Failure Points, 3. The Target Operational Model, 4. Technical Implementation Plan, 5. Verification & Acceptance Criteria, 6. Implementation Status (Completed), Architecture Challenge & Plan: 100% Offline Operational Mode with Isolated Sync, Failure Point 1: Online-Coupled Session Lifecycle (Flawed Identity Model) (+10 more)
 
 ### Community 208 - "Community 208"
-Cohesion: 0.03
-Nodes (64): db, main, repository, TransactionHistoryRepository, _alreadyReversedQty, build, _confirmReversal, createState (+56 more)
+Cohesion: 0.04
+Nodes (43): _deliveryRepository, _isSyncing, _localRepository, _random, _scheduleNextSync, startPeriodicSync, stopPeriodicSync, SyncManager (+35 more)
 
 ### Community 209 - "CogniLayer/CogniLayer/tests/test_db.py"
-Cohesion: 0.06
-Nodes (31): FakeAuthRepository, forgotPassword, IAuthRepository, isOfflineSessionValid, login, logout, refreshToken, register (+23 more)
+Cohesion: 0.03
+Nodes (82): auth_event.dart, FakeAuthRepository, _attemptOfflineLogin, _dio, forgotPassword, _handleDioError, isOfflineSessionValid, _isRefreshing (+74 more)
 
 ### Community 210 - "Community 210"
-Cohesion: 0.20
-Nodes (10): widgets/scan_item_card.dart, build, _buildStatusBadge, canDelete, lineNumber, onDelete, scan, ScanItemCard (+2 more)
+Cohesion: 0.23
+Nodes (12): Authenticated, AuthFailure, AuthInitial, AuthLoading, AuthState, AuthSuccess, message, permissions (+4 more)
 
 ### Community 211 - "Community 211"
 Cohesion: 0.17
-Nodes (11): build, createState, _filter, _filteredItems, initState, items, _searchController, SearchPickerSheet (+3 more)
+Nodes (4): DateTime, ExcessDto, ProductionTrackingDto, SalesOrderHeaderDto
 
 ### Community 212 - "CogniLayer/tests/test_memory_write.py"
 Cohesion: 0.17
@@ -1436,7 +1438,7 @@ Nodes (11): _buildDivider, _buildFooter, _buildHeader, _buildLineItems, _buildMe
 
 ### Community 213 - "Community 213"
 Cohesion: 0.09
-Nodes (18): EndOfDayResult, List, Staging, StagingCreditNoteHeader, StagingSalesInvoiceHeader, StagingSalesInvoicePayment, Task, X3ImportResult (+10 more)
+Nodes (19): EndOfDayResult, List, Staging, StagingCreditNoteHeader, StagingSalesInvoiceHeader, StagingSalesInvoicePayment, Task, X3ImportResult (+11 more)
 
 ### Community 215 - "MainActivity.kt"
 Cohesion: 0.21
@@ -1447,32 +1449,32 @@ Cohesion: 0.09
 Nodes (21): ../../domain/entities/location_lookup.dart, fromJson, location, LocationLookupDto, locationType, locationTypeName, site, toEntity (+13 more)
 
 ### Community 217 - "Community 217"
-Cohesion: 0.22
-Nodes (8): build, _buildStatusBadge, canDelete, lineNumber, onDelete, scan, ScanItemCard, unit
+Cohesion: 0.17
+Nodes (11): _dbHelper, ensureHardcodedSalesOrderSeeded, _getDb, getSalesOrderDetails, getSalesOrders, hardcodedCustomerCode, hardcodedCustomerName, hardcodedOrderNumber (+3 more)
 
 ### Community 218 - "wWinMain"
-Cohesion: 0.29
-Nodes (7): Microsoft.IdentityModel.Protocols.OpenIdConnect, assemblyVersion, fileVersion, dependencies, runtime, Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0, lib/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+Cohesion: 0.17
+Nodes (12): Azure.Identity, Microsoft.Data.SqlClient.SNI.runtime, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.SqlServer.Server, System.Runtime.Caching, assemblyVersion, fileVersion, dependencies (+4 more)
 
 ### Community 219 - "Codex Safe Multi-Agent Orchestration PRD"
 Cohesion: 0.11
 Nodes (18): CogniLayer/CogniLayer/docs/codex-safe-multi-agent-prd.md, 12. Feature Flag and Config, 15.1 Heartbeat and expiry semantics, 15. Scope and Claim Model, 17. Code graph freshness, 18. Why not launch multiple Codex CLI processes, 19. Backward Compatibility, 1. Problem (+10 more)
 
 ### Community 220 - "resolve_references"
-Cohesion: 0.22
-Nodes (8): completed, error, initial, isCompleted, progress, status, SyncProgress, DeliveryRepository
+Cohesion: 0.25
+Nodes (7): completed, error, initial, isCompleted, progress, status, SyncProgress
 
 ### Community 221 - "Community 221"
-Cohesion: 0.07
-Nodes (32): CartItem, SalesOrder, Equatable, canCreate, canDelete, canRead, canUpdate, copyWith (+24 more)
+Cohesion: 0.05
+Nodes (49): SalesOrder, Equatable, canCreate, canDelete, canRead, canUpdate, copyWith, description (+41 more)
 
 ### Community 222 - "CogniLayer/CogniLayer/tests/test_code_tools.py"
-Cohesion: 0.09
-Nodes (36): ManufacturingBloc, DashboardSearchChanged, date, isPrepared, itemCode, LoadProductionTrackingRequested, ManufacturingEvent, ManufacturingSchemaChanged (+28 more)
+Cohesion: 0.06
+Nodes (50): ManufacturingBloc, DashboardSearchChanged, date, isPrepared, itemCode, LoadProductionTrackingRequested, ManufacturingEvent, ManufacturingSchemaChanged (+42 more)
 
 ### Community 223 - "Community 223"
 Cohesion: 0.17
-Nodes (11): ../../../features/logistics/data/local/local_database_helper.dart, barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode, ScanResult (+3 more)
+Nodes (11): barcode_processor.dart, barcode, description, itemCode, lotNumber, OfflineBarcodeProcessor, processBarcode, ScanResult (+3 more)
 
 ### Community 224 - "TestSessionInit"
 Cohesion: 0.17
@@ -1515,16 +1517,16 @@ Cohesion: 0.05
 Nodes (41): build, _buildActiveOtpHeroCard, _buildDurationChip, _buildHistoryItem, _buildNoActiveOtpPlaceholder, _clearExpired, code, _copyToClipboard (+33 more)
 
 ### Community 234 - "CogniLayer/tui/widgets/heat_cell.py"
-Cohesion: 0.06
-Nodes (37): ArgumentError, main, CreditNoteService, db, main, Database, db, main (+29 more)
+Cohesion: 0.03
+Nodes (91): ArgumentError, main, CreditNoteService, db, main, db, main, repository (+83 more)
 
 ### Community 235 - "sales_invoice_product_model.dart"
 Cohesion: 0.18
 Nodes (10): barcode, cce0, fromJson, name, SalesInvoiceProductModel, salesUnit, sku, stockQty (+2 more)
 
 ### Community 236 - "location_lookup.dart"
-Cohesion: 0.29
-Nodes (3): Fact, UnitTest1, UnitTest1
+Cohesion: 0.12
+Nodes (8): Fact, ProductMappingTests, Fact, UnitTest1, EnterpriseAuth.UnitTests, EnterpriseAuth.UnitTests, ProductMappingTests, UnitTest1
 
 ### Community 238 - "get_parser"
 Cohesion: 0.18
@@ -1535,16 +1537,16 @@ Cohesion: 0.40
 Nodes (5): runtime, assemblyVersion, fileVersion, AutoMapper/12.0.1, lib/netstandard2.1/AutoMapper.dll
 
 ### Community 240 - "Community 240"
-Cohesion: 0.12
-Nodes (16): close, _onStartSyncRequested, _onStartX3SoapExportRequested, _onSyncProgressUpdated, _progressSubscription, _synchronizeLogisticsUseCase, ../../domain/usecases/synchronize_logistics_use_case.dart, close (+8 more)
+Cohesion: 0.13
+Nodes (15): close, _onStartSyncRequested, _onStartX3SoapExportRequested, _onSyncProgressUpdated, _progressSubscription, _synchronizeLogisticsUseCase, ../../domain/usecases/synchronize_logistics_use_case.dart, close (+7 more)
 
 ### Community 241 - "CogniLayer/tests/test_server.py"
-Cohesion: 0.40
-Nodes (5): runtime, assemblyVersion, fileVersion, Dapper/2.1.66, lib/net8.0/Dapper.dll
+Cohesion: 0.22
+Nodes (8): roles, userGroups, UserManagementRepositoryMock, ../models/user_management.dart, roles, userGroups, UserManagementRepositoryMock, static final List
 
 ### Community 242 - "Community 242"
-Cohesion: 0.25
-Nodes (4): Task, IStagingService, EnterpriseAuth.Api.Core.Application.Interfaces, IStagingService
+Cohesion: 0.20
+Nodes (9): displayName, fullInfo, location, LocationLookup, locationType, locationTypeName, site, warehouse (+1 more)
 
 ### Community 243 - "Codex Safe Multi-Agent Orchestration PRD"
 Cohesion: 0.11
@@ -1563,8 +1565,8 @@ Cohesion: 0.12
 Nodes (15): 1.1 The Root Cause (The "Deadlock Modal"), 1. Executive Summary & Problem Analysis, 2. Challenging the Workflow (Critical Flaw & Edge Case Analysis), 3. Step-by-Step Architecture & Implementation Plan, 4. Verification & Testing Protocol, Challenge 1: What signals that the app is in "Initial Startup / Zero Data" mode?, Challenge 2: Modal Collisions & UI Layering (Z-Index / Stack Clashes), Challenge 3: What if Initial Sync Completes, but 0 Reps were Returned from ERP? (+7 more)
 
 ### Community 247 - "AddSiteCodeToUsersAndRoles"
-Cohesion: 0.33
-Nodes (5): AuthConfig, jwtExpiryWarningThreshold, offlineLoginWindow, sessionTimeout, tokenRefreshInterval
+Cohesion: 0.25
+Nodes (6): Func, SnapshotFileResult, T, Task, EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement, ISnapshotService
 
 ### Community 249 - "SalesInvoiceControllerTests"
 Cohesion: 0.23
@@ -1574,13 +1576,17 @@ Nodes (8): Fact, ScanProductionDbContext, Task, SalesInvoiceControllerTests, Ent
 Cohesion: 0.25
 Nodes (7): completed, error, initial, isCompleted, progress, status, SyncProgress
 
+### Community 252 - "Community 252"
+Cohesion: 0.33
+Nodes (5): AuthConfig, jwtExpiryWarningThreshold, offlineLoginWindow, sessionTimeout, tokenRefreshInterval
+
 ### Community 258 - "user_dto.dart"
 Cohesion: 0.22
 Nodes (8): email, fromJson, id, permissions, siteCode, token, UserDto, username
 
 ### Community 259 - "package:equatable/equatable.dart"
-Cohesion: 0.08
-Nodes (23): generateCrateLabel, generateEodLabel, generateItemLabel, generatePaletteLabel, ZplGenerator, build, invoice, isSelectable (+15 more)
+Cohesion: 0.15
+Nodes (11): generateCrateLabel, generateEodLabel, generateItemLabel, generatePaletteLabel, ZplGenerator, package:intl/intl.dart, generateCrateLabel, generateEodLabel (+3 more)
 
 ### Community 261 - "2. Flaw Analysis & Challenges to Initial Plan"
 Cohesion: 0.12
@@ -1592,7 +1598,7 @@ Nodes (6): HttpGet, IEnumerable, string, WeatherForecastController, WeatherForec
 
 ### Community 263 - "sales_order_card.dart"
 Cohesion: 0.06
-Nodes (34): package:enterprise_auth_mobile/core/utils/barcode_scanner/production_tracking_scanner.dart, build, _buildCompactInfo, _buildFooter, _buildHeaderInfo, _buildProductCard, _bulkUpdateStatus, _closeOrder (+26 more)
+Nodes (33): package:enterprise_auth_mobile/core/utils/barcode_scanner/offline_barcode_processor.dart, build, _buildCompactInfo, _buildFooter, _buildHeaderInfo, _buildProductCard, _bulkUpdateStatus, _closeOrder (+25 more)
 
 ### Community 275 - "2. Granular Task Breakdown"
 Cohesion: 0.13
@@ -1611,8 +1617,8 @@ Cohesion: 0.15
 Nodes (13): CogniLayer/CogniLayer/docs/claude-code-memory-integration-plan-2026-03-31.md, Claude Code Memory Integration Plan, Expected Outcomes, Goals, Non-Regressions, Phase 1: Shadow Foundation, Phase 2: Structured Session Continuity, Phase 3: Compact Retrieval (+5 more)
 
 ### Community 289 - "Community 289"
-Cohesion: 0.14
-Nodes (13): ../../data/models/open_invoice_model.dart, ValueChanged, build, invoice, isSelectable, isSelected, maxAllowedAllocation, onAmountChanged (+5 more)
+Cohesion: 0.40
+Nodes (5): runtime, assemblyVersion, fileVersion, BCrypt.Net-Next/4.0.3, lib/net6.0/BCrypt.Net-Next.dll
 
 ### Community 290 - "synchronize_logistics_use_case.dart"
 Cohesion: 0.20
@@ -1634,6 +1640,10 @@ Nodes (4): DateTime, Guid, AllocateExcessDto, ExcessDto
 Cohesion: 0.38
 Nodes (5): DateTime, List, X3HistoryDocumentDto, X3HistoryLineDto, X3HistoryRawRowDto
 
+### Community 295 - "Community 295"
+Cohesion: 0.40
+Nodes (5): assemblyVersion, fileVersion, Swashbuckle.AspNetCore.SwaggerUI/6.5.0, lib/net7.0/Swashbuckle.AspNetCore.SwaggerUI.dll, runtime
+
 ### Community 298 - "Community 298"
 Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.EntityFrameworkCore.Abstractions/8.0.0, lib/net8.0/Microsoft.EntityFrameworkCore.Abstractions.dll
@@ -1647,12 +1657,12 @@ Cohesion: 0.40
 Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.OpenApi/1.2.3, lib/netstandard2.0/Microsoft.OpenApi.dll
 
 ### Community 301 - "Community 301"
-Cohesion: 0.25
-Nodes (7): email, id, permissions, props, siteCode, username, User
-
-### Community 304 - "Community 304"
 Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, Npgsql/8.0.0, runtime, lib/net8.0/Npgsql.dll
+Nodes (5): assemblyVersion, fileVersion, System.Memory.Data/1.0.2, lib/netstandard2.0/System.Memory.Data.dll, runtime
+
+### Community 302 - "Community 302"
+Cohesion: 0.50
+Nodes (3): DateTime, OpenInvoiceDto, OpenInvoicePaymentSyncDto
 
 ### Community 305 - "lookup_dto.dart"
 Cohesion: 0.33
@@ -1675,16 +1685,12 @@ Cohesion: 0.05
 Nodes (36): AllowedHosts, ConnectionStrings, Innodis, Postgres, ScanProduction, SqlServer, DatabaseSource, EodSettings (+28 more)
 
 ### Community 313 - "Community 313"
-Cohesion: 0.16
-Nodes (9): HttpPost, List, OpenInvoicePaymentSyncDto, List, SalesInvoiceLineDto, SalesInvoicePaymentSyncDto, SalesInvoiceSyncDto, OpenInvoicePaymentSyncDto (+1 more)
+Cohesion: 0.60
+Nodes (4): List, SalesInvoiceLineDto, SalesInvoicePaymentSyncDto, SalesInvoiceSyncDto
 
 ### Community 314 - "Community 314"
 Cohesion: 0.60
 Nodes (4): Guid, List, UserCreateRequest, UserDto
-
-### Community 317 - "Community 317"
-Cohesion: 0.40
-Nodes (5): assemblyVersion, fileVersion, runtime, Microsoft.Bcl.AsyncInterfaces/6.0.0, lib/netstandard2.1/Microsoft.Bcl.AsyncInterfaces.dll
 
 ### Community 320 - "Community 320"
 Cohesion: 0.15
@@ -1692,15 +1698,15 @@ Nodes (11): Guid, ICollection, Permission, Guid, ICollection, Role, Guid, IColle
 
 ### Community 324 - "TestTypeScriptParser"
 Cohesion: 0.05
-Nodes (36): package:enterprise_auth_mobile/features/logistics/domain/entities/location_lookup.dart, allocateExcess, closeOrder, completeProductionEod, fetchSalesOrderHeaders, fetchSalesOrders, getCustomers, getExcessByDateAndItem (+28 more)
+Nodes (36): package:enterprise_auth_mobile/features/logistics/domain/entities/sync_progress.dart, allocateExcess, closeOrder, completeProductionEod, fetchSalesOrderHeaders, fetchSalesOrders, getCustomers, getExcessByDateAndItem (+28 more)
 
 ### Community 326 - "Program"
 Cohesion: 0.29
 Nodes (3): Task, Program, Program
 
 ### Community 328 - "TextEditingController"
-Cohesion: 0.06
-Nodes (36): ../bloc/sync_bloc.dart, ../bloc/sync_event.dart, ../bloc/sync_state.dart, class, Color, _buildPoolBadge, _buildProductCard, _buildStat (+28 more)
+Cohesion: 0.04
+Nodes (54): ../../../auth/presentation/bloc/auth_bloc.dart, ../bloc/sync_bloc.dart, ../bloc/sync_event.dart, ../bloc/sync_state.dart, Color, build, child, createState (+46 more)
 
 ### Community 329 - "WeatherForecast.cs"
 Cohesion: 0.50
@@ -1739,8 +1745,8 @@ Cohesion: 0.06
 Nodes (33): NumberFormat, _buildEodCancelledTable, _buildEodCashInvoicesTable, _buildEodCountRow, _buildEodCreditInvoicesTable, _buildEodHeader, _buildEodInfoRow, _buildEodOpenCollectionsTable (+25 more)
 
 ### Community 357 - "sync_bloc.dart"
-Cohesion: 0.13
-Nodes (28): SyncBloc, message, progress, props, ResetSyncRequested, siteCode, StartSyncRequested, StartX3SoapExportRequested (+20 more)
+Cohesion: 0.12
+Nodes (29): SyncBloc, message, progress, props, ResetSyncRequested, siteCode, StartSyncRequested, StartX3SoapExportRequested (+21 more)
 
 ### Community 358 - "Frontend Guidelines (Dart / Flutter)"
 Cohesion: 0.22
@@ -1867,8 +1873,8 @@ Cohesion: 0.07
 Nodes (29): active, bases:Create new base, canvas:Create new canvas, command-palette:Open command palette, daily-notes:Open today's daily note, graph:Open graph view, switcher:Open quick switcher, templates:Insert template (+21 more)
 
 ### Community 445 - "CogniLayer/CogniLayer/mcp-server/tools/agent_review_run_start.py"
-Cohesion: 0.14
-Nodes (19): OrderBloc, copyWith, customers, items, message, OrderFailure, OrderInitial, OrderLoadInProgress (+11 more)
+Cohesion: 0.10
+Nodes (27): OrderBloc, customerCode, date, LoadFiltersRequested, LoadSalesOrderItemsRequested, OrderEvent, props, salesRepCode (+19 more)
 
 ### Community 446 - "CogniLayer/CogniLayer/mcp-server/tools/agent_run_list.py"
 Cohesion: 0.07
@@ -1896,7 +1902,7 @@ Nodes (27): barcodeType, customerCode, customerName, deliveryDate, description, 
 
 ### Community 459 - "CogniLayer/CogniLayer/mcp-server/tools/agent_run_digest.py"
 Cohesion: 0.07
-Nodes (28): package:enterprise_auth_mobile/features/settings/data/models/app_settings.dart, build, _buildLabel, _buildModuleCard, _buildSearchPicker, _buildTextField, createState, _customersList (+20 more)
+Nodes (27): build, _buildLabel, _buildModuleCard, _buildSearchPicker, _buildTextField, createState, _customersList, _filter (+19 more)
 
 ### Community 460 - "CogniLayer/CogniLayer/mcp-server/tools/agent_run_finish.py"
 Cohesion: 0.08
@@ -1923,8 +1929,8 @@ Cohesion: 0.16
 Nodes (12): AuthResponse, ForgotPasswordRequest, IPasswordHasher, IRoleRepository, ITokenService, IUserRepository, LoginRequest, RegisterRequest (+4 more)
 
 ### Community 525 - "Community 525"
-Cohesion: 0.13
-Nodes (15): IX3SchemaProvider, Dictionary, IX3SchemaProvider, List, ScanProductionDbContext, string, SyncSettings, Task (+7 more)
+Cohesion: 0.15
+Nodes (14): Dictionary, IX3SchemaProvider, List, ScanProductionDbContext, string, SyncSettings, Task, StagingService (+6 more)
 
 ### Community 528 - "Community 528"
 Cohesion: 0.10
@@ -1959,8 +1965,8 @@ Cohesion: 0.11
 Nodes (17): 12. Feature Flag and Config, 15.1 Heartbeat and expiry semantics, 15. Scope and Claim Model, 17. Code graph freshness, 18. Why not launch multiple Codex CLI processes, 19. Backward Compatibility, 1. Problem, 20. Observability (+9 more)
 
 ### Community 539 - "Community 539"
-Cohesion: 0.09
-Nodes (21): _loadTheme, setTheme, _themeKey, toggleTheme, _currencyFormat, CurrencyFormatter, currencySymbol, format (+13 more)
+Cohesion: 0.12
+Nodes (16): _currencyFormat, CurrencyFormatter, currencySymbol, format, formatDiscount, formatNumber, _numberFormat, static final NumberFormat (+8 more)
 
 ### Community 540 - "Community 540"
 Cohesion: 0.11
@@ -1995,8 +2001,8 @@ Cohesion: 0.13
 Nodes (15): AutoMapper, BCrypt.Net-Next, Dapper, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL, Swashbuckle.AspNetCore (+7 more)
 
 ### Community 572 - "Community 572"
-Cohesion: 0.13
-Nodes (14): createAmountOnlyCreditNote, createStandaloneCreditNote, getCustomers, getDistinctWarehouses, getLotsForProduct, getProducts, getSalesOrderDetails, getSalesOrders (+6 more)
+Cohesion: 0.12
+Nodes (15): createAmountOnlyCreditNote, createStandaloneCreditNote, getCustomers, getDistinctWarehouses, getLotsForProduct, getProducts, getSalesOrderDetails, getSalesOrders (+7 more)
 
 ### Community 574 - "Community 574"
 Cohesion: 0.26
@@ -2031,8 +2037,8 @@ Cohesion: 0.17
 Nodes (11): EnterpriseAuth.Api.Core.Application.DTOs, EodProcessAuditDto, GlobalSettingUpdateDto, LabelAuditDto, OfflineAuditDto, OrderStatusUpdateDto, PreparationStatusUpdateDto, ShipmentPreparationUpdateDto (+3 more)
 
 ### Community 621 - "Community 621"
-Cohesion: 0.10
-Nodes (19): displayName, fullInfo, location, LocationLookup, locationType, locationTypeName, site, warehouse (+11 more)
+Cohesion: 0.18
+Nodes (10): displayName, fullInfo, location, LocationLookup, locationType, locationTypeName, site, warehouse (+2 more)
 
 ### Community 622 - "Community 622"
 Cohesion: 0.18
@@ -2077,10 +2083,6 @@ Nodes (7): graphify reference: extra exports and benchmark, Step 6b - Wiki (only
 ### Community 667 - "Community 667"
 Cohesion: 0.29
 Nodes (5): IConfiguration, User, ITokenService, EnterpriseAuth.Api.Infrastructure.Security, JwtTokenService
-
-### Community 668 - "Community 668"
-Cohesion: 0.29
-Nodes (4): Fact, ProductMappingTests, EnterpriseAuth.UnitTests, ProductMappingTests
 
 ### Community 669 - "Community 669"
 Cohesion: 0.29
@@ -2355,24 +2357,24 @@ Cohesion: 0.67
 Nodes (3): 16.1 Git project, 16.2 Non-Git project, 16. Worktree Strategy
 
 ## Knowledge Gaps
-- **7219 isolated node(s):** `file-explorer`, `global-search`, `switcher`, `graph`, `backlink` (+7214 more)
+- **7222 isolated node(s):** `file-explorer`, `global-search`, `switcher`, `graph`, `backlink` (+7217 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **214 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **221 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `EnterpriseAuth.Api.Core.Domain.Entities` connect `EnterpriseAuth.Api.Core.Application.DTOs` to `Community 320`, `DevicesController`, `ScanProductionDbContext`, `Community 206`, `Community 213`, `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py`?**
+- **Why does `EnterpriseAuth.Api.Core.Domain.Entities` connect `EnterpriseAuth.Api.Core.Application.DTOs` to `Community 320`, `agent_context_brief`, `DevicesController`, `ScanProductionDbContext`, `Community 213`, `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py`?**
   _High betweenness centrality (0.117) - this node is a cross-community bridge._
-- **Why does `ScanProductionDbContext` connect `ScanProductionDbContext` to `SalesInvoiceControllerTests`, `.CreateRepository`, `DevicesController`, `EfLogisticsRepository`, `Community 525`, `Community 206`, `SalesInvoiceController`, `EfSyncRepository`, `EnterpriseAuth.Api.Core.Application.DTOs`, `EfSalesInvoiceRepository`, `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py`, `Community 213`, `ApplicationDbContext`?**
-  _High betweenness centrality (0.051) - this node is a cross-community bridge._
-- **Why does `SalesOrder` connect `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py` to `ScanProductionDbContext`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `ScanProductionDbContext` connect `ScanProductionDbContext` to `SalesInvoiceControllerTests`, `agent_context_brief`, `.CreateRepository`, `DevicesController`, `SageX3SoapService`, `EfLogisticsRepository`, `Community 525`, `SalesInvoiceController`, `EfSyncRepository`, `EnterpriseAuth.Api.Core.Application.DTOs`, `EfSalesInvoiceRepository`, `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py`, `Community 213`, `ApplicationDbContext`?**
+  _High betweenness centrality (0.047) - this node is a cross-community bridge._
+- **Why does `SalesOrder` connect `agent_context_brief` to `ScanProductionDbContext`, `CogniLayer/CogniLayer/mcp-server/indexer/chunker.py`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
 - **What connects `file-explorer`, `global-search`, `switcher` to the rest of the system?**
-  _7219 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _7222 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `local_database_helper.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.006688963210702341 - nodes in this community are weakly interconnected._
 - **Should `devices_screen.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.02247191011235955 - nodes in this community are weakly interconnected._
 - **Should `production_tracking_screen.dart` be split into smaller, more focused modules?**
-  _Cohesion score 0.026330532212885154 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.025991792065663474 - nodes in this community are weakly interconnected._

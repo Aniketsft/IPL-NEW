@@ -656,6 +656,9 @@ class LocalDatabaseHelper {
         )
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS idx_docseq_lookup ON $tableDocumentSequences(docType, financialSite, lorryCode, deviceTag, yearMonth)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_keys ON $tablePriceLists(matchKey1, matchKey2)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_key2 ON $tablePriceLists(matchKey2)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_pricelist_pli ON $tablePriceLists(pliCode)');
     } catch (_) {}
 
     return _database!;

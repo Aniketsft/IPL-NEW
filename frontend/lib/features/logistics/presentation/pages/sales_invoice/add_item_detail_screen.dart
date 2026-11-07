@@ -83,6 +83,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   String _focItemSku = '';
 
   Timer? _debounce;
+  String? _cachedSiteCode;
+  final PricingEngineService _pricingEngine = PricingEngineService();
 
   double _originalInvoicedQty = 0.0;
 
@@ -148,14 +150,18 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     }
   }
 
-  Future<void> _resolvePrice() async {
+  Future<void> _resolvePrice({bool immediate = false, bool forceRefresh = false}) async {
     if (_isReturnMode) return;
 
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () => _resolvePriceNow());
+    if (immediate) {
+      _resolvePriceNow(forceRefresh: forceRefresh);
+    } else {
+      _debounce = Timer(const Duration(milliseconds: 200), () => _resolvePriceNow(forceRefresh: forceRefresh));
+    }
   }
 
-  Future<void> _resolvePriceNow() async {
+  Future<void> _resolvePriceNow({bool forceRefresh = false}) async {
     final state = context.read<SalesInvoiceBloc>().state;
     final customer = state is SalesInvoiceLoaded ? state.customer : null;
     if (customer == null) return;
@@ -175,9 +181,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
             : null);
 
     try {
-      final siteCode = await SecureStorageService().getSiteCode();
-      final pricingEngine = PricingEngineService();
-      final result = await pricingEngine.resolvePrice(
+      _cachedSiteCode ??= await SecureStorageService().getSiteCode();
+      final siteCode = _cachedSiteCode;
+      final result = await _pricingEngine.resolvePrice(
         customerCode: customerCode,
         bcgcod: bcgcod,
         tsccod: tsccod,
@@ -186,9 +192,11 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         sku: widget.product.sku,
         qty: _quantity.toDouble(),
         siteCode: siteCode,
+        forceRefresh: forceRefresh,
       );
 
       if (mounted) {
+        final bool focTransitioned = (!_hasFoc && result.hasFoc) || (_focQuantity != result.focQuantity && result.hasFoc);
         setState(() {
           _basePriceController.text = result.basePrice.toStringAsFixed(2);
           if (!_isManualDiscount) {
@@ -211,13 +219,14 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           _focItemSku = result.focItemSku;
         });
 
-        if (result.hasFoc && result.focQuantity > 0) {
+        if (focTransitioned && result.focQuantity > 0) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 'FOC applied: ${result.focQuantity} of ${result.focItemSku} will be added.',
               ),
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -353,6 +362,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     _discountController.dispose();
     _discountAmtController.dispose();
     _basePriceController.dispose();
+    PricingEngineService.clearCache();
     super.dispose();
   }
 
@@ -439,7 +449,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
       _syncDiscountAmtFromPercent();
     });
 
-    _resolvePrice();
+    _resolvePrice(immediate: true);
   }
 
   double get _discountAmount =>
@@ -818,7 +828,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                     _quantity = 1;
                                     _qtyController.text = '1';
                                   });
-                                  _resolvePrice();
+                                  _resolvePrice(immediate: true);
                                 },
                                 disabled: isFocLocked,
                                 isLeft: true,
