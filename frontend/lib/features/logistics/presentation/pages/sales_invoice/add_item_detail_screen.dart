@@ -1178,11 +1178,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                             if (widget.editingIndex != null) {
                               bloc.add(UpdateCartItem(widget.editingIndex!, item));
                               if (focItem == null) {
-                                final cartItems = state.cartItems;
-                                final linkedFocIndex = cartItems.indexWhere((i) => i.isFoc && i.mainItemSku == widget.product.sku);
-                                if (linkedFocIndex != -1) {
-                                  bloc.add(RemoveCartItem(linkedFocIndex));
-                                }
+                                bloc.add(RemoveLinkedFocItem(widget.product.sku));
                               }
                               if (_isReturnMode && state.transactionType == 'PREVIEW_INVOICE' && _quantity > 0) {
                                 bloc.add(ConvertToCreditNote());

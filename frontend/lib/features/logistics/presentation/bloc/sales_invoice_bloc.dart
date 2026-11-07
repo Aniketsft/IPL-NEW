@@ -14,6 +14,7 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     on<SetCustomer>(_onSetCustomer);
     on<AddCartItem>(_onAddCartItem);
     on<RemoveCartItem>(_onRemoveCartItem);
+    on<RemoveLinkedFocItem>(_onRemoveLinkedFocItem);
     on<UpdateCartItem>(_onUpdateCartItem);
     on<SetDeliveryDate>(_onSetDeliveryDate);
     on<ConvertToCreditNote>(_onConvertToCreditNote);
@@ -90,13 +91,27 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     if (currentState is SalesInvoiceLoaded) {
       if (event.index < 0 || event.index >= currentState.cartItems.length) return;
       final itemToRemove = currentState.cartItems[event.index];
-      final updatedCart = List<CartItem>.from(currentState.cartItems)..removeAt(event.index);
 
-      // If a non-FOC item is removed, cascade remove any linked FOC promotion lines
-      if (!itemToRemove.isFoc) {
-        updatedCart.removeWhere((item) => item.isFoc && item.mainItemSku == itemToRemove.product.sku);
+      // CRITICAL: Direct deletion of an FOC item is strictly forbidden.
+      // FOC items can only be removed when their parent promotion product is removed or adjusted.
+      if (itemToRemove.isFoc) {
+        return;
       }
 
+      final updatedCart = List<CartItem>.from(currentState.cartItems)..removeAt(event.index);
+
+      // Cascade remove any linked FOC promotion lines caused by this main product
+      updatedCart.removeWhere((item) => item.isFoc && item.mainItemSku == itemToRemove.product.sku);
+
+      emit(currentState.copyWith(cartItems: updatedCart));
+    }
+  }
+
+  void _onRemoveLinkedFocItem(RemoveLinkedFocItem event, Emitter<SalesInvoiceState> emit) {
+    final currentState = state;
+    if (currentState is SalesInvoiceLoaded) {
+      final updatedCart = List<CartItem>.from(currentState.cartItems)
+        ..removeWhere((item) => item.isFoc && item.mainItemSku == event.mainItemSku);
       emit(currentState.copyWith(cartItems: updatedCart));
     }
   }

@@ -1903,12 +1903,38 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             : (isViewOnly
                 ? null
                 : () {
+                    if (item.isFoc) {
+                      String parentName = item.mainItemSku ?? 'the main product';
+                      for (final ci in cartState.cartItems) {
+                        if (!ci.isFoc && ci.product.sku == item.mainItemSku) {
+                          parentName = ci.product.name;
+                          break;
+                        }
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '🎁 Free promotional item (FOC) is locked. It can only be removed by adjusting or removing $parentName.',
+                          ),
+                          backgroundColor: Colors.orange.shade800,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final bool hasLinkedFoc = cartState.cartItems.any(
+                      (ci) => ci.isFoc && ci.mainItemSku == item.product.sku,
+                    );
+
                     showDialog(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Remove Product'),
                         content: Text(
-                          'Are you sure you want to remove ${item.product.name} from the order?',
+                          hasLinkedFoc
+                              ? 'Are you sure you want to remove ${item.product.name} from the order?\n\nNote: The linked Free (FOC) promotional item will also be removed.'
+                              : 'Are you sure you want to remove ${item.product.name} from the order?',
                         ),
                         actions: [
                           TextButton(
@@ -2046,6 +2072,23 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                             color: isFocMissingLot ? Colors.orange : Colors.green,
                           ),
                         ),
+                        if (!isFocMissingLot) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.lock_outline,
+                            size: 11,
+                            color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Auto-Managed',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

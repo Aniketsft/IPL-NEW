@@ -81,6 +81,14 @@ class RemoveCartItem extends SalesInvoiceEvent {
   List<Object?> get props => [index];
 }
 
+class RemoveLinkedFocItem extends SalesInvoiceEvent {
+  final String mainItemSku;
+  const RemoveLinkedFocItem(this.mainItemSku);
+
+  @override
+  List<Object?> get props => [mainItemSku];
+}
+
 class UpdateCartItem extends SalesInvoiceEvent {
   final int index;
   final CartItem item;

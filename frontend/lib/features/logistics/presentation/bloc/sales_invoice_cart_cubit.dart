@@ -193,12 +193,25 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     final updatedItems = List<CartItem>.from(state.items);
     if (index >= 0 && index < updatedItems.length) {
       final itemToRemove = updatedItems[index];
+
+      // FOC items cannot be deleted directly - only via the parent product
+      if (itemToRemove.isFoc) {
+        return;
+      }
+
       updatedItems.removeAt(index);
       
-      // PHASE 1: FOC auto-remove logic removed for centralization.
+      // Cascade remove any linked FOC promotion lines
+      updatedItems.removeWhere((item) => item.isFoc && item.mainItemSku == itemToRemove.product.sku);
 
       emit(state.copyWith(items: updatedItems));
     }
+  }
+
+  void removeLinkedFocItem(String mainItemSku) {
+    final updatedItems = List<CartItem>.from(state.items)
+      ..removeWhere((item) => item.isFoc && item.mainItemSku == mainItemSku);
+    emit(state.copyWith(items: updatedItems));
   }
 
   void updateItem(int index, CartItem newItem) {
