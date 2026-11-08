@@ -33,11 +33,18 @@ class MainActivity: FlutterActivity() {
 
         // Device name MethodChannel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_NAME_CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "getDeviceName") {
-                val deviceName = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
-                result.success(deviceName)
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "getDeviceName" -> {
+                    val deviceName = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+                    result.success(deviceName)
+                }
+                "getHardwareIdentifier" -> {
+                    val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+                    result.success(androidId)
+                }
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
 

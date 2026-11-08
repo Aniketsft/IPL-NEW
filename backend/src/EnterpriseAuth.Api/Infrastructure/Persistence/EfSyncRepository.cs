@@ -127,12 +127,24 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     'Variable Weight' as BarcodeType,
                     f1.QTY_0 as Quantity,
                     f1.SOPLIN_0 as Soplin,
+                    f1.SOPLIN_0 as LineNum,
+                    CASE WHEN ISNULL(p.NETPRI_0, 0) = 0 THEN 1 ELSE 0 END as IsFreeOfCharge,
+                    CASE 
+                        WHEN NULLIF(p.DISCRGREN1_0, '') IS NOT NULL 
+                          OR NULLIF(p.DISCRGREN2_0, '') IS NOT NULL 
+                          OR NULLIF(p.DISCRGREN3_0, '') IS NOT NULL 
+                          OR NULLIF(p.DISCRGREN4_0, '') IS NOT NULL 
+                          OR NULLIF(p.DISCRGREN5_0, '') IS NOT NULL THEN 1 
+                        ELSE 0 
+                    END as HasSpecialDiscount,
+                    ISNULL(p.NETPRI_0, 0) as NetPrice,
                     f2.SAU_0 as Unit,
                     f1.STOFCY_0 as Site,
                     COALESCE(NULLIF(m.ORISOCUST_0, ''), f0.BPCORD_0) as CustomerCode,
                     COALESCE(NULLIF(m.ORISOCUSTNAM_0, ''), c.ZFULLBUSNAM_0) as CustomerName
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDER f0 WITH (NOLOCK)
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERQ f1 WITH (NOLOCK) on f0.SOHNUM_0 = f1.SOHNUM_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.SORDERP p WITH (NOLOCK) on f1.SOHNUM_0 = p.SOHNUM_0 AND f1.SOPLIN_0 = p.SOPLIN_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER f2 WITH (NOLOCK) on f1.ITMREF_0 = f2.ITMREF_0
                 JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c WITH (NOLOCK) ON f0.BPCORD_0 = c.BPCNUM_0
                 LEFT JOIN CustMap m ON f0.SOHNUM_0 = m.MapKey AND m.rn = 1
@@ -289,6 +301,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                             Quantity = line.OrderedQuantity,
                             Unit = line.Unit ?? string.Empty,
                             Soplin = line.LineNumber,
+                            LineNum = line.LineNumber,
                             Site = order.Site ?? "INTERNAL"
                         });
                     }

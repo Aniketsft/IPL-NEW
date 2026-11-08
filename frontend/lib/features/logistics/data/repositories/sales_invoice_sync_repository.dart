@@ -867,6 +867,7 @@ class SalesInvoiceSyncRepository {
         safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History', etagKey: x3HistoryEtagKey),
         safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
         safeGet('SalesInvoice/banks', label: 'Banks'),
+        safeGet('Sync/refresh', queryParameters: siteCode.isNotEmpty ? {'site': siteCode} : null, label: 'Sales Orders'),
         _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) {
           entityReports.add(const SyncEntityReport(
             entityName: 'Stock Details',
@@ -901,6 +902,7 @@ class SalesInvoiceSyncRepository {
       final x3Resp = results[6];
       final reasonsResp = results[7];
       final banksResp = results[8];
+      final salesOrdersResp = results.length > 9 ? results[9] : null;
 
       // Ingest Customers
       if (custResp != null && custResp.data is List) {
@@ -971,6 +973,20 @@ class SalesInvoiceSyncRepository {
           final banksList = rawBanks.map((item) => Map<String, dynamic>.from(item as Map)).toList();
           await LocalDatabaseHelper.instance.upsertBanks(banksList);
           debugPrint('Sync: Synced ${banksList.length} Sage X3 Banks.');
+        }
+      }
+
+      // Ingest Real Sales Orders & Details
+      if (salesOrdersResp != null && salesOrdersResp.data is Map) {
+        final pkg = salesOrdersResp.data as Map<String, dynamic>;
+        final rawOrders = pkg['orders'] as List<dynamic>? ?? [];
+        final rawDetails = pkg['details'] as List<dynamic>? ?? [];
+        if (rawOrders.isNotEmpty || rawDetails.isNotEmpty) {
+          await LocalDatabaseHelper.instance.refreshSalesOrdersAndDetails(
+            orders: rawOrders,
+            details: rawDetails,
+          );
+          debugPrint('Sync: Synced ${rawOrders.length} Sales Orders and ${rawDetails.length} Line Items for Site $siteCode.');
         }
       }
       } else {

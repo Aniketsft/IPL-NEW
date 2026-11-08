@@ -21,6 +21,10 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("HardwareModel")]
         public string? HardwareModel { get; set; }
 
+        [MaxLength(128)]
+        [Column("HardwareIdentifier")]
+        public string? HardwareIdentifier { get; set; }
+
         [Required]
         [MaxLength(20)]
         [Column("SiteCode")]

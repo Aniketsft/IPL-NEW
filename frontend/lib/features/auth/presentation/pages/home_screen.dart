@@ -29,6 +29,11 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/s
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sales_rep_selection_dialog.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/sync_soap_error_modal.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
+import 'package:enterprise_auth_mobile/core/config/api_config.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -58,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _syncJustSucceeded = false;
   bool _isManualHomeSyncTriggered = false;
   bool _lastSyncWasExportOnly = false;
+  bool _isRecheckingLicense = false;
   UnsyncedSummary _unsyncedSummary = const UnsyncedSummary();
 
   bool _hasAccess(String permissionString) {
@@ -88,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _loadLastSync();
       _loadUnsyncedSummary();
+      if (mounted) setState(() {});
     }
   }
 
@@ -423,7 +430,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         Icons.send_and_archive,
                                         color: isDark ? Colors.white70 : Colors.black87,
                                       ),
-                                onPressed: isSyncing ? null : _triggerExportToX3,
+                                onPressed: isSyncing
+                                    ? null
+                                    : () {
+                                        if (!DeviceInfoService.instance.isLicensed) {
+                                          _showUnlicensedDeviceModal(context, moduleName: 'Export to X3');
+                                          return;
+                                        }
+                                        _triggerExportToX3();
+                                      },
                               ),
                               IconButton(
                                 icon: Icon(
@@ -619,8 +634,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
+    final bool isDeviceLicensed = DeviceInfoService.instance.isLicensed;
+
     return Column(
       children: [
+        if (!isDeviceLicensed)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: _buildUnlicensedAlertBanner(theme, isDark),
+          ),
         _buildSalesRepBanner(context, theme, isDark),
         Expanded(
           child: GridView.count(
@@ -805,6 +827,332 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildUnlicensedAlertBanner(ThemeData theme, bool isDark) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DevicesScreen()),
+        ).then((_) {
+          if (mounted) setState(() {});
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2B1414) : const Color(0xFFFFF1F1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.redAccent.withOpacity(0.6), width: 1.2),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.gpp_bad_rounded, color: Colors.redAccent, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'TABLET LICENSE UNVALIDATED',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Operational modules are locked. Tap to open Tablet Fleet.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black87,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.redAccent, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recheckLicenseLive(BuildContext ctx, StateSetter setModalState) async {
+    setModalState(() => _isRecheckingLicense = true);
+    try {
+      final token = await SecureStorageService().getToken();
+      final hbUrl = Uri.parse('${ApiConfig.baseUrl}Devices/heartbeat');
+      final resp = await http.post(
+        hbUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+          'X-Device-Id': DeviceInfoService.instance.deviceId,
+        },
+        body: jsonEncode({
+          'deviceId': DeviceInfoService.instance.deviceId,
+          'deviceName': DeviceInfoService.instance.deviceName,
+          'hardwareModel': DeviceInfoService.instance.hardwareModel,
+          'hardwareIdentifier': DeviceInfoService.instance.hardwareIdentifier,
+          'siteCode': DeviceInfoService.instance.assignedSite,
+        }),
+      ).timeout(const Duration(seconds: 5));
+
+      if (resp.statusCode == 200 && resp.body.trim().isNotEmpty) {
+        final data = jsonDecode(resp.body);
+        final bool isLic = data['isLicensed'] == true;
+        final String status = data['licenseStatus']?.toString() ?? (isLic ? 'VALID' : 'UNVALIDATED');
+
+        await DeviceInfoService.instance.setLicenseStatus(
+          isLicensed: isLic,
+          status: status,
+        );
+
+        if (mounted) {
+          setState(() {});
+        }
+
+        if (isLic) {
+          if (ctx.mounted) {
+            Navigator.pop(ctx);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tablet license validated! Operational modules unlocked.'),
+                backgroundColor: Color(0xFF10B981),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        } else {
+          setModalState(() => _isRecheckingLicense = false);
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text('Device license is still marked UNVALIDATED by administrator.'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Recheck license failed: $e');
+      setModalState(() => _isRecheckingLicense = false);
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: Text('Network error checking license: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showUnlicensedDeviceModal(BuildContext context, {String? moduleName}) {
+    HapticFeedback.heavyImpact();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final devInfo = DeviceInfoService.instance;
+    final devName = devInfo.deviceName.isNotEmpty ? devInfo.deviceName : 'This Tablet';
+    final devUuid = devInfo.deviceId.isNotEmpty
+        ? (devInfo.deviceId.length > 12 ? '${devInfo.deviceId.substring(0, 8)}...${devInfo.deviceId.substring(devInfo.deviceId.length - 4)}' : devInfo.deviceId)
+        : 'Unassigned';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 28),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border.all(
+                color: Colors.redAccent.withOpacity(0.4),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                      ),
+                      child: const Icon(
+                        Icons.gpp_bad_rounded,
+                        color: Colors.redAccent,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'OPERATIONAL ACCESS SUSPENDED',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$devName • $devUuid',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'LICENSE STATUS: UNVALIDATED',
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1C1313) : const Color(0xFFFFF5F5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    moduleName != null
+                        ? 'Access to "$moduleName" is currently locked. This tablet\'s operational license has been revoked or unvalidated by an administrator.'
+                        : 'Operational modules are currently locked. This tablet\'s operational license is unvalidated.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'To resume field operations, billing, and sync, an authorized administrator must validate this tablet in the Tablet Fleet console.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 6,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.devices_other_rounded, size: 18),
+                        label: const Text(
+                          'OPEN TABLET FLEET',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const DevicesScreen()),
+                          ).then((_) {
+                            if (mounted) setState(() {});
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 5,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white : Colors.black87,
+                          side: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: _isRecheckingLicense
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(
+                          _isRecheckingLicense ? 'CHECKING...' : 'RE-CHECK',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                        ),
+                        onPressed: _isRecheckingLicense ? null : () => _recheckLicenseLive(ctx, setModalState),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildMenuButton(
     BuildContext context,
     String title,
@@ -819,6 +1167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final bool isDeviceLicensed = DeviceInfoService.instance.isLicensed;
 
     final syncState = context.watch<SyncBloc>().state;
     final mfgState = context.watch<ManufacturingBloc>().state;
@@ -826,13 +1175,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isSyncing =
         syncState is SyncInProgress || mfgState is ManufacturingSyncProgress || salesSyncState is SalesInvoiceSyncInProgress;
 
-    final Color cardBg = isWarning
-        ? (isDark ? const Color(0xFF261D10) : const Color(0xFFFFFBEB))
-        : theme.cardColor;
+    final Color cardBg = !isDeviceLicensed
+        ? (isDark ? const Color(0xFF1E1717) : const Color(0xFFFFF9F9))
+        : (isWarning
+            ? (isDark ? const Color(0xFF261D10) : const Color(0xFFFFFBEB))
+            : theme.cardColor);
 
-    final Border? cardBorder = isWarning
-        ? Border.all(color: Colors.amber.shade700, width: 1.5)
-        : (isDark ? Border.all(color: Colors.white10, width: 1) : null);
+    final Border? cardBorder = !isDeviceLicensed
+        ? Border.all(color: Colors.redAccent.withOpacity(0.35), width: 1.0)
+        : (isWarning
+            ? Border.all(color: Colors.amber.shade700, width: 1.5)
+            : (isDark ? Border.all(color: Colors.white10, width: 1) : null));
 
     return Material(
       color: Colors.transparent,
@@ -860,6 +1213,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: isSyncing
               ? null
               : () async {
+                  if (!isDeviceLicensed) {
+                    _showUnlicensedDeviceModal(context, moduleName: title);
+                    return;
+                  }
                   if (onTapOverride != null) {
                     onTapOverride();
                   } else if (screen != null) {
@@ -879,6 +1236,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           borderRadius: BorderRadius.circular(12),
           child: Stack(
             children: [
+              if (!isDeviceLicensed)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.redAccent.withOpacity(0.35)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_rounded, size: 9, color: Colors.redAccent),
+                        SizedBox(width: 2),
+                        Text(
+                          'LOCKED',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.redAccent,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
@@ -1041,6 +1427,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     onTap: () {
                       Navigator.pop(context);
+                      if (!DeviceInfoService.instance.isLicensed) {
+                        _showUnlicensedDeviceModal(context, moduleName: 'Settings');
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1063,6 +1453,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     onTap: () {
                       Navigator.pop(context);
+                      if (!DeviceInfoService.instance.isLicensed) {
+                        _showUnlicensedDeviceModal(context, moduleName: 'User Admin');
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1085,6 +1479,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     onTap: () {
                       Navigator.pop(context);
+                      if (!DeviceInfoService.instance.isLicensed) {
+                        _showUnlicensedDeviceModal(context, moduleName: 'Sync Logs');
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1112,7 +1510,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         MaterialPageRoute(
                           builder: (_) => const DevicesScreen(),
                         ),
-                      );
+                      ).then((_) {
+                        if (mounted) setState(() {});
+                      });
                     },
                   ),
               ],

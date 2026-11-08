@@ -350,7 +350,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         },
         body: jsonEncode({
           'deviceId': devId,
+          'deviceName': deviceService.deviceName,
           'hardwareModel': deviceService.hardwareModel,
+          'hardwareIdentifier': deviceService.hardwareIdentifier,
           'siteCode': siteCode,
         }),
       ).timeout(const Duration(seconds: 5));
@@ -372,6 +374,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             await deviceService.setDeviceIdentity(
               uuid: uuid,
               name: name,
+              hardwareIdentifier: data['hardwareIdentifier']?.toString() ?? deviceService.hardwareIdentifier,
               siteCode: site,
               warehouseCode: wrh,
               locationCode: loc,

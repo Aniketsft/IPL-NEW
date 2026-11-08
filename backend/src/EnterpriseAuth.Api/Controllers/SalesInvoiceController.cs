@@ -15,6 +15,7 @@ namespace EnterpriseAuth.Api.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
+    [EnterpriseAuth.Api.Infrastructure.Security.ValidateDeviceLicense]
     public class SalesInvoiceController : ControllerBase
     {
         private readonly ISalesInvoiceRepository _repository;

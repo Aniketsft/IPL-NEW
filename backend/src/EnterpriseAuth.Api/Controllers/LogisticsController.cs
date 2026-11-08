@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 namespace EnterpriseAuth.Api.Controllers;
 
 [Authorize]
+[EnterpriseAuth.Api.Infrastructure.Security.ValidateDeviceLicense]
 [ApiController]
 [Route("api/[controller]")]
 public class LogisticsController : ControllerBase
@@ -232,7 +233,6 @@ public class LogisticsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [Authorize]
     [HttpPost("end-of-day")]
     public async Task<IActionResult> ProcessEndOfDay()
     {
@@ -240,7 +240,6 @@ public class LogisticsController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize]
     [HttpPost("production-eod")]
     public async Task<IActionResult> ProcessProductionEndOfDay()
     {

@@ -1033,22 +1033,36 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                     onPressed: (cartState.cartItems.isEmpty || isZeroAmount)
                                         ? null
                                         : () async {
-                                        final missingLotItems = cartState.cartItems.where((i) => i.isFoc && i.lotNumber.isEmpty);
-                                        if (missingLotItems.isNotEmpty) {
-                                          showDialog(
-                                            context: context,
-                                            builder: (ctx) => AlertDialog(
-                                              title: const Text('Missing Lot Number'),
-                                              content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming.'),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(ctx),
-                                                  child: const Text('OK'),
-                                                ),
-                                              ],
-                                            ),
-                                          );
+                                        // 1. Sales order conversion and saving never require lot numbers
+                                        if (cartState.transactionType == 'VIEW_SI_SALES_ORDER') {
+                                          _handleOrderConversion(context, cartState);
                                           return;
+                                        }
+
+                                        if (cartState.transactionType == 'SI_SALES_ORDER') {
+                                          _saveSalesOrder(context, cartState);
+                                          return;
+                                        }
+
+                                        // 2. Lot number validation applies ONLY at the final Invoice confirmation level
+                                        if (cartState.transactionType == 'INVOICE') {
+                                          final missingLotItems = cartState.cartItems.where((i) => i.isFoc && i.lotNumber.isEmpty);
+                                          if (missingLotItems.isNotEmpty) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('Missing Lot Number'),
+                                                content: const Text('Please assign a lot number to all Free of Charge (FOC) items before confirming payment.'),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(ctx),
+                                                    child: const Text('OK'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            return;
+                                          }
                                         }
 
                                         if (cartState.config.requireItemSelectionForAction) {
@@ -1105,15 +1119,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                           return;
                                         }
 
-                                        if (cartState.transactionType == 'SI_SALES_ORDER') {
-                                          _saveSalesOrder(context, cartState);
-                                          return;
-                                        }
-
-                                        if (cartState.transactionType == 'VIEW_SI_SALES_ORDER') {
-                                          _handleOrderConversion(context, cartState);
-                                          return;
-                                        }
+// Handled above before lot number validation
 
                                         await context.push(
                                           AppRoutes.paymentProcessing,
@@ -1287,6 +1293,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     final theme = Theme.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+    // 1. Show loading spinner while preparing conversion
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1299,7 +1306,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
       final pricingEngine = PricingEngineService();
       final vatCalculator = VatCalculatorService();
 
-      // 1. Resolve full customer details (with taxRule, bcgcod, etc.)
+      // 2. Resolve customer details
       final customerCode = cartState.customer?['code']?.toString() ??
           cartState.customer?['customerCode']?.toString() ??
           '';
@@ -1321,15 +1328,39 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               ? int.tryParse(resolvedCustomer['FacilityFlag'].toString())
               : null);
 
-      // 2. Stock Verification
-      final List<Map<String, dynamic>> stockIssues = [];
+      // 3. Bulletproof Non-FOC Filtering: Strip any pre-existing FOC lines from the order
+      // Only keep genuine ordered products for live recalculation
+      List<CartItem> orderedItems = cartState.cartItems
+          .where((i) => !i.isFoc)
+          .toList();
+
+      if (orderedItems.isEmpty) {
+        Navigator.pop(context); // Close spinner
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('No products found in the order to convert.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Pre-fetch stock details for all unique SKUs in ordered items
       final Map<String, List<SalesInvoiceItemStockModel>> stockBySku = {};
-
-      for (final item in cartState.cartItems) {
+      for (final item in orderedItems) {
         final sku = item.product.sku;
-        final stocks = await repo.getSalesInvoiceItemStockDetails(sku);
-        stockBySku[sku] = stocks;
+        if (!stockBySku.containsKey(sku)) {
+          stockBySku[sku] = await repo.getSalesInvoiceItemStockDetails(sku);
+        }
+      }
 
+      if (!context.mounted) return;
+
+      // 4. Warehouse Stock Verification for Ordered Items
+      final List<Map<String, dynamic>> stockIssues = [];
+      for (final item in orderedItems) {
+        final sku = item.product.sku;
+        final stocks = stockBySku[sku] ?? [];
         final availableStock = stocks.fold<double>(0.0, (sum, s) => sum + s.totalQty);
         if (availableStock <= 0.0001) {
           stockIssues.add({
@@ -1348,12 +1379,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         }
       }
 
-      if (!context.mounted) return;
-      Navigator.pop(context); // Close initial loading dialog
-
-      // 3. Prompt user if there are stock issues
-      List<CartItem> workingItems = List<CartItem>.from(cartState.cartItems);
       if (stockIssues.isNotEmpty) {
+        Navigator.pop(context); // Close spinner for user decision
         final bool? userChoice = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -1371,7 +1398,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'The following ordered products do not have full stock available:',
+                    'The following ordered products do not have full stock available in the warehouse:',
                     style: TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 12),
@@ -1437,13 +1464,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           ),
         );
 
-        if (userChoice != true) {
-          return; // User cancelled conversion
-        }
+        if (userChoice != true) return; // User cancelled
 
-        // Apply adjustments chosen by user
-        final List<CartItem> adjustedItems = [];
-        for (final item in workingItems) {
+        final List<CartItem> adjustedOrderedItems = [];
+        for (final item in orderedItems) {
           final issue = stockIssues.firstWhere(
             (iss) => (iss['item'] as CartItem).product.sku == item.product.sku,
             orElse: () => {},
@@ -1451,15 +1475,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           if (issue.isNotEmpty) {
             final double avail = issue['available'] as double;
             if (avail > 0.0001) {
-              adjustedItems.add(item.copyWith(quantity: avail));
+              adjustedOrderedItems.add(item.copyWith(quantity: avail));
             }
           } else {
-            adjustedItems.add(item);
+            adjustedOrderedItems.add(item);
           }
         }
-        workingItems = adjustedItems;
+        orderedItems = adjustedOrderedItems;
 
-        if (workingItems.isEmpty) {
+        if (orderedItems.isEmpty) {
           scaffoldMessenger.showSnackBar(
             const SnackBar(
               content: Text('No items remaining with available stock. Conversion aborted.'),
@@ -1468,22 +1492,22 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           );
           return;
         }
+
+        if (!context.mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+        );
       }
 
-      // Re-show spinner while calculating live prices & VAT
-      if (!context.mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const Center(child: CircularProgressIndicator()),
-      );
-
-      // 4. Resolve Live Prices, Taxes, and FOC for each item
+      // 5. Live Price, Discount, VAT Calculation & Auto-Lot Assignment
       final List<CartItem> finalInvoiceItems = [];
       final List<Map<String, dynamic>> qualifiedFocList = [];
 
-      for (final item in workingItems) {
+      for (final item in orderedItems) {
         final stocks = stockBySku[item.product.sku] ?? await repo.getSalesInvoiceItemStockDetails(item.product.sku);
+        stockBySku[item.product.sku] = stocks;
         final itemTaxLevel = stocks.isNotEmpty ? stocks.first.taxLevel : '';
         final defaultLot = stocks.isNotEmpty ? stocks.first.lotNumber : item.lotNumber;
         final defaultWarehouse = stocks.isNotEmpty ? stocks.first.warehouse : item.warehouse;
@@ -1531,113 +1555,270 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         }
       }
 
-      if (!context.mounted) return;
-      Navigator.pop(context); // Close calculation spinner
-
-      // 5. Prompt user if FOC items are qualified
+      // 6. Process Qualified Fresh FOC Items (Intelligent Stock Handling)
       for (final focEntry in qualifiedFocList) {
         final String focSku = focEntry['focSku'] as String;
         final double focQty = focEntry['focQty'] as double;
         final CartItem mainItem = focEntry['mainItem'] as CartItem;
 
-        // Check stock for FOC item
-        final focStocks = await repo.getSalesInvoiceItemStockDetails(focSku);
-        final focAvailStock = focStocks.fold<double>(0.0, (s, l) => s + l.totalQty);
+        final focStocks = stockBySku[focSku] ?? await repo.getSalesInvoiceItemStockDetails(focSku);
+        stockBySku[focSku] = focStocks;
+        final double totalAvail = focStocks.fold<double>(0.0, (s, l) => s + l.totalQty);
 
-        if (!context.mounted) return;
+        final bool isSameSkuFoc = focSku == mainItem.product.sku;
 
-        if (focAvailStock <= 0.0001) {
-          await showDialog<void>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('FOC Promotion Unavailable'),
-              content: Text(
-                'Purchasing ${mainItem.product.name} qualifies for free item ($focSku), but $focSku is currently out of stock. It will not be added.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-          continue;
-        }
+        if (isSameSkuFoc) {
+          // Scenario 1: Buy X, Get X Free (Same SKU) -> Ordered units allocated first!
+          final double orderedQty = mainItem.quantity;
+          final double remainingForFree = totalAvail - orderedQty;
 
-        const bool addFoc = true;
-        if (false) await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.card_giftcard, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Free Promotion Qualified!'),
-              ],
-            ),
-            content: Text(
-              'Order qualifies for Free of Charge (FOC) item:\n\n'
-              '• Promotion: ${focQty % 1 == 0 ? focQty.toInt() : focQty}x $focSku (Free)\n'
-              '• In Stock: $focAvailStock\n\n'
-              'Would you like to add this free item to the invoice?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('SKIP FOC'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: const Text('ADD FOC ITEM', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        );
-
-        if (addFoc == true) {
-          final focProductModel = await repo.getProductByItemCode(focSku);
-          final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
-          final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
-          final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
-          final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
-          final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
-          final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
-              ? focStocks.first.salesUnit
-              : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
-
-          finalInvoiceItems.add(
-            CartItem(
-              product: focProductModel ??
-                  SalesInvoiceProductModel(
-                    sku: focSku,
-                    name: focSku,
-                    stockQty: focAvailStock,
-                    warehouse: focWarehouse,
-                    salesUnit: focSalesUnit,
+          if (remainingForFree <= 0.0001) {
+            if (context.mounted) {
+              Navigator.pop(context); // Close spinner for alert
+              await showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Free Promotion Unavailable'),
+                  content: Text(
+                    'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but all available stock ($totalAvail) is reserved for your ordered quantity. Free item cannot be added.',
                   ),
-              quantity: focQty,
-              basePrice: 0.0,
-              discountPercent: 0.0,
-              vatRatePercent: 0.0,
-              isFoc: true,
-              mainItemSku: mainItem.product.sku,
-              pricingSource: 'FOC',
-              lotNumber: focLot,
-              warehouse: focWarehouse,
-              warehouseName: focWarehouseName,
-              location: focLocation,
-              locationType: focLocationType,
-            ),
-          );
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+                  ],
+                ),
+              );
+              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+            }
+          } else if (remainingForFree < focQty) {
+            if (context.mounted) {
+              Navigator.pop(context);
+              await showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Partial Free Promotion Added'),
+                  content: Text(
+                    'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but only $remainingForFree unit(s) remain in stock after fulfilling ordered items. Adding $remainingForFree free unit(s).',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+                  ],
+                ),
+              );
+              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+            }
+
+            final focProductModel = await repo.getProductByItemCode(focSku);
+            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
+            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
+            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
+            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
+            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
+            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
+                ? focStocks.first.salesUnit
+                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+
+            finalInvoiceItems.add(
+              CartItem(
+                product: focProductModel ??
+                    SalesInvoiceProductModel(
+                      sku: focSku,
+                      name: mainItem.product.name,
+                      stockQty: totalAvail,
+                      warehouse: focWarehouse,
+                      salesUnit: focSalesUnit,
+                    ),
+                quantity: remainingForFree,
+                basePrice: 0.0,
+                discountPercent: 0.0,
+                vatRatePercent: 0.0,
+                taxRule: 'VAT0',
+                isFoc: true,
+                mainItemSku: mainItem.product.sku,
+                pricingSource: 'FOC',
+                lotNumber: focLot,
+                warehouse: focWarehouse,
+                warehouseName: focWarehouseName,
+                location: focLocation,
+                locationType: focLocationType,
+              ),
+            );
+          } else {
+            // Full stock available for free items
+            final focProductModel = await repo.getProductByItemCode(focSku);
+            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
+            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
+            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
+            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
+            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
+            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
+                ? focStocks.first.salesUnit
+                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+
+            finalInvoiceItems.add(
+              CartItem(
+                product: focProductModel ??
+                    SalesInvoiceProductModel(
+                      sku: focSku,
+                      name: mainItem.product.name,
+                      stockQty: totalAvail,
+                      warehouse: focWarehouse,
+                      salesUnit: focSalesUnit,
+                    ),
+                quantity: focQty,
+                basePrice: 0.0,
+                discountPercent: 0.0,
+                vatRatePercent: 0.0,
+                taxRule: 'VAT0',
+                isFoc: true,
+                mainItemSku: mainItem.product.sku,
+                pricingSource: 'FOC',
+                lotNumber: focLot,
+                warehouse: focWarehouse,
+                warehouseName: focWarehouseName,
+                location: focLocation,
+                locationType: focLocationType,
+              ),
+            );
+          }
+        } else {
+          // Scenario 2: Buy Y, Get Z Free (Cross-SKU Promotional Gift)
+          final focProductModel = await repo.getProductByItemCode(focSku);
+          final String giftName = focProductModel?.name ?? focSku;
+
+          if (totalAvail <= 0.0001) {
+            if (context.mounted) {
+              Navigator.pop(context); // Close spinner for user decision
+              final bool? proceedWithoutGift = await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => AlertDialog(
+                  title: const Row(
+                    children: [
+                      Icon(Icons.card_giftcard, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Free Gift Out of Stock'),
+                    ],
+                  ),
+                  content: Text(
+                    'Purchasing ${mainItem.product.name} qualifies for a promotional free gift:\n\n'
+                    '• ${focQty % 1 == 0 ? focQty.toInt() : focQty}x $giftName (SKU: $focSku) [FREE]\n\n'
+                    'However, this free gift is currently OUT OF STOCK in the warehouse.\n\n'
+                    'Would you like to proceed with the invoice without the free gift, or cancel the conversion?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('CANCEL CONVERSION'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                      child: const Text('PROCEED WITHOUT GIFT', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (proceedWithoutGift != true) {
+                return; // User cancelled conversion
+              }
+              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+            }
+            // User chose to proceed without gift -> continue loop
+          } else if (totalAvail < focQty) {
+            if (context.mounted) {
+              Navigator.pop(context);
+              await showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Partial Free Gift Stock'),
+                  content: Text(
+                    'Free promotional item $giftName (SKU: $focSku) only has $totalAvail available in stock. Adding $totalAvail free unit(s).',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+                  ],
+                ),
+              );
+              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+            }
+
+            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
+            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
+            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
+            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
+            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
+            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
+                ? focStocks.first.salesUnit
+                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+
+            finalInvoiceItems.add(
+              CartItem(
+                product: focProductModel ??
+                    SalesInvoiceProductModel(
+                      sku: focSku,
+                      name: giftName,
+                      stockQty: totalAvail,
+                      warehouse: focWarehouse,
+                      salesUnit: focSalesUnit,
+                    ),
+                quantity: totalAvail,
+                basePrice: 0.0,
+                discountPercent: 0.0,
+                vatRatePercent: 0.0,
+                taxRule: 'VAT0',
+                isFoc: true,
+                mainItemSku: mainItem.product.sku,
+                pricingSource: 'FOC',
+                lotNumber: focLot,
+                warehouse: focWarehouse,
+                warehouseName: focWarehouseName,
+                location: focLocation,
+                locationType: focLocationType,
+              ),
+            );
+          } else {
+            // Full stock available
+            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
+            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
+            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
+            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
+            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
+            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
+                ? focStocks.first.salesUnit
+                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+
+            finalInvoiceItems.add(
+              CartItem(
+                product: focProductModel ??
+                    SalesInvoiceProductModel(
+                      sku: focSku,
+                      name: giftName,
+                      stockQty: totalAvail,
+                      warehouse: focWarehouse,
+                      salesUnit: focSalesUnit,
+                    ),
+                quantity: focQty,
+                basePrice: 0.0,
+                discountPercent: 0.0,
+                vatRatePercent: 0.0,
+                taxRule: 'VAT0',
+                isFoc: true,
+                mainItemSku: mainItem.product.sku,
+                pricingSource: 'FOC',
+                lotNumber: focLot,
+                warehouse: focWarehouse,
+                warehouseName: focWarehouseName,
+                location: focLocation,
+                locationType: focLocationType,
+              ),
+            );
+          }
         }
       }
 
-      if (!context.mounted) return;
+      if (context.mounted) Navigator.pop(context); // Close spinner
 
-      // 6. Convert to INVOICE in SalesInvoiceBloc with real-time calculated items and full customer
       context.read<SalesInvoiceBloc>().add(
         InitializeTransaction(
           transactionType: 'INVOICE',
@@ -1663,35 +1844,6 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     }
   }
 
-  /* removed old method
-    return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
-
-    // Processing order conversion with live pricing and stock validation
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (!context.mounted) return;
-    Navigator.pop(context);
-
-    // Convert to INVOICE
-    context.read<SalesInvoiceBloc>().add(InitializeTransaction(
-      transactionType: 'INVOICE',
-      originalDocumentId: cartState.originalDocumentId,
-    ));
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Order converted to Invoice. Please proceed to payment.'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  */
   Widget _buildDeliveryDateCard(
     BuildContext context,
     SalesInvoiceLoaded cartState,
@@ -1847,7 +1999,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   ) {
     final theme = Theme.of(context);
     final config = cartState.config;
-    final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty;
+    final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty && cartState.transactionType == 'INVOICE';
     final isSelected = _selectedReversalQuantities.containsKey(index);
     final selectedQty = _selectedReversalQuantities[index] ?? item.quantity;
     final isViewOnly = !config.canRemoveItems;
@@ -2065,7 +2217,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          isFocMissingLot ? 'Missing Lot Number - Tap to assign' : 'FOC Applied',
+                          isFocMissingLot
+                              ? 'Missing Lot Number - Tap to assign'
+                              : (config.isSalesOrder ? 'FOC Item (Order Copy)' : 'FOC Applied'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -2075,13 +2229,13 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         if (!isFocMissingLot) ...[
                           const SizedBox(width: 6),
                           Icon(
-                            Icons.lock_outline,
+                            config.isSalesOrder ? Icons.info_outline : Icons.lock_outline,
                             size: 11,
                             color: Colors.green.shade700,
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            'Auto-Managed',
+                            config.isSalesOrder ? 'FYI Only' : 'Auto-Managed',
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w600,

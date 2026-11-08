@@ -96,11 +96,23 @@ class NetworkService {
           final schema = await _storageService.getSchema() ?? 'INLDRYRUN';
           options.headers['X-X3-Schema'] = schema;
           
-          options.headers['X-Device-Id'] = DeviceInfoService.instance.deviceInfo;
+          final devUuid = DeviceInfoService.instance.deviceId;
+          options.headers['X-Device-Id'] = devUuid.isNotEmpty ? devUuid : DeviceInfoService.instance.deviceInfo;
           
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
+          if (e.response?.statusCode == 403) {
+            final data = e.response?.data;
+            if (data is Map && data['error'] == 'DEVICE_LICENSE_SUSPENDED') {
+              debugPrint('NetworkService: DEVICE_LICENSE_SUSPENDED intercepted (HTTP 403). Locking tablet operational license.');
+              await DeviceInfoService.instance.setLicenseStatus(
+                isLicensed: false,
+                status: 'UNVALIDATED',
+              );
+            }
+          }
+
           if (e.response?.statusCode == 401) {
             // Server rejected our token — notify AuthBloc to handle (it will attempt
             // a silent refresh and only logout if that also fails).

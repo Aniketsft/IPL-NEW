@@ -184,25 +184,28 @@ class _SalesOrderDetailsScreenState extends State<SalesOrderDetailsScreen> {
       }));
 
       for (final detail in _details) {
+        final isFoc = detail['isFoc'] == 1 || detail['isFoc'] == true;
+        final basePrice = isFoc ? 0.0 : ((detail['basePrice'] as num?)?.toDouble() ?? 0.0);
         bloc.add(AddCartItem(CartItem(
           product: SalesInvoiceProductModel(
-            sku: detail['productCode'],
-            name: detail['productName'],
-            stockQty: 0, // Ignored in cart calculation
+            sku: (detail['productCode'] ?? detail['itemCode'] ?? '').toString(),
+            name: (detail['productName'] ?? detail['description'] ?? '').toString(),
+            stockQty: 0,
             warehouse: detail['warehouse'] ?? '',
             salesUnit: detail['salesUnit'] ?? '',
           ),
-          quantity: detail['quantity'] as double,
-          basePrice: detail['basePrice'] as double,
-          discountAmountFlat: detail['discountAmount'] as double,
-          vatRatePercent: 0, // Will need to be recalculated or loaded properly if tax matrix is used
+          quantity: (detail['quantity'] as num?)?.toDouble() ?? 0.0,
+          basePrice: basePrice,
+          discountAmountFlat: (detail['discountAmount'] as num?)?.toDouble() ?? 0.0,
+          vatRatePercent: 0,
           taxRule: detail['taxRule'] ?? '',
+          isFoc: isFoc,
+          pricingSource: isFoc ? 'X3_FOC' : '',
           lotNumber: detail['lotNumber'] ?? '',
           warehouse: detail['warehouse'] ?? '',
           location: detail['location'] ?? '',
         )));
       }
-
       if (!mounted) return;
       Navigator.push(
         context,

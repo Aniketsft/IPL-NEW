@@ -39,7 +39,7 @@ class UnsyncedSummary {
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 97;
+  static const _databaseVersion = 99;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -348,6 +348,10 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtMin', 'REAL DEFAULT 0');
     await _safeAddColumn(_database!, tablePriceLists, 'focAmtBkt', 'REAL DEFAULT 0');
+    await _safeAddColumn(_database!, tableDetails, 'isFoc', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableDetails, 'netPrice', 'REAL DEFAULT 0.0');
+    await _safeAddColumn(_database!, tableDetails, 'hasSpecialDiscount', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableDetails, 'lineNum', 'INTEGER DEFAULT 0');
 
     // Payment and refund sync healing
     await _safeAddColumn(_database!, tableSiPayments, 'isSynced', 'INTEGER DEFAULT 0');
@@ -371,6 +375,7 @@ class LocalDatabaseHelper {
 
     // Device fleet management & licensing healing
     await _safeAddColumn(_database!, tableDeviceLocations, 'hardwareModel', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'hardwareIdentifier', 'TEXT');
     await _safeAddColumn(_database!, tableDeviceLocations, 'hepProfileId', 'TEXT');
     await _safeAddColumn(_database!, tableDeviceLocations, 'hepApiKey', 'TEXT');
     await _safeAddColumn(_database!, tableDeviceLocations, 'isLocked', 'INTEGER DEFAULT 1');
@@ -503,6 +508,7 @@ class LocalDatabaseHelper {
           deviceId TEXT PRIMARY KEY,
           deviceName TEXT NOT NULL,
           hardwareModel TEXT,
+          hardwareIdentifier TEXT,
           siteCode TEXT NOT NULL,
           warehouseCode TEXT,
           locationCode TEXT NOT NULL,
@@ -521,6 +527,8 @@ class LocalDatabaseHelper {
         )
       ''');
       await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_site ON $tableDeviceLocations(siteCode)');
+      await _database!.execute('CREATE INDEX IF NOT EXISTS idx_devloc_hwid ON $tableDeviceLocations(hardwareIdentifier)');
+      await _ensureDeviceLocationColumns(_database!);
     } catch (_) {}
 
     try {
@@ -665,6 +673,16 @@ class LocalDatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 99) {
+      debugPrint('DB Upgrade: Synchronizing tbl_device_locations schema & columns (v99)');
+      await _ensureDeviceLocationColumns(db);
+    }
+
+    if (oldVersion < 98) {
+      debugPrint('DB Upgrade: Adding hardwareIdentifier and fleet management columns (v98)');
+      await _ensureDeviceLocationColumns(db);
+    }
+
     if (oldVersion < 97) {
       debugPrint('DB Upgrade: Adding missing FOC columns and reasonType to tbl_price_lists (v97)');
       await _safeAddColumn(db, tablePriceLists, 'reasonType', 'INTEGER DEFAULT 0');
@@ -3292,6 +3310,103 @@ class LocalDatabaseHelper {
     });
   }
 
+  Future<void> refreshSalesOrdersAndDetails({
+    required List<dynamic> orders,
+    required List<dynamic> details,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final o in orders) {
+        if (o is Map) {
+          final map = Map<String, dynamic>.from(o);
+          final soh = map['sohNum'] ?? map['SohNum'] ?? map['orderNumber'];
+          if (soh != null && soh.toString().trim().isNotEmpty) {
+            batch.insert(
+              tableOrders,
+              {
+                colOrderNum: soh.toString().trim(),
+                colPoNum: map['poNo'] ?? map['PoNo'] ?? '',
+                colOrderDate: map['orderDate']?.toString() ?? map['OrderDate']?.toString() ?? '',
+                colDeliveryDate: map['deliveryDate']?.toString() ?? map['DeliveryDate']?.toString() ?? '',
+                colCustomerCode: (map['customerCode'] ?? map['CustomerCode'] ?? '').toString().trim(),
+                colCustomerName: (map['customerName'] ?? map['CustomerName'] ?? '').toString().trim(),
+                colRep0: map['rep0'] ?? map['Rep0'] ?? '',
+                colRep1: map['rep1'] ?? map['Rep1'] ?? '',
+                colSalesman: map['salesman'] ?? map['Salesman'] ?? '',
+                colSite: (map['site'] ?? map['Site'] ?? '').toString().trim(),
+                colStatus: map['status'] ?? map['Status'] ?? 1,
+                colSource: map['source'] ?? map['Source'] ?? 'External',
+                colStatusLabel: map['statusLabel'] ?? map['StatusLabel'] ?? 'Open',
+                colIsPreparedForShipment: (map['isPreparedForShipment'] == true || map['IsPreparedForShipment'] == true) ? 1 : 0,
+                colIsProcessed: (map['isProcessed'] == true || map['IsProcessed'] == true) ? 1 : 0,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+      final incomingSoNumbers = orders.map((o) => (o is Map ? (o['sohNum'] ?? o['SohNum'] ?? o['orderNumber']) : null)?.toString().trim()).where((s) => s != null && s.isNotEmpty).cast<String>().toSet();
+      for (final so in incomingSoNumbers) {
+        batch.delete(tableDetails, where: 'soNumber = ?', whereArgs: [so]);
+      }
+      for (final d in details) {
+        if (d is Map) {
+          final map = Map<String, dynamic>.from(d);
+          final soNum = map['soNumber'] ?? map['SoNumber'];
+          final itm = map['itemCode'] ?? map['ItemCode'];
+          final isFocVal = (map['isFreeOfCharge'] == true ||
+                  map['IsFreeOfCharge'] == true ||
+                  map['isFreeOfCharge'] == 1 ||
+                  map['IsFreeOfCharge'] == 1 ||
+                  map['isFreeOfCharge'] == 'YES' ||
+                  map['IsFreeOfCharge'] == 'YES' ||
+                  map['isFoc'] == 1 ||
+                  map['isFoc'] == true)
+              ? 1
+              : 0;
+          final netPriceVal = ((map['netPrice'] ?? map['NetPrice']) as num?)?.toDouble() ?? 0.0;
+          final hasDiscVal = (map['hasSpecialDiscount'] == true ||
+                  map['HasSpecialDiscount'] == true ||
+                  map['hasSpecialDiscount'] == 1 ||
+                  map['HasSpecialDiscount'] == 1 ||
+                  map['hasSpecialDiscount'] == 'YES' ||
+                  map['HasSpecialDiscount'] == 'YES')
+              ? 1
+              : 0;
+          final lineNumVal = int.tryParse((map['lineNum'] ?? map['LineNum'] ?? map['soplin'] ?? map['Soplin'] ?? 0).toString()) ?? 0;
+          if (soNum != null && soNum.toString().trim().isNotEmpty &&
+              itm != null && itm.toString().trim().isNotEmpty) {
+            batch.insert(
+              tableDetails,
+              {
+                colDetSoNum: soNum.toString().trim(),
+                colDetItemCode: itm.toString().trim(),
+                colDetDescription: map['description'] ?? map['Description'] ?? '',
+                colDetBarcodeType: map['barcodeType'] ?? map['BarcodeType'] ?? 'Variable Weight',
+                colDetQuantity: ((map['quantity'] ?? map['Quantity']) as num?)?.toDouble() ?? 0.0,
+                colDetSite: map['site'] ?? map['Site'] ?? '',
+                colDetLocation: map['location'] ?? map['Location'] ?? '',
+                colDetLot: map['lot'] ?? map['Lot'] ?? '',
+                colDetWarehouse: map['warehouse'] ?? map['Warehouse'] ?? '',
+                colDetUnit: map['unit'] ?? map['Unit'] ?? 'KG',
+                colDetCustomerCode: map['customerCode'] ?? map['CustomerCode'] ?? '',
+                colDetCustomerName: map['customerName'] ?? map['CustomerName'] ?? '',
+                'isFoc': isFocVal,
+                'netPrice': netPriceVal,
+                'hasSpecialDiscount': hasDiscVal,
+                'lineNum': lineNumVal,
+                columnIsSynced: 1,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   Future<bool> isValidProduct(String code) async {
     final db = await instance.database;
     final results = await db.query(
@@ -5102,6 +5217,68 @@ class LocalDatabaseHelper {
 
   // --- DEVICE LOCATIONS (Offline Replication & Local Mapping) ---
 
+  Future<void> _ensureDeviceLocationColumns(Database db) async {
+    final columns = {
+      'hardwareModel': 'TEXT',
+      'hardwareIdentifier': 'TEXT',
+      'hepProfileId': 'TEXT',
+      'hepApiKey': 'TEXT',
+      'isLocked': 'INTEGER DEFAULT 1',
+      'isLicensed': 'INTEGER DEFAULT 1',
+      'licenseStatus': "TEXT DEFAULT 'VALID'",
+      'licenseUpdatedAt': 'TEXT',
+      'licenseUpdatedBy': 'TEXT',
+    };
+
+    bool needsRecreate = false;
+    for (final entry in columns.entries) {
+      try {
+        final info = await db.rawQuery('PRAGMA table_info($tableDeviceLocations)');
+        final exists = info.any((row) => (row['name'] as String?)?.toLowerCase() == entry.key.toLowerCase());
+        if (!exists) {
+          await db.execute('ALTER TABLE $tableDeviceLocations ADD COLUMN ${entry.key} ${entry.value}');
+        }
+      } catch (e) {
+        debugPrint('Failed to add column ${entry.key} to $tableDeviceLocations: $e');
+        needsRecreate = true;
+      }
+    }
+
+    if (needsRecreate) {
+      try {
+        debugPrint('Recreating $tableDeviceLocations due to schema alter failure...');
+        await db.execute('DROP TABLE IF EXISTS $tableDeviceLocations');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableDeviceLocations (
+            deviceId TEXT PRIMARY KEY,
+            deviceName TEXT NOT NULL,
+            hardwareModel TEXT,
+            hardwareIdentifier TEXT,
+            siteCode TEXT NOT NULL,
+            warehouseCode TEXT,
+            locationCode TEXT NOT NULL,
+            hepProfileId TEXT,
+            hepApiKey TEXT,
+            isLocked INTEGER NOT NULL DEFAULT 1,
+            isLicensed INTEGER NOT NULL DEFAULT 1,
+            licenseStatus TEXT NOT NULL DEFAULT 'VALID',
+            licenseUpdatedAt TEXT,
+            licenseUpdatedBy TEXT,
+            assignedUserId TEXT,
+            assignedUserName TEXT,
+            isActive INTEGER NOT NULL DEFAULT 1,
+            updatedAt TEXT,
+            updatedBy TEXT
+          )
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_devloc_site ON $tableDeviceLocations(siteCode)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_devloc_hwid ON $tableDeviceLocations(hardwareIdentifier)');
+      } catch (e) {
+        debugPrint('Recreate $tableDeviceLocations error: $e');
+      }
+    }
+  }
+
   Future<int> insertOrUpdateDeviceLocation(Map<String, dynamic> row) async {
     final db = await database;
     final sanitized = Map<String, dynamic>.from(row);
@@ -5115,35 +5292,64 @@ class LocalDatabaseHelper {
     if (sanitized.containsKey('isLicensed')) {
       sanitized['isLicensed'] = (sanitized['isLicensed'] == true || sanitized['isLicensed'] == 1) ? 1 : 0;
     }
-    return await db.insert(
-      tableDeviceLocations,
-      sanitized,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
 
-  Future<void> saveDeviceLocationsBatch(List<Map<String, dynamic>> items) async {
-    final db = await database;
-    final batch = db.batch();
-    for (final item in items) {
-      final sanitized = Map<String, dynamic>.from(item);
-      sanitized.remove('macAddress');
-      if (sanitized.containsKey('isActive')) {
-        sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
-      }
-      if (sanitized.containsKey('isLocked')) {
-        sanitized['isLocked'] = (sanitized['isLocked'] == true || sanitized['isLocked'] == 1) ? 1 : 0;
-      }
-      if (sanitized.containsKey('isLicensed')) {
-        sanitized['isLicensed'] = (sanitized['isLicensed'] == true || sanitized['isLicensed'] == 1) ? 1 : 0;
-      }
-      batch.insert(
+    try {
+      return await db.insert(
         tableDeviceLocations,
         sanitized,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+    } catch (e) {
+      if (e.toString().contains('no column named') || e.toString().contains('has no column')) {
+        await _ensureDeviceLocationColumns(db);
+        return await db.insert(
+          tableDeviceLocations,
+          sanitized,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      rethrow;
     }
-    await batch.commit(noResult: true);
+  }
+
+  Future<void> saveDeviceLocationsBatch(List<Map<String, dynamic>> items) async {
+    final db = await database;
+
+    void populateBatch(Batch b) {
+      for (final item in items) {
+        final sanitized = Map<String, dynamic>.from(item);
+        sanitized.remove('macAddress');
+        if (sanitized.containsKey('isActive')) {
+          sanitized['isActive'] = (sanitized['isActive'] == true || sanitized['isActive'] == 1) ? 1 : 0;
+        }
+        if (sanitized.containsKey('isLocked')) {
+          sanitized['isLocked'] = (sanitized['isLocked'] == true || sanitized['isLocked'] == 1) ? 1 : 0;
+        }
+        if (sanitized.containsKey('isLicensed')) {
+          sanitized['isLicensed'] = (sanitized['isLicensed'] == true || sanitized['isLicensed'] == 1) ? 1 : 0;
+        }
+        b.insert(
+          tableDeviceLocations,
+          sanitized,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    }
+
+    try {
+      final batch = db.batch();
+      populateBatch(batch);
+      await batch.commit(noResult: true);
+    } catch (e) {
+      if (e.toString().contains('no column named') || e.toString().contains('has no column')) {
+        await _ensureDeviceLocationColumns(db);
+        final retryBatch = db.batch();
+        populateBatch(retryBatch);
+        await retryBatch.commit(noResult: true);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> getDeviceLocation(String deviceId) async {

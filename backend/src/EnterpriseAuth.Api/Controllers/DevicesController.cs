@@ -103,6 +103,7 @@ namespace EnterpriseAuth.Api.Controllers
                     DeviceId = d.DeviceId,
                     DeviceName = d.DeviceName,
                     HardwareModel = d.HardwareModel,
+                    HardwareIdentifier = d.HardwareIdentifier,
                     SiteCode = d.SiteCode,
                     WarehouseCode = d.WarehouseCode,
                     LocationCode = d.LocationCode,
@@ -206,6 +207,7 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,
@@ -281,8 +283,9 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = newUuid,
                 DeviceName = cleanName,
                 HardwareModel = request.HardwareModel,
+                HardwareIdentifier = request.HardwareIdentifier,
                 SiteCode = effectiveSite,
-                WarehouseCode = request.WarehouseCode,
+                WarehouseCode = !string.IsNullOrEmpty(request.WarehouseCode) ? request.WarehouseCode : request.LocationCode,
                 LocationCode = request.LocationCode,
                 HepProfileId = request.HepProfileId,
                 HepApiKey = request.HepApiKey,
@@ -307,6 +310,7 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,
@@ -326,51 +330,66 @@ namespace EnterpriseAuth.Api.Controllers
         }
 
         /// <summary>
-        /// Heartbeat called during login or sync. Reconciles licensing and assigned lorry location.
+        /// Heartbeat called during login or sync. Reconciles licensing, assigned lorry location,
+        /// dynamic site tenancy, and auto-provisions HM1, HM2, ... sequentially for new devices.
         /// </summary>
         [HttpPost("heartbeat")]
         public async Task<ActionResult<DeviceLocationDto>> Heartbeat(
             [FromBody] DeviceHeartbeatRequestDto request,
             [FromHeader(Name = "X-Device-Id")] string? headerDeviceId = null)
         {
-            var targetId = !string.IsNullOrEmpty(request.DeviceId) ? request.DeviceId : headerDeviceId;
-
-            if (string.IsNullOrWhiteSpace(targetId))
-            {
-                return BadRequest("DeviceId (UUID) is required.");
-            }
+            var targetId = !string.IsNullOrEmpty(request.DeviceId) ? request.DeviceId.Trim() : headerDeviceId?.Trim();
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
             var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
                                ?? User.Identity?.Name 
                                ?? "SYSTEM";
 
+            // Determine effective site from incoming request or user's login claim
+            var effectiveSite = !string.IsNullOrWhiteSpace(request.SiteCode) && request.SiteCode != "ALL"
+                ? request.SiteCode.Trim()
+                : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode.Trim() : "POD");
+
             DeviceLocation? device = null;
+
+            // 1. Primary lookup by genuine UUID if client provided one
             if (!string.IsNullOrWhiteSpace(targetId) && Guid.TryParse(targetId, out _))
             {
                 device = await _context.DeviceLocations.FirstOrDefaultAsync(d => d.DeviceId == targetId && d.IsActive);
             }
 
-            // Fallback match by hardware model or device name if client sent unprovisioned/legacy string
-            if (device == null && (!string.IsNullOrWhiteSpace(request.HardwareModel) || !string.IsNullOrWhiteSpace(targetId)))
+            // 2. Secondary lookup by unique physical HardwareIdentifier (e.g. ANDROID_ID)
+            if (device == null && !string.IsNullOrWhiteSpace(request.HardwareIdentifier))
             {
-                var queryStr = !string.IsNullOrWhiteSpace(request.HardwareModel) ? request.HardwareModel : targetId!;
-                device = await _context.DeviceLocations.FirstOrDefaultAsync(d => 
-                    (d.HardwareModel == queryStr || d.DeviceName == queryStr || d.DeviceId == targetId) && d.IsActive);
+                var cleanHwId = request.HardwareIdentifier.Trim();
+                device = await _context.DeviceLocations.FirstOrDefaultAsync(d => d.HardwareIdentifier == cleanHwId && d.IsActive);
+            }
+
+            // 3. Tertiary fallback lookup by DeviceName if valid HM pattern
+            if (device == null && !string.IsNullOrWhiteSpace(request.DeviceName) && 
+                System.Text.RegularExpressions.Regex.IsMatch(request.DeviceName.Trim(), @"^HM\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var cleanName = request.DeviceName.Trim();
+                device = await _context.DeviceLocations.FirstOrDefaultAsync(d => d.DeviceName.ToLower() == cleanName.ToLower() && d.IsActive);
             }
 
             if (device == null)
             {
-                // Auto-provision tablet with a genuine UUID and standard HM naming convention
+                // BRAND NEW PHYSICAL DEVICE:
+                // Auto-provision tablet with a genuine UUID and next sequential standardized HM numbering (HM1, HM2, ...)
                 var newUuid = Guid.NewGuid().ToString().ToLowerInvariant();
                 var standardDeviceName = await GenerateNextDeviceNameAsync();
+                var hwModel = !string.IsNullOrWhiteSpace(request.HardwareModel) ? request.HardwareModel.Trim() : standardDeviceName;
+
                 device = new DeviceLocation
                 {
                     DeviceId = newUuid,
                     DeviceName = standardDeviceName,
-                    HardwareModel = !string.IsNullOrWhiteSpace(request.HardwareModel) ? request.HardwareModel : standardDeviceName,
-                    SiteCode = !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD",
-                    LocationCode = "1000",
+                    HardwareModel = hwModel,
+                    HardwareIdentifier = !string.IsNullOrWhiteSpace(request.HardwareIdentifier) ? request.HardwareIdentifier.Trim() : null,
+                    SiteCode = effectiveSite,
+                    WarehouseCode = effectiveSite,
+                    LocationCode = effectiveSite,
                     IsLocked = true,
                     IsLicensed = true,
                     LicenseStatus = "VALID",
@@ -382,12 +401,14 @@ namespace EnterpriseAuth.Api.Controllers
                     UpdatedAt = DateTime.UtcNow,
                     UpdatedBy = usernameClaim
                 };
+
                 _context.DeviceLocations.Add(device);
                 await _context.SaveChangesAsync();
             }
             else
             {
-                // Auto-heal legacy non-GUID DeviceId in database
+                // EXISTING DEVICE:
+                // 1. Auto-heal legacy non-GUID DeviceId in database if present
                 if (!Guid.TryParse(device.DeviceId, out _))
                 {
                     var newUuid = Guid.NewGuid().ToString().ToLowerInvariant();
@@ -400,7 +421,7 @@ namespace EnterpriseAuth.Api.Controllers
                     device.HardwareModel = model;
                 }
 
-                // Auto-heal legacy device names (e.g. Infinix) to standardized HM numbering
+                // 2. Auto-heal legacy device names to standardized HM numbering
                 if (string.IsNullOrWhiteSpace(device.DeviceName) ||
                     device.DeviceName.Contains("Infinix", StringComparison.OrdinalIgnoreCase) ||
                     device.DeviceName.Contains("Android", StringComparison.OrdinalIgnoreCase) ||
@@ -411,37 +432,42 @@ namespace EnterpriseAuth.Api.Controllers
                     var standardName = await GenerateNextDeviceNameAsync();
                     device.DeviceName = standardName;
                 }
+
+                // 3. Update HardwareIdentifier if missing on server
+                if (!string.IsNullOrWhiteSpace(request.HardwareIdentifier) && string.IsNullOrWhiteSpace(device.HardwareIdentifier))
+                {
+                    device.HardwareIdentifier = request.HardwareIdentifier.Trim();
+                }
+
+                // 4. Update HardwareModel if incoming is detailed
+                if (!string.IsNullOrWhiteSpace(request.HardwareModel))
+                {
+                    device.HardwareModel = request.HardwareModel.Trim();
+                }
+
+                // 5. Dynamic Site Code Synchronization on User Login
+                if (!string.IsNullOrEmpty(effectiveSite) && device.SiteCode != effectiveSite)
+                {
+                    device.SiteCode = effectiveSite;
+                }
+
+                // 6. Ensure LocationCode and WarehouseCode are populated and aligned
+                if (string.IsNullOrEmpty(device.WarehouseCode) && !string.IsNullOrEmpty(device.LocationCode))
+                {
+                    device.WarehouseCode = device.LocationCode;
+                }
+
+                device.AssignedUserName = usernameClaim;
+                device.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
             }
-
-            // Auto-heal legacy site code if device was previously set to IPL
-            if (device.SiteCode == "IPL" || string.IsNullOrEmpty(device.SiteCode))
-            {
-                device.SiteCode = !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD";
-            }
-
-            // Site Isolation Check (non-admin field operators only)
-            var isAdminHeartbeat = IsAdminUser(usernameClaim);
-            if (!isAdminHeartbeat && !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" && device.SiteCode != userSiteCode)
-            {
-                return Forbid();
-            }
-
-            // Update heartbeat metadata
-            if (!string.IsNullOrEmpty(request.HardwareModel) && string.IsNullOrEmpty(device.HardwareModel))
-            {
-                device.HardwareModel = request.HardwareModel;
-            }
-
-            device.AssignedUserName = usernameClaim;
-            device.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
 
             return Ok(new DeviceLocationDto
             {
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,
@@ -494,6 +520,10 @@ namespace EnterpriseAuth.Api.Controllers
             {
                 device.WarehouseCode = dto.WarehouseCode.Trim();
             }
+            else
+            {
+                device.WarehouseCode = dto.LocationCode.Trim();
+            }
             device.UpdatedAt = DateTime.UtcNow;
             device.UpdatedBy = usernameClaim;
 
@@ -504,6 +534,7 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,
@@ -571,6 +602,16 @@ namespace EnterpriseAuth.Api.Controllers
                 device.DeviceName = cleanName;
             }
 
+            if (!string.IsNullOrWhiteSpace(dto.LocationCode))
+            {
+                device.LocationCode = dto.LocationCode.Trim();
+                device.WarehouseCode = !string.IsNullOrWhiteSpace(dto.WarehouseCode) ? dto.WarehouseCode.Trim() : dto.LocationCode.Trim();
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.WarehouseCode))
+            {
+                device.WarehouseCode = dto.WarehouseCode.Trim();
+            }
+
             if (dto.HepProfileId != null) device.HepProfileId = dto.HepProfileId.Trim();
             if (dto.HepApiKey != null) device.HepApiKey = dto.HepApiKey.Trim();
             if (dto.IsLocked.HasValue) device.IsLocked = dto.IsLocked.Value;
@@ -585,6 +626,7 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,
@@ -645,6 +687,7 @@ namespace EnterpriseAuth.Api.Controllers
                 DeviceId = device.DeviceId,
                 DeviceName = device.DeviceName,
                 HardwareModel = device.HardwareModel,
+                HardwareIdentifier = device.HardwareIdentifier,
                 SiteCode = device.SiteCode,
                 WarehouseCode = device.WarehouseCode,
                 LocationCode = device.LocationCode,

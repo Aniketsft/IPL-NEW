@@ -7,6 +7,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string DeviceId { get; set; } = string.Empty;
         public string DeviceName { get; set; } = string.Empty;
         public string? HardwareModel { get; set; }
+        public string? HardwareIdentifier { get; set; }
         public string SiteCode { get; set; } = string.Empty;
         public string? WarehouseCode { get; set; }
         public string LocationCode { get; set; } = string.Empty;
@@ -29,6 +30,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string DeviceId { get; set; } = string.Empty;
         public string? DeviceName { get; set; }
         public string? HardwareModel { get; set; }
+        public string? HardwareIdentifier { get; set; }
         public string? SiteCode { get; set; }
     }
 
@@ -36,6 +38,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string DeviceName { get; set; } = string.Empty;
         public string? HardwareModel { get; set; }
+        public string? HardwareIdentifier { get; set; }
         public string SiteCode { get; set; } = string.Empty;
         public string LocationCode { get; set; } = string.Empty;
         public string? WarehouseCode { get; set; }
@@ -53,6 +56,8 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string? DeviceName { get; set; }
         public string? SiteCode { get; set; }
+        public string? LocationCode { get; set; }
+        public string? WarehouseCode { get; set; }
         public string? HepProfileId { get; set; }
         public string? HepApiKey { get; set; }
         public bool? IsLocked { get; set; }

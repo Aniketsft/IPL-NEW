@@ -443,7 +443,6 @@ D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Enterp
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.deps.json
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.runtimeconfig.json
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.dll
-D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.pdb
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Azure.Core.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\Azure.Identity.dll
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\BCrypt.Net-Next.dll
@@ -577,10 +576,7 @@ D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\static
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\swae.build.ex.cache
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\Enterpri.FCFAF173.Up2Date
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\EnterpriseAuth.Api.dll
-D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\refint\EnterpriseAuth.Api.dll
-D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\EnterpriseAuth.Api.pdb
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\EnterpriseAuth.Api.genruntimeconfig.cache
-D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\ref\EnterpriseAuth.Api.dll
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_verify\appsettings.Development.json
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_verify\appsettings.json
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_verify\EnterpriseAuth.Api.staticwebassets.endpoints.json
@@ -629,3 +625,7 @@ C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\s
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_check5\EnterpriseAuth.Api.runtimeconfig.json
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_check5\EnterpriseAuth.Api.dll
 C:\Users\Aniket\.gemini\antigravity\brain\86d3b5c6-a333-4179-9826-2b2792f6bce4\scratch\build_check5\EnterpriseAuth.Api.pdb
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\refint\EnterpriseAuth.Api.dll
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\EnterpriseAuth.Api.pdb
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.pdb
+D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\ref\EnterpriseAuth.Api.dll

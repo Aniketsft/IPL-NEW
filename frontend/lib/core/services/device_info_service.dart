@@ -3,6 +3,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class DeviceInfoService {
   static final DeviceInfoService _instance = DeviceInfoService._internal();
@@ -12,6 +13,7 @@ class DeviceInfoService {
   static DeviceInfoService get instance => _instance;
 
   String _hardwareModel = 'UnknownDevice';
+  String _hardwareIdentifier = '';
   String _deviceUuid = '';
   String _deviceName = '';
   String? _assignedLocation;
@@ -42,10 +44,11 @@ class DeviceInfoService {
   }
 
   String get hardwareModel => _hardwareModel;
+  String get hardwareIdentifier => _hardwareIdentifier;
   String get deviceInfo => _hardwareModel;
   String get deviceUuid => _deviceUuid;
   String get deviceId => isValidUuid(_deviceUuid) ? _deviceUuid : '';
-  String get deviceName => !isHardwareOrLegacyName(_deviceName) ? _deviceName : 'HM1';
+  String get deviceName => !isHardwareOrLegacyName(_deviceName) ? _deviceName : '';
   String? get assignedLocation => _assignedLocation;
   String? get assignedWarehouse => _assignedWarehouse;
   String? get assignedSite => _assignedSite;
@@ -56,45 +59,70 @@ class DeviceInfoService {
   bool get isLocked => _isLocked;
 
   Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Resolve Hardware Model and Platform-Unique Hardware Identifier
     try {
       final deviceInfoPlugin = DeviceInfoPlugin();
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
         final model = androidInfo.model.trim();
         String configuredName = 'Unknown';
+        String nativeHwId = '';
         try {
           const platform = MethodChannel('com.enterprise.auth/device_name');
-          final String? result = await platform.invokeMethod('getDeviceName');
-          if (result != null && result.isNotEmpty) {
-            configuredName = result;
+          final String? devName = await platform.invokeMethod('getDeviceName');
+          if (devName != null && devName.isNotEmpty) {
+            configuredName = devName;
+          }
+          final String? hwId = await platform.invokeMethod('getHardwareIdentifier');
+          if (hwId != null && hwId.isNotEmpty) {
+            nativeHwId = hwId.trim();
           }
         } catch (e) {
-          debugPrint('Failed to get Android configured device name: $e');
+          debugPrint('Failed to get Android configured device info: $e');
         }
         _hardwareModel = '$model ($configuredName)';
+        _hardwareIdentifier = nativeHwId.isNotEmpty ? nativeHwId : (androidInfo.id.isNotEmpty ? androidInfo.id : '');
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfoPlugin.iosInfo;
         final name = iosInfo.name;
         final model = iosInfo.model;
         _hardwareModel = '$model ($name)';
+        _hardwareIdentifier = iosInfo.identifierForVendor ?? '';
       } else if (Platform.isWindows) {
         final windowsInfo = await deviceInfoPlugin.windowsInfo;
         _hardwareModel = 'Windows (${windowsInfo.computerName})';
+        _hardwareIdentifier = windowsInfo.deviceId.isNotEmpty ? windowsInfo.deviceId : windowsInfo.computerName;
       } else {
         _hardwareModel = 'Platform: ${Platform.operatingSystem}';
       }
-      debugPrint('DeviceInfoService: Resolved hardware model: $_hardwareModel');
+      debugPrint('DeviceInfoService: Resolved hardware model: $_hardwareModel, identifier: $_hardwareIdentifier');
     } catch (e) {
       debugPrint('DeviceInfoService: Failed to resolve hardware model: $e');
       _hardwareModel = 'Terminal-${Platform.operatingSystem}-${DateTime.now().millisecondsSinceEpoch}';
     }
 
+    // 2. Ensure Persistent Hardware Identifier (Fallback to generated seed if native unavailable)
+    if (_hardwareIdentifier.isEmpty) {
+      final savedHwId = prefs.getString('device_hardware_identifier') ?? '';
+      if (savedHwId.isNotEmpty) {
+        _hardwareIdentifier = savedHwId;
+      } else {
+        final newHwId = const Uuid().v4();
+        _hardwareIdentifier = newHwId;
+        await prefs.setString('device_hardware_identifier', newHwId);
+      }
+    } else {
+      await prefs.setString('device_hardware_identifier', _hardwareIdentifier);
+    }
+
+    // 3. Load Cached Device Identity
     try {
-      final prefs = await SharedPreferences.getInstance();
       final savedUuid = prefs.getString('device_assigned_uuid') ?? '';
       _deviceUuid = isValidUuid(savedUuid) ? savedUuid.toLowerCase() : '';
       final savedName = prefs.getString('device_assigned_name') ?? '';
-      _deviceName = !isHardwareOrLegacyName(savedName) ? savedName : 'HM1';
+      _deviceName = !isHardwareOrLegacyName(savedName) ? savedName : '';
       _assignedSite = prefs.getString('device_assigned_site');
       _assignedWarehouse = prefs.getString('device_assigned_warehouse');
       _assignedLocation = prefs.getString('device_assigned_location');
@@ -111,6 +139,7 @@ class DeviceInfoService {
   Future<void> setDeviceIdentity({
     required String uuid,
     required String name,
+    String? hardwareIdentifier,
     String? siteCode,
     String? warehouseCode,
     String? locationCode,
@@ -121,9 +150,12 @@ class DeviceInfoService {
     bool? isLocked,
   }) async {
     final cleanUuid = isValidUuid(uuid) ? uuid.toLowerCase() : '';
-    final cleanName = !isHardwareOrLegacyName(name) ? name.trim() : 'HM1';
+    final cleanName = !isHardwareOrLegacyName(name) ? name.trim() : '';
     _deviceUuid = cleanUuid;
     _deviceName = cleanName;
+    if (hardwareIdentifier != null && hardwareIdentifier.isNotEmpty) {
+      _hardwareIdentifier = hardwareIdentifier.trim();
+    }
     if (siteCode != null) _assignedSite = siteCode;
     if (warehouseCode != null) _assignedWarehouse = warehouseCode;
     if (locationCode != null) _assignedLocation = locationCode;
@@ -140,6 +172,9 @@ class DeviceInfoService {
       await prefs.remove('device_assigned_uuid');
     }
     await prefs.setString('device_assigned_name', cleanName);
+    if (_hardwareIdentifier.isNotEmpty) {
+      await prefs.setString('device_hardware_identifier', _hardwareIdentifier);
+    }
     if (siteCode != null) await prefs.setString('device_assigned_site', siteCode);
     if (warehouseCode != null) await prefs.setString('device_assigned_warehouse', warehouseCode);
     if (locationCode != null) await prefs.setString('device_assigned_location', locationCode);

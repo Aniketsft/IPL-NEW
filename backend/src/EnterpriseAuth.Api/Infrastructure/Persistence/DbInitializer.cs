@@ -1104,6 +1104,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         -- Migrate existing table columns
                         IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HardwareModel')
                             EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HardwareModel] NVARCHAR(150) NULL;');
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HardwareIdentifier')
+                            EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HardwareIdentifier] NVARCHAR(128) NULL;');
                         IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HepProfileId')
                             EXEC('ALTER TABLE [dbo].[DeviceLocations] ADD [HepProfileId] NVARCHAR(100) NULL;');
                         IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HepApiKey')
@@ -1136,6 +1138,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     BEGIN
                         EXEC('CREATE NONCLUSTERED INDEX [IX_DeviceLocations_Site_Licensed] ON [dbo].[DeviceLocations] ([SiteCode], [IsLicensed]);');
                         PRINT 'Created index IX_DeviceLocations_Site_Licensed';
+                    END
+
+                    -- Create HardwareIdentifier index
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DeviceLocations_HardwareIdentifier' AND object_id = OBJECT_ID(N'[dbo].[DeviceLocations]'))
+                    BEGIN
+                        EXEC('CREATE NONCLUSTERED INDEX [IX_DeviceLocations_HardwareIdentifier] ON [dbo].[DeviceLocations] ([HardwareIdentifier]) WHERE [HardwareIdentifier] IS NOT NULL AND [IsActive] = 1;');
+                        PRINT 'Created index IX_DeviceLocations_HardwareIdentifier';
                     END
 
                     -- Heal legacy tablet site codes to POD

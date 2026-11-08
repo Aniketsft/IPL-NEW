@@ -18,5 +18,9 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
         public string? Salesman { get; set; }
+        public bool IsFreeOfCharge { get; set; }
+        public bool HasSpecialDiscount { get; set; }
+        public decimal NetPrice { get; set; }
+        public int LineNum { get; set; }
     }
 }

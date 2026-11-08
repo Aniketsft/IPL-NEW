@@ -16,6 +16,7 @@ class DeviceItem {
   final String deviceId;
   final String deviceName;
   final String? hardwareModel;
+  final String? hardwareIdentifier;
   final String siteCode;
   final String? warehouseCode;
   final String locationCode;
@@ -35,6 +36,7 @@ class DeviceItem {
     required this.deviceId,
     required this.deviceName,
     this.hardwareModel,
+    this.hardwareIdentifier,
     required this.siteCode,
     this.warehouseCode,
     required this.locationCode,
@@ -56,6 +58,7 @@ class DeviceItem {
       deviceId: json['deviceId']?.toString() ?? '',
       deviceName: json['deviceName']?.toString() ?? json['deviceId']?.toString() ?? '',
       hardwareModel: json['hardwareModel']?.toString(),
+      hardwareIdentifier: json['hardwareIdentifier']?.toString(),
       siteCode: json['siteCode']?.toString() ?? '',
       warehouseCode: json['warehouseCode']?.toString(),
       locationCode: json['locationCode']?.toString() ?? '',
@@ -78,6 +81,7 @@ class DeviceItem {
       'deviceId': deviceId,
       'deviceName': deviceName,
       'hardwareModel': hardwareModel,
+      'hardwareIdentifier': hardwareIdentifier,
       'siteCode': siteCode,
       'warehouseCode': warehouseCode,
       'locationCode': locationCode,
@@ -99,6 +103,7 @@ class DeviceItem {
     String? deviceId,
     String? deviceName,
     String? hardwareModel,
+    String? hardwareIdentifier,
     String? siteCode,
     String? warehouseCode,
     String? locationCode,
@@ -118,6 +123,7 @@ class DeviceItem {
       deviceId: deviceId ?? this.deviceId,
       deviceName: deviceName ?? this.deviceName,
       hardwareModel: hardwareModel ?? this.hardwareModel,
+      hardwareIdentifier: hardwareIdentifier ?? this.hardwareIdentifier,
       siteCode: siteCode ?? this.siteCode,
       warehouseCode: warehouseCode ?? this.warehouseCode,
       locationCode: locationCode ?? this.locationCode,
@@ -418,6 +424,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
       match = list.where((d) => d.deviceId.toLowerCase() == _currentDeviceId.toLowerCase()).firstOrNull;
     }
 
+    final hwId = DeviceInfoService.instance.hardwareIdentifier;
+    if (match == null && hwId.isNotEmpty) {
+      match = list.where((d) => d.hardwareIdentifier != null && d.hardwareIdentifier!.trim() == hwId.trim()).firstOrNull;
+    }
+
     match ??= list.where((d) =>
       (d.deviceName.isNotEmpty && d.deviceName == _currentDeviceName) ||
       (d.hardwareModel != null && d.hardwareModel == _currentHardwareModel) ||
@@ -428,7 +439,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       final realUuid = match.deviceId.toLowerCase();
       setState(() {
         _currentDeviceId = realUuid;
-        _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(match!.deviceName) ? match.deviceName : 'HM1';
+        _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(match!.deviceName) ? match.deviceName : '';
         _currentDeviceLocation = match.locationCode;
         _currentWarehouse = match.warehouseCode;
         _currentHepProfileId = match.hepProfileId;
@@ -446,6 +457,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         DeviceInfoService.instance.setDeviceIdentity(
           uuid: realUuid,
           name: match.deviceName,
+          hardwareIdentifier: match.hardwareIdentifier ?? DeviceInfoService.instance.hardwareIdentifier,
           siteCode: match.siteCode,
           warehouseCode: match.warehouseCode,
           locationCode: match.locationCode,
@@ -475,7 +487,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
           },
           body: jsonEncode({
             'deviceId': _currentDeviceId,
+            'deviceName': _currentDeviceName,
             'hardwareModel': _currentHardwareModel,
+            'hardwareIdentifier': DeviceInfoService.instance.hardwareIdentifier,
             'siteCode': _userSiteCode,
           }),
         ).timeout(const Duration(seconds: 4));
@@ -483,13 +497,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
         if (hbResp.statusCode == 200 && hbResp.body.trim().isNotEmpty) {
           final data = jsonDecode(hbResp.body);
           final updatedItem = DeviceItem.fromJson(data);
-          await _db.insertOrUpdateDeviceLocation(updatedItem.toMap());
+          try {
+            await _db.insertOrUpdateDeviceLocation(updatedItem.toMap());
+          } catch (e) {
+            debugPrint('Failed to cache device in SQLite: $e');
+          }
           if (DeviceInfoService.isValidUuid(updatedItem.deviceId)) {
             final realUuid = updatedItem.deviceId.toLowerCase();
             if (mounted) {
               setState(() {
                 _currentDeviceId = realUuid;
-                _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(updatedItem.deviceName) ? updatedItem.deviceName : 'HM1';
+                _currentDeviceName = !DeviceInfoService.isHardwareOrLegacyName(updatedItem.deviceName) ? updatedItem.deviceName : '';
                 _currentDeviceLocation = updatedItem.locationCode;
                 _currentWarehouse = updatedItem.warehouseCode;
                 _currentHepProfileId = updatedItem.hepProfileId;
@@ -502,6 +520,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
             await DeviceInfoService.instance.setDeviceIdentity(
               uuid: realUuid,
               name: updatedItem.deviceName,
+              hardwareIdentifier: updatedItem.hardwareIdentifier ?? DeviceInfoService.instance.hardwareIdentifier,
               siteCode: updatedItem.siteCode,
               warehouseCode: updatedItem.warehouseCode,
               locationCode: updatedItem.locationCode,
@@ -530,7 +549,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
         final List<dynamic> data = jsonDecode(response.body);
         final onlineList = data.map((e) => DeviceItem.fromJson(e)).toList();
 
-        await _db.saveDeviceLocationsBatch(onlineList.map((d) => d.toMap()).toList());
+        try {
+          await _db.saveDeviceLocationsBatch(onlineList.map((d) => d.toMap()).toList());
+        } catch (e) {
+          debugPrint('Failed to cache fleet in SQLite: $e');
+        }
 
         if (mounted) {
           setState(() {
@@ -698,17 +721,29 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
       if (resp.statusCode == 200 && resp.body.trim().isNotEmpty) {
         final updated = DeviceItem.fromJson(jsonDecode(resp.body));
-        await _db.insertOrUpdateDeviceLocation(updated.toMap());
+        try {
+          await _db.insertOrUpdateDeviceLocation(updated.toMap());
+        } catch (dbErr) {
+          debugPrint('Warning: Local SQLite update error during license toggle: $dbErr');
+        }
 
-        if (targetDeviceId == _currentDeviceId) {
+        final isThisTablet = targetDeviceId.toLowerCase() == _currentDeviceId.toLowerCase() ||
+            DeviceInfoService.instance.deviceId.toLowerCase() == targetDeviceId.toLowerCase() ||
+            (updated.hardwareIdentifier != null &&
+                updated.hardwareIdentifier!.isNotEmpty &&
+                updated.hardwareIdentifier == DeviceInfoService.instance.hardwareIdentifier);
+
+        if (isThisTablet) {
           await DeviceInfoService.instance.setLicenseStatus(
             isLicensed: updated.isLicensed,
             status: updated.licenseStatus,
           );
-          setState(() {
-            _currentIsLicensed = updated.isLicensed;
-            _currentLicenseStatus = updated.licenseStatus;
-          });
+          if (mounted) {
+            setState(() {
+              _currentIsLicensed = updated.isLicensed;
+              _currentLicenseStatus = updated.licenseStatus;
+            });
+          }
         }
 
         await _loadFromLocalDb();
@@ -843,7 +878,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   /// Provision a Brand New Tablet
   void _openProvisionDialog() {
-    final nameCtrl = TextEditingController(text: 'HM1');
+    final nameCtrl = TextEditingController(text: 'Loading next name...');
     _storage.getToken().then((token) {
       http.get(
         Uri.parse('${ApiConfig.baseUrl}Devices/next-name'),
@@ -1077,9 +1112,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
         body: jsonEncode({
           'deviceName': deviceName,
           'hardwareModel': _currentHardwareModel,
+          'hardwareIdentifier': DeviceInfoService.instance.hardwareIdentifier,
           'siteCode': _userSiteCode,
           'locationCode': lorryLocation,
-          'warehouseCode': warehouse,
+          'warehouseCode': warehouse ?? lorryLocation,
           'hepProfileId': hepProfileId,
           'hepApiKey': hepApiKey,
         }),
@@ -1093,6 +1129,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         await DeviceInfoService.instance.setDeviceIdentity(
           uuid: newDevice.deviceId,
           name: newDevice.deviceName,
+          hardwareIdentifier: newDevice.hardwareIdentifier ?? DeviceInfoService.instance.hardwareIdentifier,
           siteCode: newDevice.siteCode,
           warehouseCode: newDevice.warehouseCode,
           locationCode: newDevice.locationCode,
@@ -1526,8 +1563,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     Text(
                       (!DeviceInfoService.isHardwareOrLegacyName(_currentDeviceName) && _currentDeviceName.isNotEmpty)
                           ? _currentDeviceName
-                          : 'HM1',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          : 'Unassigned (Pending Sync)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _currentDeviceName.isNotEmpty ? null : Colors.amber,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

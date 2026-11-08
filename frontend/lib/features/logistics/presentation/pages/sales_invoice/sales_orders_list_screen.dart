@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invo
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
+import 'package:enterprise_auth_mobile/core/secure_storage_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 
 class SalesOrdersListScreen extends StatefulWidget {
@@ -59,8 +60,8 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
   Future<void> _loadOrders() async {
     setState(() => _isLoading = true);
     try {
-      await _service.ensureHardcodedSalesOrderSeeded();
-      final orders = await _service.getSalesOrders(customerCode: _effectiveCustomerCode);
+      final siteCode = await SecureStorageService().getSiteCode();
+      final orders = await _service.getSalesOrders(customerCode: _effectiveCustomerCode, siteCode: siteCode);
       setState(() {
         _orders = orders;
         _isLoading = false;
@@ -101,10 +102,10 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                   itemCount: _orders.length,
                   itemBuilder: (context, index) {
                     final order = _orders[index];
-                    final isConverted = order['status'] == 'Converted';
-                    final date = DateTime.tryParse(order['createdAt'] ?? '') ?? DateTime.now();
-                    final orderNumber = (order['orderNumber'] as String?)?.isNotEmpty == true
-                        ? order['orderNumber'] as String
+                    final isConverted = order['status'] == 'Converted' || order['status'] == '2' || order['status'] == 2;
+                    final date = DateTime.tryParse(order['createdAt'] ?? order['orderDate'] ?? '') ?? DateTime.now();
+                    final orderNumber = ((order['sohNum'] ?? order['orderNumber']) as String?)?.isNotEmpty == true
+                        ? (order['sohNum'] ?? order['orderNumber']) as String
                         : 'SO-#${order['id']}';
                     
                     return Card(
@@ -126,7 +127,7 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                             builder: (ctx) => const Center(child: CircularProgressIndicator()),
                           );
                           try {
-                            final details = await _service.getSalesOrderDetails(order['id'] as int);
+                            final details = await _service.getSalesOrderDetails(order['sohNum'] ?? order['orderNumber'] ?? order['id']);
                             if (context.mounted) {
                               Navigator.pop(context); // Close loading dialog
                               
@@ -136,7 +137,7 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                               // Set transaction type for viewing
                               bloc.add(InitializeTransaction(
                                 transactionType: 'VIEW_SI_SALES_ORDER',
-                                originalDocumentId: order['id'].toString(),
+                                originalDocumentId: (order['sohNum'] ?? order['orderNumber'] ?? order['id']).toString(),
                               ));
                               
                               final fullCust = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(order['customerCode']?.toString() ?? '');
@@ -153,21 +154,25 @@ class _SalesOrdersListScreenState extends State<SalesOrdersListScreen> {
                               }
 
                               for (final detail in details) {
+                                final isFoc = detail['isFoc'] == 1 || detail['isFoc'] == true;
+                                final basePrice = isFoc ? 0.0 : ((detail['basePrice'] as num?)?.toDouble() ?? 0.0);
                                 bloc.add(AddCartItem(
                                   CartItem(
                                     product: SalesInvoiceProductModel(
-                                      sku: detail['productCode'],
-                                      name: detail['productName'],
+                                      sku: (detail['productCode'] ?? detail['itemCode'] ?? '').toString(),
+                                      name: (detail['productName'] ?? detail['description'] ?? '').toString(),
                                       stockQty: 0,
                                       warehouse: detail['warehouse'] ?? '',
-                                      salesUnit: detail['salesUnit'] ?? '',
+                                      salesUnit: (detail['salesUnit'] ?? detail['unit'] ?? 'EA').toString(),
                                     ),
-                                    quantity: detail['quantity'] as double,
-                                    basePrice: detail['basePrice'] as double,
-                                    discountAmountFlat: detail['discountAmount'] as double,
+                                    quantity: (detail['quantity'] as num?)?.toDouble() ?? 0.0,
+                                    basePrice: basePrice,
+                                    discountAmountFlat: (detail['discountAmount'] as num?)?.toDouble() ?? 0.0,
                                     vatRatePercent: 0,
                                     taxRule: detail['taxRule'] ?? '',
-                                    lotNumber: detail['lotNumber'] ?? '',
+                                    isFoc: isFoc,
+                                    pricingSource: isFoc ? 'X3_FOC' : '',
+                                    lotNumber: (detail['lotNumber'] ?? detail['lot'] ?? '').toString(),
                                     warehouse: detail['warehouse'] ?? '',
                                     location: detail['location'] ?? '',
                                   )

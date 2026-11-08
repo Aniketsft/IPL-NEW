@@ -5,10 +5,12 @@ using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Linq;
+using EnterpriseAuth.Api.Infrastructure.Security;
 
 namespace EnterpriseAuth.Api.Controllers
 {
     [Authorize]
+    [ValidateDeviceLicense]
     [ApiController]
     [Route("api/[controller]")]
     public class SyncController : ControllerBase

@@ -113,44 +113,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryFirstOrDefaultAsync<SalesInvoiceCustomerDto>(sql, new { CustomerCode = customerCode.Trim() });
         }
 
-        private async Task<string> ResolveFinancialSiteCodeAsync(IDbConnection db, string? siteCode)
-        {
-            var cleanSite = (siteCode ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(cleanSite) || string.Equals(cleanSite, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                return cleanSite;
-            }
-
-            var schema = _schemaProvider.GetSchemaName();
-            var cacheKey = $"si_fin_site_{schema}_{cleanSite.ToUpperInvariant()}";
-            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out string? cachedFin) && !string.IsNullOrWhiteSpace(cachedFin))
-            {
-                return cachedFin;
-            }
-
-            try
-            {
-                string sql = $@"
-                    SELECT TOP 1 LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(FINRSPFCY_0)), ''), FCY_0)))
-                    FROM {_syncSettings.X3DatabaseName}.{schema}.FACILITY WITH (NOLOCK)
-                    WHERE LTRIM(RTRIM(FCY_0)) = @SiteCode";
-
-                var finSite = await db.QueryFirstOrDefaultAsync<string>(sql, new { SiteCode = cleanSite });
-                var resolved = !string.IsNullOrWhiteSpace(finSite) ? finSite.Trim() : cleanSite;
-                _memoryCache?.Set(cacheKey, resolved, TimeSpan.FromMinutes(15));
-                return resolved;
-            }
-            catch
-            {
-                return cleanSite;
-            }
-        }
-
         public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var cleanSite = (sitecode ?? string.Empty).Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
@@ -166,7 +132,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE 
                     itm.ITMSTA_0 = 1
-                    AND LTRIM(RTRIM(stk.STOFCY_0)) IN (@SiteCode, @FinancialSiteCode)
+                    AND LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode
                     AND stk.QTYSTU_0 > 0
                     AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                     AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
@@ -175,14 +141,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))),
                     LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN')));";
 
-            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = cleanSite, FinancialSiteCode = financialSite });
+            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = cleanSite });
         }
 
         public async Task<IEnumerable<SalesInvoiceItemStockDto>> GetItemStockDetailsAsync(string sitecode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var cleanSite = (sitecode ?? string.Empty).Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0))) AS Warehouse, 
@@ -206,7 +171,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
-                WHERE LTRIM(RTRIM(stk.STOFCY_0)) IN (@SiteCode, @FinancialSiteCode)
+                WHERE LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode
                   AND stk.STA_0 IN ('A', 'Q', 'R')
                   AND stk.QTYSTU_0 > 0
                   AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
@@ -219,7 +184,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ORDER BY 
                     stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0, stk.STA_0";
 
-            return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = cleanSite, FinancialSiteCode = financialSite });
+            return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = cleanSite });
         }
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.SemaphoreSlim> _siLocks = new();
@@ -356,7 +321,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (siteCode ?? "").Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
 
             string sql = $@"
                 SELECT  
@@ -379,7 +343,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                   AND DUD.AMTCUR_0 > DUD.PAYCUR_0 + DUD.TMPCUR_0 
                   AND DUD.DUDSTA_0 = 2
                   AND DUD.SNS_0    = 1
-                  AND (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) IN (@SiteCode, @FinancialSiteCode))
+                  AND (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
                   AND (@DaysCutoff <= 0 OR DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE)))
                   AND (@CustomerNo = '' OR BPC.BPCNUM_0 = @CustomerNo)
                 GROUP BY  
@@ -396,7 +360,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryAsync<OpenInvoiceDto>(sql, new 
             { 
                 SiteCode = cleanSite,
-                FinancialSiteCode = financialSite,
                 CustomerNo = (customerNo ?? "").Trim(),
                 DaysCutoff = daysCutoff
             });
@@ -646,7 +609,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (siteCode ?? "").Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
             string sql = $@"
                 SELECT 
                     CONCAT(
@@ -657,7 +619,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         COUNT(*)
                     )
                 FROM {_syncSettings.X3DatabaseName}.{schema}.[GACCDUDATE] DUD WITH (NOLOCK)
-                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) IN (@SiteCode, @FinancialSiteCode))
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(DUD.FCY_0)) = @SiteCode)
                   AND DUD.DUDSTA_0 = 2
                   AND DUD.SNS_0 = 1
                   AND (@DaysCutoff <= 0 OR DUD.DUDDAT_0 >= DATEADD(day, -@DaysCutoff, CAST(GETDATE() AS DATE)));
@@ -665,7 +627,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             var watermark = await db.ExecuteScalarAsync<string>(sql, new 
             { 
                 SiteCode = cleanSite,
-                FinancialSiteCode = financialSite,
                 DaysCutoff = daysCutoff
             });
             return watermark ?? "EMPTY";
@@ -676,7 +637,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (siteCode ?? "").Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
             string sql = $@"
                 SELECT 
                     CONCAT(
@@ -687,14 +647,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                         COUNT(*)
                     )
                 FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK stk WITH (NOLOCK)
-                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(stk.STOFCY_0)) IN (@SiteCode, @FinancialSiteCode))
+                WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode)
                   AND stk.STA_0 = 'A'
                   AND stk.QTYSTU_0 > 0;
             ";
             var watermark = await db.ExecuteScalarAsync<string>(sql, new 
             { 
-                SiteCode = cleanSite,
-                FinancialSiteCode = financialSite
+                SiteCode = cleanSite
             });
             return watermark ?? "EMPTY";
         }
@@ -745,7 +704,6 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (siteCode ?? "").Trim();
-            var financialSite = await ResolveFinancialSiteCodeAsync(db, cleanSite);
             string sql = $@"
                 SELECT 
                     @ProductCode                                                        AS ProductCode,
@@ -756,14 +714,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 FROM {_syncSettings.X3DatabaseName}.{schema}.ITMMVT m WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOCK s WITH (NOLOCK)
                     ON m.ITMREF_0 = s.ITMREF_0 AND m.STOFCY_0 = s.STOFCY_0 AND s.STA_0 = 'A' AND s.QTYSTU_0 > 0
-                WHERE m.ITMREF_0 = @ProductCode AND LTRIM(RTRIM(m.STOFCY_0)) IN (@SiteCode, @FinancialSiteCode)
+                WHERE m.ITMREF_0 = @ProductCode AND LTRIM(RTRIM(m.STOFCY_0)) = @SiteCode
                 GROUP BY m.ITMREF_0;
             ";
             var result = await db.QueryFirstOrDefaultAsync<ProductLiveStockDto>(sql, new 
             { 
                 ProductCode = (productCode ?? "").Trim(), 
-                SiteCode = cleanSite,
-                FinancialSiteCode = financialSite
+                SiteCode = cleanSite
             });
 
             return result ?? new ProductLiveStockDto
