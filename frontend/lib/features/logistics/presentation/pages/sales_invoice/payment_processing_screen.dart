@@ -160,7 +160,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   }
 
   double _getTotalPaid() {
-    return _payments.fold(0.0, (sum, item) => sum + item.amount);
+    return double.parse(_payments.fold(0.0, (sum, item) => sum + item.amount).toStringAsFixed(2));
   }
 
   Future<void> _addPayment({required double grandTotal, Map<String, dynamic>? customer}) async {
@@ -174,9 +174,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
     final totalPaid = _getTotalPaid();
-    final remaining = grandTotal - totalPaid;
+    final remaining = double.parse((grandTotal - totalPaid).toStringAsFixed(2));
 
-    if (remaining <= 0) {
+    if (remaining <= 0.001) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Amount is already fully covered.')),
       );
@@ -200,7 +200,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     }
 
     // Overpayment check
-    if (amount > remaining) {
+    if (amount > remaining + 0.005) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Amount cannot exceed the remaining balance.'),
@@ -371,7 +371,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       return;
     }
 
-    final grandTotal = cartState.grandTotal;
+    final grandTotal = double.parse(cartState.grandTotal.toStringAsFixed(2));
     final isReturn = cartState.transactionType == 'RETURN' || cartState.transactionType == 'CUSTOMER_RETURN';
     final isRefund = widget.isCreditNoteRefund || isReturn || cartState.config.isReturnOrCreditNote;
 
@@ -392,7 +392,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     if (!isRefund) {
       final totalPaid = _getTotalPaid();
 
-      if (totalPaid < grandTotal) {
+      if (totalPaid < grandTotal - 0.005) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Full payment is required to process the invoice.'),
@@ -669,7 +669,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       if (cartState.originalDocumentId != null) {
         final service = SISalesOrderService();
-        await service.markOrderAsConverted(int.parse(cartState.originalDocumentId!));
+        final orderId = int.tryParse(cartState.originalDocumentId!);
+        if (orderId != null) {
+          await service.markOrderAsConverted(orderId);
+        }
       }
 
       if (!mounted) return;
@@ -706,11 +709,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   Future<void> _processOpenInvoicePayment() async {
     if (widget.openInvoiceDocuments == null || widget.openInvoiceDocuments!.isEmpty) return;
 
-    final targetTotal = (widget.openInvoiceNetPayable ?? 0.0).abs();
+    final targetTotal = double.parse((widget.openInvoiceNetPayable ?? 0.0).abs().toStringAsFixed(2));
     final isZeroOffset = targetTotal <= 0.001;
     final totalPaid = _getTotalPaid();
 
-    if (!isZeroOffset && totalPaid < targetTotal) {
+    if (!isZeroOffset && totalPaid < targetTotal - 0.005) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Full payment is required to process the settlement.'),
@@ -1261,13 +1264,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     VoidCallback? onPrint,
   }) {
     final isCreditNote = widget.isCreditNoteRefund || isReturn;
-    final totalPaid = isCreditNote ? grandTotal : _getTotalPaid();
-    final remaining = isCreditNote ? 0.0 : (grandTotal - totalPaid);
-    final isFullyPaid = isCreditNote || isZeroOffset || (grandTotal > 0 && remaining <= 0);
-    final changeDue = remaining < 0 ? remaining.abs() : 0.0;
+    final roundedGrandTotal = double.parse(grandTotal.toStringAsFixed(2));
+    final totalPaid = isCreditNote ? roundedGrandTotal : _getTotalPaid();
+    final remaining = isCreditNote ? 0.0 : double.parse((roundedGrandTotal - totalPaid).toStringAsFixed(2));
+    final isFullyPaid = isCreditNote || isZeroOffset || (roundedGrandTotal > 0 && remaining <= 0.001);
+    final changeDue = remaining < -0.001 ? remaining.abs() : 0.0;
 
     // Set default amount input if empty and not fully paid
-    if (!isCreditNote && !isFullyPaid && _amountController.text.isEmpty && !isZeroOffset) {
+    if (!isCreditNote && !isFullyPaid && _amountController.text.isEmpty && !isZeroOffset && remaining > 0.001) {
       _amountController.text = remaining.toStringAsFixed(2);
     }
 
@@ -1927,23 +1931,23 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        remaining < 0 ? 'CHANGE DUE' : 'REMAINING',
+                        remaining < -0.001 ? 'CHANGE DUE' : 'REMAINING',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.5,
-                          color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
+                          color: remaining < -0.001 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund || isFullyPaid || remaining.abs() <= 0.001) ? Colors.green : Colors.red),
                         ),
                       ),
                     ),
                     Text(
                       currencyFormat.format(
-                        (isZeroOffset || widget.isCreditNoteRefund) ? 0.0 : (remaining < 0 ? changeDue : remaining),
+                        (isZeroOffset || widget.isCreditNoteRefund || remaining.abs() <= 0.001) ? 0.0 : (remaining < -0.001 ? changeDue : remaining),
                       ),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: remaining < 0 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund) ? Colors.green : Colors.red),
+                        color: remaining < -0.001 ? Colors.blue : ((isZeroOffset || widget.isCreditNoteRefund || isFullyPaid || remaining.abs() <= 0.001) ? Colors.green : Colors.red),
                       ),
                       textAlign: TextAlign.right,
                     ),

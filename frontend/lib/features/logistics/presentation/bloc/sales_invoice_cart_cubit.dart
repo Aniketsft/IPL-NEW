@@ -44,10 +44,10 @@ class CartItem extends Equatable {
     this.reasonType = 0,
   });
 
-  double get discountAmount => (basePrice * quantity * (discountPercent / 100)) + discountAmountFlat;
-  double get priceAfterDiscount => (basePrice * quantity) - discountAmount;
-  double get vatAmount => priceAfterDiscount * (vatRatePercent / 100);
-  double get total => priceAfterDiscount + vatAmount;
+  double get discountAmount => double.parse(((basePrice * quantity * (discountPercent / 100)) + discountAmountFlat).toStringAsFixed(2));
+  double get priceAfterDiscount => double.parse(((basePrice * quantity) - discountAmount).toStringAsFixed(2));
+  double get vatAmount => double.parse((priceAfterDiscount * (vatRatePercent / 100)).toStringAsFixed(2));
+  double get total => double.parse((priceAfterDiscount + vatAmount).toStringAsFixed(2));
 
   CartItem copyWith({
     SalesInvoiceProductModel? product,
@@ -128,10 +128,10 @@ class SalesInvoiceCartState extends Equatable {
     this.deliveryDate,
   });
 
-  double get subtotal => items.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
-  double get totalDiscount => items.fold(0, (sum, item) => sum + item.discountAmount);
-  double get totalVat => items.fold(0, (sum, item) => sum + item.vatAmount);
-  double get grandTotal => items.fold(0, (sum, item) => sum + item.total);
+  double get subtotal => double.parse(items.fold<double>(0.0, (sum, item) => sum + (item.basePrice * item.quantity)).toStringAsFixed(2));
+  double get totalDiscount => double.parse(items.fold<double>(0.0, (sum, item) => sum + item.discountAmount).toStringAsFixed(2));
+  double get totalVat => double.parse(items.fold<double>(0.0, (sum, item) => sum + item.vatAmount).toStringAsFixed(2));
+  double get grandTotal => double.parse(items.fold<double>(0.0, (sum, item) => sum + item.total).toStringAsFixed(2));
 
   SalesInvoiceCartState copyWith({
     Map<String, dynamic>? customer,

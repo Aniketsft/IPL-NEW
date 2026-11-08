@@ -58,10 +58,10 @@ class SalesInvoiceLoaded extends SalesInvoiceState {
     );
   }
 
-  double get subtotal => cartItems.fold(0, (sum, item) => sum + (item.basePrice * item.quantity));
-  double get totalDiscount => cartItems.fold(0, (sum, item) => sum + item.discountAmount);
-  double get totalVat => cartItems.fold(0, (sum, item) => sum + item.vatAmount);
-  double get grandTotal => cartItems.fold(0, (sum, item) => sum + item.total);
+  double get subtotal => double.parse(cartItems.fold<double>(0.0, (sum, item) => sum + (item.basePrice * item.quantity)).toStringAsFixed(2));
+  double get totalDiscount => double.parse(cartItems.fold<double>(0.0, (sum, item) => sum + item.discountAmount).toStringAsFixed(2));
+  double get totalVat => double.parse(cartItems.fold<double>(0.0, (sum, item) => sum + item.vatAmount).toStringAsFixed(2));
+  double get grandTotal => double.parse(cartItems.fold<double>(0.0, (sum, item) => sum + item.total).toStringAsFixed(2));
   double get totalAmount => grandTotal;
 
   @override

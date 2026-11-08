@@ -629,3 +629,11 @@ D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\refint
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\EnterpriseAuth.Api.pdb
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\bin\Debug\net8.0\EnterpriseAuth.Api.pdb
 D:\enterprise_auth_system\backend\src\EnterpriseAuth.Api\obj\Debug\net8.0\ref\EnterpriseAuth.Api.dll
+D:\enterprise_auth_system\backend\bin\test_build\appsettings.Development.json
+D:\enterprise_auth_system\backend\bin\test_build\appsettings.json
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.staticwebassets.endpoints.json
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.exe
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.deps.json
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.runtimeconfig.json
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.dll
+D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.pdb

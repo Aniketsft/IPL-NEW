@@ -101,16 +101,13 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
+            if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
             {
-                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
-                {
-                    payload.SalesSite = userSiteCode;
-                }
-                else
-                {
-                    payload.SalesSite = "POD";
-                }
+                payload.SalesSite = userSiteCode.Trim().ToUpperInvariant();
+            }
+            else if (string.IsNullOrWhiteSpace(payload.SalesSite) || payload.SalesSite == "ALL")
+            {
+                payload.SalesSite = "POD";
             }
 
             var resolvedTabletSource = await ResolveTabletSourceAsync(
@@ -168,12 +165,29 @@ namespace EnterpriseAuth.Api.Controllers
                             Location = l.Location,
                             SalesUnit = l.SalesUnit,
                             Cce0 = l.Cce0,
-                            TaxRule = l.TaxRule
+                            TaxRule = l.TaxRule,
+                            IsFoc = l.IsFoc
                         });
                     }
 
                     _dbContext.StagingSalesInvoiceHeaders.Add(existingHeader);
                     await _dbContext.SaveChangesAsync(); // Generate IDs and save locally
+                }
+                else
+                {
+                    // Repopulate [NotMapped] properties (Location, IsFoc) from incoming payload when retrying
+                    foreach (var line in existingHeader.Lines)
+                    {
+                        var matched = payload.Lines.FirstOrDefault(p => p.LineNo == line.LineNo || (p.Sku == line.Sku && !string.IsNullOrEmpty(p.Sku)));
+                        if (matched != null)
+                        {
+                            line.IsFoc = matched.IsFoc;
+                            if (!string.IsNullOrEmpty(matched.Location))
+                            {
+                                line.Location = matched.Location;
+                            }
+                        }
+                    }
                 }
 
                 // Always assign [NotMapped] TabletSource even when retrying an existing staging header
@@ -405,16 +419,13 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (string.IsNullOrEmpty(payload.SalesSite) || payload.SalesSite == "ALL")
+            if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
             {
-                if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
-                {
-                    payload.SalesSite = userSiteCode;
-                }
-                else
-                {
-                    payload.SalesSite = "POD";
-                }
+                payload.SalesSite = userSiteCode.Trim().ToUpperInvariant();
+            }
+            else if (string.IsNullOrWhiteSpace(payload.SalesSite) || payload.SalesSite == "ALL")
+            {
+                payload.SalesSite = "POD";
             }
 
             var resolvedCrnTabletSource = await ResolveTabletSourceAsync(
@@ -487,7 +498,11 @@ namespace EnterpriseAuth.Api.Controllers
                             Warehouse = line.Warehouse ?? line.StandaloneWarehouse ?? "",
                             LotNumber = line.LotNumber ?? line.StandaloneLot ?? "",
                             Cce0 = line.Cce0 ?? line.StandaloneCce0 ?? "COMMERCIAL",
-                            OriginLineNo = line.OriginLineNo
+                            OriginLineNo = line.OriginLineNo,
+                            StockStatus = !string.IsNullOrWhiteSpace(line.StockStatus) ? line.StockStatus.Trim().ToUpperInvariant() : "A",
+                            ReturnCondition = line.ReturnCondition,
+                            ExpiryDate = line.ExpiryDate,
+                            Location = line.Location
                         });
                     }
 
@@ -632,6 +647,43 @@ namespace EnterpriseAuth.Api.Controllers
                     }
                 }
 
+                // 5. Stock Reinstatement Phase: If this is a Customer Return, physically import stock via ZSMRWEBA (SOAP 3)
+                bool stockReceiptSynced = false;
+                string? x3StockReceiptId = null;
+                string? stockReceiptError = null;
+
+                bool isCustomerReturn = payload.Category == 3
+                    || payload.StockTransaction == 1
+                    || string.Equals(payload.CreditNoteType, "RETURN", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(existingHeader.InvoiceType, "3", StringComparison.OrdinalIgnoreCase);
+
+                if (isCustomerReturn && existingHeader.Lines.Any(l => l.Quantity > 0))
+                {
+                    try
+                    {
+                        var miscResult = await _soapService.ImportMiscReceiptAsync(existingHeader, existingHeader.Lines.ToList());
+                        if (miscResult.Success || (!string.IsNullOrEmpty(miscResult.RawPayload) && miscResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            stockReceiptSynced = true;
+                            x3StockReceiptId = miscResult.DocumentId;
+                            existingHeader.X3StockReceiptId = miscResult.DocumentId;
+                            await _dbContext.SaveChangesAsync();
+                        }
+                        else
+                        {
+                            stockReceiptError = !string.IsNullOrWhiteSpace(miscResult.TechnicalError)
+                                ? miscResult.TechnicalError
+                                : string.Join(" | ", miscResult.Messages);
+                            _logger.LogWarning("ZSMRWEBA Stock Receipt returned notice for {CreditNoteId}: {Error}", payload.CreditNoteId, stockReceiptError);
+                        }
+                    }
+                    catch (Exception smrEx)
+                    {
+                        stockReceiptError = smrEx.Message;
+                        _logger.LogError(smrEx, "Exception during ZSMRWEBA Miscellaneous Stock Receipt for {CreditNoteId}: {Error}", payload.CreditNoteId, smrEx.Message);
+                    }
+                }
+
                 var syncSite = !string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" 
                     ? userSiteCode 
                     : (!string.IsNullOrWhiteSpace(payload.SalesSite) ? payload.SalesSite : "IPL");
@@ -669,7 +721,10 @@ namespace EnterpriseAuth.Api.Controllers
                         : new List<string> { $"Created in Sage X3: {x3DocId}" },
                     refundSynced,
                     x3RefundPaymentId,
-                    refundError
+                    refundError,
+                    stockReceiptSynced,
+                    x3StockReceiptId,
+                    stockReceiptError
                 });
             }
             catch (Exception ex)

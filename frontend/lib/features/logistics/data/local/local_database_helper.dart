@@ -335,6 +335,12 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNotes, 'transactionMode', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiCreditNotes, 'x3DocumentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'x3StockReceiptId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'x3RefundPaymentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteLines, 'stockStatus', "TEXT DEFAULT 'A'");
+    await _safeAddColumn(_database!, tableSiCreditNoteLines, 'returnCondition', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteLines, 'expiryDate', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteLines, 'location', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'x3DocumentId', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'isPartiallyReversed', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'deliveryDate', 'TEXT');
@@ -2390,7 +2396,9 @@ class LocalDatabaseHelper {
         reason TEXT,
         salesRep TEXT,
         transactionMode TEXT DEFAULT '1',
-        stockTransaction INTEGER DEFAULT 0
+        stockTransaction INTEGER DEFAULT 0,
+        x3StockReceiptId TEXT,
+        x3RefundPaymentId TEXT
       )
     ''');
 
@@ -2409,7 +2417,11 @@ class LocalDatabaseHelper {
         standaloneTaxRule TEXT,
         standaloneLot TEXT,
         standaloneWarehouse TEXT,
-        standaloneCce0 TEXT
+        standaloneCce0 TEXT,
+        stockStatus TEXT DEFAULT 'A',
+        returnCondition TEXT,
+        expiryDate TEXT,
+        location TEXT
       )
     ''');
 

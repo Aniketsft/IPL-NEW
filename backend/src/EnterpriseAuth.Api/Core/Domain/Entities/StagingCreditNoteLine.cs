@@ -47,5 +47,17 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
 
         [MaxLength(50)]
         public string? StandaloneCce0 { get; set; }
+
+        [MaxLength(10)]
+        public string StockStatus { get; set; } = "A";
+
+        [MaxLength(100)]
+        public string? ReturnCondition { get; set; }
+
+        [MaxLength(50)]
+        public string? ExpiryDate { get; set; }
+
+        [MaxLength(50)]
+        public string? Location { get; set; }
     }
 }

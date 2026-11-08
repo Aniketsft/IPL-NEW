@@ -41,5 +41,11 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         /// Imports and allocates payments or cash refunds into Sage X3 via AOWSIMPORT using the ZPAYWEBA template.
         /// </summary>
         Task<X3ImportResult> ImportPaymentAsync(List<StagingSalesInvoicePayment> payments);
+
+        /// <summary>
+        /// Imports a Miscellaneous Stock Receipt into Sage X3 via AOWSIMPORT using the ZSMRWEBA template.
+        /// Physically intakes returned stock into inventory with distinct 'A' (Active) and 'Q' (Quarantine) status routing.
+        /// </summary>
+        Task<X3ImportResult> ImportMiscReceiptAsync(StagingSalesInvoiceHeader header, List<StagingSalesInvoiceLine> lines);
     }
 }

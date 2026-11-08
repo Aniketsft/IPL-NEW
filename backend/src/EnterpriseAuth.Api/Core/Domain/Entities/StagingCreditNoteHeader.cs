@@ -48,6 +48,12 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(100)]
         public string? X3DocumentId { get; set; }
 
+        [MaxLength(100)]
+        public string? X3StockReceiptId { get; set; }
+
+        [MaxLength(100)]
+        public string? X3RefundPaymentId { get; set; }
+
         [MaxLength(50)]
         public string CreatedAt { get; set; } = string.Empty;
 

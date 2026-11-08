@@ -58,6 +58,18 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [MaxLength(20)]
         public string? TaxRule { get; set; }
 
+        [MaxLength(10)]
+        public string StockStatus { get; set; } = "A";
+
+        [MaxLength(100)]
+        public string? ReturnCondition { get; set; }
+
+        [MaxLength(50)]
+        public string? ExpiryDate { get; set; }
+
+        [NotMapped]
+        public bool IsFoc { get; set; }
+
         [NotMapped]
         public int? OriginLineNo { get; set; }
     }

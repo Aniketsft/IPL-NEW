@@ -6017,13 +6017,13 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\DevicesController.cs": {
-    "mtime": 1793704229.0479205,
-    "ast_hash": "df5291be3be6169cab913a2974794596",
+    "mtime": 1794121059.45932,
+    "ast_hash": "883ab7b421d14668f20264a38f996aee",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\LogisticsController.cs": {
-    "mtime": 1791791223.8098104,
-    "ast_hash": "cfbbd4e62b46ba7c3f4d69c5cc40cfe4",
+    "mtime": 1794125389.144549,
+    "ast_hash": "fedf8a727a5abd4a64f45a9fcdca8aec",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\RolesController.cs": {
@@ -6032,8 +6032,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\SalesInvoiceController.cs": {
-    "mtime": 1793791503.3068182,
-    "ast_hash": "e0bdc7c04ecea4728cc73c0ba1bcf65c",
+    "mtime": 1794146164.5364912,
+    "ast_hash": "55b660b5031a958f3e00337c620a38f3",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\SitesController.cs": {
@@ -6042,8 +6042,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\SyncController.cs": {
-    "mtime": 1793260158.5576982,
-    "ast_hash": "b3ef06adfa8d087632b8cd480347448c",
+    "mtime": 1794125389.8779674,
+    "ast_hash": "665b80d973287c0ba482494d3996fa3e",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Controllers\\UserGroupsController.cs": {
@@ -6127,8 +6127,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\DeviceLocationDto.cs": {
-    "mtime": 1793216231.9168837,
-    "ast_hash": "1eef467f07fe1b88843aca372d915639",
+    "mtime": 1794120586.8786974,
+    "ast_hash": "6b77782d066678059da68ccb6e8b5313",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\DeviceSyncEventDto.cs": {
@@ -6207,8 +6207,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SalesInvoiceSyncDto.cs": {
-    "mtime": 1793473090.3572402,
-    "ast_hash": "d3d4b1a9ee1cf09828f2a59e2454a0a0",
+    "mtime": 1794146164.8137848,
+    "ast_hash": "71b62bc440ef8cf34db7addbe60aaec5",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\DTOs\\SalesOrderDetailDto.cs": {
@@ -6327,8 +6327,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\SageX3SoapService.cs": {
-    "mtime": 1793803830.698741,
-    "ast_hash": "1e3249249ec78e7d6b88dc20665f281e",
+    "mtime": 1794149301.0115175,
+    "ast_hash": "9f5889012abc6e5befc0431a0210286c",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\StagingService.cs": {
@@ -6342,8 +6342,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\DeviceLocation.cs": {
-    "mtime": 1793208479.547084,
-    "ast_hash": "2808e56fc3755d656af6985170ef277e",
+    "mtime": 1794120451.8614118,
+    "ast_hash": "2b50c07508acadaf6ae650cc93655034",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\EodProcessAudit.cs": {
@@ -6437,8 +6437,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\StagingSalesInvoiceLine.cs": {
-    "mtime": 1792342533.317971,
-    "ast_hash": "10e377cb4c12f0c534bb4215fde33d90",
+    "mtime": 1794146165.434128,
+    "ast_hash": "5051a4709143db846cecdfd9b7c9c875",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Domain\\Entities\\StagingSalesInvoicePayment.cs": {
@@ -6522,8 +6522,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\DbInitializer.cs": {
-    "mtime": 1793213950.3063848,
-    "ast_hash": "6e1450ad5a77a7b242c093e818d146af",
+    "mtime": 1794121060.0305848,
+    "ast_hash": "4d5a2c7427c8415c74b2427494b5f98c",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Persistence\\EfLogisticsRepository.cs": {
@@ -6907,8 +6907,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Program.cs": {
-    "mtime": 1793940476.8565278,
-    "ast_hash": "da9918adc7e05a5bbc82427e1d3d420a",
+    "mtime": 1794125390.4328165,
+    "ast_hash": "a014f1d9e4f8c100745fb2fce2378d09",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Properties\\launchSettings.json": {
@@ -6992,8 +6992,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\android\\app\\src\\main\\kotlin\\com\\enterprise\\auth\\enterprise_auth_mobile\\MainActivity.kt": {
-    "mtime": 1793978492.639534,
-    "ast_hash": "d2043cf3973bac677ec23f225391d6b7",
+    "mtime": 1794121060.33641,
+    "ast_hash": "8a18750b29fc346c2c62e7c75375309b",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\android\\build.gradle.kts": {
@@ -7092,8 +7092,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\network_service.dart": {
-    "mtime": 1792695336.2423873,
-    "ast_hash": "2421bb83bd83d46509010d4fc5c5a96f",
+    "mtime": 1794125390.5643682,
+    "ast_hash": "ad569d29c36256d99b1cc828ed4f39bf",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\secure_storage_service.dart": {
@@ -7102,8 +7102,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\device_info_service.dart": {
-    "mtime": 1793704229.6662996,
-    "ast_hash": "86bc7368ccc651ddd09d7596f1b7f9e2",
+    "mtime": 1794124593.0433402,
+    "ast_hash": "3201d9314cc1e6c3996df060fd9a11d7",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\printer_service.dart": {
@@ -7217,8 +7217,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\ui\\screens\\devices_screen.dart": {
-    "mtime": 1793704230.0126069,
-    "ast_hash": "3ec360bcc470620d07ff60223b81873b",
+    "mtime": 1794125960.6580904,
+    "ast_hash": "0635e49f6096a0ff46ec082876fd2f51",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\administration\\ui\\screens\\sync_logs_screen.dart": {
@@ -7262,8 +7262,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\bloc\\auth_bloc.dart": {
-    "mtime": 1793214224.398275,
-    "ast_hash": "0470c45cf813c0551b9074777abb0c9d",
+    "mtime": 1794121060.8817773,
+    "ast_hash": "1d7d7cf9575c9eefa24e8d11cf3cf2e1",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\bloc\\auth_event.dart": {
@@ -7277,8 +7277,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\pages\\home_screen.dart": {
-    "mtime": 1793360188.40614,
-    "ast_hash": "31a3c7f799f181645ef30c0237663933",
+    "mtime": 1794125960.9012244,
+    "ast_hash": "cf754570309c76ea6e596c0d6b92e19e",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\auth\\presentation\\pages\\login_screen.dart": {
@@ -7302,8 +7302,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\local\\local_database_helper.dart": {
-    "mtime": 1794057323.0580165,
-    "ast_hash": "189bd66ab90ff76ddc0a9e6d15ad6e5c",
+    "mtime": 1794125961.005923,
+    "ast_hash": "d38ffacef7f76330083ae6be20ae547d",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\data\\models\\credit_note_model.dart": {
@@ -7592,8 +7592,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_cart_cubit.dart": {
-    "mtime": 1794043734.1568575,
-    "ast_hash": "9b1536348395373b35d9fb5a5fe3605c",
+    "mtime": 1794133241.9195917,
+    "ast_hash": "8881bb1419ae4e3362af5d5ddb533f26",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_event.dart": {
@@ -7602,8 +7602,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_state.dart": {
-    "mtime": 1793263977.9626958,
-    "ast_hash": "4421df1deadb40d87d1ee2d8324de68c",
+    "mtime": 1794133242.2897296,
+    "ast_hash": "a1de914249b0f362c058900eb67f794a",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_sync_bloc.dart": {
@@ -7732,8 +7732,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\payment_processing_screen.dart": {
-    "mtime": 1793791506.6372051,
-    "ast_hash": "fa83bfbf0f1517fa002ea46ae487d9f3",
+    "mtime": 1794133242.4716074,
+    "ast_hash": "29e5ef37f6511511f7e2573c3c8d6a35",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\pdf_preview_screen.dart": {
@@ -8899,6 +8899,11 @@
   "D:\\enterprise_auth_system\\frontend\\assets\\audio\\Scan Reject.mp3": {
     "mtime": 1780988824.7455988,
     "ast_hash": "d700c1540f535bcd7573658f07ace0e5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Infrastructure\\Security\\DeviceLicenseActionFilter.cs": {
+    "mtime": 1794125385.2409494,
+    "ast_hash": "6cb5b8d9d0070e9849fb288dfc99dc99",
     "semantic_hash": ""
   }
 }

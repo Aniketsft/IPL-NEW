@@ -312,7 +312,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return "INLDRYRUN";
         }
 
-        private static readonly Dictionary<string, (string SalesSite, string FinancialSite)> DefaultSiteMappings = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly Dictionary<string, (string SalesSite, string ShippingSite)> DefaultSiteMappings = new(StringComparer.OrdinalIgnoreCase)
         {
             { "CGD", ("CGD", "CGD") },
             { "CRP", ("CRP", "CRP") },
@@ -322,16 +322,17 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             { "POD", ("POD", "POD") }, // Single Source of Truth: Poultry Sales & Distrib -> Financial Site: POD
             { "PRO", ("PRO", "PRO") },
             { "PTT", ("PTT", "PTT") },
-            { "SCG", ("SCG", "CGD") }, // Consumer Shop To Shop -> Financial Site: CGD
-            { "SCP", ("SCP", "POD") }, // Chilled Shop To Shop -> Financial Site: POD
-            { "SDA", ("SDA", "DPD") }, // Dairy Shop To Shop -> Financial Site: DPD
-            { "SFF", ("SFF", "FFD") }, // Frozen Shop To Shop -> Financial Site: FFD
+            { "SCG", ("CGD", "SCG") }, // Consumer Shop To Shop -> Sales Site: CGD, Shipping Site: SCG
+            { "SCP", ("POD", "SCP") }, // Chilled Shop To Shop -> Sales Site: POD, Shipping Site: SCP
+            { "SDA", ("DPD", "SDA") }, // Dairy Shop To Shop -> Sales Site: DPD, Shipping Site: SDA
+            { "SFF", ("FFD", "SFF") }, // Frozen Shop To Shop -> Sales Site: FFD, Shipping Site: SFF
             { "IPL", ("IPL", "IPL") }
         };
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string SalesSite, string FinancialSite)> _siteMappingCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string SalesSite, string ShippingSite)> _siteMappingCache = new();
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<string>> _customTabletFieldsCache = new();
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>?> _validWarehousesCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<string, List<string>>> _siteWarehousesCache = new();
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _validSalesRepsCache = new();
 
         private sealed class StockSlot
@@ -342,7 +343,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             public decimal Qty { get; init; }
         }
 
-        private async Task<(string SalesSite, string FinancialSite)> ResolveSiteMappingAsync(string? rawSite, string schema)
+        private async Task<(string SalesSite, string ShippingSite)> ResolveSiteMappingAsync(string? rawSite, string schema)
         {
             string cleanSite = (!string.IsNullOrWhiteSpace(rawSite) && !string.Equals(rawSite.Trim(), "ALL", StringComparison.OrdinalIgnoreCase))
                 ? rawSite.Trim().ToUpperInvariant()
@@ -350,11 +351,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             // 1. Authoritative in-memory baseline from x3.INLDRYRUN.FACILITY
             string salesSite = cleanSite;
-            string financialSite = cleanSite;
+            string shippingSite = cleanSite;
             if (DefaultSiteMappings.TryGetValue(cleanSite, out var authoritative))
             {
                 salesSite = authoritative.SalesSite;
-                financialSite = authoritative.FinancialSite;
+                shippingSite = authoritative.ShippingSite;
             }
 
             string cacheKey = $"{schema}_{cleanSite}".ToUpperInvariant();
@@ -368,8 +369,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 using var connection = new SqlConnection(_innodisConnectionString);
                 string sql = $@"
                     SELECT TOP 1
-                        LTRIM(RTRIM(f.FCY_0)) AS Sales_Site_Code,
-                        LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(f.FINRSPFCY_0)), ''), f.FCY_0))) AS Financial_Site_Code
+                        LTRIM(RTRIM(f.FCY_0)) AS Shipping_Site_Code,
+                        LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(f.FINRSPFCY_0)), ''), f.FCY_0))) AS Financial_Sales_Site_Code
                     FROM x3.{schema}.FACILITY f WITH (NOLOCK)
                     LEFT JOIN x3.{schema}.FACILITY rf WITH (NOLOCK) ON f.FINRSPFCY_0 = rf.FCY_0
                     WHERE LTRIM(RTRIM(f.FCY_0)) = @SiteCode
@@ -378,20 +379,20 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var row = await connection.QueryFirstOrDefaultAsync(sql, new { SiteCode = cleanSite });
                 if (row != null)
                 {
-                    salesSite = ((string?)row.Sales_Site_Code ?? salesSite).Trim();
-                    financialSite = ((string?)row.Financial_Site_Code ?? financialSite).Trim();
+                    shippingSite = ((string?)row.Shipping_Site_Code ?? shippingSite).Trim();
+                    salesSite = ((string?)row.Financial_Sales_Site_Code ?? salesSite).Trim();
                 }
 
-                // Strict invariant safeguard: POD always maps to Shipping/Financial Site POD
+                // Strict invariant safeguard: POD always maps to Sales/Shipping Site POD
                 if (string.Equals(cleanSite, "POD", StringComparison.OrdinalIgnoreCase))
                 {
                     salesSite = "POD";
-                    financialSite = "POD";
+                    shippingSite = "POD";
                 }
 
-                Console.WriteLine($"[SageX3SoapService] Single Source of Truth Mapping ({schema}): Input={cleanSite} -> SalesSite(SALFCY)={salesSite}, Shipping/FinancialSite(STOFCY)={financialSite}");
+                Console.WriteLine($"[SageX3SoapService] Single Source of Truth Mapping ({schema}): Input={cleanSite} -> SalesSite(SALFCY)={salesSite}, ShippingSite(STOFCY)={shippingSite}");
 
-                var resolved = (salesSite, financialSite);
+                var resolved = (salesSite, shippingSite);
                 _siteMappingCache[cacheKey] = resolved;
                 return resolved;
             }
@@ -401,9 +402,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 if (string.Equals(cleanSite, "POD", StringComparison.OrdinalIgnoreCase))
                 {
                     salesSite = "POD";
-                    financialSite = "POD";
+                    shippingSite = "POD";
                 }
-                return (salesSite, financialSite);
+                return (salesSite, shippingSite);
             }
         }
 
@@ -640,6 +641,112 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             {
                 Console.WriteLine($"[SageX3SoapService] TABWRH lookup notice for {schema}: {ex.Message}");
                 return null;
+            }
+        }
+
+        private async Task<Dictionary<string, List<string>>> GetSiteWarehousesMapAsync(string schema)
+        {
+            string cacheKey = schema.ToUpperInvariant();
+            if (_siteWarehousesCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+
+            var candidateSchemas = new[] { schema, "X3", "INL" }
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var connection = new SqlConnection(_innodisConnectionString);
+                foreach (var candSchema in candidateSchemas)
+                {
+                    // 1. Primary: STOCK table contains actual physical site-to-warehouse mappings
+                    try
+                    {
+                        string sqlStock = $@"
+                            SELECT DISTINCT 
+                                LTRIM(RTRIM(STOFCY_0)) AS SiteCode,
+                                LTRIM(RTRIM(WRH_0)) AS WarehouseCode
+                            FROM x3.{candSchema}.STOCK WITH (NOLOCK)
+                            WHERE LTRIM(RTRIM(ISNULL(WRH_0, ''))) <> ''
+                              AND LTRIM(RTRIM(ISNULL(STOFCY_0, ''))) <> '';";
+
+                        var rows = await connection.QueryAsync(sqlStock);
+                        foreach (var r in rows)
+                        {
+                            string site = ((string?)r.SiteCode ?? "").Trim();
+                            string wrh = ((string?)r.WarehouseCode ?? "").Trim();
+                            if (string.IsNullOrEmpty(site) || string.IsNullOrEmpty(wrh)) continue;
+
+                            if (!map.ContainsKey(site)) map[site] = new List<string>();
+                            if (!map[site].Contains(wrh, StringComparer.OrdinalIgnoreCase))
+                                map[site].Add(wrh);
+                        }
+                    }
+                    catch { }
+
+                    // 2. Secondary: ITMFACIL contains default warehouses per product-site
+                    try
+                    {
+                        string sqlFacil = $@"
+                            SELECT DISTINCT 
+                                LTRIM(RTRIM(STOFCY_0)) AS SiteCode,
+                                LTRIM(RTRIM(DEFWRH_0)) AS WarehouseCode
+                            FROM x3.{candSchema}.ITMFACIL WITH (NOLOCK)
+                            WHERE LTRIM(RTRIM(ISNULL(DEFWRH_0, ''))) <> ''
+                              AND LTRIM(RTRIM(ISNULL(STOFCY_0, ''))) <> '';";
+
+                        var rows = await connection.QueryAsync(sqlFacil);
+                        foreach (var r in rows)
+                        {
+                            string site = ((string?)r.SiteCode ?? "").Trim();
+                            string wrh = ((string?)r.WarehouseCode ?? "").Trim();
+                            if (string.IsNullOrEmpty(site) || string.IsNullOrEmpty(wrh)) continue;
+
+                            if (!map.ContainsKey(site)) map[site] = new List<string>();
+                            if (!map[site].Contains(wrh, StringComparer.OrdinalIgnoreCase))
+                                map[site].Add(wrh);
+                        }
+                    }
+                    catch { }
+
+                    // 3. Fallback: Check if TABWRH has site or prefix matches
+                    try
+                    {
+                        var allWrhs = await GetValidWarehousesAsync(candSchema);
+                        if (allWrhs != null && allWrhs.Any())
+                        {
+                            // If CGD has warehouse CG1 or similar in TABWRH
+                            foreach (var w in allWrhs)
+                            {
+                                if (w.StartsWith("CG", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (!map.ContainsKey("CGD")) map["CGD"] = new List<string>();
+                                    if (!map["CGD"].Contains(w, StringComparer.OrdinalIgnoreCase)) map["CGD"].Add(w);
+                                }
+                                else if (w.StartsWith("PO", StringComparison.OrdinalIgnoreCase) || w.StartsWith("PD", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (!map.ContainsKey("POD")) map["POD"] = new List<string>();
+                                    if (!map["POD"].Contains(w, StringComparer.OrdinalIgnoreCase)) map["POD"].Add(w);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    if (map.Count > 0) break;
+                }
+
+                _siteWarehousesCache[cacheKey] = map;
+                Console.WriteLine($"[SageX3SoapService] Loaded site warehouse mapping for {schema}: {map.Count} site(s) with warehouses.");
+                return map;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SageX3SoapService] Site warehouse lookup notice for {schema}: {ex.Message}");
+                return map;
             }
         }
 
@@ -1234,11 +1341,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 string schema = ResolveX3Schema();
 
-                // Prioritize invoice.SalesSite over userSiteCode, then map SalesSite (SALFCY) vs FinancialSite (STOFCY)
+                // Authoritative Tenancy: Use user login site claim as primary Sales Site (SALFCY), then map Shipping/Financial Site (STOFCY)
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string requestedSite = (!string.IsNullOrWhiteSpace(invoice.SalesSite) && invoice.SalesSite != "ALL")
-                    ? invoice.SalesSite
-                    : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD");
+                string requestedSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    ? userSiteCode
+                    : (!string.IsNullOrWhiteSpace(invoice.SalesSite) && invoice.SalesSite != "ALL" ? invoice.SalesSite : "POD");
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedSite, schema);
 
@@ -1283,10 +1390,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 var invoiceHeaderValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    { "SALFCY", salesSite },
+                    { "SALFCY", salesSite }, // Use mapped financial sales site for Position 2 (SALFCY)
                     { "SIVTYP", invType },
-                    { "STOFCY", shippingSite },
-                    { "FCY", shippingSite },
+                    { "STOFCY", shippingSite }, // Use mapped physical shipping site for Position 4 (STOFCY)
+                    { "FCY", salesSite },
                     { "INVTYP", "1" },
                     { "NUM", "" },
                     { "NUM_0", "" },
@@ -1344,6 +1451,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER), valid TABWRH warehouses & STOCK in shippingSite
                 var itemMetadata = await GetItemMetadataAsync(invoice.Lines.Select(l => l.Sku));
                 var validWarehouses = await GetValidWarehousesAsync(schema);
+                var siteWarehousesMap = await GetSiteWarehousesMapAsync(schema);
+                bool isWarehouseManaged = siteWarehousesMap.TryGetValue(shippingSite, out var validSiteWrhs) && validSiteWrhs.Any();
                 var siteStockMap = await GetShippingSiteStockAsync(schema, shippingSite, invoice.Lines.Select(l => l.Sku));
 
                 int lineMultiplier = 1000;
@@ -1375,74 +1484,58 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     string disc2 = (line.Discount2 > 0 ? line.Discount2 : line.DiscountAmountFlat).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
                     string disc3 = line.Discount3.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
-                    string warehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
-                    string location = IsPlaceholderStockToken(line.Location) ? "" : (line.Location ?? "").Trim();
+                    // Authoritative User Selection: Strictly preserve user-selected lot and location (NO arbitrary fallbacks)
                     string lotNumber = (line.LotNumber ?? "").Trim();
+                    string location = IsPlaceholderStockToken(line.Location) ? "" : (line.Location ?? "").Trim();
+                    string inputWarehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
 
-                    // Validate warehouse strictly against x3.<schema>.TABWRH (strips site codes like POD / IPL / CGD when WRH management is off)
-                    if (!string.IsNullOrEmpty(warehouse))
+                    // Resolve valid warehouse for shippingSite:
+                    // If warehouse management is active for shippingSite (e.g. CGD -> CG1 in TABWRH), pass the valid warehouse code instead of clearing to blank.
+                    string warehouse = "";
+                    if (isWarehouseManaged && validSiteWrhs != null && validSiteWrhs.Any())
                     {
-                        if (validWarehouses != null)
+                        // Priority 1: User-selected warehouse if already a valid warehouse code for this site in TABWRH
+                        if (!string.IsNullOrEmpty(inputWarehouse) && validSiteWrhs.Contains(inputWarehouse, StringComparer.OrdinalIgnoreCase))
                         {
-                            if (!validWarehouses.Contains(warehouse)) warehouse = "";
-                        }
-                        else if (string.Equals(warehouse, salesSite, StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, shippingSite, StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, "CGD", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, "POD", StringComparison.OrdinalIgnoreCase))
-                        {
-                            warehouse = "";
-                        }
-                    }
-
-                    // Align line stock allocation (Warehouse, Location, Lot) with shippingSite (Financial Site) so STOMVTFLG=2 succeeds
-                    if (siteStockMap.TryGetValue(sku, out var availableStocks) && availableStocks.Any())
-                    {
-                        var exactMatch = availableStocks.FirstOrDefault(s =>
-                            (string.IsNullOrEmpty(warehouse) || string.Equals(s.Warehouse, warehouse, StringComparison.OrdinalIgnoreCase)) &&
-                            (string.IsNullOrEmpty(location) || string.Equals(s.Location, location, StringComparison.OrdinalIgnoreCase)) &&
-                            (string.IsNullOrEmpty(lotNumber) || string.Equals(s.LotNumber, lotNumber, StringComparison.OrdinalIgnoreCase)));
-
-                        if (exactMatch != null)
-                        {
-                            warehouse = exactMatch.Warehouse;
-                            location = exactMatch.Location;
-                            lotNumber = exactMatch.LotNumber;
+                            warehouse = inputWarehouse;
                         }
                         else
                         {
-                            var lotMatch = !string.IsNullOrEmpty(lotNumber)
-                                ? availableStocks.FirstOrDefault(s => string.Equals(s.LotNumber, lotNumber, StringComparison.OrdinalIgnoreCase))
-                                : null;
-
-                            if (lotMatch != null)
+                            // Priority 2: Check physical STOCK in X3 for this exact SKU, lot, and location
+                            if (siteStockMap.TryGetValue(sku, out var stocks) && stocks.Any())
                             {
-                                warehouse = lotMatch.Warehouse;
-                                location = lotMatch.Location;
-                                lotNumber = lotMatch.LotNumber;
+                                var matchedStock = stocks.FirstOrDefault(s =>
+                                    (string.IsNullOrEmpty(lotNumber) || string.Equals(s.LotNumber, lotNumber, StringComparison.OrdinalIgnoreCase)) &&
+                                    (string.IsNullOrEmpty(location) || string.Equals(s.Location, location, StringComparison.OrdinalIgnoreCase)));
+
+                                if (matchedStock != null && !string.IsNullOrEmpty(matchedStock.Warehouse) &&
+                                    validSiteWrhs.Contains(matchedStock.Warehouse, StringComparer.OrdinalIgnoreCase))
+                                {
+                                    warehouse = matchedStock.Warehouse;
+                                }
                             }
-                            else
-                            {
-                                var devMatch = availableStocks.FirstOrDefault(s =>
-                                    (!string.IsNullOrEmpty(assignedLocation) && string.Equals(s.Location, assignedLocation, StringComparison.OrdinalIgnoreCase)) ||
-                                    (!string.IsNullOrEmpty(assignedWarehouse) && string.Equals(s.Warehouse, assignedWarehouse, StringComparison.OrdinalIgnoreCase)));
 
-                                var best = devMatch ?? availableStocks.First();
-                                warehouse = best.Warehouse;
-                                location = best.Location;
-                                lotNumber = best.LotNumber;
+                            // Priority 3: Default warehouse for shippingSite from TABWRH (e.g. CG1 for CGD)
+                            if (string.IsNullOrEmpty(warehouse))
+                            {
+                                warehouse = validSiteWrhs.First();
                             }
                         }
                     }
-
-                    if (!string.IsNullOrEmpty(warehouse) && validWarehouses != null && !validWarehouses.Contains(warehouse))
+                    else if (!isWarehouseManaged)
                     {
-                        warehouse = "";
+                        warehouse = ""; // Site does not use warehouse management
                     }
 
-                    // Template ZSIHWEBA D-Record definition (Rows 17-31):
-                    // 17:D(/), 18:SIDLIN, 19:ITMREF, 20:ITMDES, 21:SAU, 22:QTY, 23:GROPRI, 24:DISCRGVAL1, 25:DISCRGVAL2, 26:DISCRGVAL3, 27:VACITM, 28:ZPRIUOM(), 29:ZPRIQTY(), 30:WRH, 31:LOC
-                    fileBuilder.Append($"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;;{warehouse};{location};|");
+                    // Template ZSIHWEBA D-Record definition (Rows 18-34):
+                    // 18:D(/), 19:SIDLIN, 20:ITMREF, 21:ITMDES, 22:SAU, 23:QTY, 24:GROPRI, 25:DISCRGVAL1, 26:DISCRGVAL2, 27:DISCRGVAL3, 28:VACITM, 29:ZPRIUOM(), 30:ZPRIQTY(), 31:WRH, 32:LOC, 33:EECFLOPHY, 34:FOCFLG
+                    // Physical flow: Always 2 (Yes) to trigger inventory stock movements and Stock Transaction = Yes
+                    string eecFloPhy = "2";
+
+                    // Free of charge: 2 (Yes) if item is marked FOC or priced at 0, otherwise 1 (No)
+                    string focFlg = (line.IsFoc || line.BasePrice == 0) ? "2" : "1";
+
+                    fileBuilder.Append($"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;;{warehouse};{location};{eecFloPhy};{focFlg};|");
                     
                     // Analytical Record: A;DPT;Cce0|
                     string cce0 = string.IsNullOrWhiteSpace(line.Cce0) ? "COMMERCIAL" : line.Cce0;
@@ -1569,9 +1662,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string crnSchema = ResolveX3Schema();
 
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string requestedCrnSite = (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL")
-                    ? creditNote.SalesSite
-                    : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD");
+                string requestedCrnSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    ? userSiteCode
+                    : (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL" ? creditNote.SalesSite : "POD");
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedCrnSite, crnSchema);
                 // Sage X3 sales invoice type for credit notes AND returns: MICRE
@@ -1644,9 +1737,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string sihoriNum = (sihoriFlag == "4") ? (creditNote.OriginInvoiceId ?? "") : "";
 
                 // Stock Transaction Flag: In Sage X3 Local Menu 1 (Non/Oui): 1 = No, 2 = Yes
-                // - Return (Category 3): YES (2)
-                // - Credit Note (Category 2): NO (1)
-                int stockTransaction = (category == 3) ? 2 : 1;
+                // Always 1 (No stock movement) on ZSCRWEB because physical stock reinstatement (both Q and A)
+                // is explicitly imported via SOAP 3 (ZSMRWEBA) to ensure 100% quantity and quality status isolation.
+                int stockTransaction = 1;
 
                 var (tabletSource, crnAssignedWarehouse, _) = await ResolveDeviceIdentityAsync(
                     creditNote.TabletSource,
@@ -1655,10 +1748,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 var crnHeaderValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    { "SALFCY", salesSite },
+                    { "SALFCY", salesSite }, // Use mapped financial sales site for Position 2 (SALFCY)
                     { "SIVTYP", crnType },
-                    { "STOFCY", shippingSite },
-                    { "FCY", shippingSite },
+                    { "STOFCY", shippingSite }, // Use mapped physical shipping site for Position 4 (STOFCY)
+                    { "FCY", salesSite },
                     { "INVTYP", category.ToString() },
                     { "NUM", "" },
                     { "NUM_0", "" },
@@ -1715,6 +1808,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var candidateSkus = new HashSet<string>(creditNote.Lines.Where(l => !string.IsNullOrEmpty(l.Sku)).Select(l => l.Sku!));
                 var itemMetadata = await GetItemMetadataAsync(candidateSkus);
                 var validCrnWarehouses = await GetValidWarehousesAsync(crnSchema);
+                var crnSiteWarehousesMap = await GetSiteWarehousesMapAsync(crnSchema);
+                bool isCrnWarehouseManaged = crnSiteWarehousesMap.TryGetValue(shippingSite, out var validCrnSiteWrhs) && validCrnSiteWrhs.Any();
 
                 int lineMultiplier = 1000;
                 foreach (var line in creditNote.Lines)
@@ -1725,26 +1820,27 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     double price = line.BasePrice;
                     string taxRule = line.TaxRule ?? "";
                     string cce0 = string.IsNullOrWhiteSpace(line.Cce0) ? "COMMERCIAL" : line.Cce0;
-                    string warehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
+                    string inputWarehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
+                    string warehouse = "";
 
-                    if (stockTransaction == 2 && string.IsNullOrWhiteSpace(warehouse) && !string.IsNullOrWhiteSpace(crnAssignedWarehouse))
+                    if (isCrnWarehouseManaged && validCrnSiteWrhs != null && validCrnSiteWrhs.Any())
                     {
-                        warehouse = crnAssignedWarehouse.Trim();
+                        if (!string.IsNullOrEmpty(inputWarehouse) && validCrnSiteWrhs.Contains(inputWarehouse, StringComparer.OrdinalIgnoreCase))
+                        {
+                            warehouse = inputWarehouse;
+                        }
+                        else if (stockTransaction == 2 && !string.IsNullOrWhiteSpace(crnAssignedWarehouse) && validCrnSiteWrhs.Contains(crnAssignedWarehouse.Trim(), StringComparer.OrdinalIgnoreCase))
+                        {
+                            warehouse = crnAssignedWarehouse.Trim();
+                        }
+                        else
+                        {
+                            warehouse = validCrnSiteWrhs.First();
+                        }
                     }
-
-                    if (!string.IsNullOrEmpty(warehouse))
+                    else if (!isCrnWarehouseManaged)
                     {
-                        if (validCrnWarehouses != null)
-                        {
-                            if (!validCrnWarehouses.Contains(warehouse)) warehouse = "";
-                        }
-                        else if (string.Equals(warehouse, salesSite, StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, shippingSite, StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, "CGD", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(warehouse, "POD", StringComparison.OrdinalIgnoreCase))
-                        {
-                            warehouse = "";
-                        }
+                        warehouse = "";
                     }
 
                     if (itemMetadata.TryGetValue(sku, out var meta))
@@ -1896,11 +1992,167 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     TaxRule = l.StandaloneTaxRule,
                     LotNumber = l.StandaloneLot,
                     Warehouse = l.StandaloneWarehouse,
-                    Cce0 = l.StandaloneCce0
+                    Cce0 = l.StandaloneCce0,
+                    StockStatus = l.StockStatus,
+                    ReturnCondition = l.ReturnCondition,
+                    ExpiryDate = l.ExpiryDate,
+                    Location = l.Location
                 });
             }
 
             return await ImportCreditNoteAsync(invoiceHeader);
+        }
+
+        public async Task<X3ImportResult> ImportMiscReceiptAsync(StagingSalesInvoiceHeader header, List<StagingSalesInvoiceLine> lines)
+        {
+            var result = new X3ImportResult { Identifier = header.InvoiceId };
+            if (lines == null || lines.Count == 0)
+            {
+                result.Success = true;
+                return result;
+            }
+
+            string soapEnvelope = string.Empty;
+            string responseXml = string.Empty;
+
+            try
+            {
+                var fileBuilder = new StringBuilder();
+
+                string receiptDate = header.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd");
+                receiptDate = receiptDate.Replace("-", "").Replace(" ", "").Replace(":", "");
+                if (receiptDate.Length > 8) receiptDate = receiptDate.Substring(0, 8);
+                if (string.IsNullOrWhiteSpace(receiptDate)) receiptDate = DateTime.UtcNow.ToString("yyyyMMdd");
+
+                string schema = ResolveX3Schema();
+
+                // Authoritative site resolution: SALFCY (user login claim) -> STOFCY (shipping facility)
+                var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
+                string requestedSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    ? userSiteCode
+                    : (!string.IsNullOrWhiteSpace(header.SalesSite) && header.SalesSite != "ALL" ? header.SalesSite : "POD");
+
+                var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedSite, schema);
+
+                // Entry / Transaction code based on site/company:
+                // For IPL site: ZIPL2; For other sites: ZINL2
+                string entCod = string.Equals(shippingSite, "IPL", StringComparison.OrdinalIgnoreCase) || string.Equals(salesSite, "IPL", StringComparison.OrdinalIgnoreCase)
+                    ? "ZIPL2"
+                    : "ZINL2";
+
+                string vcrDes = $"Return {header.InvoiceId}".Trim();
+                if (vcrDes.Length > 30) vcrDes = vcrDes.Substring(0, 30);
+
+                // --- Record E (Table SMVTH, Lines 1-9) ---
+                // 1: E, 2: ENTCOD, 3: VCRTYP, 4: VCRNUM, 5: STOFCY, 6: IPTDAT, 7: VCRDES, 8: PJT, 9: TRSCOD
+                fileBuilder.Append($"E;{entCod};19;;{shippingSite};{receiptDate};{vcrDes};;;|");
+
+                var (tabletSource, assignedWarehouse, assignedLocation) = await ResolveDeviceIdentityAsync(
+                    header.TabletSource,
+                    header.DeviceId,
+                    header.UserName ?? header.CreatedBy);
+
+                int vcrLin = 1;
+                foreach (var line in lines)
+                {
+                    if (line.Quantity <= 0) continue;
+
+                    string sku = (line.Sku ?? "").Trim();
+                    string unit = !string.IsNullOrWhiteSpace(line.SalesUnit) ? line.SalesUnit.Trim().ToUpperInvariant() : "EA";
+                    string qtyStr = line.Quantity.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    string priceStr = line.BasePrice > 0 ? line.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
+
+                    // --- Record L (Table SMVTD, Lines 10-19) ---
+                    // 1: L, 2: VCRLIN, 3: ITMREF, 4: ITMDES1, 5: PCU, 6: QTYPCU, 7: PCUSTUCOE, 8: STU, 9: QTYSTU, 10: PRIORD
+                    fileBuilder.Append($"L;{vcrLin};{sku};;{unit};{qtyStr};1;{unit};{qtyStr};{priceStr};|");
+
+                    string lot = (line.LotNumber ?? "").Trim();
+                    string expDate = (line.ExpiryDate ?? "").Replace("-", "").Replace(" ", "").Replace(":", "").Trim();
+                    if (expDate.Length > 8) expDate = expDate.Substring(0, 8);
+
+                    string loc = !string.IsNullOrWhiteSpace(line.Location)
+                        ? line.Location.Trim()
+                        : (!string.IsNullOrWhiteSpace(assignedLocation) ? assignedLocation.Trim() : (shippingSite == "IPL" ? "IPLCH" : shippingSite));
+
+                    // Stock Status: strictly "A" (Active/Salable) or "Q" (Quarantine/Damaged/Expired)
+                    string sta = string.Equals(line.StockStatus, "Q", StringComparison.OrdinalIgnoreCase) ? "Q" : "A";
+
+                    string mvtDes = !string.IsNullOrWhiteSpace(line.ReturnCondition)
+                        ? line.ReturnCondition.Trim()
+                        : (sta == "Q" ? "Quarantine Return" : "Restockable Return");
+                    if (mvtDes.Length > 30) mvtDes = mvtDes.Substring(0, 30);
+
+                    // --- Record S (Table STOJOU, Lines 20-31) ---
+                    // 1: S, 2: PCU, 3: QTYPCU, 4: BPSLOT, 5: LOT, 6: SLO, 7: LPNNUM, 8: SHLDAT, 9: LOC, 10: STA, 11: SERNUM, 12: MVTDES
+                    fileBuilder.Append($"S;{unit};{qtyStr};;{lot};;;{expDate};{loc};{sta};;{mvtDes}|");
+
+                    vcrLin++;
+                }
+
+                fileBuilder.Append("END");
+                string iFile = fileBuilder.ToString();
+
+                string inputXmlJson = "{\"GRP1\":{" +
+                                      "\"I_MODIMP\":\"ZSMRWEBA\"," +
+                                      "\"I_AOWSTA\":\"NO\"," +
+                                      "\"I_EXEC\":\"REALTIME\"," +
+                                      "\"I_RECORDSEP\":\"|\"," +
+                                      "\"I_FILE\":\"" + iFile.Replace("\"", "\\\"") + "\"" +
+                                      "}}";
+
+                soapEnvelope = $@"<soapenv:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:wss=""http://www.adonix.com/WSS"">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <wss:run soapenv:encodingStyle=""http://schemas.xmlsoap.org/soap/encoding/"">
+         <callContext xsi:type=""wss:CAdxCallContext"">
+            <codeLang xsi:type=""xsd:string"">ENG</codeLang>
+            <poolAlias xsi:type=""xsd:string"">{_poolAlias}</poolAlias>
+            <poolId xsi:type=""xsd:string""></poolId>
+            <requestConfig xsi:type=""xsd:string""></requestConfig>
+         </callContext>
+         <publicName xsi:type=""xsd:string"">AOWSIMPORT</publicName>
+            <inputXml xsi:type=""xsd:string"">
+                  <![CDATA[{inputXmlJson}]]>
+          </inputXml>
+      </wss:run>
+   </soapenv:Body>
+</soapenv:Envelope>";
+
+                Console.WriteLine("====== SAGE X3 MISC STOCK RECEIPT SOAP REQUEST (ZSMRWEBA) ======");
+                Console.WriteLine(soapEnvelope);
+                Console.WriteLine("===============================================================");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
+                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+
+                request.Headers.TryAddWithoutValidation("SOAPAction", "");
+                request.Headers.TryAddWithoutValidation("soapAction", "");
+
+                var response = await _httpClient.SendAsync(request);
+                responseXml = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    result.Success = false;
+                    result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
+                    await InsertSoapAuditAsync("ImportMiscReceipt", header.InvoiceId, soapEnvelope, responseXml, false, result.TechnicalError);
+                    return result;
+                }
+
+                var parsedResult = ParseSoapResponse(responseXml, result);
+                await InsertSoapAuditAsync("ImportMiscReceipt", header.InvoiceId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+                return parsedResult;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.TechnicalError = ex.Message;
+                await InsertSoapAuditAsync("ImportMiscReceipt", header.InvoiceId, soapEnvelope, responseXml, false, ex.Message);
+                return result;
+            }
         }
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _facilityCompanyCache = new();

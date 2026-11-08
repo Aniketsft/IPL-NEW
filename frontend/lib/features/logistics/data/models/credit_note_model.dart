@@ -28,6 +28,8 @@ class CreditNoteModel {
   final String? reference;
   final int isSynced;
   final String? x3DocumentId;
+  final String? x3StockReceiptId;
+  final String? x3RefundPaymentId;
   final String createdAt;
   final String createdBy;
   final String? deviceId;
@@ -53,6 +55,8 @@ class CreditNoteModel {
     this.reference,
     this.isSynced = 0,
     this.x3DocumentId,
+    this.x3StockReceiptId,
+    this.x3RefundPaymentId,
     required this.createdAt,
     required this.createdBy,
     this.deviceId,
@@ -84,6 +88,8 @@ class CreditNoteModel {
       'reference': reference,
       'isSynced': isSynced,
       'x3DocumentId': x3DocumentId,
+      'x3StockReceiptId': x3StockReceiptId,
+      'x3RefundPaymentId': x3RefundPaymentId,
       'createdAt': createdAt,
       'createdBy': createdBy,
       'deviceId': deviceId,
@@ -126,6 +132,8 @@ class CreditNoteModel {
       reference: map['reference'],
       isSynced: map['isSynced'] ?? 0,
       x3DocumentId: map['x3DocumentId'],
+      x3StockReceiptId: map['x3StockReceiptId'],
+      x3RefundPaymentId: map['x3RefundPaymentId'],
       createdAt: map['createdAt'] ?? '',
       createdBy: map['createdBy'] ?? '',
       deviceId: map['deviceId'],
@@ -159,6 +167,12 @@ class CreditNoteLineModel {
   final String? standaloneWarehouse;
   final String? standaloneCce0;
 
+  // Stock & Quality status
+  final String stockStatus; // 'A' = Salable, 'Q' = Quarantine/Damaged
+  final String? returnCondition;
+  final String? expiryDate;
+  final String? location;
+
   // Merged / Resolved values
   final String? resolvedSku;
   final String? resolvedName;
@@ -184,6 +198,10 @@ class CreditNoteLineModel {
     this.standaloneLot,
     this.standaloneWarehouse,
     this.standaloneCce0,
+    this.stockStatus = 'A',
+    this.returnCondition,
+    this.expiryDate,
+    this.location,
     this.resolvedSku,
     this.resolvedName,
     this.resolvedSalesUnit,
@@ -219,6 +237,10 @@ class CreditNoteLineModel {
       'standaloneLot': standaloneLot,
       'standaloneWarehouse': standaloneWarehouse,
       'standaloneCce0': standaloneCce0,
+      'stockStatus': stockStatus,
+      'returnCondition': returnCondition,
+      'expiryDate': expiryDate,
+      'location': location,
     };
   }
 
@@ -238,6 +260,10 @@ class CreditNoteLineModel {
       standaloneLot: map['standaloneLot'],
       standaloneWarehouse: map['standaloneWarehouse'],
       standaloneCce0: map['standaloneCce0'],
+      stockStatus: map['stockStatus'] ?? 'A',
+      returnCondition: map['returnCondition'],
+      expiryDate: map['expiryDate'],
+      location: map['location'],
       resolvedSku: map['sku'],
       resolvedName: map['name'],
       resolvedSalesUnit: map['salesUnit'],
