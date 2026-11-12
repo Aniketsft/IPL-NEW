@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:enterprise_auth_mobile/core/widgets/standard_filter.dart';
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:async';
@@ -42,7 +43,9 @@ class CustomerSelectionScreen extends StatefulWidget {
 class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounceTimer;
+  bool _hasAutofocused = false;
 
   List<Map<String, dynamic>> _customers = [];
   bool _isLoading = false;
@@ -72,10 +75,43 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasAutofocused) {
+      _hasAutofocused = true;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _focusSearchField();
+          });
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              _focusSearchField();
+            }
+          });
+        }
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusSearchField();
+        });
+      }
+    }
+  }
+
+  void _focusSearchField() {
+    if (!mounted) return;
+    FocusScope.of(context).requestFocus(_searchFocusNode);
+    SystemChannels.textInput.invokeMethod('TextInput.show');
+  }
+
+  @override
   void dispose() {
     _debounceTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -239,7 +275,7 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                               ? authState.siteCode!
                               : 'IPL';
                           context.read<SalesInvoiceSyncBloc>().add(
-                                StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                                StartSalesInvoiceSyncRequested(siteCode: siteCode, downloadOnly: true),
                               );
                         },
                       );
@@ -334,6 +370,8 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
       body: Column(
         children: [
           StandardFilter(
+            autofocus: true,
+            focusNode: _searchFocusNode,
             onApply: _fetchCustomers,
             searchController: _searchController,
             searchHint: 'Search by name, ID, or location...',

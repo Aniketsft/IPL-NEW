@@ -637,3 +637,11 @@ D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.deps.json
 D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.runtimeconfig.json
 D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.dll
 D:\enterprise_auth_system\backend\bin\test_build\EnterpriseAuth.Api.pdb
+d:\enterprise_auth_system\.tmp\build_check\appsettings.Development.json
+d:\enterprise_auth_system\.tmp\build_check\appsettings.json
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.staticwebassets.endpoints.json
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.exe
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.deps.json
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.runtimeconfig.json
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.dll
+d:\enterprise_auth_system\.tmp\build_check\EnterpriseAuth.Api.pdb

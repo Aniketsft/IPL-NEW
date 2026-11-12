@@ -14,6 +14,7 @@ using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace EnterpriseAuth.Api.Infrastructure.Persistence
 {
@@ -24,13 +25,15 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         private readonly SyncSettings _syncSettings;
         private readonly IX3SchemaProvider _schemaProvider;
         private readonly IMemoryCache? _memoryCache;
+        private readonly ILogger<EfSalesInvoiceRepository>? _logger;
 
         public EfSalesInvoiceRepository(
             IConfiguration configuration,
             ScanProductionDbContext scanContext,
             IOptions<SyncSettings> syncSettings,
             IX3SchemaProvider schemaProvider,
-            IMemoryCache? memoryCache = null)
+            IMemoryCache? memoryCache = null,
+            ILogger<EfSalesInvoiceRepository>? logger = null)
         {
             _connectionString = configuration.GetConnectionString("Innodis") 
                                 ?? throw new ArgumentNullException("Innodis connection string is missing");
@@ -38,6 +41,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _syncSettings = syncSettings.Value;
             _schemaProvider = schemaProvider;
             _memoryCache = memoryCache;
+            _logger = logger;
         }
 
         public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode)
@@ -576,6 +580,37 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ORDER BY f.FCY_0;
             ";
             return await QueryCachedOrLiveAsync<FacilityDto>($"si_facilities_{schema}", TimeSpan.FromMinutes(10), sql);
+        }
+
+        public async Task<string> GetFinancialSiteForSalesSiteAsync(string salesSite)
+        {
+            if (string.IsNullOrWhiteSpace(salesSite) || string.Equals(salesSite.Trim(), "ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                return salesSite ?? string.Empty;
+            }
+
+            var cleanSite = salesSite.Trim().ToUpperInvariant();
+            try
+            {
+                var facilities = await GetFacilitiesAsync();
+                var match = facilities.FirstOrDefault(f => string.Equals(f.SalesSiteCode?.Trim(), cleanSite, StringComparison.OrdinalIgnoreCase));
+                if (match != null && !string.IsNullOrWhiteSpace(match.FinancialSiteCode))
+                {
+                    return match.FinancialSiteCode.Trim().ToUpperInvariant();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to resolve financial site for sales site {Site}, falling back to static mapping", cleanSite);
+            }
+
+            // Static fallback baseline for known Innodis operational distribution sites
+            if (cleanSite == "SCG") return "CGD";
+            // Note: SCP is explicitly excluded from mapping to POD
+            if (cleanSite == "SDA") return "DPD";
+            if (cleanSite == "SFF") return "FFD";
+
+            return cleanSite;
         }
 
         public async Task<string> GetX3HistoryWatermarkAsync(string siteCode, int months = 6)

@@ -6,6 +6,7 @@ import '../../../../../core/network_service.dart';
 import '../../../data/repositories/transaction_history_repository.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../domain/services/sales_report_pdf_service.dart';
+import '../../widgets/print_or_preview_dialog.dart';
 import 'pdf_preview_screen.dart';
 
 class SalesReportsScreen extends StatefulWidget {
@@ -57,20 +58,23 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
         return;
       }
 
-      final pdfService = SalesReportPdfService();
-      final pdfBytes = await pdfService.generateInvoiceSummaryPdf(
-        invoices: invoices,
-        reportDate: DateFormat('dd MMM yyyy').format(selectedDate),
+      final productRows = await repo.getSalesSummaryRows(
+        startDate: startDate,
+        endDate: endDate,
       );
 
+      final pdfService = SalesReportPdfService();
+
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PdfPreviewScreen(
-              title: 'Invoice Summary',
-              pdfBytes: pdfBytes,
-            ),
+        setState(() => _isLoadingInvoice = false);
+        await PrintOrPreviewDialog.show(
+          context: context,
+          title: 'Invoice Summary',
+          subtitle: DateFormat('dd MMM yyyy').format(selectedDate),
+          onGeneratePdf: () => pdfService.generateInvoiceSummaryPdf(
+            invoices: invoices,
+            reportDate: DateFormat('dd MMM yyyy').format(selectedDate),
+            productRows: productRows,
           ),
         );
       }
@@ -162,19 +166,16 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
       }
 
       final pdfService = SalesReportPdfService();
-      final pdfBytes = await pdfService.generateStockPreviewPdf(
-        items: items,
-        warehouseLabel: selectedWarehouse == 'ALL' ? 'All Warehouses' : selectedWarehouse,
-      );
 
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PdfPreviewScreen(
-              title: 'Stock Preview',
-              pdfBytes: pdfBytes,
-            ),
+        setState(() => _isLoadingStock = false);
+        await PrintOrPreviewDialog.show(
+          context: context,
+          title: 'Stock Preview',
+          subtitle: selectedWarehouse == 'ALL' ? 'All Warehouses' : selectedWarehouse,
+          onGeneratePdf: () => pdfService.generateStockPreviewPdf(
+            items: items,
+            warehouseLabel: selectedWarehouse == 'ALL' ? 'All Warehouses' : selectedWarehouse,
           ),
         );
       }
@@ -208,17 +209,14 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
       final eodData = await repo.getEodReportData(selectedDate);
 
       final pdfService = SalesReportPdfService();
-      final pdfBytes = await pdfService.generateEodReportPdf(eodData);
 
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PdfPreviewScreen(
-              title: 'End of Day',
-              pdfBytes: pdfBytes,
-            ),
-          ),
+        setState(() => _isLoadingEod = false);
+        await PrintOrPreviewDialog.show(
+          context: context,
+          title: 'End of Day Summary',
+          subtitle: DateFormat('dd MMM yyyy').format(selectedDate),
+          onGeneratePdf: () => pdfService.generateEodReportPdf(eodData),
         );
       }
     } catch (e) {

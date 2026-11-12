@@ -17,6 +17,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
 
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/si_sales_order_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_invoice_pdf_service.dart';
@@ -25,6 +26,9 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_c
 import 'package:enterprise_auth_mobile/features/logistics/data/models/open_invoice_model.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
+import 'pdf_preview_screen.dart';
 
 class PaymentEntry {
   final String id;
@@ -372,8 +376,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
     }
 
     final grandTotal = double.parse(cartState.grandTotal.toStringAsFixed(2));
-    final isReturn = cartState.transactionType == 'RETURN' || cartState.transactionType == 'CUSTOMER_RETURN';
-    final isRefund = widget.isCreditNoteRefund || isReturn || cartState.config.isReturnOrCreditNote;
+    final isReturn = cartState.transactionType == 'RETURN' ||
+        cartState.transactionType == 'CUSTOMER_RETURN' ||
+        cartState.config.mode == AppTransactionMode.customerReturn ||
+        cartState.config.category == TransactionTypeCategory.customerReturn;
+    final isRefund = widget.isCreditNoteRefund ||
+        isReturn ||
+        cartState.config.isReturnOrCreditNote ||
+        cartState.config.mode.isCreditNote;
 
     if (grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -468,23 +478,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       final salesRepString = selectedReps.isNotEmpty
           ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
           : username;
-      final invoiceId = await DocumentSequenceService().generateDocumentNumber(
-        docType: 'INV',
-        salesSite: userSiteCode,
-        deviceId: deviceId,
-      );
-
-      // Determine main invoice status
-      bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
-      String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
 
       // Handle Credit Note / Return Refund flow
       if (isRefund) {
         const refundMethod = 'CASH';
-        final selectedReps = await LocalDatabaseHelper.instance.getSelectedSalesReps(username: username);
-        final salesRepString = selectedReps.isNotEmpty
-            ? selectedReps.map((r) => (r['code'] ?? '').toString().trim()).where((c) => c.isNotEmpty).join(',')
-            : username;
 
         final isReturnTransaction = cartState.transactionType == 'RETURN' ||
             cartState.transactionType == 'CUSTOMER_RETURN' ||
@@ -498,8 +495,28 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             ? _reasonController.text.trim()
             : condition.reasonCode;
 
+        // Resolve original sales site from X3 history header if this is a linked reversal/return
+        String effectiveSiteCode = userSiteCode;
+        if (cartState.originalDocumentId != null && cartState.originalDocumentId!.isNotEmpty) {
+          try {
+            final x3Header = await db.query(
+              LocalDatabaseHelper.tableX3HistoryHeader,
+              columns: ['salesSite'],
+              where: 'invoiceNumber = ?',
+              whereArgs: [cartState.originalDocumentId!],
+              limit: 1,
+            );
+            if (x3Header.isNotEmpty && x3Header.first['salesSite'] != null) {
+              final site = x3Header.first['salesSite']?.toString().trim();
+              if (site != null && site.isNotEmpty) {
+                effectiveSiteCode = site;
+              }
+            }
+          } catch (_) {}
+        }
+
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
-          salesSite: userSiteCode,
+          salesSite: effectiveSiteCode,
           customerCode: customer['code'],
           customerName: customer['name'],
           refundMethod: refundMethod,
@@ -514,6 +531,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           stockStatus: stockStatus,
           items: cartState.cartItems.asMap().entries.map((entry) {
             final item = entry.value;
+            final itemWarehouse = item.warehouse.isNotEmpty ? item.warehouse : effectiveSiteCode;
+            final itemLocation = item.location.isNotEmpty 
+                ? item.location 
+                : (isReturnTransaction ? (effectiveSiteCode == 'IPL' ? 'IPLCH' : effectiveSiteCode) : null);
             return CreditNoteLineModel(
               creditNoteId: '',
               lineNo: (entry.key + 1) * 1000,
@@ -524,8 +545,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               standalonePrice: item.basePrice,
               standaloneTaxRule: item.taxRule,
               standaloneLot: item.lotNumber,
-              standaloneWarehouse: item.warehouse,
+              standaloneWarehouse: itemWarehouse,
               standaloneCce0: item.product.cce0,
+              stockStatus: stockStatus,
+              returnCondition: resolvedReason,
+              location: itemLocation,
             );
           }).toList(),
         );
@@ -565,6 +589,18 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         return;
       }
 
+      // Pre-allocate invoice sequence number strictly for standard invoices (never for refunds/returns)
+      final invoiceId = await DocumentSequenceService().generateDocumentNumber(
+        docType: 'INV',
+        salesSite: userSiteCode,
+        lorryCode: DeviceInfoService.instance.assignedLocation,
+        deviceId: deviceId,
+      );
+
+      // Determine main invoice status
+      bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
+      String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
+
         // Resolve the pricing rule: use the first matched pricelist code from any cart item.
         // Falls back to empty string if all items were manually priced.
         final resolvedPricingRule = cartState.cartItems
@@ -572,9 +608,18 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             .where((s) => s.isNotEmpty && s != 'MANUAL' && !s.contains('discount-only'))
             .firstOrNull ?? '';
 
-      // Safe defensive schema verification for paymentTerm before inserting
+      // Safe defensive schema verification for paymentTerm and line promotion fields before inserting
       try {
         await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN paymentTerm TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoiceLines} ADD COLUMN mainItemSku TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoiceLines} ADD COLUMN discountPercent REAL');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoiceLines} ADD COLUMN discount3 REAL');
       } catch (_) {}
 
       // 1. Insert Invoice with Active Selected Sales Rep(s)
@@ -623,6 +668,9 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           'cce0': item.product.cce0,
           'taxRule': item.taxRule,
           'isFoc': item.isFoc ? 1 : 0,
+          'mainItemSku': item.mainItemSku ?? '',
+          'discountPercent': item.discountPercent,
+          'discount3': item.discountAmount,
           'pricingSource': item.pricingSource,
           'discountAmountFlat': item.discountAmountFlat,
           'priceListCode': item.priceListCode,
@@ -930,11 +978,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: () async {
-                      await Printing.layoutPdf(
-                        onLayout: (format) => CashCollectionPdfService().generateCollectionReceiptPdf(
-                          pageFormat: format,
+                      try {
+                        final pdfBytes = await CashCollectionPdfService().generateCollectionReceiptPdf(
+                          pageFormat: PdfPageFormat.a4,
                           receiptRef: receiptRef,
                           customerCode: custCode,
                           customerName: custName,
@@ -946,14 +994,71 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                           paymentTenders: tendersData,
                           totalCollected: isZeroOffset ? targetTotal : totalPaid,
                           isZeroOffset: isZeroOffset,
-                        ),
-                        name: 'Receipt_${receiptRef}.pdf',
-                      );
+                        );
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PdfPreviewScreen(
+                                title: 'Receipt $receiptRef',
+                                pdfBytes: pdfBytes,
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Preview error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
                     },
-                    icon: const Icon(Icons.print_rounded, size: 18),
-                    label: const Text('Print Receipt Slip'),
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                    label: const Text('Preview PDF', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final pdfBytes = await CashCollectionPdfService().generateCollectionReceiptPdf(
+                          pageFormat: PdfPageFormat.roll80,
+                          receiptRef: receiptRef,
+                          customerCode: custCode,
+                          customerName: custName,
+                          dateTime: DateTime.now(),
+                          salesRep: userName,
+                          siteCode: docSiteCode,
+                          company: docCompany,
+                          settledDocuments: settledDocsData,
+                          paymentTenders: tendersData,
+                          totalCollected: isZeroOffset ? targetTotal : totalPaid,
+                          isZeroOffset: isZeroOffset,
+                        );
+                        await PrinterService.instance.printPdfViaBluetooth(
+                          pdfBytes: pdfBytes,
+                          documentName: 'Receipt_${receiptRef}.pdf',
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.print_rounded, size: 16),
+                    label: const Text('Print (BT)', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: AppTheme.primaryAmber,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
@@ -965,7 +1070,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                     Navigator.pop(context, true);
                   },
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: const Text('Done'),
@@ -1090,36 +1195,45 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   Future<void> _handleHistoricalPrint(SalesInvoiceLoaded cartState) async {
     final isCreditNote = cartState.transactionType == 'PREVIEW_CREDIT_NOTE';
-    if (isCreditNote) {
-      final authState = context.read<AuthBloc>().state;
-      final userSite = (authState is Authenticated &&
-              authState.siteCode != null &&
-              authState.siteCode!.isNotEmpty &&
-              authState.siteCode != 'ALL')
-          ? authState.siteCode!
-          : 'IPL';
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sending to Sewoo Bluetooth printer...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
 
-      final creditNote = CreditNoteModel(
-        creditNoteId: cartState.originalDocumentId ?? '',
-        creditNoteType: CreditNoteType.reversal,
-        x3CreditNoteType: 'CRN',
-        salesSite: userSite, 
-        customerCode: cartState.customer!['code'],
-        customerName: cartState.customer!['name'],
-        currency: 'MUR',
-        grandTotal: cartState.grandTotal,
-        originalInvoiceId: cartState.originalDocumentId?.replaceFirst('CN-', '') ?? '',
-        settlementType: 'REFUND',
-        reference: cartState.originalDocumentId ?? '',
-        isSynced: 0,
-        createdAt: DateTime.now().toIso8601String(), 
-        createdBy: 'SYSTEM',
-        deviceId: '',
-      );
+      if (isCreditNote) {
+        final authState = context.read<AuthBloc>().state;
+        final userSite = (authState is Authenticated &&
+                authState.siteCode != null &&
+                authState.siteCode!.isNotEmpty &&
+                authState.siteCode != 'ALL')
+            ? authState.siteCode!
+            : 'IPL';
 
-      await Printing.layoutPdf(
-        onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
-          pageFormat: format,
+        final creditNote = CreditNoteModel(
+          creditNoteId: cartState.originalDocumentId ?? '',
+          creditNoteType: CreditNoteType.reversal,
+          x3CreditNoteType: 'CRN',
+          salesSite: userSite, 
+          customerCode: cartState.customer!['code'],
+          customerName: cartState.customer!['name'],
+          currency: 'MUR',
+          grandTotal: cartState.grandTotal,
+          originalInvoiceId: cartState.originalDocumentId?.replaceFirst('CN-', '') ?? '',
+          settlementType: 'REFUND',
+          reference: cartState.originalDocumentId ?? '',
+          isSynced: 0,
+          createdAt: DateTime.now().toIso8601String(), 
+          createdBy: 'SYSTEM',
+          deviceId: '',
+        );
+
+        final pdfBytes = await CreditNotePdfService().generateCreditNotePdf(
+          pageFormat: PdfPageFormat.roll80,
           creditNote: creditNote,
           resolvedLines: cartState.cartItems.map((i) => {
             'sku': i.product.sku,
@@ -1127,30 +1241,53 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             'quantity': i.quantity,
             'basePrice': i.basePrice,
           }).toList(),
-        ),
-      );
-    } else {
-      final pdfService = SalesInvoicePdfService();
-      await Printing.layoutPdf(
-        dynamicLayout: true,
-        onLayout: (format) async {
-          return await pdfService.generateInvoicePdf(
-            pageFormat: format,
-            invoiceId: cartState.originalDocumentId ?? '',
-            customer: {
-              'code': cartState.customer!['code'],
-              'name': cartState.customer!['name'],
-            },
-            items: cartState.cartItems.toList(),
-            subtotal: cartState.subtotal,
-            discountAmount: cartState.totalDiscount,
-            vatAmount: cartState.totalVat,
-            grandTotal: cartState.grandTotal,
-            paymentMethod: 'MULTIPLE',
-            paymentStatus: 'PAID',
-          );
-        },
-      );
+        );
+
+        await PrinterService.instance.printPdfViaBluetooth(
+          pdfBytes: pdfBytes,
+          documentName: 'CreditNote_${creditNote.creditNoteId}.pdf',
+        );
+      } else {
+        final pdfService = SalesInvoicePdfService();
+        final pdfBytes = await pdfService.generateInvoicePdf(
+          pageFormat: PdfPageFormat.roll80,
+          invoiceId: cartState.originalDocumentId ?? '',
+          customer: {
+            'code': cartState.customer!['code'],
+            'name': cartState.customer!['name'],
+          },
+          items: cartState.cartItems.toList(),
+          subtotal: cartState.subtotal,
+          discountAmount: cartState.totalDiscount,
+          vatAmount: cartState.totalVat,
+          grandTotal: cartState.grandTotal,
+          paymentMethod: 'MULTIPLE',
+          paymentStatus: 'PAID',
+        );
+
+        await PrinterService.instance.printPdfViaBluetooth(
+          pdfBytes: pdfBytes,
+          documentName: 'Invoice_${cartState.originalDocumentId ?? ""}.pdf',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document printed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Print failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

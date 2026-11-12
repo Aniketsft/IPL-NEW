@@ -803,7 +803,7 @@ class _BluetoothPrinterPickerDialogState extends State<_BluetoothPrinterPickerDi
                       controller: _modelCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Printer Model',
-                        hintText: 'e.g. ESC/POS 58mm',
+                        hintText: 'e.g. Sewoo LK-P43II',
                       ),
                     ),
                     const SizedBox(height: 8),

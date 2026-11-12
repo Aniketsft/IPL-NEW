@@ -74,7 +74,7 @@ class SelectTransactionScreen extends StatelessWidget {
                     }
 
                     context.read<SalesInvoiceSyncBloc>().add(
-                          StartSalesInvoiceSyncRequested(siteCode: siteCode),
+                          StartSalesInvoiceSyncRequested(siteCode: siteCode, downloadOnly: true),
                         );
                   },
                 );

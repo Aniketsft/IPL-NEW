@@ -63,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _syncJustSucceeded = false;
   bool _isManualHomeSyncTriggered = false;
   bool _lastSyncWasExportOnly = false;
+  bool _lastSyncWasDownloadOnly = false;
   bool _isRecheckingLicense = false;
   UnsyncedSummary _unsyncedSummary = const UnsyncedSummary();
 
@@ -214,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _triggerSync() {
     _lastSyncWasExportOnly = false;
+    _lastSyncWasDownloadOnly = true;
     final authState = context.read<AuthBloc>().state;
     final siteCode = (authState is Authenticated &&
             authState.siteCode != null &&
@@ -234,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     
     _isManualHomeSyncTriggered = true;
     context.read<SalesInvoiceSyncBloc>().add(
-          StartSalesInvoiceSyncRequested(siteCode: siteCode),
+          StartSalesInvoiceSyncRequested(siteCode: siteCode, downloadOnly: true),
         );
 
     // Periodically check if sync is done to refresh timestamp & unsynced counts
@@ -268,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     _lastSyncWasExportOnly = true;
+    _lastSyncWasDownloadOnly = false;
     _isManualHomeSyncTriggered = true;
     context.read<SalesInvoiceSyncBloc>().add(
           StartSalesInvoiceSyncRequested(siteCode: siteCode, uploadOnly: true),
@@ -297,25 +300,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
           if (_isManualHomeSyncTriggered) {
             _isManualHomeSyncTriggered = false;
-            if (salesSyncState.batchResult.hasUploadItems || salesSyncState.batchResult.hasFailures) {
-              SyncSoapErrorModal.showResults(
-                context,
-                batchResult: salesSyncState.batchResult,
-                onRetry: _lastSyncWasExportOnly ? _triggerExportToX3 : _triggerSync,
-                onDismiss: () {
-                  context.read<SalesInvoiceSyncBloc>().add(const ResetSalesInvoiceSyncRequested());
-                },
-              );
-            } else {
+            if (_lastSyncWasDownloadOnly) {
               _syncJustSucceeded = true;
-              if (_lastSyncWasExportOnly && mounted) {
+              if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Export to X3: All documents already synchronized to Sage X3.'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
+                  SnackBar(
+                    content: Row(
+                      children: const [
+                        Icon(Icons.check_circle_rounded, color: Colors.white),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text('Data Sync Complete: Catalog, stock & pricing updated from Sage X3.'),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF10B981),
+                    duration: const Duration(seconds: 3),
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
+              }
+            } else if (_lastSyncWasExportOnly) {
+              if (salesSyncState.batchResult.hasUploadItems || salesSyncState.batchResult.hasFailures) {
+                SyncSoapErrorModal.showResults(
+                  context,
+                  batchResult: salesSyncState.batchResult,
+                  onRetry: _triggerExportToX3,
+                  onDismiss: () {
+                    context.read<SalesInvoiceSyncBloc>().add(const ResetSalesInvoiceSyncRequested());
+                  },
+                );
+              } else {
+                _syncJustSucceeded = true;
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Export to X3: All documents already synchronized to Sage X3.'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               }
             }
           } else {
@@ -329,31 +355,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
           if (_isManualHomeSyncTriggered) {
             _isManualHomeSyncTriggered = false;
-            final failedReports = salesSyncState.batchResult?.failedReports.isNotEmpty == true
-                ? salesSyncState.batchResult!.failedReports
-                : [
-                    SyncEntityReport(
-                      entityName: 'Sage X3 Global Sync',
-                      direction: SyncDirection.upload,
-                      status: SyncStatus.failed,
-                      errorCode: 'ERR_SYNC_FAILED',
-                      userMessage: salesSyncState.error,
-                      messages: [salesSyncState.error],
+            if (_lastSyncWasDownloadOnly) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.white),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text('Data Sync Failed: ${salesSyncState.error}'),
+                        ),
+                      ],
                     ),
-                  ];
-            SyncSoapErrorModal.show(
-              context,
-              failedReports: failedReports,
-              allReports: salesSyncState.batchResult?.uploadReports.isNotEmpty == true
-                  ? salesSyncState.batchResult!.uploadReports
-                  : failedReports,
-              failureCount: salesSyncState.batchResult?.failures.isNotEmpty == true ? salesSyncState.batchResult!.failures.length : 1,
-              successCount: salesSyncState.batchResult?.successes.length ?? 0,
-              onRetry: _lastSyncWasExportOnly ? _triggerExportToX3 : _triggerSync,
-              onDismiss: () {
-                context.read<SalesInvoiceSyncBloc>().add(const ResetSalesInvoiceSyncRequested());
-              },
-            );
+                    backgroundColor: Colors.redAccent,
+                    duration: const Duration(seconds: 4),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            } else {
+              // Export / SOAP failure
+              final failedReports = salesSyncState.batchResult?.failedReports.isNotEmpty == true
+                  ? salesSyncState.batchResult!.failedReports
+                  : [
+                      SyncEntityReport(
+                        entityName: 'Sage X3 SOAP Export',
+                        direction: SyncDirection.upload,
+                        status: SyncStatus.failed,
+                        errorCode: 'ERR_SYNC_FAILED',
+                        userMessage: salesSyncState.error,
+                        messages: [salesSyncState.error],
+                      ),
+                    ];
+              SyncSoapErrorModal.show(
+                context,
+                failedReports: failedReports,
+                allReports: salesSyncState.batchResult?.uploadReports.isNotEmpty == true
+                    ? salesSyncState.batchResult!.uploadReports
+                    : failedReports,
+                failureCount: salesSyncState.batchResult?.failures.isNotEmpty == true ? salesSyncState.batchResult!.failures.length : 1,
+                successCount: salesSyncState.batchResult?.successes.length ?? 0,
+                onRetry: _triggerExportToX3,
+                onDismiss: () {
+                  context.read<SalesInvoiceSyncBloc>().add(const ResetSalesInvoiceSyncRequested());
+                },
+              );
+            }
           }
         } else if (salesSyncState is SalesInvoiceSyncInitial && _syncJustSucceeded) {
           _syncJustSucceeded = false;
@@ -538,15 +586,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _buildMenuButton(
         context,
         'Data Sync',
-        hasPending ? Icons.sync_problem_rounded : Icons.sync_rounded,
+        Icons.sync_rounded,
         null,
         onTapOverride: _triggerSync,
-        subtitle: hasPending
-            ? '⚠️ $pendingTotal items to sync\nLast: $_lastSyncStr'
-            : '✓ Up to date\nLast: $_lastSyncStr',
-        badgeCount: pendingTotal,
-        isWarning: hasPending,
-        badgeLabel: hasPending ? '$pendingTotal Pending' : null,
+        subtitle: 'Last: $_lastSyncStr',
       ),
       if (_hasAccess('logistics.delivery.read'))
         _buildMenuButton(

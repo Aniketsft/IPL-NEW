@@ -1,8 +1,10 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import '../ui/screens/end_of_day_screen.dart';
 
 class EodPdfGenerator {
@@ -31,8 +33,21 @@ class EodPdfGenerator {
       ),
     );
 
+    final pdfBytes = await pdf.save();
+    if (PrinterService.instance.defaultBluetoothPrinter != null) {
+      try {
+        await PrinterService.instance.printPdfViaBluetooth(
+          pdfBytes: pdfBytes,
+          documentName: 'EOD_Report_${workOrder}_${DateFormat('yyyyMMdd').format(productionDate)}.pdf',
+        );
+        return;
+      } catch (e) {
+        debugPrint('EodPdfGenerator Bluetooth print failed, falling back to layoutPdf: $e');
+      }
+    }
+
     await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
+      onLayout: (PdfPageFormat format) async => pdfBytes,
       name: 'EOD_Report_${workOrder}_${DateFormat('yyyyMMdd').format(productionDate)}.pdf',
     );
   }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
+using EnterpriseAuth.Api.Core.Application.Common;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Application.DTOs;
@@ -22,6 +23,7 @@ namespace EnterpriseAuth.Api.Controllers
         private readonly ScanProductionDbContext _dbContext;
         private readonly ISageX3SoapService _soapService;
         private readonly ILogger<SalesInvoiceController> _logger;
+        private readonly ISiteContextResolver _siteResolver;
         private readonly EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? _snapshotService;
 
         public SalesInvoiceController(
@@ -29,12 +31,14 @@ namespace EnterpriseAuth.Api.Controllers
             ScanProductionDbContext dbContext,
             ISageX3SoapService soapService,
             ILogger<SalesInvoiceController> logger,
+            ISiteContextResolver siteResolver,
             EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? snapshotService = null)
         {
             _repository = repository;
             _dbContext = dbContext;
             _soapService = soapService;
             _logger = logger;
+            _siteResolver = siteResolver;
             _snapshotService = snapshotService;
         }
 
@@ -71,39 +75,67 @@ namespace EnterpriseAuth.Api.Controllers
                 .Include(h => h.Lines)
                 .FirstOrDefaultAsync(h => h.InvoiceId == payload.InvoiceId);
 
-            if (existingHeader != null && existingHeader.IsProcessedByX3 && !string.IsNullOrEmpty(existingHeader.X3DocumentId))
-            {
-                return Ok(new
-                {
-                    success = true,
-                    invoiceId = payload.InvoiceId,
-                    x3DocumentId = existingHeader.X3DocumentId,
-                    message = "Invoice already processed and synced."
-                });
-            }
-
-            // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3?
             string? recoveredX3DocId = null;
             string? recoveredRawPayload = null;
 
-            var priorAudit = await _dbContext.X3SoapAudits
-                .Where(a => a.ActionName == "ImportSalesInvoice" && a.Identifier == payload.InvoiceId && a.IsSuccess)
-                .OrderByDescending(a => a.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
+            if (existingHeader != null)
             {
-                var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
-                var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
-                var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
-                recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
-                recoveredRawPayload = priorAudit.ResponsePayload;
+                var existingTotal = existingHeader.Lines.Sum(l => l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount));
+                bool customerMatches = string.Equals(existingHeader.CustomerCode?.Trim(), payload.CustomerCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+                bool totalMatches = Math.Abs(existingTotal - (double)totalAmount) < 0.05;
+
+                // Collision detection: If customer or total amount does not match, the mobile client generated
+                // a duplicate unique invoice number that was already consumed by an existing invoice.
+                if (!customerMatches || !totalMatches)
+                {
+                    _logger.LogError("Conflict: Incoming invoice {InvoiceId} (Customer: {NewCustomer}, Total: {NewTotal}) collides with existing invoice (Customer: {OldCustomer}, Total: {OldTotal}, X3 Document: {X3DocId})",
+                        payload.InvoiceId, payload.CustomerCode, totalAmount, existingHeader.CustomerCode, existingTotal, existingHeader.X3DocumentId);
+
+                    return Conflict(new
+                    {
+                        success = false,
+                        invoiceId = payload.InvoiceId,
+                        error = $"Invoice unique number '{payload.InvoiceId}' has already been used by an existing invoice in Sage X3 ({existingHeader.X3DocumentId ?? "synced"}). Duplicate unique numbers cannot be processed."
+                    });
+                }
+
+                // Legitimate network retry: same customer and total, already succeeded in X3
+                if (existingHeader.IsProcessedByX3 && !string.IsNullOrEmpty(existingHeader.X3DocumentId))
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        invoiceId = payload.InvoiceId,
+                        x3DocumentId = existingHeader.X3DocumentId,
+                        message = "Invoice already processed and synced."
+                    });
+                }
+
+                // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3 for this exact transaction?
+                var priorAudit = await _dbContext.X3SoapAudits
+                    .Where(a => a.ActionName == "ImportSalesInvoice" && a.Identifier == payload.InvoiceId && a.IsSuccess)
+                    .OrderByDescending(a => a.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
+                {
+                    var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
+                    var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
+                    var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
+                    recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
+                    recoveredRawPayload = priorAudit.ResponsePayload;
+                }
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+            var (invSiteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, payload.SalesSite, allowAll: true);
+            if (invSiteCtx != null && !string.IsNullOrWhiteSpace(invSiteCtx.FinancialSiteCode))
             {
-                payload.SalesSite = userSiteCode.Trim().ToUpperInvariant();
+                payload.SalesSite = invSiteCtx.FinancialSiteCode;
+                if (string.IsNullOrWhiteSpace(payload.ShippingSite))
+                {
+                    payload.ShippingSite = invSiteCtx.ShippingSiteCode;
+                }
             }
             else if (string.IsNullOrWhiteSpace(payload.SalesSite) || payload.SalesSite == "ALL")
             {
@@ -166,7 +198,8 @@ namespace EnterpriseAuth.Api.Controllers
                             SalesUnit = l.SalesUnit,
                             Cce0 = l.Cce0,
                             TaxRule = l.TaxRule,
-                            IsFoc = l.IsFoc
+                            IsFoc = l.IsFoc,
+                            MainItemSku = l.MainItemSku
                         });
                     }
 
@@ -175,18 +208,44 @@ namespace EnterpriseAuth.Api.Controllers
                 }
                 else
                 {
-                    // Repopulate [NotMapped] properties (Location, IsFoc) from incoming payload when retrying
+                    // Repopulate [NotMapped] properties (Location, IsFoc, MainItemSku, Discount3) from incoming payload when retrying
                     foreach (var line in existingHeader.Lines)
                     {
                         var matched = payload.Lines.FirstOrDefault(p => p.LineNo == line.LineNo || (p.Sku == line.Sku && !string.IsNullOrEmpty(p.Sku)));
                         if (matched != null)
                         {
                             line.IsFoc = matched.IsFoc;
+                            line.MainItemSku = matched.MainItemSku;
+                            line.Discount3 = matched.Discount3;
                             if (!string.IsNullOrEmpty(matched.Location))
                             {
                                 line.Location = matched.Location;
                             }
                         }
+                    }
+                }
+
+                // Populate [NotMapped] Payments from incoming payload so SOAP service knows if transaction is CASH (MICAS) or CREDIT (MICRE)
+                if (payload.Payments != null && payload.Payments.Count > 0)
+                {
+                    existingHeader.Payments.Clear();
+                    foreach (var p in payload.Payments)
+                    {
+                        existingHeader.Payments.Add(new StagingSalesInvoicePayment
+                        {
+                            DocumentType = "INVOICE",
+                            DocumentId = payload.InvoiceId,
+                            PaymentMethod = p.Method,
+                            Amount = p.Amount,
+                            BankCode = p.BankCode,
+                            BankName = p.BankName,
+                            ChequeNumber = p.ChequeNumber,
+                            ChequeDate = p.ChequeDate,
+                            QrTransactionRef = p.QrTransactionRef,
+                            LocalPaymentId = p.LocalPaymentId,
+                            SalesSite = existingHeader.SalesSite,
+                            CustomerCode = existingHeader.CustomerCode ?? ""
+                        });
                     }
                 }
 
@@ -273,56 +332,17 @@ namespace EnterpriseAuth.Api.Controllers
                         SyncedAt = DateTime.UtcNow
                     }).ToList();
 
+                    // Payment SOAP trigger temporarily deactivated per business requirement.
+                    // Payments are persisted to MSSQL staging tables with IsProcessedByX3 = false, IsSynced = 0.
                     try
                     {
-                        var payResult = await _soapService.ImportPaymentAsync(stagingPayments);
-                        if (payResult.Success || (!string.IsNullOrEmpty(payResult.RawPayload) && payResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            paymentSynced = true;
-                            x3PaymentId = payResult.DocumentId;
-                            foreach (var sp in stagingPayments)
-                            {
-                                sp.IsProcessedByX3 = true;
-                                sp.IsSynced = 1;
-                                sp.X3PaymentId = payResult.DocumentId;
-                                sp.SoapRequestNumber = payResult.RequestNumber;
-                            }
-                        }
-                        else
-                        {
-                            paymentError = !string.IsNullOrWhiteSpace(payResult.TechnicalError)
-                                ? payResult.TechnicalError
-                                : string.Join(" | ", payResult.Messages);
-                            foreach (var sp in stagingPayments)
-                            {
-                                sp.SoapError = paymentError;
-                            }
-                        }
+                        _dbContext.StagingSalesInvoicePayments.AddRange(stagingPayments);
+                        await _dbContext.SaveChangesAsync();
+                        paymentSynced = true;
                     }
-                    catch (Exception payEx)
+                    catch (Exception payDbEx)
                     {
-                        paymentError = payEx.Message;
-                        foreach (var sp in stagingPayments)
-                        {
-                            sp.SoapError = payEx.Message;
-                        }
-                    }
-
-                    if (paymentSynced)
-                    {
-                        try
-                        {
-                            _dbContext.StagingSalesInvoicePayments.AddRange(stagingPayments);
-                            await _dbContext.SaveChangesAsync();
-                        }
-                        catch (Exception payDbEx)
-                        {
-                            _logger.LogError(payDbEx, "Failed to persist StagingSalesInvoicePayments for Invoice {InvoiceId}: {Message}", payload.InvoiceId, payDbEx.InnerException?.Message ?? payDbEx.Message);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Payment SOAP failed for Invoice {InvoiceId}: {Error}. StagingSalesInvoicePayments will NOT be inserted into MSSQL.", payload.InvoiceId, paymentError);
+                        _logger.LogError(payDbEx, "Failed to persist StagingSalesInvoicePayments for Invoice {InvoiceId}: {Message}", payload.InvoiceId, payDbEx.InnerException?.Message ?? payDbEx.Message);
                     }
                 }
 
@@ -384,59 +404,88 @@ namespace EnterpriseAuth.Api.Controllers
             if (payload.GrandTotal <= 0)
                 return BadRequest(new { success = false, error = "Credit note with zero or negative total amount cannot be created." });
 
-            // 0. Idempotency check: Already processed and synced in HIPO?
-            var existingHeader = await _dbContext.StagingSalesInvoiceHeaders
-                .Include(h => h.Lines)
-                .FirstOrDefaultAsync(h => h.InvoiceId == payload.CreditNoteId);
-
-            if (existingHeader != null && existingHeader.IsProcessedByX3 && !string.IsNullOrEmpty(existingHeader.X3DocumentId))
-            {
-                return Ok(new
-                {
-                    success = true,
-                    creditNoteId = payload.CreditNoteId,
-                    x3DocumentId = existingHeader.X3DocumentId,
-                    message = "Credit note already processed and synced."
-                });
-            }
-
-            // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3?
-            string? recoveredX3DocId = null;
-            string? recoveredRawPayload = null;
-
-            var priorAudit = await _dbContext.X3SoapAudits
-                .Where(a => a.ActionName == "ImportCreditNote" && a.Identifier == payload.CreditNoteId && a.IsSuccess)
-                .OrderByDescending(a => a.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
-            {
-                var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
-                var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
-                var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
-                recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
-                recoveredRawPayload = priorAudit.ResponsePayload;
-            }
-
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
-            {
-                payload.SalesSite = userSiteCode.Trim().ToUpperInvariant();
-            }
-            else if (string.IsNullOrWhiteSpace(payload.SalesSite) || payload.SalesSite == "ALL")
-            {
-                payload.SalesSite = "POD";
-            }
-
-            var resolvedCrnTabletSource = await ResolveTabletSourceAsync(
-                payload.TabletSource,
-                payload.DeviceId,
-                payload.UserName ?? payload.CreatedBy ?? User.Identity?.Name);
-
-            // Atomic transaction: rollback on failure, commit only on confirmed X3 success
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
+                // 0. Idempotency check: Already processed and synced in HIPO?
+                var existingHeader = await _dbContext.StagingSalesInvoiceHeaders
+                    .Include(h => h.Lines)
+                    .FirstOrDefaultAsync(h => h.InvoiceId == payload.CreditNoteId);
+
+                string? recoveredX3DocId = null;
+                string? recoveredRawPayload = null;
+
+                if (existingHeader != null)
+                {
+                    bool customerMatches = string.Equals(existingHeader.CustomerCode?.Trim(), payload.CustomerCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+                    var existingTotal = existingHeader.Lines.Sum(l => l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount));
+                    bool totalMatches = Math.Abs(existingTotal - (double)payload.GrandTotal) < 0.05;
+
+                    // Collision detection: If customer or grand total does not match, reject conflict
+                    if (!customerMatches || !totalMatches)
+                    {
+                        _logger.LogError("Conflict: Incoming credit note {CreditNoteId} (Customer: {NewCustomer}, Total: {NewTotal}) collides with existing document (Customer: {OldCustomer}, Total: {OldTotal}, X3 Document: {X3DocId})",
+                            payload.CreditNoteId, payload.CustomerCode, payload.GrandTotal, existingHeader.CustomerCode, existingTotal, existingHeader.X3DocumentId);
+
+                        return Conflict(new
+                        {
+                            success = false,
+                            creditNoteId = payload.CreditNoteId,
+                            error = $"Credit note unique number '{payload.CreditNoteId}' is already used by an existing document in Sage X3 ({existingHeader.X3DocumentId ?? "synced"}). Duplicate unique numbers cannot be processed."
+                        });
+                    }
+
+                    // Legitimate retry of existing credit note
+                    if (existingHeader.IsProcessedByX3 && !string.IsNullOrEmpty(existingHeader.X3DocumentId))
+                    {
+                        return Ok(new
+                        {
+                            success = true,
+                            creditNoteId = payload.CreditNoteId,
+                            x3DocumentId = existingHeader.X3DocumentId,
+                            message = "Credit note already processed and synced."
+                        });
+                    }
+
+                    // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3?
+                    var priorAudit = await _dbContext.X3SoapAudits
+                        .Where(a => a.ActionName == "ImportCreditNote" && a.Identifier == payload.CreditNoteId && a.IsSuccess)
+                        .OrderByDescending(a => a.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
+                    {
+                        var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
+                        var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
+                        var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
+                        recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
+                        recoveredRawPayload = priorAudit.ResponsePayload;
+                    }
+                }
+
+                var userSiteCode = User.FindFirst("SiteCode")?.Value;
+                var (crnSiteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, payload.SalesSite, allowAll: true);
+                if (crnSiteCtx != null && !string.IsNullOrWhiteSpace(crnSiteCtx.FinancialSiteCode))
+                {
+                    payload.SalesSite = crnSiteCtx.FinancialSiteCode;
+                    if (string.IsNullOrWhiteSpace(payload.ShippingSite))
+                    {
+                        payload.ShippingSite = crnSiteCtx.ShippingSiteCode;
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(payload.SalesSite) || payload.SalesSite == "ALL")
+                {
+                    payload.SalesSite = "POD";
+                }
+
+                var resolvedCrnTabletSource = await ResolveTabletSourceAsync(
+                    payload.TabletSource,
+                    payload.DeviceId,
+                    payload.UserName ?? payload.CreatedBy ?? User.Identity?.Name);
+
+                // Atomic transaction: rollback on failure, commit only on confirmed X3 success
+                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                try
+                {
                 if (existingHeader == null)
                 {
                     // Resolve real Sage X3 Document ID from HIPO Staging table if linked to an invoice
@@ -474,11 +523,27 @@ namespace EnterpriseAuth.Api.Controllers
                         Reference = payload.Reference ?? "",
                         OriginInvoiceId = resolvedOriginX3Id,
                         Reason = payload.Reason,
+                        SettlementType = payload.SettlementType,
                         TransactionMode = payload.TransactionMode ?? (string.IsNullOrEmpty(resolvedOriginX3Id) ? "1" : "4"),
                         TabletSource = resolvedCrnTabletSource,
                         IsProcessedByX3 = false,
                         SyncedAt = DateTime.UtcNow
                     };
+
+                    if (payload.Refunds != null && payload.Refunds.Count > 0)
+                    {
+                        foreach (var r in payload.Refunds)
+                        {
+                            existingHeader.Payments.Add(new StagingSalesInvoicePayment
+                            {
+                                DocumentType = "CREDIT_NOTE",
+                                DocumentId = payload.CreditNoteId,
+                                PaymentMethod = r.Method,
+                                Amount = (decimal)r.Amount,
+                                BankCode = r.BankCode
+                            });
+                        }
+                    }
 
                     foreach (var line in payload.Lines)
                     {
@@ -507,6 +572,96 @@ namespace EnterpriseAuth.Api.Controllers
                     }
 
                     _dbContext.StagingSalesInvoiceHeaders.Add(existingHeader);
+                    await _dbContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // Re-hydrate [NotMapped] properties and update line quality metadata on retry
+                    string resolvedOriginX3Id = payload.OriginalInvoiceId ?? "";
+                    if (!string.IsNullOrWhiteSpace(payload.OriginalInvoiceId))
+                    {
+                        var matchingInvoice = await _dbContext.StagingSalesInvoiceHeaders
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(h => h.InvoiceId == payload.OriginalInvoiceId 
+                                                   || h.TransactionalId == payload.OriginalInvoiceId
+                                                   || h.X3DocumentId == payload.OriginalInvoiceId);
+
+                        if (matchingInvoice != null && !string.IsNullOrWhiteSpace(matchingInvoice.X3DocumentId))
+                        {
+                            resolvedOriginX3Id = matchingInvoice.X3DocumentId;
+                        }
+                    }
+
+                    existingHeader.OriginInvoiceId = resolvedOriginX3Id;
+                    existingHeader.Reason = payload.Reason;
+                    existingHeader.SettlementType = payload.SettlementType;
+                    existingHeader.TransactionMode = payload.TransactionMode ?? (string.IsNullOrEmpty(resolvedOriginX3Id) ? "1" : "4");
+                    existingHeader.CustomerName = payload.CustomerName ?? existingHeader.CustomerName;
+                    existingHeader.TabletSource = resolvedCrnTabletSource;
+
+                    if (payload.Refunds != null && payload.Refunds.Count > 0)
+                    {
+                        existingHeader.Payments.Clear();
+                        foreach (var r in payload.Refunds)
+                        {
+                            existingHeader.Payments.Add(new StagingSalesInvoicePayment
+                            {
+                                DocumentType = "CREDIT_NOTE",
+                                DocumentId = payload.CreditNoteId,
+                                PaymentMethod = r.Method,
+                                Amount = (decimal)r.Amount,
+                                BankCode = r.BankCode
+                            });
+                        }
+                    }
+                    if (!string.IsNullOrWhiteSpace(payload.SalesSite))
+                    {
+                        existingHeader.SalesSite = payload.SalesSite;
+                    }
+                    if (payload.Category > 0)
+                    {
+                        existingHeader.InvoiceType = payload.Category.ToString();
+                    }
+
+                    if (payload.Lines != null && payload.Lines.Count > 0)
+                    {
+                        foreach (var pl in payload.Lines)
+                        {
+                            var existingLine = existingHeader.Lines.FirstOrDefault(l => l.LineNo == pl.LineNo || l.Sku == pl.Sku);
+                            if (existingLine != null)
+                            {
+                                if (!string.IsNullOrWhiteSpace(pl.StockStatus)) existingLine.StockStatus = pl.StockStatus.Trim().ToUpperInvariant();
+                                if (!string.IsNullOrWhiteSpace(pl.ReturnCondition)) existingLine.ReturnCondition = pl.ReturnCondition;
+                                if (!string.IsNullOrWhiteSpace(pl.ExpiryDate)) existingLine.ExpiryDate = pl.ExpiryDate;
+                                if (!string.IsNullOrWhiteSpace(pl.Location)) existingLine.Location = pl.Location;
+                            }
+                            else
+                            {
+                                existingHeader.Lines.Add(new StagingSalesInvoiceLine
+                                {
+                                    InvoiceId = payload.CreditNoteId,
+                                    LineNo = pl.LineNo,
+                                    Sku = pl.Sku ?? pl.StandaloneSku,
+                                    Name = pl.Name ?? pl.StandaloneName,
+                                    Quantity = pl.Quantity,
+                                    BasePrice = pl.BasePrice ?? pl.StandalonePrice ?? 0.0,
+                                    DiscountAmount = pl.DiscountAmount ?? 0.0,
+                                    Discount2 = pl.Discount2 ?? 0.0,
+                                    Discount3 = pl.Discount3 ?? 0.0,
+                                    TaxRule = pl.TaxRule ?? pl.StandaloneTaxRule ?? "VAT0",
+                                    SalesUnit = pl.SalesUnit ?? pl.StandaloneSalesUnit ?? "UN",
+                                    Warehouse = pl.Warehouse ?? pl.StandaloneWarehouse ?? "",
+                                    LotNumber = pl.LotNumber ?? pl.StandaloneLot ?? "",
+                                    Cce0 = pl.Cce0 ?? pl.StandaloneCce0 ?? "COMMERCIAL",
+                                    OriginLineNo = pl.OriginLineNo,
+                                    StockStatus = !string.IsNullOrWhiteSpace(pl.StockStatus) ? pl.StockStatus.Trim().ToUpperInvariant() : "A",
+                                    ReturnCondition = pl.ReturnCondition,
+                                    ExpiryDate = pl.ExpiryDate,
+                                    Location = pl.Location
+                                });
+                            }
+                        }
+                    }
                     await _dbContext.SaveChangesAsync();
                 }
 
@@ -594,56 +749,17 @@ namespace EnterpriseAuth.Api.Controllers
                         SyncedAt = DateTime.UtcNow
                     }).ToList();
 
+                    // Refund SOAP trigger temporarily deactivated per business requirement.
+                    // Refunds are persisted to MSSQL staging tables with IsProcessedByX3 = false, IsSynced = 0.
                     try
                     {
-                        var refundResult = await _soapService.ImportPaymentAsync(stagingRefundPayments);
-                        if (refundResult.Success || (!string.IsNullOrEmpty(refundResult.RawPayload) && refundResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            refundSynced = true;
-                            x3RefundPaymentId = refundResult.DocumentId;
-                            foreach (var srp in stagingRefundPayments)
-                            {
-                                srp.IsProcessedByX3 = true;
-                                srp.IsSynced = 1;
-                                srp.X3PaymentId = refundResult.DocumentId;
-                                srp.SoapRequestNumber = refundResult.RequestNumber;
-                            }
-                        }
-                        else
-                        {
-                            refundError = !string.IsNullOrWhiteSpace(refundResult.TechnicalError)
-                                ? refundResult.TechnicalError
-                                : string.Join(" | ", refundResult.Messages);
-                            foreach (var srp in stagingRefundPayments)
-                            {
-                                srp.SoapError = refundError;
-                            }
-                        }
+                        _dbContext.StagingSalesInvoicePayments.AddRange(stagingRefundPayments);
+                        await _dbContext.SaveChangesAsync();
+                        refundSynced = true;
                     }
-                    catch (Exception refEx)
+                    catch (Exception refDbEx)
                     {
-                        refundError = refEx.Message;
-                        foreach (var srp in stagingRefundPayments)
-                        {
-                            srp.SoapError = refEx.Message;
-                        }
-                    }
-
-                    if (refundSynced)
-                    {
-                        try
-                        {
-                            _dbContext.StagingSalesInvoicePayments.AddRange(stagingRefundPayments);
-                            await _dbContext.SaveChangesAsync();
-                        }
-                        catch (Exception refDbEx)
-                        {
-                            _logger.LogError(refDbEx, "Failed to persist StagingSalesInvoicePayments for Credit Note {CreditNoteId}: {Message}", payload.CreditNoteId, refDbEx.InnerException?.Message ?? refDbEx.Message);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Refund SOAP failed for Credit Note {CreditNoteId}: {Error}. StagingSalesInvoicePayments will NOT be inserted into MSSQL.", payload.CreditNoteId, refundError);
+                        _logger.LogError(refDbEx, "Failed to persist StagingSalesInvoicePayments for Credit Note {CreditNoteId}: {Message}", payload.CreditNoteId, refDbEx.InnerException?.Message ?? refDbEx.Message);
                     }
                 }
 
@@ -695,7 +811,7 @@ namespace EnterpriseAuth.Api.Controllers
                     {
                         EntityName = "DeviceSync",
                         EntityIdString = syncDevId,
-                        ActionType = "SYNC_SALES_CREDIT_NOTE",
+                        ActionType = "SYNC_CREDIT_NOTE",
                         Site = syncSite,
                         Payload = $"{{\"CreditNoteId\":\"{payload.CreditNoteId}\",\"X3DocId\":\"{x3DocId}\"}}",
                         PerformedBy = syncUser,
@@ -732,6 +848,13 @@ namespace EnterpriseAuth.Api.Controllers
                 try { await transaction.RollbackAsync(); } catch { }
                 var detailedError = ex.InnerException != null ? $"{ex.Message} --> {ex.InnerException.Message}" : ex.Message;
                 _logger.LogError(ex, "Failed to sync credit note {CreditNoteId}: {Error}", payload.CreditNoteId, detailedError);
+                return StatusCode(500, new { success = false, creditNoteId = payload.CreditNoteId, error = detailedError });
+            }
+            }
+            catch (Exception outerEx)
+            {
+                var detailedError = outerEx.InnerException != null ? $"{outerEx.Message} --> {outerEx.InnerException.Message}" : outerEx.Message;
+                _logger.LogError(outerEx, "Outer error syncing credit note {CreditNoteId}: {Error}", payload.CreditNoteId, detailedError);
                 return StatusCode(500, new { success = false, creditNoteId = payload.CreditNoteId, error = detailedError });
             }
         }
@@ -807,48 +930,17 @@ namespace EnterpriseAuth.Api.Controllers
 
                 try
                 {
-                    var payResult = await _soapService.ImportPaymentAsync(stagingPayments);
-                    bool isSuccess = payResult.Success || (!string.IsNullOrEmpty(payResult.RawPayload) && payResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase));
-
-                    if (isSuccess)
-                    {
-                        foreach (var sp in stagingPayments)
-                        {
-                            sp.IsProcessedByX3 = true;
-                            sp.IsSynced = 1;
-                            sp.X3PaymentId = payResult.DocumentId;
-                            sp.SoapRequestNumber = payResult.RequestNumber;
-                        }
-                    }
-                    else
-                    {
-                        var paymentError = !string.IsNullOrWhiteSpace(payResult.TechnicalError)
-                            ? payResult.TechnicalError
-                            : string.Join(" | ", payResult.Messages);
-                        foreach (var sp in stagingPayments)
-                        {
-                            sp.SoapError = paymentError;
-                        }
-                    }
-
-                    if (isSuccess)
-                    {
-                        _dbContext.StagingSalesInvoicePayments.AddRange(stagingPayments);
-                        await _dbContext.SaveChangesAsync();
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Standalone payment SOAP failed for document {DocumentId}. StagingSalesInvoicePayments will NOT be inserted into MSSQL.", grp.Key.DocumentId);
-                    }
+                    // Payment SOAP trigger temporarily deactivated per business requirement.
+                    // Payments are persisted to MSSQL staging tables with IsProcessedByX3 = false, IsSynced = 0.
+                    _dbContext.StagingSalesInvoicePayments.AddRange(stagingPayments);
+                    await _dbContext.SaveChangesAsync();
 
                     results.Add(new
                     {
                         documentId = grp.Key.DocumentId,
                         x3InvoiceDocumentId = x3DocId,
-                        success = isSuccess,
-                        x3PaymentId = payResult.DocumentId,
-                        x3Request = payResult.RequestNumber,
-                        error = isSuccess ? null : (!string.IsNullOrWhiteSpace(payResult.TechnicalError) ? payResult.TechnicalError : string.Join(" | ", payResult.Messages))
+                        success = true,
+                        message = "Payment staged locally (SOAP trigger temporarily deactivated)."
                     });
                 }
                 catch (Exception ex)
@@ -870,7 +962,7 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("customers")]
         public async Task<IActionResult> GetCustomers([FromQuery] string? sitecode = null)
         {
-            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode, allowAll: true);
+            var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, sitecode, allowAll: true);
             if (error != null)
             {
                 return error;
@@ -878,7 +970,7 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var customers = await _repository.GetCustomersAsync(effectiveSiteCode ?? string.Empty);
+                var customers = await _repository.GetCustomersAsync(siteCtx!.FinancialSiteCode);
                 return Ok(customers);
             }
             catch (System.Exception)
@@ -890,7 +982,7 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("Products")]
         public async Task<IActionResult> GetProducts([FromQuery] string? sitecode = null)
         {
-            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, sitecode);
             if (error != null)
             {
                 return error;
@@ -898,7 +990,7 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var products = await _repository.GetProductsAsync(effectiveSiteCode!);
+                var products = await _repository.GetProductsAsync(siteCtx!.ShippingSiteCode);
                 return Ok(products);
             }
             catch (System.Exception)
@@ -910,7 +1002,7 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("itemstockdetails")]
         public async Task<IActionResult> GetItemStockDetails([FromQuery] string? sitecode = null)
         {
-            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, sitecode);
             if (error != null)
             {
                 return error;
@@ -921,20 +1013,20 @@ namespace EnterpriseAuth.Api.Controllers
                 if (_snapshotService != null)
                 {
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
-                        effectiveSiteCode!,
+                        siteCtx!.ShippingSiteCode,
                         "StockDetails",
-                        () => _repository.GetStockWatermarkAsync(effectiveSiteCode!),
-                        () => _repository.GetItemStockDetailsAsync(effectiveSiteCode!));
+                        () => _repository.GetStockWatermarkAsync(siteCtx.ShippingSiteCode),
+                        () => _repository.GetItemStockDetailsAsync(siteCtx.ShippingSiteCode));
 
                     return ServeSnapshotResult(snapshot);
                 }
 
-                var details = await _repository.GetItemStockDetailsAsync(effectiveSiteCode!);
+                var details = await _repository.GetItemStockDetailsAsync(siteCtx!.ShippingSiteCode);
                 return Ok(details);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving stock details for site {Site}", effectiveSiteCode);
+                _logger.LogError(ex, "Error retrieving stock details for site {Site}", siteCtx!.ShippingSiteCode);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving stock details." });
             }
         }
@@ -1051,7 +1143,7 @@ namespace EnterpriseAuth.Api.Controllers
                 return BadRequest(new { error = "Product code is required." });
             }
 
-            var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(sitecode);
+            var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, sitecode);
             if (error != null)
             {
                 return error;
@@ -1059,12 +1151,12 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var liveStock = await _repository.GetProductLiveStockAsync(productCode, effectiveSiteCode!);
+                var liveStock = await _repository.GetProductLiveStockAsync(productCode, siteCtx!.ShippingSiteCode);
                 return Ok(liveStock);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving live stock for product {ProductCode} at site {Site}", productCode, effectiveSiteCode);
+                _logger.LogError(ex, "Error retrieving live stock for product {ProductCode} at site {Site}", productCode, siteCtx!.ShippingSiteCode);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving live stock." });
             }
         }
@@ -1072,35 +1164,13 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpGet("salesreps")]
         public async Task<IActionResult> GetSalesReps([FromQuery] string? sitecode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
-                                    || User.IsInRole("Admin") 
-                                    || User.IsInRole("SuperAdmin");
-
-            string? effectiveSite = null;
-            if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.IsNullOrWhiteSpace(sitecode) && 
-                    !string.Equals(sitecode, userSiteCode, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogWarning("Security: User {User} assigned to {UserSite} attempted to query sales reps for unauthorized site {RequestedSite}.",
-                        User.Identity?.Name, userSiteCode, sitecode);
-                }
-                effectiveSite = userSiteCode;
-            }
-            else if (isMultiSiteAdmin)
-            {
-                effectiveSite = string.Equals(sitecode, "ALL", StringComparison.OrdinalIgnoreCase) ? null : sitecode;
-            }
-            else
-            {
-                _logger.LogWarning("Security: Unassigned user {User} attempted to access sales reps.", User.Identity?.Name);
-                return StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." });
-            }
+            var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, sitecode, allowAll: true);
+            if (error != null) return error;
 
             try
             {
-                var data = await _repository.GetSalesRepsAsync(effectiveSite);
+                var target = string.IsNullOrWhiteSpace(siteCtx!.FinancialSiteCode) ? null : siteCtx.FinancialSiteCode;
+                var data = await _repository.GetSalesRepsAsync(target);
                 return Ok(data);
             }
             catch (System.Exception)
@@ -1115,28 +1185,30 @@ namespace EnterpriseAuth.Api.Controllers
             [FromQuery] string? customerno = null,
             [FromQuery] int daysCutoff = 0)
         {
-            var (effectiveSite, errorResult) = ResolveEffectiveSiteCode(sitecode);
+            var (siteCtx, errorResult) = await _siteResolver.ResolveSiteContextAsync(User, sitecode);
             if (errorResult != null) return errorResult;
+
+            var targetSite = siteCtx!.FinancialSiteCode;
 
             try
             {
                 if (_snapshotService != null && string.IsNullOrWhiteSpace(customerno) && daysCutoff <= 0)
                 {
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
-                        effectiveSite!,
+                        targetSite,
                         "OpenInvoices",
-                        () => _repository.GetOpenInvoicesWatermarkAsync(effectiveSite!, daysCutoff),
-                        () => _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff));
+                        () => _repository.GetOpenInvoicesWatermarkAsync(targetSite, daysCutoff),
+                        () => _repository.GetOpenInvoicesAsync(targetSite, customerno, daysCutoff));
 
                     return ServeSnapshotResult(snapshot);
                 }
 
-                var data = await _repository.GetOpenInvoicesAsync(effectiveSite, customerno, daysCutoff);
+                var data = await _repository.GetOpenInvoicesAsync(targetSite, customerno, daysCutoff);
                 return Ok(data);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving open invoices for site {Site}", effectiveSite);
+                _logger.LogError(ex, "Error retrieving open invoices for site {Site}", targetSite);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving open invoices." });
             }
         }
@@ -1147,28 +1219,30 @@ namespace EnterpriseAuth.Api.Controllers
             [FromQuery] string? customercode = null,
             [FromQuery] int months = 6)
         {
-            var (effectiveSite, errorResult) = ResolveEffectiveSiteCode(sitecode);
+            var (siteCtx, errorResult) = await _siteResolver.ResolveSiteContextAsync(User, sitecode);
             if (errorResult != null) return errorResult;
+
+            var targetSite = siteCtx!.FinancialSiteCode;
 
             try
             {
                 if (_snapshotService != null && string.IsNullOrWhiteSpace(customercode) && months == 6)
                 {
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
-                        effectiveSite!,
+                        targetSite,
                         "X3History",
-                        () => _repository.GetX3HistoryWatermarkAsync(effectiveSite!),
-                        () => _repository.GetX3HistoryAsync(effectiveSite ?? "", customercode, months));
+                        () => _repository.GetX3HistoryWatermarkAsync(targetSite),
+                        () => _repository.GetX3HistoryAsync(targetSite, customercode, months));
 
                     return ServeSnapshotResult(snapshot);
                 }
 
-                var data = await _repository.GetX3HistoryAsync(effectiveSite ?? "", customercode, months);
+                var data = await _repository.GetX3HistoryAsync(targetSite, customercode, months);
                 return Ok(data);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving X3 history for site {Site}, customer {Customer}", effectiveSite, customercode);
+                _logger.LogError(ex, "Error retrieving X3 history for site {Site}, customer {Customer}", targetSite, customercode);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving X3 history." });
             }
         }
@@ -1226,14 +1300,17 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var userSiteCode = User.FindFirst("SiteCode")?.Value;
+                var (siteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, null, allowAll: true);
+                var resolvedSite = siteCtx != null && !string.IsNullOrWhiteSpace(siteCtx.FinancialSiteCode)
+                    ? siteCtx.FinancialSiteCode
+                    : "POD";
                 var userName = User.Identity?.Name ?? "MobileUser";
 
                 foreach (var payment in payments)
                 {
-                    if (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    if (string.IsNullOrWhiteSpace(payment.SiteCode) || payment.SiteCode == "ALL")
                     {
-                        payment.SiteCode = userSiteCode;
+                        payment.SiteCode = resolvedSite;
                     }
                     payment.UserName = userName;
                 }
@@ -1303,44 +1380,75 @@ namespace EnterpriseAuth.Api.Controllers
             }
         }
 
-        private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode, bool allowAll = false)
+        [HttpGet("document-sequences")]
+        public async Task<IActionResult> GetDocumentSequences([FromQuery] string? siteCode = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
-                                    || User.IsInRole("Admin") 
-                                    || User.IsInRole("SuperAdmin");
-
-            // Case 1: Standard user bound to a specific site
-            if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                if (!string.IsNullOrWhiteSpace(requestedSiteCode) && 
-                    !string.Equals(requestedSiteCode, userSiteCode, StringComparison.OrdinalIgnoreCase))
+                var (siteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, siteCode, allowAll: true);
+                var cleanSite = siteCtx?.FinancialSiteCode ?? siteCode?.Trim().ToUpperInvariant() ?? "";
+
+                // Query all HIPO invoice and credit note IDs from Staging table
+                var query = _dbContext.StagingSalesInvoiceHeaders.AsNoTracking();
+                if (!string.IsNullOrWhiteSpace(cleanSite) && cleanSite != "ALL")
                 {
-                    _logger.LogWarning("Security: User {User} assigned to {UserSite} attempted to query unauthorized site {RequestedSite}.",
-                        User.Identity?.Name, userSiteCode, requestedSiteCode);
+                    query = query.Where(h => h.SalesSite == cleanSite || h.InvoiceId.Contains(cleanSite));
                 }
 
-                return (userSiteCode, null);
-            }
+                var candidateIds = await query
+                    .Select(h => h.InvoiceId)
+                    .ToListAsync();
 
-            // Case 2: Multi-site administrator
-            if (isMultiSiteAdmin)
-            {
-                if (string.IsNullOrWhiteSpace(requestedSiteCode) || string.Equals(requestedSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
+                var prefixes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var id in candidateIds)
                 {
-                    if (allowAll)
+                    if (string.IsNullOrWhiteSpace(id) || id.Length < 12 || !id.StartsWith("H", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string prefix = id.Substring(0, id.Length - 5);
+                    string seqStr = id.Substring(id.Length - 5);
+                    if (int.TryParse(seqStr, out int seqNum))
                     {
-                        return (string.Empty, null);
+                        if (!prefixes.TryGetValue(prefix, out int currMax) || seqNum > currMax)
+                        {
+                            prefixes[prefix] = seqNum;
+                        }
                     }
-                    return (null, BadRequest(new { error = "An explicit sitecode is required to fetch records. 'ALL' is not permitted." }));
                 }
 
-                return (requestedSiteCode, null);
-            }
+                var result = prefixes.Select(p => {
+                    string pfx = p.Key;
+                    string typeCode = pfx.Length >= 2 ? (pfx[1] == 'C' ? "CRN" : (pfx[1] == 'R' ? "RTN" : "INV")) : "INV";
+                    string ym = pfx.Length >= 4 ? pfx.Substring(pfx.Length - 4) : "";
+                    string middle = pfx.Length > 6 ? pfx.Substring(2, pfx.Length - 6) : "";
 
-            // Case 3: Unassigned / unauthorized user
-            _logger.LogWarning("Security: Unassigned user {User} attempted to access site-scoped resource.", User.Identity?.Name);
-            return (null, StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." }));
+                    string finSite = middle;
+                    string lorry = "00";
+                    var match = System.Text.RegularExpressions.Regex.Match(middle, @"^([A-Za-z]+)(\d+)$");
+                    if (match.Success)
+                    {
+                        finSite = match.Groups[1].Value;
+                        lorry = match.Groups[2].Value;
+                    }
+
+                    return new
+                    {
+                        prefix = pfx,
+                        docType = typeCode,
+                        financialSite = finSite,
+                        lorryCode = lorry,
+                        yearMonth = ym,
+                        lastSequence = p.Value
+                    };
+                }).ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve document sequences high-water mark");
+                return StatusCode(500, new { error = "Failed to retrieve document sequences." });
+            }
         }
 
         private async Task<string> ResolveTabletSourceAsync(string? rawTabletSource, string? rawDeviceId, string? userName)

@@ -15,6 +15,8 @@ import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
+import 'pdf_preview_screen.dart';
 
 class AmountOnlyCreditNoteScreen extends StatefulWidget {
   final String? initialCustomerCode;
@@ -382,15 +384,54 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
           ),
           actions: [
             TextButton.icon(
-              icon: const Icon(Icons.print),
-              label: const Text('Print Receipt'),
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              label: const Text('Preview PDF'),
               onPressed: () async {
-                await Printing.layoutPdf(
-                  onLayout: (format) => _pdfService.generateCreditNotePdf(
-                    pageFormat: format,
+                try {
+                  final pdfBytes = await _pdfService.generateCreditNotePdf(
+                    pageFormat: PdfPageFormat.a4,
                     creditNote: creditNote,
-                  ),
-                );
+                  );
+                  if (context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PdfPreviewScreen(
+                          title: 'Credit Note ${creditNote.creditNoteId}',
+                          pdfBytes: pdfBytes,
+                        ),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Preview error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.print_rounded),
+              label: const Text('Print (BT)'),
+              onPressed: () async {
+                try {
+                  final pdfBytes = await _pdfService.generateCreditNotePdf(
+                    pageFormat: PdfPageFormat.roll80,
+                    creditNote: creditNote,
+                  );
+                  await PrinterService.instance.printPdfViaBluetooth(
+                    pdfBytes: pdfBytes,
+                    documentName: 'CreditNote_${creditNote.creditNoteId}.pdf',
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
               },
             ),
             ElevatedButton(

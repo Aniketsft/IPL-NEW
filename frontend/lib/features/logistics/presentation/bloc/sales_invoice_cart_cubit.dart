@@ -182,6 +182,9 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
   }
 
   void addItem(CartItem item) {
+    if (!item.isFoc && (item.basePrice <= 0 || item.total <= 0)) {
+      return; // Defensive guard: block adding zero-amount items
+    }
     final updatedItems = List<CartItem>.from(state.items);
     // For now, allow multiple entries of same item if they have different lot/discount. 
     // Otherwise, just append it.
@@ -218,6 +221,9 @@ class SalesInvoiceCartCubit extends Cubit<SalesInvoiceCartState> {
     if (newItem.quantity <= 0) {
       removeItem(index);
       return;
+    }
+    if (!newItem.isFoc && (newItem.basePrice <= 0 || newItem.total <= 0)) {
+      return; // Defensive guard: block updating item to zero amount
     }
     final updatedItems = List<CartItem>.from(state.items);
     if (index >= 0 && index < updatedItems.length) {

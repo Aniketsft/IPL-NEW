@@ -143,6 +143,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStagingService, StagingService>();
 builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
 builder.Services.AddScoped<ISalesInvoiceRepository, EfSalesInvoiceRepository>();
+builder.Services.AddScoped<ISiteContextResolver, SiteContextResolver>();
 builder.Services.AddScoped<DeviceLicenseActionFilter>();
 builder.Services.AddSingleton<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService, EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.SnapshotService>();
 builder.Services.AddHostedService<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.X3SnapshotBackgroundWorker>();
@@ -240,7 +241,15 @@ app.UseExceptionHandler(errorApp =>
     {
         context.Response.StatusCode = 500;
         context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
+        var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        var ex = exceptionHandlerPathFeature?.Error;
+        var logger = context.RequestServices.GetService<ILogger<Program>>();
+        if (ex != null && logger != null)
+        {
+            logger.LogError(ex, "Unhandled exception on {Path}: {Message}", exceptionHandlerPathFeature?.Path, ex.Message);
+        }
+        var errorDetail = ex?.InnerException != null ? $"{ex.Message} --> {ex.InnerException.Message}" : (ex?.Message ?? "An unexpected error occurred.");
+        await context.Response.WriteAsJsonAsync(new { error = errorDetail, path = exceptionHandlerPathFeature?.Path });
     });
 });
 

@@ -71,6 +71,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public bool IsFoc { get; set; }
 
         [NotMapped]
+        public string? MainItemSku { get; set; }
+
+        [NotMapped]
         public int? OriginLineNo { get; set; }
     }
 }

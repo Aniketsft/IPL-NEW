@@ -20,23 +20,26 @@ public class LogisticsController : ControllerBase
     private readonly ILogisticsService _logisticsService;
     private readonly ISageX3SoapService _x3SoapService;
     private readonly ILogger<LogisticsController> _logger;
+    private readonly ISiteContextResolver _siteResolver;
 
     public LogisticsController(
         ILogisticsService logisticsService, 
         ISageX3SoapService x3SoapService,
-        ILogger<LogisticsController> logger)
+        ILogger<LogisticsController> logger,
+        ISiteContextResolver siteResolver)
     {
         _logisticsService = logisticsService;
         _x3SoapService = x3SoapService;
         _logger = logger;
+        _siteResolver = siteResolver;
     }
 
     [HttpGet("production-tracking")]
     public async Task<IActionResult> GetProductionTracking([FromQuery] string? siteCode)
     {
-        var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(siteCode);
+        var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, siteCode);
         if (error != null) return error;
-        var result = await _logisticsService.GetProductionTrackingAsync(effectiveSiteCode);
+        var result = await _logisticsService.GetProductionTrackingAsync(siteCtx!.ShippingSiteCode);
         return ToActionResult(result);
     }
 
@@ -97,27 +100,27 @@ public class LogisticsController : ControllerBase
     [HttpGet("locations")]
     public async Task<IActionResult> GetLocations([FromQuery] string? site = null)
     {
-        var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(site);
+        var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, site);
         if (error != null) return error;
-        var result = await _logisticsService.GetLocationLookupsAsync(effectiveSiteCode!);
+        var result = await _logisticsService.GetLocationLookupsAsync(siteCtx!.ShippingSiteCode);
         return ToActionResult(result);
     }
 
     [HttpGet("target-locations")]
     public async Task<IActionResult> GetTargetLocations([FromQuery] string? site, [FromQuery] string itemCode)
     {
-        var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(site);
+        var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, site);
         if (error != null) return error;
-        var result = await _logisticsService.GetTargetLocationsAsync(effectiveSiteCode!, itemCode);
+        var result = await _logisticsService.GetTargetLocationsAsync(siteCtx!.ShippingSiteCode, itemCode);
         return ToActionResult(result);
     }
 
     [HttpGet("barcode-mappings")]
     public async Task<IActionResult> GetBarcodeMappings([FromQuery] string? siteCode = null)
     {
-        var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(siteCode);
+        var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, siteCode);
         if (error != null) return error;
-        var result = await _logisticsService.GetBarcodeMappingsAsync(effectiveSiteCode!);
+        var result = await _logisticsService.GetBarcodeMappingsAsync(siteCtx!.ShippingSiteCode);
         return ToActionResult(result);
     }
 
@@ -178,9 +181,9 @@ public class LogisticsController : ControllerBase
         {
             return BadRequest("ItemCode is required.");
         }
-        var (effectiveSiteCode, error) = ResolveEffectiveSiteCode(siteCode);
+        var (siteCtx, error) = await _siteResolver.ResolveSiteContextAsync(User, siteCode);
         if (error != null) return error;
-        var result = await _logisticsService.GetLotsAsync(itemCode, effectiveSiteCode!);
+        var result = await _logisticsService.GetLotsAsync(itemCode, siteCtx!.ShippingSiteCode);
         return ToActionResult(result);
     }
 
@@ -252,38 +255,6 @@ public class LogisticsController : ControllerBase
     {
         var result = await _logisticsService.GetWorkOrdersAsync(query);
         return ToActionResult(result);
-    }
-
-    private (string? EffectiveSiteCode, IActionResult? Error) ResolveEffectiveSiteCode(string? requestedSiteCode)
-    {
-        var userSiteCode = User.FindFirst("SiteCode")?.Value;
-        bool isMultiSiteAdmin = string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase) 
-                                || User.IsInRole("Admin") 
-                                || User.IsInRole("SuperAdmin");
-
-        // Case 1: Standard user bound to a specific site
-        if (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!string.IsNullOrWhiteSpace(requestedSiteCode) && 
-                !string.Equals(requestedSiteCode, userSiteCode, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("Security: User {User} assigned to {UserSite} attempted to query unauthorized site {RequestedSite}.",
-                    User.Identity?.Name, userSiteCode, requestedSiteCode);
-            }
-
-            return (userSiteCode, null);
-        }
-
-        // Case 2: Multi-site administrator
-        if (isMultiSiteAdmin)
-        {
-            var targetSite = !string.IsNullOrWhiteSpace(requestedSiteCode) ? requestedSiteCode : "IPL";
-            return (targetSite, null);
-        }
-
-        // Case 3: Unassigned / unauthorized user
-        _logger.LogWarning("Security: Unassigned user {User} attempted to access site-scoped logistics resource.", User.Identity?.Name);
-        return (null, StatusCode(StatusCodes.Status403Forbidden, new { error = "User account is not assigned to a valid site." }));
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

@@ -1036,7 +1036,108 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 ";
                 await context.Database.ExecuteSqlRawAsync(salesOrderMigrationSql);
 
-                Console.WriteLine("[DbInitializer] Staging, StagingEod and SalesOrders table migration completed.");
+                // Ensure Staging Sales Invoices & Credit Notes have stock status and X3 reconciliation columns
+                var stagingSiMigrationSql = @"
+                    -- 1. StagingSalesInvoiceHeaders (Check both PascalCase and lowercase table names)
+                    DECLARE @siHeaderTable NVARCHAR(128) = NULL;
+                    IF OBJECT_ID(N'[dbo].[StagingSalesInvoiceHeaders]', N'U') IS NOT NULL
+                        SET @siHeaderTable = 'StagingSalesInvoiceHeaders';
+                    ELSE IF OBJECT_ID(N'[dbo].[staging_sales_invoice_headers]', N'U') IS NOT NULL
+                        SET @siHeaderTable = 'staging_sales_invoice_headers';
+
+                    IF @siHeaderTable IS NOT NULL
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @siHeaderTable AND COLUMN_NAME IN ('X3StockReceiptId', 'x3_stock_receipt_id'))
+                            EXEC('ALTER TABLE [dbo].[' + @siHeaderTable + '] ADD [X3StockReceiptId] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @siHeaderTable AND COLUMN_NAME IN ('X3RefundPaymentId', 'x3_refund_payment_id'))
+                            EXEC('ALTER TABLE [dbo].[' + @siHeaderTable + '] ADD [X3RefundPaymentId] NVARCHAR(100) NULL;');
+                    END
+
+                    -- 2. StagingSalesInvoiceLines
+                    DECLARE @siLineTable NVARCHAR(128) = NULL;
+                    IF OBJECT_ID(N'[dbo].[StagingSalesInvoiceLines]', N'U') IS NOT NULL
+                        SET @siLineTable = 'StagingSalesInvoiceLines';
+                    ELSE IF OBJECT_ID(N'[dbo].[staging_sales_invoice_lines]', N'U') IS NOT NULL
+                        SET @siLineTable = 'staging_sales_invoice_lines';
+
+                    IF @siLineTable IS NOT NULL
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @siLineTable AND COLUMN_NAME IN ('StockStatus', 'stock_status'))
+                            EXEC('ALTER TABLE [dbo].[' + @siLineTable + '] ADD [StockStatus] NVARCHAR(10) NOT NULL DEFAULT ''A'';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @siLineTable AND COLUMN_NAME IN ('ReturnCondition', 'return_condition'))
+                            EXEC('ALTER TABLE [dbo].[' + @siLineTable + '] ADD [ReturnCondition] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @siLineTable AND COLUMN_NAME IN ('ExpiryDate', 'expiry_date'))
+                            EXEC('ALTER TABLE [dbo].[' + @siLineTable + '] ADD [ExpiryDate] NVARCHAR(50) NULL;');
+                    END
+
+                    -- 3. StagingCreditNoteHeaders
+                    DECLARE @crHeaderTable NVARCHAR(128) = NULL;
+                    IF OBJECT_ID(N'[dbo].[StagingCreditNoteHeaders]', N'U') IS NOT NULL
+                        SET @crHeaderTable = 'StagingCreditNoteHeaders';
+                    ELSE IF OBJECT_ID(N'[dbo].[staging_credit_note_headers]', N'U') IS NOT NULL
+                        SET @crHeaderTable = 'staging_credit_note_headers';
+
+                    IF @crHeaderTable IS NOT NULL
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @crHeaderTable AND COLUMN_NAME IN ('X3StockReceiptId', 'x3_stock_receipt_id'))
+                            EXEC('ALTER TABLE [dbo].[' + @crHeaderTable + '] ADD [X3StockReceiptId] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @crHeaderTable AND COLUMN_NAME IN ('X3RefundPaymentId', 'x3_refund_payment_id'))
+                            EXEC('ALTER TABLE [dbo].[' + @crHeaderTable + '] ADD [X3RefundPaymentId] NVARCHAR(100) NULL;');
+                    END
+
+                    -- 4. StagingCreditNoteLines
+                    DECLARE @crLineTable NVARCHAR(128) = NULL;
+                    IF OBJECT_ID(N'[dbo].[StagingCreditNoteLines]', N'U') IS NOT NULL
+                        SET @crLineTable = 'StagingCreditNoteLines';
+                    ELSE IF OBJECT_ID(N'[dbo].[staging_credit_note_lines]', N'U') IS NOT NULL
+                        SET @crLineTable = 'staging_credit_note_lines';
+
+                    IF @crLineTable IS NOT NULL
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @crLineTable AND COLUMN_NAME IN ('StockStatus', 'stock_status'))
+                            EXEC('ALTER TABLE [dbo].[' + @crLineTable + '] ADD [StockStatus] NVARCHAR(10) NOT NULL DEFAULT ''A'';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @crLineTable AND COLUMN_NAME IN ('ReturnCondition', 'return_condition'))
+                            EXEC('ALTER TABLE [dbo].[' + @crLineTable + '] ADD [ReturnCondition] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @crLineTable AND COLUMN_NAME IN ('ExpiryDate', 'expiry_date'))
+                            EXEC('ALTER TABLE [dbo].[' + @crLineTable + '] ADD [ExpiryDate] NVARCHAR(50) NULL;');
+                    END
+
+                    -- 5. StagingSalesInvoicePayments (reconcile DocumentType & DocumentId for Credit Note refunds)
+                    DECLARE @payTable NVARCHAR(128) = NULL;
+                    IF OBJECT_ID(N'[dbo].[StagingSalesInvoicePayments]', N'U') IS NOT NULL
+                        SET @payTable = 'StagingSalesInvoicePayments';
+                    ELSE IF OBJECT_ID(N'[dbo].[staging_sales_invoice_payments]', N'U') IS NOT NULL
+                        SET @payTable = 'staging_sales_invoice_payments';
+
+                    IF @payTable IS NOT NULL
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'DocumentType')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [DocumentType] NVARCHAR(50) NOT NULL DEFAULT ''INVOICE'';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'DocumentId')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [DocumentId] NVARCHAR(100) NOT NULL DEFAULT '''';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3DocumentType')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3DocumentType] NVARCHAR(10) NOT NULL DEFAULT ''SINV'';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3EntryType')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3EntryType] NVARCHAR(10) NOT NULL DEFAULT ''REC'';');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3Sign')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3Sign] INT NOT NULL DEFAULT 2;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3InvoiceDocumentId')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3InvoiceDocumentId] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3PaymentId')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3PaymentId] NVARCHAR(100) NULL;');
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'X3PaymentMode')
+                            EXEC('ALTER TABLE [dbo].[' + @payTable + '] ADD [X3PaymentMode] NVARCHAR(10) NOT NULL DEFAULT ''CSH'';');
+
+                        -- Backfill DocumentId from legacy InvoiceId if DocumentId is blank
+                        IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @payTable AND COLUMN_NAME = 'InvoiceId')
+                        BEGIN
+                            EXEC('UPDATE [dbo].[' + @payTable + '] SET [DocumentId] = [InvoiceId] WHERE ([DocumentId] IS NULL OR [DocumentId] = '''') AND [InvoiceId] IS NOT NULL;');
+                        END
+                    END
+                ";
+                await context.Database.ExecuteSqlRawAsync(stagingSiMigrationSql);
+
+                Console.WriteLine("[DbInitializer] Staging, StagingEod, SalesOrders and SalesInvoice Staging table migration completed.");
             }
             catch (Exception ex)
             {

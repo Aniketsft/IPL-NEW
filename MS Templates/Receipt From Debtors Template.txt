@@ -1,0 +1,35 @@
+  {{COMPANYNAME}}
+
+    Vat Registratrion No      : {{COMPANYVATNO}}
+    Business Registration No. : {{COMPANYBRN}} 
+                                                  
+			   CASH RECEIPTS
+
+ Salesman            :{{Salesman}}
+ Truck               :{{Store}}
+ Pay No              :{{InvoiceNo}}
+ Print Date Time     :{{PRINTINGDATETIME}} 
+ Customer's Code     :{{CustCode}}
+ Customer's Name     :{{CUSTOMERNAME}}
+ Customer's Address  :{{CUSTOMERADDRESS}}
+ VAT Registration No :{{CUSTOMERVATNO}}  
+ BRN                 :{{CUSTOMERBRN}}
+ --------------------------------------------------------------------
+	Invoice No			Amount
+ --------------------------------------------------------------------
+	{{invNo}}			{{Amt}}
+ --------------------------------------------------------------------
+
+ Received the sum of Rs = {{Amt}}
+
+
+ -------------------------		--------------------------
+ SALESMAN'S SIGNATURE			CUSTOMER'S SIGNATURE 
+
+				
+				-----------------------------------
+				Name if Signatory in Block Letters
+
+--------------------------------------------------------------------
+		Computer Generated Copy
+		---Thank You/Merci---

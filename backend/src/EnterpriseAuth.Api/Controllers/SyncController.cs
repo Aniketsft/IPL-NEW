@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
+using EnterpriseAuth.Api.Core.Application.Interfaces;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
@@ -16,10 +17,14 @@ namespace EnterpriseAuth.Api.Controllers
     public class SyncController : ControllerBase
     {
         private readonly ISyncRepository _syncRepository;
+        private readonly ISiteContextResolver _siteResolver;
 
-        public SyncController(ISyncRepository syncRepository)
+        public SyncController(
+            ISyncRepository syncRepository,
+            ISiteContextResolver siteResolver)
         {
             _syncRepository = syncRepository;
+            _siteResolver = siteResolver;
         }
 
         [HttpGet("refresh")]
@@ -27,15 +32,10 @@ namespace EnterpriseAuth.Api.Controllers
             [FromQuery] string site = "IPL",
             [FromHeader(Name = "X-Device-Id")] string? deviceId = null)
         {
-            var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            if (!string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL")
-            {
-                site = userSiteCode;
-            }
-            else if (string.IsNullOrEmpty(site))
-            {
-                site = userSiteCode ?? "IPL";
-            }
+            var (siteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, site, allowAll: true);
+            var effectiveSite = (siteCtx != null && !string.IsNullOrWhiteSpace(siteCtx.ShippingSiteCode))
+                ? siteCtx.ShippingSiteCode
+                : (!string.IsNullOrWhiteSpace(site) ? site : "IPL");
 
             var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value;
             string performedBy = usernameClaim ?? User.Identity?.Name ?? "system-sync";
@@ -47,7 +47,7 @@ namespace EnterpriseAuth.Api.Controllers
                            ?? performedBy;
             }
 
-            var package = await _syncRepository.GetRefreshPackageAsync(site, deviceId, performedBy);
+            var package = await _syncRepository.GetRefreshPackageAsync(effectiveSite, deviceId, performedBy);
             return Ok(package);
         }
 

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/i_sales_repository.dart';
+import '../../domain/models/transaction_config.dart';
 import 'sales_invoice_event.dart';
 import 'sales_invoice_state.dart';
 import 'sales_invoice_cart_cubit.dart';
@@ -34,11 +35,15 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onPrepareReversalCreditNote(PrepareReversalCreditNote event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
-      final txType = (event.isReturn || event.category == 3) ? 'RETURN' : 'CREDIT_NOTE';
+      final isReturn = event.isReturn || event.category == 3;
+      final txType = isReturn ? 'RETURN' : 'CREDIT_NOTE';
       emit(currentState.copyWith(
         transactionType: txType,
         originalDocumentId: event.originalInvoiceId,
         cartItems: event.items,
+        config: TransactionConfig.forType(txType),
+        returnCondition: isReturn ? (event.returnCondition ?? currentState.returnCondition ?? 'NORMAL') : null,
+        returnStockStatus: isReturn ? (event.returnStockStatus ?? currentState.returnStockStatus ?? 'A') : null,
       ));
     }
   }
@@ -81,6 +86,9 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onAddCartItem(AddCartItem event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
+      if (!event.item.isFoc && (event.item.basePrice <= 0.0001 || event.item.total <= 0.0001)) {
+        return;
+      }
       final updatedCart = List.of(currentState.cartItems)..add(event.item);
       emit(currentState.copyWith(cartItems: updatedCart));
     }
@@ -119,6 +127,9 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onUpdateCartItem(UpdateCartItem event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
+      if (!event.item.isFoc && (event.item.basePrice <= 0.0001 || event.item.total <= 0.0001)) {
+        return;
+      }
       final updatedCart = List.of(currentState.cartItems);
       updatedCart[event.index] = event.item;
       emit(currentState.copyWith(cartItems: updatedCart));

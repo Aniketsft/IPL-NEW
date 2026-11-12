@@ -3,6 +3,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/local/local_datab
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/document_sequence_service.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 typedef DbProvider = Future<Database> Function();
 
@@ -73,6 +74,7 @@ class CreditNoteService {
     final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
       docType: docType,
       salesSite: salesSite,
+      lorryCode: DeviceInfoService.instance.assignedLocation,
       deviceId: deviceId,
     );
     final now = DateTime.now().toIso8601String();
@@ -127,15 +129,7 @@ class CreditNoteService {
         final originLineId = line['lineId'] as int;
         final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
 
-        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
-          'creditNoteId': creditNoteId,
-          'lineNo': lineNo,
-          'quantity': qty,
-          'originInvoiceId': invoiceId,
-          'originLineNo': originLineId,
-        });
-
-        // Replenish stock as quarantined (Q) or rejected (R) — never prime sellable (A)
+        // Replenish stock as quarantined (Q) or approved sellable (A) / rejected (R)
         final sku = line['sku'] as String?;
         final lotNumber = line['lotNumber'] as String?;
         final warehouse = line['warehouse'] as String?;
@@ -149,6 +143,18 @@ class CreditNoteService {
                     reason?.toUpperCase().contains('REJ') == true)
                 ? StockStatus.codeRejected
                 : StockStatus.codeQuarantine);
+
+        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+          'creditNoteId': creditNoteId,
+          'lineNo': lineNo,
+          'quantity': qty,
+          'originInvoiceId': invoiceId,
+          'originLineNo': originLineId,
+          'stockStatus': returnStatus,
+          'returnCondition': reason,
+          'expiryDate': line['expiryDate'],
+          'location': location,
+        });
 
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
@@ -343,6 +349,7 @@ class CreditNoteService {
     final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
       docType: docType,
       salesSite: salesSite,
+      lorryCode: DeviceInfoService.instance.assignedLocation,
       deviceId: deviceId,
     );
     final now = DateTime.now().toIso8601String();
@@ -393,25 +400,6 @@ class CreditNoteService {
         final reversedQty = item['reversedQty'] as double;
         final originalLine = item['originalLine'] as Map<String, dynamic>;
 
-        // B. Insert credit note line
-        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
-          'creditNoteId': creditNoteId,
-          'lineNo': lineNo,
-          'quantity': reversedQty,
-          'originInvoiceId': invoiceId,
-          'originLineNo': lineId,
-        });
-
-        // C. Record this reversal in tbl_si_invoice_line_reversals
-        await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
-          'invoiceId': invoiceId,
-          'lineId': lineId,
-          'reversedQty': reversedQty,
-          'reversalCreditNoteId': creditNoteId,
-          'createdAt': now,
-        });
-
-        // D. Replenish stock (partial quantity quarantined into Q or R)
         final sku = originalLine['sku'] as String?;
         final lotNumber = originalLine['lotNumber'] as String?;
         final warehouse = originalLine['warehouse'] as String?;
@@ -426,6 +414,29 @@ class CreditNoteService {
                 ? StockStatus.codeRejected
                 : StockStatus.codeQuarantine);
 
+        // B. Insert credit note line
+        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+          'creditNoteId': creditNoteId,
+          'lineNo': lineNo,
+          'quantity': reversedQty,
+          'originInvoiceId': invoiceId,
+          'originLineNo': lineId,
+          'stockStatus': returnStatus,
+          'returnCondition': reason,
+          'expiryDate': originalLine['expiryDate'],
+          'location': location,
+        });
+
+        // C. Record this reversal in tbl_si_invoice_line_reversals
+        await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
+          'invoiceId': invoiceId,
+          'lineId': lineId,
+          'reversedQty': reversedQty,
+          'reversalCreditNoteId': creditNoteId,
+          'createdAt': now,
+        });
+
+        // D. Replenish stock (partial quantity quarantined into Q or A / R)
         if (sku != null && lotNumber != null && warehouse != null && location != null) {
           final updated = await txn.rawUpdate(
             'UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} SET totalQty = totalQty + ? WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND stockStatus = ?',
@@ -533,6 +544,7 @@ class CreditNoteService {
     final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
       docType: docType,
       salesSite: salesSite,
+      lorryCode: DeviceInfoService.instance.assignedLocation,
       deviceId: deviceId,
     );
     final now = DateTime.now().toIso8601String();
@@ -594,8 +606,10 @@ class CreditNoteService {
         final sku = item.standaloneSku ?? item.sku;
         final lot = item.standaloneLot ?? item.lot;
 
-        String? matchedLineId;
-        if (hasOriginInvoice) {
+        String? matchedLineId = (item.originLineNo != null && item.originLineNo! > 0)
+            ? item.originLineNo.toString()
+            : null;
+        if (hasOriginInvoice && matchedLineId == null) {
           if (originalInvoiceLines.isNotEmpty) {
             final match = originalInvoiceLines.firstWhere(
               (ol) => ol['sku'] == sku && (lot.isEmpty || ol['lotNumber'] == lot),
@@ -618,6 +632,12 @@ class CreditNoteService {
           }
         }
 
+        final lineStockStatus = (item.stockStatus.isNotEmpty && item.stockStatus != 'A')
+            ? item.stockStatus
+            : ((stockStatus != null && stockStatus.isNotEmpty) ? stockStatus : 'A');
+        final lineCondition = item.returnCondition ?? reason;
+        final lineLocation = item.location ?? (salesSite == 'IPL' ? 'IPLCH' : 'LOC1');
+
         await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
@@ -632,6 +652,10 @@ class CreditNoteService {
           'standaloneLot': lot,
           'standaloneWarehouse': item.standaloneWarehouse ?? item.warehouse,
           'standaloneCce0': item.standaloneCce0 ?? item.cce0,
+          'stockStatus': lineStockStatus,
+          'returnCondition': lineCondition,
+          'expiryDate': item.expiryDate,
+          'location': lineLocation,
         });
 
         if (hasOriginInvoice && matchedLineId != null) {
@@ -650,16 +674,8 @@ class CreditNoteService {
               ? (item.standaloneWarehouse ?? item.warehouse)
               : salesSite;
           final resolvedLot = lot.isNotEmpty ? lot : 'RETURN';
-          final loc = 'LOC1'; // default location if not specified
-          final returnStatus = (stockStatus != null)
-              ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
-                  ? StockStatus.codeApproved
-                  : StockStatus.codeQuarantine)
-              : ((reason?.toUpperCase().contains('DEF') == true ||
-                      reason?.toUpperCase().contains('DAM') == true ||
-                      reason?.toUpperCase().contains('REJ') == true)
-                  ? StockStatus.codeRejected
-                  : StockStatus.codeQuarantine);
+          final loc = lineLocation;
+          final returnStatus = lineStockStatus;
 
           if (sku.isNotEmpty) {
             final updated = await txn.rawUpdate(

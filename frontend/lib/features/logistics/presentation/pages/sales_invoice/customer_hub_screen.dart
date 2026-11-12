@@ -9,6 +9,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sale
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
 import 'order_summary_screen.dart';
+import 'sales_invoice_product_selection_screen.dart';
 import 'open_invoices_screen.dart';
 import 'transaction_history_screen.dart';
 import 'sales_orders_list_screen.dart';
@@ -633,9 +634,21 @@ class _CustomerHubScreenState extends State<CustomerHubScreen> {
     ));
     bloc.add(SetCustomer(_customer));
 
+    final authState = context.read<AuthBloc>().state;
+    final userSiteCode = (authState is Authenticated &&
+            authState.siteCode != null &&
+            authState.siteCode!.isNotEmpty &&
+            authState.siteCode != 'ALL')
+        ? authState.siteCode!
+        : 'IPL';
+
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
+      MaterialPageRoute(
+        builder: (_) => SalesInvoiceProductSelectionScreen(
+          siteCode: userSiteCode,
+        ),
+      ),
     );
 
     _loadFinancials();

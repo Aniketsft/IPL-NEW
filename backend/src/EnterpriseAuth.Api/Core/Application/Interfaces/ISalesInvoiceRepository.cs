@@ -18,6 +18,7 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.CreditNoteReasonDto>> GetCreditNoteReasonsAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.BankDto>> GetBanksAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.FacilityDto>> GetFacilitiesAsync();
+        Task<string> GetFinancialSiteForSalesSiteAsync(string salesSite);
         Task<string> GetX3HistoryWatermarkAsync(string siteCode, int months = 6);
         Task<string> GetOpenInvoicesWatermarkAsync(string siteCode, int daysCutoff = 0);
         Task<string> GetStockWatermarkAsync(string siteCode);

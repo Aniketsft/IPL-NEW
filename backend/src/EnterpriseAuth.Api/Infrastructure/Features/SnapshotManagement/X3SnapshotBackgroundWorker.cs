@@ -32,6 +32,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement
             {
                 await SweepAndRefreshSnapshotsAsync(stoppingToken);
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Initial snapshot pre-warm experienced a non-fatal error.");
@@ -39,16 +43,27 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement
 
             // 2. Periodic 2-minute timer loop
             using var timer = new PeriodicTimer(_cycleInterval);
-            while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
+            try
             {
-                try
+                while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
                 {
-                    await SweepAndRefreshSnapshotsAsync(stoppingToken);
+                    try
+                    {
+                        await SweepAndRefreshSnapshotsAsync(stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error occurred during 2-minute X3 snapshot background sweep.");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error occurred during 2-minute X3 snapshot background sweep.");
-                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Graceful host shutdown
             }
         }
 
@@ -131,7 +146,14 @@ namespace EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement
                 }
 
                 // Small jitter delay between sites to avoid spiking DB CPU
-                await Task.Delay(1000, stoppingToken);
+                try
+                {
+                    await Task.Delay(1000, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
         }
     }

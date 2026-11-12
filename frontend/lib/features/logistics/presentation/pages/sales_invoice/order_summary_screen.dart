@@ -42,6 +42,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   bool _isProcessingScan = false;
   final Map<int, double> _selectedReversalQuantities = {};
   bool _isReturnTransaction = false;
+  ReturnCondition _selectedReturnCondition = ReturnCondition.normal;
 
   List<Map<String, dynamic>> _linkedCreditNotes = [];
   Map<String, dynamic>? _invoiceRecord;
@@ -485,77 +486,106 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       ],
                       if (cartState.transactionType == 'RETURN' ||
                           cartState.transactionType == 'CUSTOMER_RETURN' ||
+                          _isReturnTransaction ||
                           cartState.returnCondition != null) ...[
                         Builder(
                           builder: (context) {
-                            final cond = ReturnCondition.fromId(cartState.returnCondition);
+                            final cond = _isReturnTransaction
+                                ? _selectedReturnCondition
+                                : ReturnCondition.fromId(cartState.returnCondition);
                             final isSellable = cond.stockStatus == 'A';
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: cond.color.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: cond.color.withOpacity(0.4)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: cond.color.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(8),
+                            return InkWell(
+                              onTap: _isReturnTransaction
+                                  ? () async {
+                                      final newCond = await showReturnConditionDialog(context);
+                                      if (newCond != null && mounted) {
+                                        setState(() => _selectedReturnCondition = newCond);
+                                      }
+                                    }
+                                  : null,
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: cond.color.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: cond.color.withOpacity(0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: cond.color.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(cond.icon, color: cond.color, size: 20),
                                     ),
-                                    child: Icon(cond.icon, color: cond.color, size: 20),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              'RETURN CONDITION: ${cond.label.toUpperCase()}',
-                                              style: TextStyle(
-                                                color: cond.color,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: isSellable
-                                                    ? Colors.green.withOpacity(0.15)
-                                                    : Colors.amber.withOpacity(0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isSellable ? Colors.green : Colors.amber.shade800,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'RETURN CONDITION: ${cond.label.toUpperCase()}',
+                                                  style: TextStyle(
+                                                    color: cond.color,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          cond.description,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: isDark ? Colors.white60 : Colors.black54,
+                                              if (_isReturnTransaction)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(left: 6),
+                                                  child: Text(
+                                                    'Tap to change',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: theme.primaryColor,
+                                                      fontStyle: FontStyle.italic,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isSellable
+                                                  ? Colors.green.withOpacity(0.15)
+                                                  : Colors.amber.withOpacity(0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: isSellable ? Colors.green : Colors.amber.shade800,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            cond.description,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -729,6 +759,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         Center(
                           child: TextButton.icon(
                             onPressed: () {
+                              if (Navigator.of(context).canPop()) {
+                                Navigator.of(context).pop();
+                                return;
+                              }
                               final authState = context.read<AuthBloc>().state;
                               final userSiteCode = (authState is Authenticated &&
                                       authState.siteCode != null &&
@@ -1068,17 +1102,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                         if (cartState.config.requireItemSelectionForAction) {
                                           final selectedItems = _selectedReversalQuantities.entries.map((e) {
                                             final originalItem = cartState.cartItems[e.key];
-                                            return CartItem(
-                                              product: originalItem.product,
-                                              lotNumber: originalItem.lotNumber,
+                                            return originalItem.copyWith(
                                               quantity: e.value,
-                                              basePrice: originalItem.basePrice,
-                                              discountAmountFlat: originalItem.discountAmountFlat,
-                                              taxRule: originalItem.taxRule,
-                                              vatRatePercent: originalItem.vatRatePercent,
-                                              pricingSource: originalItem.pricingSource,
-                                              isFoc: originalItem.isFoc,
-                                              warehouse: originalItem.warehouse,
                                             );
                                           }).toList();
 
@@ -1092,6 +1117,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                             originalInvoiceId: cartState.originalDocumentId ?? '',
                                             category: _isReturnTransaction ? 3 : 2,
                                             isReturn: _isReturnTransaction,
+                                            returnCondition: _isReturnTransaction ? _selectedReturnCondition.id : null,
+                                            returnStockStatus: _isReturnTransaction ? _selectedReturnCondition.stockStatus : null,
                                           ));
 
                                           await context.push(
@@ -2884,9 +2911,22 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           const SizedBox(width: 4),
           Expanded(
             child: InkWell(
-              onTap: () {
+              onTap: () async {
                 if (!_isReturnTransaction) {
-                  setState(() => _isReturnTransaction = true);
+                  final cond = await showReturnConditionDialog(context);
+                  if (cond != null && mounted) {
+                    setState(() {
+                      _isReturnTransaction = true;
+                      _selectedReturnCondition = cond;
+                    });
+                  } else if (mounted) {
+                    setState(() => _isReturnTransaction = true);
+                  }
+                } else {
+                  final cond = await showReturnConditionDialog(context);
+                  if (cond != null && mounted) {
+                    setState(() => _selectedReturnCondition = cond);
+                  }
                 }
               },
               borderRadius: BorderRadius.circular(8),

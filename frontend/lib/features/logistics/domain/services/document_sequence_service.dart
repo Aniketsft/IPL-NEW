@@ -82,6 +82,9 @@ class DocumentSequenceService {
     if (cleanLorry.isEmpty && devLoc != null && devLoc['locationCode'] != null) {
       cleanLorry = devLoc['locationCode'].toString().trim().toUpperCase();
     }
+    if (cleanLorry.isEmpty && DeviceInfoService.instance.assignedLocation != null && DeviceInfoService.instance.assignedLocation!.trim().isNotEmpty) {
+      cleanLorry = DeviceInfoService.instance.assignedLocation!.trim().toUpperCase();
+    }
     if (cleanLorry.isEmpty) {
       // Fallback: pick the first lorry location registered for this site
       try {
@@ -100,6 +103,8 @@ class DocumentSequenceService {
     String lorryNum = cleanLorry.replaceAll(RegExp(r'[^0-9]'), '');
     if (lorryNum.isEmpty) {
       lorryNum = '00';
+    } else if (lorryNum.length == 1) {
+      lorryNum = lorryNum.padLeft(2, '0');
     } else if (lorryNum.length > 4) {
       lorryNum = lorryNum.substring(lorryNum.length - 4);
     }
@@ -122,66 +127,67 @@ class DocumentSequenceService {
         limit: 1,
       );
 
-      int nextSeq = 1;
-      if (existingRows.isNotEmpty) {
-        nextSeq = ((existingRows.first['lastSequence'] as int?) ?? 0) + 1;
-        await txn.update(
-          LocalDatabaseHelper.tableDocumentSequences,
-          {
-            'lastSequence': nextSeq,
-            'updatedAt': now.toIso8601String(),
-          },
-          where: 'docType = ? AND financialSite = ? AND lorryCode = ? AND yearMonth = ?',
-          whereArgs: [hipoType.code, safeFinSite, lorryNum, monthYear],
-        );
-      } else {
-        // Self-healing check: inspect local database for any pre-existing numbers matching prefix
-        final prefixPattern = '$prefix$safeFinSite$lorryNum$monthYear%';
-        int maxExisting = 0;
-        try {
-          final targetTable = (hipoType == HipoDocType.invoice)
-              ? LocalDatabaseHelper.tableSiInvoices
-              : LocalDatabaseHelper.tableSiCreditNotes;
-          final idCol = (hipoType == HipoDocType.invoice) ? 'invoiceId' : 'creditNoteId';
+      final prefixPattern = '$prefix$safeFinSite$lorryNum$monthYear%';
+      final targetTable = (hipoType == HipoDocType.invoice)
+          ? LocalDatabaseHelper.tableSiInvoices
+          : LocalDatabaseHelper.tableSiCreditNotes;
+      final idCol = (hipoType == HipoDocType.invoice) ? 'invoiceId' : 'creditNoteId';
 
-          final checkRows = await txn.rawQuery(
-            'SELECT $idCol FROM $targetTable WHERE $idCol LIKE ? ORDER BY $idCol DESC LIMIT 10',
-            [prefixPattern],
-          );
-          for (final row in checkRows) {
-            final val = (row[idCol] ?? '').toString();
-            if (val.length >= prefixPattern.length - 1) {
-              final suffix = val.substring(val.length - 5);
-              final parsed = int.tryParse(suffix) ?? 0;
-              if (parsed > maxExisting) maxExisting = parsed;
-            }
+      // Always inspect local database for any pre-existing numbers matching prefix to self-heal
+      int maxExistingLocal = 0;
+      try {
+        final checkRows = await txn.rawQuery(
+          'SELECT $idCol FROM $targetTable WHERE $idCol LIKE ? ORDER BY $idCol DESC LIMIT 50',
+          [prefixPattern],
+        );
+        for (final row in checkRows) {
+          final val = (row[idCol] ?? '').toString();
+          if (val.length >= 5) {
+            final suffix = val.substring(val.length - 5);
+            final parsed = int.tryParse(suffix) ?? 0;
+            if (parsed > maxExistingLocal) maxExistingLocal = parsed;
           }
-        } catch (_) {}
+        }
+      } catch (_) {}
 
-        nextSeq = maxExisting + 1;
-
-        await txn.insert(
-          LocalDatabaseHelper.tableDocumentSequences,
-          {
-            'docType': hipoType.code,
-            'financialSite': safeFinSite,
-            'lorryCode': lorryNum,
-            'deviceTag': '0',
-            'yearMonth': monthYear,
-            'lastSequence': nextSeq,
-            'updatedAt': now.toIso8601String(),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+      int storedSeq = 0;
+      if (existingRows.isNotEmpty) {
+        storedSeq = (existingRows.first['lastSequence'] as int?) ?? 0;
       }
 
-      final seqStr = nextSeq.toString().padLeft(5, '0');
-      // Single Source of Truth Formula:
-      // H + Inv type + financial site + lorry number + MM + YY + 5 digits sequence number
-      final generatedId = '$prefix$safeFinSite$lorryNum$monthYear$seqStr';
+      int nextSeq = (storedSeq > maxExistingLocal ? storedSeq : maxExistingLocal) + 1;
 
-      debugPrint('DocumentSequenceService: Generated [$generatedId] for ${hipoType.code} (Site: $safeFinSite, Lorry: $lorryNum, MMYY: $monthYear)');
-      return generatedId;
+      // Defensive loop: guarantee that candidateId does not exist in local SQLite table
+      String candidateId;
+      while (true) {
+        final seqStr = nextSeq.toString().padLeft(5, '0');
+        candidateId = '$prefix$safeFinSite$lorryNum$monthYear$seqStr';
+        final conflict = await txn.rawQuery(
+          'SELECT 1 FROM $targetTable WHERE $idCol = ? LIMIT 1',
+          [candidateId],
+        );
+        if (conflict.isEmpty) {
+          break;
+        }
+        nextSeq++;
+      }
+
+      await txn.insert(
+        LocalDatabaseHelper.tableDocumentSequences,
+        {
+          'docType': hipoType.code,
+          'financialSite': safeFinSite,
+          'lorryCode': lorryNum,
+          'deviceTag': '0',
+          'yearMonth': monthYear,
+          'lastSequence': nextSeq,
+          'updatedAt': now.toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      debugPrint('DocumentSequenceService: Generated [$candidateId] for ${hipoType.code} (Site: $safeFinSite, Lorry: $lorryNum, MMYY: $monthYear, Seq: $nextSeq)');
+      return candidateId;
     });
   }
 }

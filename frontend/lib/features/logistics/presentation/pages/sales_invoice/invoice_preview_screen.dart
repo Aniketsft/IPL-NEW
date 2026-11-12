@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/core/app_theme.dart';
@@ -11,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_not
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
+import 'pdf_preview_screen.dart';
 
 class InvoicePreviewScreen extends StatefulWidget {
   final String invoiceId;
@@ -54,79 +56,128 @@ class InvoicePreviewScreen extends StatefulWidget {
 
 class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   bool _isPrinting = false;
+  bool _isGeneratingPreview = false;
 
-  Future<void> _handlePrint() async {
-    setState(() => _isPrinting = true);
+  Future<Uint8List> _generateDocumentPdf([PdfPageFormat format = PdfPageFormat.roll80]) async {
+    if (widget.isCreditNote) {
+      final creditNote = widget.creditNoteModel ??
+          CreditNoteModel(
+            creditNoteId: widget.invoiceId,
+            creditNoteType: CreditNoteType.reversal,
+            x3CreditNoteType: 'CRN',
+            salesSite: 'IPL',
+            customerCode: widget.customer['code']?.toString() ?? '',
+            customerName: widget.customer['name']?.toString() ?? '',
+            currency: 'MUR',
+            grandTotal: widget.grandTotal,
+            settlementType: 'REFUND',
+            reference: '',
+            reason: widget.creditNoteReason,
+            createdAt: DateTime.now().toIso8601String(),
+            createdBy: 'USER',
+          );
+
+      return await CreditNotePdfService().generateCreditNotePdf(
+        pageFormat: format,
+        creditNote: creditNote,
+        resolvedLines: widget.items.map((i) => {
+          'sku': i.product.sku,
+          'name': i.product.name,
+          'quantity': i.quantity,
+          'basePrice': i.basePrice,
+          'salesUnit': i.product.salesUnit,
+          'stockStatus': i.product.stockStatus,
+        }).toList(),
+      );
+    } else {
+      final pdfService = SalesInvoicePdfService();
+      return await pdfService.generateInvoicePdf(
+        pageFormat: format,
+        invoiceId: widget.invoiceId,
+        customer: widget.customer,
+        items: widget.items,
+        subtotal: widget.subtotal,
+        discountAmount: widget.discountAmount,
+        vatAmount: widget.vatAmount,
+        grandTotal: widget.grandTotal,
+        paymentMethod: widget.paymentMethod,
+        paymentStatus: widget.paymentStatus,
+        isPartiallyReversed: widget.isPartiallyReversed,
+        creditedAmount: widget.totalCreditedAmount,
+        netBalanceDue: widget.netBalanceDue,
+      );
+    }
+  }
+
+  Future<void> _handlePdfPreview() async {
+    if (_isGeneratingPreview || _isPrinting) return;
+    setState(() => _isGeneratingPreview = true);
+
     try {
-      final defaultBt = PrinterService.instance.defaultBluetoothPrinter;
-      Printer? targetBtPrinter;
-      if (defaultBt != null) {
-        try {
-          final available = await Printing.listPrinters();
-          targetBtPrinter = available.firstWhere(
-            (p) =>
-                p.name.toLowerCase() == defaultBt.name.toLowerCase() ||
-                (defaultBt.macAddress != null &&
-                    defaultBt.macAddress!.isNotEmpty &&
-                    p.url.toLowerCase().contains(defaultBt.macAddress!.toLowerCase())),
-          );
-        } catch (_) {}
+      final pdfBytes = await _generateDocumentPdf(PdfPageFormat.a4);
+      if (mounted) {
+        final docTitle = widget.isCreditNote
+            ? 'Credit Note ${widget.invoiceId}'
+            : 'Invoice ${widget.invoiceId}';
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfPreviewScreen(
+              title: docTitle,
+              pdfBytes: pdfBytes,
+            ),
+          ),
+        );
       }
+    } catch (e, stack) {
+      debugPrint('InvoicePreviewScreen: Failed to generate preview: $e\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate preview: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGeneratingPreview = false);
+    }
+  }
 
-      if (widget.isCreditNote) {
-        final creditNote = widget.creditNoteModel ??
-            CreditNoteModel(
-              creditNoteId: widget.invoiceId,
-              creditNoteType: CreditNoteType.reversal,
-              x3CreditNoteType: 'CRN',
-              salesSite: 'IPL',
-              customerCode: widget.customer['code']?.toString() ?? '',
-              customerName: widget.customer['name']?.toString() ?? '',
-              currency: 'MUR',
-              grandTotal: widget.grandTotal,
-              settlementType: 'REFUND',
-              reference: '',
-              reason: widget.creditNoteReason,
-              createdAt: DateTime.now().toIso8601String(),
-              createdBy: 'USER',
-            );
+  Future<void> _handlePrintBluetooth() async {
+    if (_isPrinting || _isGeneratingPreview) return;
+    setState(() => _isPrinting = true);
 
-        if (targetBtPrinter != null) {
-          await Printing.directPrintPdf(
-            printer: targetBtPrinter,
-            onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
-              pageFormat: format,
-              creditNote: creditNote,
+    try {
+      final docName = widget.isCreditNote
+          ? 'CreditNote_${widget.invoiceId}'
+          : 'Invoice_${widget.invoiceId}';
+
+      final doc = widget.isCreditNote
+          ? CreditNotePdfService().buildCreditNoteDoc(
+              creditNote: widget.creditNoteModel ??
+                  CreditNoteModel(
+                    creditNoteId: widget.invoiceId,
+                    creditNoteType: CreditNoteType.reversal,
+                    x3CreditNoteType: 'CRN',
+                    salesSite: 'IPL',
+                    customerCode: widget.customer['code']?.toString() ?? '',
+                    customerName: widget.customer['name']?.toString() ?? '',
+                    currency: 'MUR',
+                    grandTotal: widget.grandTotal,
+                    settlementType: 'REFUND',
+                    reference: '',
+                    reason: widget.creditNoteReason,
+                    createdAt: DateTime.now().toIso8601String(),
+                    createdBy: 'USER',
+                  ),
               resolvedLines: widget.items.map((i) => {
                 'sku': i.product.sku,
                 'name': i.product.name,
                 'quantity': i.quantity,
                 'basePrice': i.basePrice,
+                'salesUnit': i.product.salesUnit,
+                'stockStatus': i.product.stockStatus,
               }).toList(),
-            ),
-          );
-        } else {
-          await Printing.layoutPdf(
-            onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
-              pageFormat: format,
-              creditNote: creditNote,
-              resolvedLines: widget.items.map((i) => {
-                'sku': i.product.sku,
-                'name': i.product.name,
-                'quantity': i.quantity,
-                'basePrice': i.basePrice,
-              }).toList(),
-            ),
-            name: 'CreditNote_${widget.invoiceId}.pdf',
-          );
-        }
-      } else {
-        final pdfService = SalesInvoicePdfService();
-        if (targetBtPrinter != null) {
-          await Printing.directPrintPdf(
-            printer: targetBtPrinter,
-            onLayout: (format) async => await pdfService.generateInvoicePdf(
-              pageFormat: format,
+            )
+          : SalesInvoicePdfService().buildInvoiceDoc(
               invoiceId: widget.invoiceId,
               customer: widget.customer,
               items: widget.items,
@@ -139,37 +190,35 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               isPartiallyReversed: widget.isPartiallyReversed,
               creditedAmount: widget.totalCreditedAmount,
               netBalanceDue: widget.netBalanceDue,
-            ),
-          );
-        } else {
-          await Printing.layoutPdf(
-            dynamicLayout: true,
-            onLayout: (PdfPageFormat format) async {
-              final pdfBytes = await pdfService.generateInvoicePdf(
-                pageFormat: format,
-                invoiceId: widget.invoiceId,
-                customer: widget.customer,
-                items: widget.items,
-                subtotal: widget.subtotal,
-                discountAmount: widget.discountAmount,
-                vatAmount: widget.vatAmount,
-                grandTotal: widget.grandTotal,
-                paymentMethod: widget.paymentMethod,
-                paymentStatus: widget.paymentStatus,
-                isPartiallyReversed: widget.isPartiallyReversed,
-                creditedAmount: widget.totalCreditedAmount,
-                netBalanceDue: widget.netBalanceDue,
-              );
-              return pdfBytes;
-            },
-            name: 'Invoice_${widget.invoiceId}.pdf',
-          );
-        }
-      }
-    } catch (e) {
+            );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to print: $e')),
+          const SnackBar(
+            content: Text('Sending to Bluetooth printer...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      await PrinterService.instance.printThermalLinesViaBluetooth(
+        lines: doc.toPrintLines(),
+        documentName: docName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document printed successfully on Sewoo LK-P43II'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('InvoicePreviewScreen: Failed to print: $e\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to print: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -178,6 +227,8 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
       }
     }
   }
+
+  Future<void> _handlePrint() => _handlePrintBluetooth();
 
   @override
   Widget build(BuildContext context) {
@@ -198,20 +249,27 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
       title: widget.isCreditNote ? 'Credit Note Preview' : 'Invoice Preview',
       showHome: false,
       extraActions: [
-        _isPrinting
-            ? const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : IconButton(
-                onPressed: _handlePrint,
-                icon: Icon(Icons.print_rounded, color: Theme.of(context).primaryColor),
-                tooltip: 'Print',
-              ),
+        if (_isPrinting || _isGeneratingPreview)
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else ...[
+          IconButton(
+            onPressed: _handlePdfPreview,
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: 'Preview PDF',
+          ),
+          IconButton(
+            onPressed: _handlePrintBluetooth,
+            icon: Icon(Icons.print_rounded, color: Theme.of(context).primaryColor),
+            tooltip: 'Print via Bluetooth',
+          ),
+        ],
       ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -451,12 +509,45 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  item.product.name,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white : Colors.black87,
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.product.name,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white : Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                    if (widget.isCreditNote) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: (item.product.stockStatus?.toUpperCase() == 'Q')
+                                              ? Colors.orange.withOpacity(0.15)
+                                              : Colors.green.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: (item.product.stockStatus?.toUpperCase() == 'Q')
+                                                ? Colors.orange
+                                                : Colors.green,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          (item.product.stockStatus?.toUpperCase() == 'Q') ? 'STATUS Q' : 'STATUS A',
+                                          style: TextStyle(
+                                            color: (item.product.stockStatus?.toUpperCase() == 'Q')
+                                                ? Colors.orange.shade800
+                                                : Colors.green.shade800,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -659,25 +750,50 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              ElevatedButton.icon(
-                onPressed: _isPrinting ? null : _handlePrint,
-                icon: _isPrinting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.print),
-                label: Text(
-                  _isPrinting
-                      ? 'GENERATING PDF...'
-                      : (widget.isCreditNote ? 'PRINT CREDIT NOTE' : 'PRINT INVOICE'),
-                ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: AppTheme.primaryAmber,
-                  foregroundColor: Colors.white,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_isPrinting || _isGeneratingPreview) ? null : _handlePdfPreview,
+                      icon: _isGeneratingPreview
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_rounded),
+                      label: const Text('PREVIEW PDF'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: (_isPrinting || _isGeneratingPreview) ? null : _handlePrintBluetooth,
+                      icon: _isPrinting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.print_rounded),
+                      label: Text(
+                        _isPrinting
+                            ? 'PRINTING...'
+                            : (widget.isCreditNote ? 'PRINT CRN (BT)' : 'PRINT INV (BT)'),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 50),
+                        backgroundColor: AppTheme.primaryAmber,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

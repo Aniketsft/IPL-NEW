@@ -194,6 +194,7 @@ class SalesInvoiceSyncRepository {
   Future<SyncBatchResult> synchronizeSalesInvoiceData(
     String siteCode, {
     bool uploadOnly = false,
+    bool downloadOnly = false,
   }) async {
     final stopwatch = Stopwatch()..start();
     final List<String> successes = [];
@@ -223,8 +224,9 @@ class SalesInvoiceSyncRepository {
     }
 
     try {
-      // 1. Push Unsynced Sales Invoices
-      final unsyncedInvoices = await LocalDatabaseHelper.instance.getUnsyncedSalesInvoices();
+      if (!downloadOnly) {
+        // 1. Push Unsynced Sales Invoices
+        final unsyncedInvoices = await LocalDatabaseHelper.instance.getUnsyncedSalesInvoices();
       debugPrint('Sync: Found ${unsyncedInvoices.length} unsynced Sales Invoices.');
 
       for (final invoice in unsyncedInvoices) {
@@ -266,9 +268,10 @@ class SalesInvoiceSyncRepository {
               "basePrice": l['basePrice'] ?? 0.0,
               "discountAmount": l['discountAmount'] ?? 0.0,
               "discountAmountFlat": l['discountAmountFlat'] ?? 0.0,
-              "discount1": (l['discountAmount'] as num?)?.toDouble() ?? 0.0,
-              "discount2": (l['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
-              "discount3": 0.0,
+              "discount1": (l['discount1'] as num?)?.toDouble() ?? 0.0,
+              "discount2": (l['discount2'] as num?)?.toDouble() ?? (l['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
+              "discount3": (l['discount3'] as num?)?.toDouble() ?? 
+                           (l['discountAmount'] as num?)?.toDouble() ?? 0.0,
               "vatAmount": l['vatAmount'] ?? 0.0,
               "total": (l['total'] as num?)?.toDouble() ??
                   (((l['quantity'] as num?)?.toDouble() ?? 0.0) * ((l['basePrice'] as num?)?.toDouble() ?? 0.0) -
@@ -281,6 +284,7 @@ class SalesInvoiceSyncRepository {
               "cce0": l['cce0'] ?? '',
               "taxRule": l['taxRule'] ?? '',
               "isFoc": (l['isFoc'] ?? 0) == 1,
+              "mainItemSku": l['mainItemSku'] ?? '',
               "pricingSource": l['pricingSource'] ?? '',
               "priceListCode": l['priceListCode'] ?? '',
               "reasonType": l['reasonType'] ?? 0
@@ -480,6 +484,7 @@ class SalesInvoiceSyncRepository {
             "deviceId": cleanCrnDeviceId,
             "tabletSource": resolvedCrnTablet,
             "transactionalId": creditNoteId,
+            "settlementType": cn['settlementType'] ?? (refunds.any((r) => (r['method'] ?? '').toString().toUpperCase() == 'CASH') ? 'CASH' : 'CREDIT'),
             "grandTotal": (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
             "lines": lines.map((l) => {
               "lineNo": l['lineNo'] ?? 1000,
@@ -492,7 +497,11 @@ class SalesInvoiceSyncRepository {
               "lotNumber": l['lotNumber'] ?? '',
               "warehouse": l['warehouse'] ?? '',
               "cce0": l['cce0'] ?? '',
-              "originLineNo": l['lineNo']
+              "stockStatus": l['stockStatus'] ?? 'A',
+              "returnCondition": l['returnCondition'] ?? cn['reason'],
+              "expiryDate": l['expiryDate'],
+              "location": l['location'] ?? 'LOC1',
+              "originLineNo": l['originLineNo'] ?? l['lineNo']
             }).toList(),
             "refunds": refunds.map((r) => {
               "localRefundId": r['refundId'],
@@ -508,10 +517,28 @@ class SalesInvoiceSyncRepository {
           final response = await _dio.post('SalesInvoice/sync-credit-note', data: payload);
           if (response.statusCode == 200 || response.statusCode == 201) {
             final displayId = _extractX3InvoiceId(creditNoteId, response.data);
-            await LocalDatabaseHelper.instance.markCreditNoteSynced(creditNoteId, x3DocumentId: displayId);
-            if (response.data is Map && (response.data['refundSynced'] == true || response.data['x3RefundPaymentId'] != null)) {
-              final x3RefundId = response.data['x3RefundPaymentId']?.toString();
-              await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundId);
+            String? x3StockReceiptId;
+            String? x3RefundPaymentId;
+            if (response.data is Map) {
+              if (response.data['x3StockReceiptId'] != null) {
+                x3StockReceiptId = response.data['x3StockReceiptId']?.toString();
+              }
+              if (response.data['x3RefundPaymentId'] != null) {
+                x3RefundPaymentId = response.data['x3RefundPaymentId']?.toString();
+              }
+            }
+
+            await LocalDatabaseHelper.instance.markCreditNoteSynced(
+              creditNoteId,
+              x3DocumentId: displayId,
+              x3StockReceiptId: x3StockReceiptId,
+              x3RefundPaymentId: x3RefundPaymentId,
+            );
+            if (response.data is Map && (response.data['refundSynced'] == true || x3RefundPaymentId != null)) {
+              await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundPaymentId);
+            }
+            if (x3StockReceiptId != null) {
+              await LocalDatabaseHelper.instance.markCreditNoteStockReceiptSynced(creditNoteId, x3ReceiptId: x3StockReceiptId);
             }
             successes.add(displayId);
             final List<String> msgs = [];
@@ -729,6 +756,7 @@ class SalesInvoiceSyncRepository {
       } catch (e) {
         debugPrint('Sync: Failed to push open invoice payments: $e');
       }
+      } // end if (!downloadOnly)
 
       if (!uploadOnly) {
       final prefs = await SharedPreferences.getInstance();
@@ -837,17 +865,7 @@ class SalesInvoiceSyncRepository {
         debugPrint('⚠️ WARNING: Fetching price lists from INLDRYRUN schema. Ensure the correct schema is configured in app settings. Prices may not reflect production rules.');
       }
 
-      final custParams = <String, dynamic>{};
-      if (siteCode.isNotEmpty) custParams['sitecode'] = siteCode;
-
-      final openInvParams = <String, dynamic>{'daysCutoff': 0};
-      if (siteCode.isNotEmpty) openInvParams['sitecode'] = siteCode;
-
-      final x3Params = <String, dynamic>{'months': 6};
-      if (siteCode.isNotEmpty && siteCode != 'ALL') x3Params['sitecode'] = siteCode;
-
-      debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
-      // Download facility mappings first so financial-site lookups are up to date for stock & numbering
+      debugPrint('Sync: Downloading Sage X3 facility mappings first to align financial and shipping sites...');
       final facilitiesResp = await safeGet('SalesInvoice/facilities', label: 'Facilities');
       if (facilitiesResp != null && facilitiesResp.data is List) {
         final rawFacilities = facilitiesResp.data as List<dynamic>;
@@ -857,18 +875,42 @@ class SalesInvoiceSyncRepository {
         }
       }
 
+      // Resolve centralized SiteContext (Shipping vs Financial facilities)
+      final siteCtx = await LocalDatabaseHelper.instance.getSiteContext(siteCode);
+      debugPrint('Sync: Resolved $siteCtx');
+
+      final custParams = <String, dynamic>{};
+      if (siteCtx.financialSiteCode.isNotEmpty) {
+        custParams['sitecode'] = siteCtx.financialSiteCode;
+      } else if (siteCtx.shippingSiteCode.isNotEmpty) {
+        custParams['sitecode'] = siteCtx.shippingSiteCode;
+      }
+
+      final openInvParams = <String, dynamic>{'daysCutoff': 0};
+      if (siteCtx.financialSiteCode.isNotEmpty) {
+        openInvParams['sitecode'] = siteCtx.financialSiteCode;
+      }
+
+      final x3Params = <String, dynamic>{'months': 6};
+      if (siteCtx.financialSiteCode.isNotEmpty && siteCtx.financialSiteCode != 'ALL') {
+        x3Params['sitecode'] = siteCtx.financialSiteCode;
+      }
+
+      debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
+
       final results = await Future.wait([
         safeGet('SalesInvoice/customers', queryParameters: custParams.isNotEmpty ? custParams : null, label: 'Customers'),
         safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
         safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
         safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists', etagKey: priceListEtagKey),
-        safeGet('SalesInvoice/salesreps', queryParameters: siteCode.isNotEmpty ? {'siteCode': siteCode} : null, label: 'Sales Reps'),
+        safeGet('SalesInvoice/salesreps', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Sales Reps'),
         safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices', etagKey: openInvEtagKey),
         safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History', etagKey: x3HistoryEtagKey),
         safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
         safeGet('SalesInvoice/banks', label: 'Banks'),
-        safeGet('Sync/refresh', queryParameters: siteCode.isNotEmpty ? {'site': siteCode} : null, label: 'Sales Orders'),
-        _productRepository.syncSalesInvoiceItemStockDetails(siteCode).then((_) {
+        safeGet('Sync/refresh', queryParameters: siteCtx.shippingSiteCode.isNotEmpty ? {'site': siteCtx.shippingSiteCode} : null, label: 'Sales Orders'),
+        safeGet('SalesInvoice/document-sequences', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Document Sequences'),
+        _productRepository.syncSalesInvoiceItemStockDetails(siteCtx.shippingSiteCode).then((_) {
           entityReports.add(const SyncEntityReport(
             entityName: 'Stock Details',
             direction: SyncDirection.download,
@@ -903,6 +945,7 @@ class SalesInvoiceSyncRepository {
       final reasonsResp = results[7];
       final banksResp = results[8];
       final salesOrdersResp = results.length > 9 ? results[9] : null;
+      final docSeqResp = results.length > 10 ? results[10] : null;
 
       // Ingest Customers
       if (custResp != null && custResp.data is List) {
@@ -989,6 +1032,15 @@ class SalesInvoiceSyncRepository {
           debugPrint('Sync: Synced ${rawOrders.length} Sales Orders and ${rawDetails.length} Line Items for Site $siteCode.');
         }
       }
+
+      // Ingest Document Sequence High-Water Marks
+      if (docSeqResp != null && docSeqResp.data is List) {
+        final rawDocSeqs = docSeqResp.data as List<dynamic>;
+        if (rawDocSeqs.isNotEmpty) {
+          await LocalDatabaseHelper.instance.syncDocumentSequencesHighWaterMark(rawDocSeqs);
+          debugPrint('Sync: Synced ${rawDocSeqs.length} Document Sequences high-water marks.');
+        }
+      }
       } else {
         if (entityReports.isEmpty) {
           entityReports.add(SyncEntityReport(
@@ -1045,8 +1097,10 @@ class SalesInvoiceSyncRepository {
             'failures': result.failures.length,
           },
         );
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('last_sync_timestamp', DateTime.now().toIso8601String());
+        if (!uploadOnly) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('last_sync_timestamp', DateTime.now().toIso8601String());
+        }
       } catch (histErr) {
         debugPrint('Failed to save local sync history: $histErr');
       }
@@ -1057,13 +1111,14 @@ class SalesInvoiceSyncRepository {
             : DeviceInfoService.instance.deviceInfo;
         await _dio.post('Sync/log-event', data: {
           'deviceId': devId,
-          'actionType': uploadOnly ? 'EXPORT_PENDING_X3' : 'SYNC_SALES_CATALOG',
+          'actionType': uploadOnly ? 'EXPORT_PENDING_X3' : (downloadOnly ? 'SYNC_SALES_CATALOG' : 'SYNC_SALES_FULL'),
           'site': siteCode,
           'payload': jsonEncode({
             'successCount': successes.length,
             'failureCount': failures.length,
             'isCleanSuccess': result.isCleanSuccess,
             'uploadOnly': uploadOnly,
+            'downloadOnly': downloadOnly,
           }),
         });
       } catch (logErr) {

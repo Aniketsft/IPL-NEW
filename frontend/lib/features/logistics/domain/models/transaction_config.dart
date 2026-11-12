@@ -27,7 +27,8 @@ enum AppTransactionMode {
   bool get isCreditNote =>
       this == directCreditNote ||
       this == linkedCreditNote ||
-      this == previewCreditNote;
+      this == previewCreditNote ||
+      this == customerReturn;
 
   bool get isInvoice =>
       this == invoice ||

@@ -323,7 +323,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             { "PRO", ("PRO", "PRO") },
             { "PTT", ("PTT", "PTT") },
             { "SCG", ("CGD", "SCG") }, // Consumer Shop To Shop -> Sales Site: CGD, Shipping Site: SCG
-            { "SCP", ("POD", "SCP") }, // Chilled Shop To Shop -> Sales Site: POD, Shipping Site: SCP
+            { "SCP", ("SCP", "SCP") }, // Note: SCP is explicitly excluded from mapping to POD
             { "SDA", ("DPD", "SDA") }, // Dairy Shop To Shop -> Sales Site: DPD, Shipping Site: SDA
             { "SFF", ("FFD", "SFF") }, // Frozen Shop To Shop -> Sales Site: FFD, Shipping Site: SFF
             { "IPL", ("IPL", "IPL") }
@@ -383,11 +383,16 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     salesSite = ((string?)row.Financial_Sales_Site_Code ?? salesSite).Trim();
                 }
 
-                // Strict invariant safeguard: POD always maps to Sales/Shipping Site POD
+                // Strict invariant safeguard: POD and SCP always remain independent sites
                 if (string.Equals(cleanSite, "POD", StringComparison.OrdinalIgnoreCase))
                 {
                     salesSite = "POD";
                     shippingSite = "POD";
+                }
+                else if (string.Equals(cleanSite, "SCP", StringComparison.OrdinalIgnoreCase))
+                {
+                    salesSite = "SCP";
+                    shippingSite = "SCP";
                 }
 
                 Console.WriteLine($"[SageX3SoapService] Single Source of Truth Mapping ({schema}): Input={cleanSite} -> SalesSite(SALFCY)={salesSite}, ShippingSite(STOFCY)={shippingSite}");
@@ -805,6 +810,14 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 || string.Equals(v, "WH-01", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(v, "A4-S2-B12", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(v, "Standard Storage (Pickable)", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string FormatClean2Dp(double val)
+        {
+            decimal rounded = Math.Round((decimal)val, 2, MidpointRounding.AwayFromZero);
+            return (rounded % 1 == 0)
+                ? rounded.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
+                : rounded.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private async Task<Dictionary<string, List<StockSlot>>> GetShippingSiteStockAsync(
@@ -1385,68 +1398,22 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     invoice.DeviceId,
                     invoice.UserName ?? invoice.CreatedBy);
 
-                // Sage X3 sales invoice type for mobile sales invoices is always MICAS (never STD)
-                const string invType = "MICAS";
+                // Sage X3 sales invoice type:
+                // MICAS for cash transaction on invoice
+                // MICRE for credit transaction on invoice
+                bool isCreditInvoice = (invoice.Payments != null && invoice.Payments.Any(p => string.Equals(p.PaymentMethod, "CREDIT", StringComparison.OrdinalIgnoreCase)))
+                    || string.Equals(invoice.InvoiceType, "CREDIT", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(invoice.PaymentTerm, "CREDIT", StringComparison.OrdinalIgnoreCase);
 
-                var invoiceHeaderValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    { "SALFCY", salesSite }, // Use mapped financial sales site for Position 2 (SALFCY)
-                    { "SIVTYP", invType },
-                    { "STOFCY", shippingSite }, // Use mapped physical shipping site for Position 4 (STOFCY)
-                    { "FCY", salesSite },
-                    { "INVTYP", "1" },
-                    { "NUM", "" },
-                    { "NUM_0", "" },
-                    { "INVNUM", "" },
-                    { "VCRNUM", "" },
-                    { "SIHNUM", "" },
-                    { "BPCINV", invoice.CustomerCode ?? "" },
-                    { "BPR", invoice.CustomerCode ?? "" },
-                    { "BPCORD", invoice.CustomerCode ?? "" },
-                    { "BPCPYR", invoice.CustomerCode ?? "" },
-                    { "INVDAT", invoiceDate },
-                    { "ACCDAT", invoiceDate },
-                    { "BPRVCR", reference },
-                    { "INVREF", reference },
-                    { "STOMVTFLG", "2" },
-                    { "STA", "3" },
-                    { "REP", primarySalesRep },
-                    { "REP_0", primarySalesRep },
-                    { "REP_1", secondarySalesRep },
-                    { "CUR", "MUR" },
-                    { "STRDUDDAT", dueDate },
-                    { "PTE", invoice.PaymentTerm ?? "" },
-                    { "INVDTAAMT", "" },
-                    { "ZMRACRNREF", "" },
-                    { "ZREASONSTATE", "" },
-                    { "SIHORI", "1" },
-                    { "SIHORINUM", "" },
-                    { "ZTABLETSRC", tabletSource },
-                    { "ZTABSRC", tabletSource },
-                    { "ZTBLSRC", tabletSource },
-                    { "ZSRC", tabletSource },
-                    { "ZSOURCE", tabletSource },
-                    { "ZTABLET", tabletSource },
-                    { "ZTAB", tabletSource },
-                    { "ZDEVSRC", tabletSource },
-                    { "ZHM", tabletSource }
-                };
+                string invType = isCreditInvoice ? "MICRE" : "MICAS";
 
-                var customTabletCols = await GetCustomTabletFieldNamesAsync(schema);
-                foreach (var col in customTabletCols)
-                {
-                    invoiceHeaderValues[col] = tabletSource;
-                    if (col.EndsWith("_0", StringComparison.OrdinalIgnoreCase))
-                    {
-                        invoiceHeaderValues[col.Substring(0, col.Length - 2)] = tabletSource;
-                    }
-                }
+                string originDocNum = !string.IsNullOrWhiteSpace(invoice.OriginInvoiceId) ? invoice.OriginInvoiceId.Trim() : "";
 
-                var invoiceTemplateFields = await GetTemplateHeaderFieldsAsync("ZSIHWEBA", schema);
-                // Template ZSIHWEBA V-Record definition (Proven working layout):
-                // 1:V(/), 2:SALFCY, 3:SIVTYP, 4:STOFCY, 5:INVTYP(1), 6:NUM(), 7:BPCINV, 8:ACCDAT, 9:INVREF, 10:STOMVTFLG(2), 11:STA(3), 12:REP(1), 13:CUR(MUR), 14:STRDUDDAT, 15:ZMRACRNREF(), 16:ZREASONSTATE(), 17:ZTABLETSRC
-                string fallbackInvoiceHeader = $"V;{salesSite};{invType};{shippingSite};1;;{invoice.CustomerCode};{invoiceDate};{reference};2;3;{primarySalesRep};MUR;{dueDate};;;{tabletSource};|";
-                fileBuilder.Append(ConstructDynamicVHeader(invoiceTemplateFields, invoiceHeaderValues, fallbackInvoiceHeader));
+                // Proven 18-position layout matching Syracuse ZSIHWEBA template (Image 2, lines 1-18):
+                // Pos 1: V | Pos 2: SALFCY | Pos 3: SIVTYP | Pos 4: STOFCY | Pos 5: INVTYP (1) | Pos 6: NUM (blank) | Pos 7: BPCINV | Pos 8: ACCDAT | Pos 9: INVREF (reference)
+                // Pos 10: STOMVTFLG (2) | Pos 11: REP | Pos 12: CUR (MUR) | Pos 13: STRDUDDAT | Pos 14: blank | Pos 15: blank | Pos 16: SIHORI (1) | Pos 17: SIHORINUM (originDocNum) | Pos 18: ZTABLETSRC
+                string invoiceHeader = $"V;{salesSite};{invType};{shippingSite};1;;{invoice.CustomerCode};{invoiceDate};{reference};2;{primarySalesRep};MUR;{dueDate};;;1;{originDocNum};{tabletSource};|";
+                fileBuilder.Append(invoiceHeader);
 
                 // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER), valid TABWRH warehouses & STOCK in shippingSite
                 var itemMetadata = await GetItemMetadataAsync(invoice.Lines.Select(l => l.Sku));
@@ -1454,6 +1421,53 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var siteWarehousesMap = await GetSiteWarehousesMapAsync(schema);
                 bool isWarehouseManaged = siteWarehousesMap.TryGetValue(shippingSite, out var validSiteWrhs) && validSiteWrhs.Any();
                 var siteStockMap = await GetShippingSiteStockAsync(schema, shippingSite, invoice.Lines.Select(l => l.Sku));
+
+                // Pre-identify Source lines (FOCFLG = 2) and Free lines (FOCFLG = 3)
+                var freeLines = invoice.Lines
+                    .Where(l => l.IsFoc || (l.BasePrice == 0 && l.Quantity > 0))
+                    .ToList();
+
+                var sourceLineNos = new HashSet<int>();
+                if (freeLines.Any())
+                {
+                    var linesList = invoice.Lines.ToList();
+                    foreach (var fl in freeLines)
+                    {
+                        // 1. Check by explicit OriginLineNo
+                        if (fl.OriginLineNo.HasValue && fl.OriginLineNo.Value > 0)
+                        {
+                            sourceLineNos.Add(fl.OriginLineNo.Value);
+                            continue;
+                        }
+
+                        // 2. Check by explicit MainItemSku
+                        if (!string.IsNullOrWhiteSpace(fl.MainItemSku))
+                        {
+                            var matched = linesList.FirstOrDefault(l =>
+                                !l.IsFoc && l.BasePrice > 0 &&
+                                string.Equals(l.Sku, fl.MainItemSku, StringComparison.OrdinalIgnoreCase));
+                            if (matched != null)
+                            {
+                                sourceLineNos.Add(matched.LineNo);
+                                continue;
+                            }
+                        }
+
+                        // 3. Positional fallback: Preceding promotional paid line in cart
+                        int idx = linesList.IndexOf(fl);
+                        if (idx > 0)
+                        {
+                            for (int p = idx - 1; p >= 0; p--)
+                            {
+                                if (!linesList[p].IsFoc && linesList[p].BasePrice > 0)
+                                {
+                                    sourceLineNos.Add(linesList[p].LineNo);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 int lineMultiplier = 1000;
                 foreach (var line in invoice.Lines)
@@ -1478,69 +1492,81 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
                     if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
 
-                    string qty = line.Quantity.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
-                    string basePrice = line.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-                    string disc1 = line.DiscountAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-                    string disc2 = (line.Discount2 > 0 ? line.Discount2 : line.DiscountAmountFlat).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-                    string disc3 = line.Discount3.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                    // Clean 2-dp formatting: Keep integers clean (72, 185, 0) and decimals to 2-dp (1270.88, 29.03)
+                    string qty = FormatClean2Dp(line.Quantity);
+                    string basePrice = FormatClean2Dp(line.BasePrice);
 
-                    // Authoritative User Selection: Strictly preserve user-selected lot and location (NO arbitrary fallbacks)
-                    string lotNumber = (line.LotNumber ?? "").Trim();
-                    string location = IsPlaceholderStockToken(line.Location) ? "" : (line.Location ?? "").Trim();
+                    // Discount routing: User confirmed "populate disc amt keep others blank"
+                    // DISCRGVAL3 (Position 10) is "Disc - Amt". It receives the discount amount in Rs (e.g. 0.91 or 29.03).
+                    // DISCRGVAL1 (Position 8, "Disc1 - %") and DISCRGVAL2 (Position 9, "Disc2 - %") remain 0.
+                    double discAmt = line.DiscountAmount > 0 
+                        ? line.DiscountAmount 
+                        : (line.Discount3 > 0 ? line.Discount3 : (line.DiscountAmountFlat > 0 ? line.DiscountAmountFlat : 0.0));
+
+                    string disc1 = "0";
+                    string disc2 = "0";
+                    string disc3 = FormatClean2Dp(discAmt);
+
+                    // Authoritative User Selection & Warehouse resolution
+                    string locationInput = IsPlaceholderStockToken(line.Location) ? "" : (line.Location ?? "").Trim();
                     string inputWarehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
 
-                    // Resolve valid warehouse for shippingSite:
-                    // If warehouse management is active for shippingSite (e.g. CGD -> CG1 in TABWRH), pass the valid warehouse code instead of clearing to blank.
-                    string warehouse = "";
+                    string warehouse = !string.IsNullOrWhiteSpace(inputWarehouse)
+                        ? inputWarehouse
+                        : (!string.IsNullOrWhiteSpace(assignedWarehouse)
+                            ? assignedWarehouse
+                            : (!string.IsNullOrWhiteSpace(assignedLocation) ? assignedLocation : "N3"));
+
                     if (isWarehouseManaged && validSiteWrhs != null && validSiteWrhs.Any())
                     {
-                        // Priority 1: User-selected warehouse if already a valid warehouse code for this site in TABWRH
-                        if (!string.IsNullOrEmpty(inputWarehouse) && validSiteWrhs.Contains(inputWarehouse, StringComparer.OrdinalIgnoreCase))
+                        if (!validSiteWrhs.Contains(warehouse, StringComparer.OrdinalIgnoreCase))
                         {
-                            warehouse = inputWarehouse;
-                        }
-                        else
-                        {
-                            // Priority 2: Check physical STOCK in X3 for this exact SKU, lot, and location
-                            if (siteStockMap.TryGetValue(sku, out var stocks) && stocks.Any())
+                            if (!string.IsNullOrWhiteSpace(assignedLocation) && validSiteWrhs.Contains(assignedLocation.Trim(), StringComparer.OrdinalIgnoreCase))
                             {
-                                var matchedStock = stocks.FirstOrDefault(s =>
-                                    (string.IsNullOrEmpty(lotNumber) || string.Equals(s.LotNumber, lotNumber, StringComparison.OrdinalIgnoreCase)) &&
-                                    (string.IsNullOrEmpty(location) || string.Equals(s.Location, location, StringComparison.OrdinalIgnoreCase)));
-
-                                if (matchedStock != null && !string.IsNullOrEmpty(matchedStock.Warehouse) &&
-                                    validSiteWrhs.Contains(matchedStock.Warehouse, StringComparer.OrdinalIgnoreCase))
-                                {
-                                    warehouse = matchedStock.Warehouse;
-                                }
+                                warehouse = assignedLocation.Trim();
                             }
-
-                            // Priority 3: Default warehouse for shippingSite from TABWRH (e.g. CG1 for CGD)
-                            if (string.IsNullOrEmpty(warehouse))
+                            else if (!string.IsNullOrWhiteSpace(assignedWarehouse) && validSiteWrhs.Contains(assignedWarehouse.Trim(), StringComparer.OrdinalIgnoreCase))
+                            {
+                                warehouse = assignedWarehouse.Trim();
+                            }
+                            else
                             {
                                 warehouse = validSiteWrhs.First();
                             }
                         }
                     }
-                    else if (!isWarehouseManaged)
+
+                    string location = "";
+                    if (!string.IsNullOrWhiteSpace(locationInput) && !string.Equals(locationInput, warehouse, StringComparison.OrdinalIgnoreCase))
                     {
-                        warehouse = ""; // Site does not use warehouse management
+                        location = locationInput;
                     }
 
-                    // Template ZSIHWEBA D-Record definition (Rows 18-34):
-                    // 18:D(/), 19:SIDLIN, 20:ITMREF, 21:ITMDES, 22:SAU, 23:QTY, 24:GROPRI, 25:DISCRGVAL1, 26:DISCRGVAL2, 27:DISCRGVAL3, 28:VACITM, 29:ZPRIUOM(), 30:ZPRIQTY(), 31:WRH, 32:LOC, 33:EECFLOPHY, 34:FOCFLG
-                    // Physical flow: Always 2 (Yes) to trigger inventory stock movements and Stock Transaction = Yes
-                    string eecFloPhy = "2";
+                    // Line Sales Reps: REP1 (Line 32) and REP2 (Line 33)
+                    string lineRep1 = !string.IsNullOrWhiteSpace(primarySalesRep) ? primarySalesRep : "";
+                    string lineRep2 = !string.IsNullOrWhiteSpace(secondarySalesRep) ? secondarySalesRep : lineRep1;
 
-                    // Free of charge: 2 (Yes) if item is marked FOC or priced at 0, otherwise 1 (No)
-                    string focFlg = (line.IsFoc || line.BasePrice == 0) ? "2" : "1";
+                    // Sage X3 Local Menu for FOCFLG: 1 = No, 2 = Source (Qualifying Item), 3 = Yes (Free Gift Item)
+                    string focFlg;
+                    if (line.IsFoc || (line.BasePrice == 0 && line.Quantity > 0))
+                    {
+                        focFlg = "3"; // Free item (Yes in Sage X3)
+                    }
+                    else if (sourceLineNos.Contains(line.LineNo))
+                    {
+                        focFlg = "2"; // Source item (Source in Sage X3)
+                    }
+                    else
+                    {
+                        focFlg = "1"; // Regular paid item (No in Sage X3)
+                    }
 
-                    fileBuilder.Append($"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;;{warehouse};{location};{eecFloPhy};{focFlg};|");
-                    
-                    // Analytical Record: A;DPT;Cce0|
-                    string cce0 = string.IsNullOrWhiteSpace(line.Cce0) ? "COMMERCIAL" : line.Cce0;
-                    fileBuilder.Append($"A;DPT;{cce0};|");
-                    
+                    // Proven 18-position D-Record layout matching Syracuse ZSIHWEBA (lines 19-36):
+                    // Pos 1: D | Pos 2: SIDLIN | Pos 3: ITMREF | Pos 4: ITMDES | Pos 5: SAU | Pos 6: QTY | Pos 7: GROPRI
+                    // Pos 8: DISC1 | Pos 9: DISC2 | Pos 10: DISC3 | Pos 11: VACITM | Pos 12: ZPRIUOM (blank) | Pos 13: ZPRIQTY (0)
+                    // Pos 14: REP1 | Pos 15: REP2 | Pos 16: WRH | Pos 17: LOC (blank) | Pos 18: FOCFLG
+                    fileBuilder.Append($"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;0;{lineRep1};{lineRep2};{warehouse};{location};{focFlg};|");
+
                     lineMultiplier += 1000;
                 }
 
@@ -1662,13 +1688,43 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string crnSchema = ResolveX3Schema();
 
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string requestedCrnSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
-                    ? userSiteCode
-                    : (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL" ? creditNote.SalesSite : "POD");
+                string requestedCrnSite;
+                if (!string.IsNullOrWhiteSpace(creditNote.OriginInvoiceId))
+                {
+                    // For linked credit note / return, the sales site MUST strictly match the origin invoice
+                    string? originSite = null;
+                    try
+                    {
+                        using var originConn = new SqlConnection(_innodisConnectionString);
+                        originSite = await originConn.QueryFirstOrDefaultAsync<string>(
+                            $"SELECT TOP 1 LTRIM(RTRIM(SALFCY_0)) FROM x3.{crnSchema}.SINVOICE WHERE NUM_0 = @DocId",
+                            new { DocId = creditNote.OriginInvoiceId.Trim() });
+                    }
+                    catch { }
+
+                    requestedCrnSite = !string.IsNullOrWhiteSpace(originSite)
+                        ? originSite.Trim()
+                        : (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL"
+                            ? creditNote.SalesSite.Trim()
+                            : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD"));
+                }
+                else
+                {
+                    requestedCrnSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                        ? userSiteCode
+                        : (!string.IsNullOrWhiteSpace(creditNote.SalesSite) && creditNote.SalesSite != "ALL" ? creditNote.SalesSite : "POD");
+                }
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedCrnSite, crnSchema);
-                // Sage X3 sales invoice type for credit notes AND returns: MICRE
-                string crnType = "MICRE";
+                // Sage X3 sales invoice type for credit notes AND returns:
+                // MRCAS for credit note where cash is refunded
+                // MRCRE for credit note where credit on account is refunded
+                bool isCashRefund = string.Equals(creditNote.SettlementType, "CASH", StringComparison.OrdinalIgnoreCase)
+                    || (creditNote.Payments != null && creditNote.Payments.Any(p => 
+                        string.Equals(p.PaymentMethod, "CASH", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(p.PaymentMethod, "CSH", StringComparison.OrdinalIgnoreCase)));
+
+                string crnType = isCashRefund ? "MRCAS" : "MRCRE";
 
                 // Normalized Category Flag: 2 = Credit Note, 3 = Return
                 int category = creditNote.Category == 3 ? 3 : 2;
@@ -1858,26 +1914,12 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
                     if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
 
-                    string qty = (line.Quantity % 1 == 0)
-                        ? line.Quantity.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                        : line.Quantity.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-
-                    string basePriceStr = (price % 1 == 0)
-                        ? price.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                        : price.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-
-                    string disc1 = (line.DiscountAmount % 1 == 0)
-                        ? line.DiscountAmount.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                        : line.DiscountAmount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-
+                    string qty = FormatClean2Dp(line.Quantity);
+                    string basePriceStr = FormatClean2Dp(price);
+                    string disc1 = FormatClean2Dp(line.DiscountAmount);
                     var d2Val = line.Discount2 > 0 ? line.Discount2 : line.DiscountAmountFlat;
-                    string disc2 = (d2Val % 1 == 0)
-                        ? d2Val.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                        : d2Val.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-
-                    string disc3 = (line.Discount3 % 1 == 0)
-                        ? line.Discount3.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                        : line.Discount3.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                    string disc2 = FormatClean2Dp(d2Val);
+                    string disc3 = FormatClean2Dp(line.Discount3);
 
                     // Detail Record (14 Positions):
                     // D;LineNo;Sku;Name;SalesUnit;Quantity;Price;Disc1;Disc2;Disc3;TaxRule;;;Warehouse;|
@@ -1975,6 +2017,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 DeviceId = creditNote.DeviceId,
                 TabletSource = creditNote.DeviceId ?? "HM1",
                 OriginInvoiceId = creditNote.OriginalInvoiceId,
+                SettlementType = creditNote.SettlementType,
                 TransactionMode = string.Equals(creditNote.CreditNoteType, "STANDALONE", StringComparison.OrdinalIgnoreCase) ? "1" : "4"
             };
 
@@ -2028,9 +2071,9 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // Authoritative site resolution: SALFCY (user login claim) -> STOFCY (shipping facility)
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string requestedSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
-                    ? userSiteCode
-                    : (!string.IsNullOrWhiteSpace(header.SalesSite) && header.SalesSite != "ALL" ? header.SalesSite : "POD");
+                string requestedSite = (!string.IsNullOrWhiteSpace(header.SalesSite) && header.SalesSite != "ALL")
+                    ? header.SalesSite.Trim()
+                    : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD");
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedSite, schema);
 
@@ -2202,6 +2245,24 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return (company, defaultBank);
         }
 
+        private async Task<bool> IsOpenItemAvailableAsync(string docNum, string schema)
+        {
+            if (string.IsNullOrWhiteSpace(docNum)) return false;
+            try
+            {
+                using var conn = new SqlConnection(_innodisConnectionString);
+                await conn.OpenAsync();
+                var count = await conn.ExecuteScalarAsync<int>(
+                    $"SELECT COUNT(1) FROM x3.{schema}.GACCDUD WHERE NUM_0 = @docNum AND LIG_0 = 1",
+                    new { docNum });
+                return count > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private string? ResolveBankForPaymentMethod(string method, string defaultFallbackBank)
         {
             string m = (method ?? "").Trim().ToUpperInvariant();
@@ -2247,15 +2308,111 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return defaultFallbackBank;
         }
 
-        public async Task<X3ImportResult> ImportPaymentAsync(List<StagingSalesInvoicePayment> payments)
+        private async Task<string> BuildPaymentIFileAsync(List<StagingSalesInvoicePayment> payments, bool forceOnAccount = false)
         {
-            var result = new X3ImportResult();
-            if (payments == null || !payments.Any())
+            var fileBuilder = new StringBuilder();
+            string paySchema = ResolveX3Schema();
+
+            foreach (var payment in payments)
             {
-                result.Success = true;
-                return result;
+                string methodUpper = (payment.PaymentMethod ?? "").Trim().ToUpperInvariant();
+                if (methodUpper == "CREDIT")
+                {
+                    // Credit transactions do not post bank payment receipts
+                    continue;
+                }
+
+                bool isCreditNote = string.Equals(payment.DocumentType, "CREDIT_NOTE", StringComparison.OrdinalIgnoreCase);
+
+                // Entry Type: REM (Reimbursement/Refund) for Credit Note, REC (Receipt) for Invoice
+                string entryType = !string.IsNullOrWhiteSpace(payment.X3EntryType)
+                    ? payment.X3EntryType
+                    : (isCreditNote ? "REM" : "REC");
+
+                // Sign: 1 for Disbursement (Outflow), 2 for Receipt (Inflow)
+                int sign = payment.X3Sign > 0 ? payment.X3Sign : (isCreditNote ? 1 : 2);
+
+                // Document Category: SCRN for Credit Note, SINV for Sales Invoice
+                string docCategory = !string.IsNullOrWhiteSpace(payment.X3DocumentType)
+                    ? payment.X3DocumentType
+                    : (isCreditNote ? "SCRN" : "SINV");
+
+                string customerCode = !string.IsNullOrWhiteSpace(payment.CustomerCode) ? payment.CustomerCode.Trim() : "";
+
+                // Dynamically resolve financial site, legal company, and default bank from Sage X3
+                string rawPaySite = (!string.IsNullOrWhiteSpace(payment.SalesSite) && payment.SalesSite != "ALL")
+                    ? payment.SalesSite.Trim()
+                    : "POD";
+                var (_, fcy) = await ResolveSiteMappingAsync(rawPaySite, paySchema);
+
+                var (resolvedCompany, resolvedDefaultBank) = await ResolveCompanyAndBankAsync(fcy, paySchema);
+                string company = resolvedCompany;
+                string controlAccount = "122001";
+
+                // Map payment mode (CSH, CHQ, BTR)
+                string pam = "CSH";
+                if (methodUpper == "CHEQUE" || methodUpper == "CHQ") pam = "CHQ";
+                else if (methodUpper == "BANK_TRANSFER" || methodUpper == "BTR" || methodUpper == "BLINK" || methodUpper == "JUICE" || methodUpper == "QR" || methodUpper == "QR CODE" || methodUpper == "MYT MONEY") pam = "BTR";
+                else if (!string.IsNullOrWhiteSpace(payment.X3PaymentMode)) pam = payment.X3PaymentMode.Trim().ToUpperInvariant();
+
+                // Resolve Bank Code: strictly assigned by backend mapping per payment method
+                string? resolvedBank = ResolveBankForPaymentMethod(methodUpper, resolvedDefaultBank);
+                string bank = !string.IsNullOrWhiteSpace(resolvedBank) ? resolvedBank : resolvedDefaultBank;
+
+                string currency = !string.IsNullOrWhiteSpace(payment.Currency) ? payment.Currency.Trim() : "MUR";
+                string amtStr = payment.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+                string payDate = (payment.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd"))
+                    .Replace("-", "").Replace(" ", "").Replace(":", "");
+                if (payDate.Length > 8) payDate = payDate.Substring(0, 8);
+                if (string.IsNullOrWhiteSpace(payDate)) payDate = DateTime.UtcNow.ToString("yyyyMMdd");
+
+                string description = !string.IsNullOrWhiteSpace(payment.ChequeNumber)
+                    ? $"CHQ {payment.ChequeNumber}".Trim()
+                    : (isCreditNote ? "Cash Refund" : "Payment");
+
+                string targetDocNum = !string.IsNullOrWhiteSpace(payment.X3InvoiceDocumentId) ? payment.X3InvoiceDocumentId.Trim() : "";
+
+                // Check whether an open item exists in GACCDUD
+                bool hasOpenItem = false;
+                if (!forceOnAccount && !string.IsNullOrWhiteSpace(targetDocNum))
+                {
+                    hasOpenItem = await IsOpenItemAvailableAsync(targetDocNum, paySchema);
+                }
+
+                if (description.Length > 30) description = description.Substring(0, 30);
+
+                // P Header Line:
+                // P;[NUM];[TYP];;[BPR];[CPY];[ACC];;[PAM];[FCY];[BAN];[SNS];[CUR];[AMTCUR];[AMT];0;[DATE];[DES]
+                fileBuilder.Append($"P;;{entryType};;{customerCode};{company};{controlAccount};;{pam};{fcy};{bank};{sign};{currency};{amtStr};{amtStr};0;{payDate};{description}|");
+
+                // D Detail Line:
+                // Pos 19: D | Pos 20: DENCOD | Pos 21: COA | Pos 22: ACC | Pos 23: BPRLIN | Pos 24: VCRTYP | Pos 25: VCRNUM
+                // Pos 26: *1 (DUDDAT) | Pos 27: *2 (DUDLIG = 1) | Pos 28: *3 | Pos 29: *4 | Pos 30: CURLIN
+                // Pos 31: AMTLIN | Pos 32: VATLIN | Pos 33: QTYLIN (0) | Pos 34: DSP | Pos 35: DESLIN
+                if (hasOpenItem)
+                {
+                    // Allocated directly to verified open item line 1 in GACCDUD
+                    fileBuilder.Append($"D;;;{controlAccount};{customerCode};{docCategory};{targetDocNum};{payDate};1;;;{currency};{amtStr};;0;;{description}|");
+                }
+                else
+                {
+                    // Unallocated on-account payment: VCRTYP, VCRNUM and DUDLIG left empty; invoice number tracked in description
+                    string lineDesc = !string.IsNullOrWhiteSpace(targetDocNum) ? $"{description} {targetDocNum}" : description;
+                    if (lineDesc.Length > 30) lineDesc = lineDesc.Substring(0, 30);
+                    fileBuilder.Append($"D;;;{controlAccount};{customerCode};;;{payDate};;;;{currency};{amtStr};;0;;{lineDesc}|");
+                }
             }
 
+            fileBuilder.Append("END");
+            return fileBuilder.ToString();
+        }
+
+        private async Task<(bool success, X3ImportResult result, string soapReq, string soapResp)> ExecutePaymentSoapAsync(
+            List<StagingSalesInvoicePayment> payments,
+            bool forceOnAccount)
+        {
+            var result = new X3ImportResult();
             var firstPayment = payments.First();
             result.Identifier = firstPayment.DocumentId;
             string soapEnvelope = string.Empty;
@@ -2263,84 +2420,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
             try
             {
-                var fileBuilder = new StringBuilder();
-
-                foreach (var payment in payments)
-                {
-                    string methodUpper = (payment.PaymentMethod ?? "").Trim().ToUpperInvariant();
-                    if (methodUpper == "CREDIT")
-                    {
-                        // Credit transactions do not post bank payment receipts
-                        continue;
-                    }
-
-                    bool isCreditNote = string.Equals(payment.DocumentType, "CREDIT_NOTE", StringComparison.OrdinalIgnoreCase);
-                    
-                    // Entry Type: REM (Reimbursement/Refund) for Credit Note, REC (Receipt) for Invoice
-                    string entryType = !string.IsNullOrWhiteSpace(payment.X3EntryType) 
-                        ? payment.X3EntryType 
-                        : (isCreditNote ? "REM" : "REC");
-                    
-                    // Sign: 1 for Disbursement (Outflow), 2 for Receipt (Inflow)
-                    int sign = payment.X3Sign > 0 ? payment.X3Sign : (isCreditNote ? 1 : 2);
-                    
-                    // Document Category: SCRN for Credit Note, SINV for Sales Invoice
-                    string docCategory = !string.IsNullOrWhiteSpace(payment.X3DocumentType) 
-                        ? payment.X3DocumentType 
-                        : (isCreditNote ? "SCRN" : "SINV");
-
-                    string customerCode = !string.IsNullOrWhiteSpace(payment.CustomerCode) ? payment.CustomerCode.Trim() : "";
-
-                    // Dynamically resolve financial site, legal company, and default bank from Sage X3
-                    string rawPaySite = (!string.IsNullOrWhiteSpace(payment.SalesSite) && payment.SalesSite != "ALL") 
-                        ? payment.SalesSite.Trim() 
-                        : "POD";
-                    string paySchema = ResolveX3Schema();
-                    var (_, fcy) = await ResolveSiteMappingAsync(rawPaySite, paySchema);
-                    
-                    var (resolvedCompany, resolvedDefaultBank) = await ResolveCompanyAndBankAsync(fcy, paySchema);
-                    string company = resolvedCompany;
-                    string controlAccount = "122001";
-
-                    // Map payment mode (CSH, CHQ, BTR)
-                    string pam = "CSH";
-                    if (methodUpper == "CHEQUE" || methodUpper == "CHQ") pam = "CHQ";
-                    else if (methodUpper == "BANK_TRANSFER" || methodUpper == "BTR" || methodUpper == "BLINK" || methodUpper == "JUICE" || methodUpper == "QR" || methodUpper == "QR CODE" || methodUpper == "MYT MONEY") pam = "BTR";
-                    else if (!string.IsNullOrWhiteSpace(payment.X3PaymentMode)) pam = payment.X3PaymentMode.Trim().ToUpperInvariant();
-
-                    // Resolve Bank Code: strictly assigned by backend mapping per payment method
-                    string? resolvedBank = ResolveBankForPaymentMethod(methodUpper, resolvedDefaultBank);
-                    string bank = !string.IsNullOrWhiteSpace(resolvedBank) ? resolvedBank : resolvedDefaultBank;
-
-                    string currency = !string.IsNullOrWhiteSpace(payment.Currency) ? payment.Currency.Trim() : "MUR";
-                    string amtStr = payment.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-
-                    string payDate = (payment.CreatedAt ?? DateTime.UtcNow.ToString("yyyyMMdd"))
-                        .Replace("-", "").Replace(" ", "").Replace(":", "");
-                    if (payDate.Length > 8) payDate = payDate.Substring(0, 8);
-                    if (string.IsNullOrWhiteSpace(payDate)) payDate = DateTime.UtcNow.ToString("yyyyMMdd");
-
-                    string description = !string.IsNullOrWhiteSpace(payment.ChequeNumber) 
-                        ? $"CHQ {payment.ChequeNumber}".Trim() 
-                        : (isCreditNote ? "Cash Refund" : "Payment");
-                    if (description.Length > 30) description = description.Substring(0, 30);
-
-                    string targetDocNum = !string.IsNullOrWhiteSpace(payment.X3InvoiceDocumentId) ? payment.X3InvoiceDocumentId.Trim() : "";
-
-                    // P Header Line:
-                    // P;[NUM];[TYP];;[BPR];[CPY];[ACC];;[PAM];[FCY];[BAN];[SNS];[CUR];[AMTCUR];[AMT];0;[DATE];[DES]
-                    fileBuilder.Append($"P;;{entryType};;{customerCode};{company};{controlAccount};;{pam};{fcy};{bank};{sign};{currency};{amtStr};{amtStr};0;{payDate};{description}|");
-
-                    // D Detail Line:
-                    // Pos 19: D | Pos 20: DENCOD | Pos 21: COA | Pos 22: ACC | Pos 23: BPRLIN | Pos 24: VCRTYP | Pos 25: VCRNUM
-                    // Pos 26: *1 (DUDDAT) | Pos 27: *2 (DUDLIG = 1) | Pos 28: *3 | Pos 29: *4 | Pos 30: CURLIN
-                    // Pos 31: AMTLIN | Pos 32: VATLIN | Pos 33: QTYLIN (0) | Pos 34: DSP | Pos 35: DESLIN
-                    fileBuilder.Append($"D;;;{controlAccount};{customerCode};{docCategory};{targetDocNum};{payDate};1;;;{currency};{amtStr};;0;;{description}|");
-                }
-
-                fileBuilder.Append("END");
-
-                string iFile = fileBuilder.ToString();
+                string iFile = await BuildPaymentIFileAsync(payments, forceOnAccount);
                 string inputXmlJson = "{\"GRP1\":{" +
                                       "\"I_MODIMP\":\"ZPAYWEBA\"," +
                                       "\"I_AOWSTA\":\"NO\"," +
@@ -2367,13 +2447,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
    </soapenv:Body>
 </soapenv:Envelope>";
 
-                Console.WriteLine("====== SAGE X3 PAYMENT SOAP REQUEST (ZPAYWEBA) ======");
+                Console.WriteLine($"====== SAGE X3 PAYMENT SOAP REQUEST (ZPAYWEBA - ForceOnAccount: {forceOnAccount}) ======");
                 Console.WriteLine(soapEnvelope);
-                Console.WriteLine("======================================================");
+                Console.WriteLine("=================================================================================");
 
                 var request = new HttpRequestMessage(HttpMethod.Post, _soapUrl);
                 request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
-                
+
                 var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
                 request.Headers.TryAddWithoutValidation("SOAPAction", "");
@@ -2382,29 +2462,64 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var response = await _httpClient.SendAsync(request);
                 responseXml = await response.Content.ReadAsStringAsync();
 
-                Console.WriteLine("====== SAGE X3 PAYMENT SOAP RESPONSE (ZPAYWEBA) ======");
+                Console.WriteLine($"====== SAGE X3 PAYMENT SOAP RESPONSE (ZPAYWEBA - ForceOnAccount: {forceOnAccount}) ======");
                 Console.WriteLine(responseXml);
-                Console.WriteLine("=======================================================");
+                Console.WriteLine("==================================================================================");
 
                 if (!response.IsSuccessStatusCode)
                 {
                     result.Success = false;
                     result.TechnicalError = $"HTTP {response.StatusCode}: {responseXml}";
-                    await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, false, result.TechnicalError);
-                    return result;
+                    return (false, result, soapEnvelope, responseXml);
                 }
 
                 var parsedResult = ParseSoapResponse(responseXml, result);
-                await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
-                return parsedResult;
+                return (parsedResult.Success, parsedResult, soapEnvelope, responseXml);
             }
             catch (Exception ex)
             {
                 result.Success = false;
                 result.TechnicalError = ex.Message;
-                await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapEnvelope, responseXml, false, ex.Message);
+                return (false, result, soapEnvelope, responseXml);
+            }
+        }
+
+        private static bool ShouldRetryOnAccount(X3ImportResult res)
+        {
+            var combined = $"{res.TechnicalError} {string.Join(" ", res.Messages ?? new List<string>())} {res.RawPayload}";
+            return combined.Contains("Nonexistent open item", StringComparison.OrdinalIgnoreCase) ||
+                   combined.Contains("Accounting journal Non-existent", StringComparison.OrdinalIgnoreCase) ||
+                   combined.Contains("Non-existent", StringComparison.OrdinalIgnoreCase) ||
+                   combined.Contains("DUDNUM", StringComparison.OrdinalIgnoreCase) ||
+                   combined.Contains("VCRTYP", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public async Task<X3ImportResult> ImportPaymentAsync(List<StagingSalesInvoicePayment> payments)
+        {
+            var result = new X3ImportResult();
+            if (payments == null || !payments.Any())
+            {
+                result.Success = true;
                 return result;
             }
+
+            var firstPayment = payments.First();
+            result.Identifier = firstPayment.DocumentId;
+
+            // Attempt 1: Standard import (allocated if open item exists in GACCDUD, otherwise on-account)
+            var (success, parsedResult, soapReq, soapResp) = await ExecutePaymentSoapAsync(payments, false);
+
+            // Check if failure is due to unposted invoice / nonexistent open item in Sage X3
+            if (!parsedResult.Success && ShouldRetryOnAccount(parsedResult))
+            {
+                Console.WriteLine($"[SageX3SoapService] Payment allocation failed due to nonexistent open item. Retrying as unallocated on-account payment for {result.Identifier}...");
+                var (retrySuccess, retryParsedResult, retrySoapReq, retrySoapResp) = await ExecutePaymentSoapAsync(payments, true);
+                await InsertSoapAuditAsync("ImportPayment", result.Identifier, retrySoapReq, retrySoapResp, retryParsedResult.Success, retryParsedResult.Success ? null : string.Join(" | ", retryParsedResult.Messages));
+                return retryParsedResult;
+            }
+
+            await InsertSoapAuditAsync("ImportPayment", result.Identifier, soapReq, soapResp, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
+            return parsedResult;
         }
 
         public async Task<EndOfDayResult> ProcessProductionEodAsync()

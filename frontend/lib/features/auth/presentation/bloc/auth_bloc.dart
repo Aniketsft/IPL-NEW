@@ -11,6 +11,7 @@ import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_r
 import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/thermal_template.dart';
 import 'package:http/http.dart' as http;
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -48,6 +49,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<PerformTokenRefresh>(_onPerformTokenRefresh);
     on<ValidateSession>(_onValidateSession);
     on<SoftSessionCheck>(_onSoftSessionCheck);
+  }
+
+  /// Keeps the thermal print session (SALESMAN / STORE fields) in sync.
+  @override
+  void onChange(Change<AuthState> change) {
+    super.onChange(change);
+    final next = change.nextState;
+    if (next is Authenticated) {
+      ThermalSession.username = next.username;
+      ThermalSession.siteCode = next.siteCode ?? '';
+    } else if (next is Unauthenticated) {
+      ThermalSession.username = '';
+      ThermalSession.siteCode = '';
+    }
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {

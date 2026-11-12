@@ -1,0 +1,23 @@
+                           {{COMPANYNAME}}
+
+ Vat Registratrion No      : {{COMPANYVATNO}}
+ Business Registration No. : {{COMPANYBRN}} 
+   
+                                    FROZEN FOODS
+                                    MFD, Zone 5,Mer Rouge,
+                                    Port - Louis, Mauritius 
+                                    Customer Service: 2065880
+                                    Fax: (230) 466 1787
+Salesman  : {{SALESMAN}}
+Store     : {{STORE}}
+ 
+		        SALES SUMMARY 
+
+ Print Date Time     : {{PRINTINGDATETIME}}          
+ --------------------------------------------------------------------
+    Description	                   Sales   Returns     Net_Qty 
+ --------------------------------------------------------------------
+ ProdCode :  {{ProdCode}} 
+{{ProdDescription}}     {{TotalSalesQty}}{{TotalReturnQty}} {{NetQty}}
+---------------------------------------------------------------------
+     TOTAL PRICE                                 {{TotalGrossValue}}

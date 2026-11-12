@@ -5,9 +5,11 @@ abstract class SalesInvoiceSyncEvent {
 class StartSalesInvoiceSyncRequested extends SalesInvoiceSyncEvent {
   final String siteCode;
   final bool uploadOnly;
+  final bool downloadOnly;
   const StartSalesInvoiceSyncRequested({
     required this.siteCode,
     this.uploadOnly = false,
+    this.downloadOnly = false,
   });
 }
 

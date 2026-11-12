@@ -27,14 +27,17 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
 
     emit(SalesInvoiceSyncInProgress(
       event.uploadOnly
-          ? 'Exporting Pending Documents to Sage X3...'
-          : 'Synchronizing Mobile Sales Data...',
+          ? 'Exporting Pending Documents to Sage X3 via SOAP...'
+          : (event.downloadOnly
+              ? 'Synchronizing Master Data & Stock from Sage X3...'
+              : 'Synchronizing Mobile Sales Data...'),
     ));
 
     try {
       final batchResult = await _useCase.execute(
         siteCode: event.siteCode,
         uploadOnly: event.uploadOnly,
+        downloadOnly: event.downloadOnly,
       );
       if (batchResult.isTotalFailure) {
         emit(SalesInvoiceSyncFailure(

@@ -1,0 +1,30 @@
+                         {{COMPANYNAME}}
+
+
+ {{BUVATREG}} 
+ {{BUBRN}} 
+			                    FROZEN FOODS
+                                     MFD, Zone 5,Mer Rouge,
+                                     Port - Louis, Mauritius 
+                                     Customer Service: 2065880
+                                     Fax: (230) 466 1787
+
+	             {{INVENTORYHEADERTEXT}}
+
+ Voucher No       :  {{INVOICENO}}
+ Store            :  {{STORE}}
+ Salesman         :  {{SALESMAN}}
+ Print Date Time  : {{PRINTINGDATETIME}}           
+ --------------------------------------------------------------------
+   CODE                    DESCRIPTION                       QTY
+ --------------------------------------------------------------------
+  {{ProdCode}}    {{ProdDescription}}          {{ProdQty}}({{UOMCODE}})
+
+ --------------------------------------------------------------------
+ Salesman: {{SALESMAN}} 
+
+ Signature: ........................ 
+
+ Stock Controller Name     : .........................
+
+ Stock Controller Signature: .........................

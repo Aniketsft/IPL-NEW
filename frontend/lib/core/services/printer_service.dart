@@ -9,6 +9,9 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enterprise_auth_mobile/core/services/tcp_print_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/zpl_generator.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:image/image.dart' as img;
 
 enum PrintMode { system, directIp, bluetooth }
 
@@ -19,7 +22,7 @@ class PrinterService {
   static const MethodChannel _bluetoothChannel = MethodChannel('com.enterprise.auth/bluetooth');
 
   late SharedPreferences _prefs;
-  PrintMode _mode = PrintMode.directIp;
+  PrintMode _mode = PrintMode.bluetooth;
   List<PrinterDevice> _printers = [];
   String? _defaultDirectIpPrinterId;
   String? _defaultSystemPrinterId;
@@ -27,8 +30,8 @@ class PrinterService {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    final modeIndex = _prefs.getInt('print_mode') ?? 1;
-    _mode = modeIndex < PrintMode.values.length ? PrintMode.values[modeIndex] : PrintMode.directIp;
+    final modeIndex = _prefs.getInt('print_mode') ?? PrintMode.bluetooth.index;
+    _mode = modeIndex < PrintMode.values.length ? PrintMode.values[modeIndex] : PrintMode.bluetooth;
     
     final printersJson = _prefs.getString('printers_list');
     if (printersJson != null) {
@@ -528,79 +531,164 @@ class PrinterService {
     // we can eventually move the logic here.
   }
 
+  Future<bool> ensureBluetoothPermissions() async {
+    try {
+      // Android 12+ (API 31+) permissions
+      if (await Permission.bluetoothScan.isDenied) {
+        await Permission.bluetoothScan.request();
+      }
+      if (await Permission.bluetoothConnect.isDenied) {
+        await Permission.bluetoothConnect.request();
+      }
+      if (await Permission.bluetooth.isDenied) {
+        await Permission.bluetooth.request();
+      }
+      // Location fallback for Android 10/11
+      if (await Permission.location.isDenied) {
+        await Permission.location.request();
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PrinterService.ensureBluetoothPermissions error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> connectBluetoothPrinter(String macAddress) async {
+    try {
+      // 1. Ensure runtime permissions are granted
+      await ensureBluetoothPermissions();
+
+      // 2. Check if Bluetooth is turned on on phone
+      try {
+        final bool isBtEnabled = await PrintBluetoothThermal.bluetoothEnabled;
+        if (!isBtEnabled) {
+          throw Exception("Bluetooth is currently turned OFF. Please turn on Bluetooth in device settings.");
+        }
+      } catch (e) {
+        if (e is Exception && e.toString().contains('turned OFF')) {
+          rethrow;
+        }
+        debugPrint('PrinterService: bluetoothEnabled check warning: $e');
+      }
+
+      // 3. Check existing connection
+      final bool isConnected = await PrintBluetoothThermal.connectionStatus;
+      if (isConnected) {
+        return true;
+      }
+
+      // 4. Connect to printer by MAC address
+      bool connected = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
+      debugPrint('PrinterService.connect($macAddress) -> $connected');
+
+      // Retry once if connection failed (frequently needed right after cancelDiscovery)
+      if (!connected) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        connected = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
+        debugPrint('PrinterService.connect retry($macAddress) -> $connected');
+      }
+
+      return connected;
+    } catch (e) {
+      debugPrint('PrinterService.connectBluetoothPrinter error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> disconnectBluetooth() async {
+    try {
+      await PrintBluetoothThermal.disconnect;
+    } catch (e) {
+      debugPrint('PrinterService.disconnectBluetooth error: $e');
+    }
+  }
+
+  Future<bool> _writeBytesInChunks(List<int> bytes, {int chunkSize = 4096}) async {
+    debugPrint('PrinterService: writing ${bytes.length} bytes to Bluetooth socket...');
+    for (int i = 0; i < bytes.length; i += chunkSize) {
+      final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+      final chunk = bytes.sublist(i, end);
+      final ok = await PrintBluetoothThermal.writeBytes(chunk);
+      if (!ok) {
+        debugPrint('PrinterService: writeBytes failed at offset $i (chunk size ${chunk.length})');
+        return false;
+      }
+      if (end < bytes.length) {
+        await Future.delayed(const Duration(milliseconds: 20));
+      }
+    }
+    debugPrint('PrinterService: write completed successfully (${bytes.length} bytes)');
+    return true;
+  }
+
   Future<void> testPrintBluetooth() async {
     final printer = defaultBluetoothPrinter;
-    if (printer == null) {
-      throw Exception("No default Bluetooth printer configured. Please add and set a default Bluetooth printer first.");
+    if (printer == null || printer.macAddress == null || printer.macAddress!.isEmpty) {
+      throw Exception("No default Bluetooth printer configured. Please add and set a default Bluetooth printer first in PRINTER MANAGEMENT.");
     }
 
-    final doc = pw.Document();
-    doc.addPage(
-      pw.Page(
-        pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, 80 * PdfPageFormat.mm),
-        build: (pw.Context context) {
-          return pw.Padding(
-            padding: const pw.EdgeInsets.all(12),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text('ENTERPRISE MOBILE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                pw.Text('BLUETOOTH TEST PRINT', style: const pw.TextStyle(fontSize: 10)),
-                pw.Divider(thickness: 1),
-                pw.SizedBox(height: 4),
-                pw.Text('Printer: ${printer.name}', style: const pw.TextStyle(fontSize: 10)),
-                pw.Text('Model: ${printer.printerModel}', style: const pw.TextStyle(fontSize: 10)),
-                if (printer.macAddress != null && printer.macAddress!.isNotEmpty)
-                  pw.Text('MAC: ${printer.macAddress}', style: const pw.TextStyle(fontSize: 8)),
-                pw.SizedBox(height: 8),
-                pw.BarcodeWidget(
-                  barcode: pw.Barcode.qrCode(),
-                  data: 'BT_TEST_${DateTime.now().millisecondsSinceEpoch}',
-                  width: 60,
-                  height: 60,
-                ),
-                pw.SizedBox(height: 8),
-                pw.Text('STATUS: OK', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                pw.Text(DateTime.now().toString().substring(0, 19), style: const pw.TextStyle(fontSize: 8)),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+    final isConnected = await connectBluetoothPrinter(printer.macAddress!);
+    if (!isConnected) {
+      throw Exception("Could not connect to '${printer.name}' (${printer.macAddress}). Please verify the printer is turned on and paired in Bluetooth settings.");
+    }
 
-    Printer? targetPrinter;
     try {
-      final available = await Printing.listPrinters();
-      targetPrinter = available.firstWhere(
-        (p) => p.name.toLowerCase() == printer.name.toLowerCase() ||
-               (printer.macAddress != null && p.url.toLowerCase().contains(printer.macAddress!.toLowerCase())),
-      );
-    } catch (_) {}
+      debugPrint('PrinterService.testPrintBluetooth generating test receipt...');
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
 
-    if (targetPrinter != null) {
-      await Printing.directPrintPdf(
-        printer: targetPrinter,
-        onLayout: (format) async => doc.save(),
+      bytes += generator.reset();
+      bytes += generator.text(
+        'ENTERPRISE MOBILE',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+          bold: true,
+        ),
       );
-    } else {
-      await Printing.layoutPdf(
-        onLayout: (format) async => doc.save(),
-        name: 'BT_Test_${printer.name}',
+      bytes += generator.text(
+        'SEWOO LK-P43II TEST',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+        linesAfter: 1,
       );
+      bytes += generator.hr();
+      bytes += generator.text('Printer: ${printer.name}');
+      bytes += generator.text('Model: ${printer.printerModel}');
+      if (printer.macAddress != null) {
+        bytes += generator.text('MAC: ${printer.macAddress}');
+      }
+      bytes += generator.text('Status: CONNECTED (OK)');
+      bytes += generator.text('Time: ${DateTime.now().toString().substring(0, 19)}');
+      bytes += generator.hr();
+      bytes += generator.qrcode('SEWOO_BT_TEST_${DateTime.now().millisecondsSinceEpoch}', size: QRSize.size6);
+      bytes += generator.feed(4);
+
+      final success = await _writeBytesInChunks(bytes);
+      debugPrint('PrinterService.testPrintBluetooth completed: $success');
+    } catch (e) {
+      debugPrint('PrinterService.testPrintBluetooth error: $e');
+      rethrow;
     }
   }
 
   Future<List<Map<String, String>>> getPairedBluetoothDevices() async {
     try {
-      // On Android 12+ (API 31+), bluetoothConnect runtime permission is required.
-      // Wrap in try-catch so older Android versions (which don't have this permission) don't throw.
+      await ensureBluetoothPermissions();
+
+      // Try PrintBluetoothThermal plugin first
       try {
-        if (await Permission.bluetoothConnect.isDenied) {
-          await Permission.bluetoothConnect.request();
+        final List<BluetoothInfo> list = await PrintBluetoothThermal.pairedBluetooths;
+        if (list.isNotEmpty) {
+          return list.map((item) => {
+            'name': item.name.isNotEmpty ? item.name : 'Unknown Device',
+            'address': item.macAdress,
+          }).toList();
         }
-      } catch (e) {
-        debugPrint('BluetoothConnect permission check skipped: $e');
+      } catch (btErr) {
+        debugPrint('PrintBluetoothThermal.pairedBluetooths fallback: $btErr');
       }
 
       final result = await _bluetoothChannel.invokeMethod<List<dynamic>>('getPairedDevices');
@@ -615,6 +703,140 @@ class PrinterService {
     } catch (e) {
       debugPrint('getPairedBluetoothDevices error: $e');
       return [];
+    }
+  }
+
+  /// Prints monospaced 68-column lines directly using native ESC/POS text
+  /// commands (matching [testPrintBluetooth]) on the Sewoo LK-P43II.
+  Future<bool> printThermalLinesViaBluetooth({
+    required List<({String text, bool bold})> lines,
+    required String documentName,
+  }) async {
+    final printer = defaultBluetoothPrinter;
+    if (printer == null || printer.macAddress == null || printer.macAddress!.isEmpty) {
+      throw Exception(
+        "No default Bluetooth printer configured. Please go to PRINTER MANAGEMENT and set your Sewoo LK-P43II as the default Bluetooth printer.",
+      );
+    }
+
+    try {
+      debugPrint('PrinterService.printThermalLinesViaBluetooth starting for $documentName (${lines.length} lines)');
+
+      final isConnected = await connectBluetoothPrinter(printer.macAddress!);
+      if (!isConnected) {
+        throw Exception(
+          "Could not connect to Bluetooth printer '${printer.name}' (${printer.macAddress}). Please ensure printer is powered on and in range.",
+        );
+      }
+
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
+
+      bytes += generator.reset();
+      for (final line in lines) {
+        if (line.text.trim().isEmpty) {
+          bytes += generator.emptyLines(1);
+        } else {
+          bytes += generator.text(
+            line.text,
+            styles: PosStyles(
+              bold: line.bold,
+              fontType: PosFontType.fontA,
+            ),
+          );
+        }
+      }
+      bytes += generator.feed(4);
+
+      debugPrint('PrinterService: prepared ${bytes.length} bytes of native ESC/POS text for $documentName');
+      final bool success = await _writeBytesInChunks(bytes, chunkSize: 4096);
+      debugPrint('PrinterService: printThermalLinesViaBluetooth result: $success');
+      return success;
+    } catch (e, stack) {
+      debugPrint('PrinterService.printThermalLinesViaBluetooth error: $e\n$stack');
+      rethrow;
+    }
+  }
+
+  Future<bool> printPdfViaBluetooth({
+    required Uint8List pdfBytes,
+    required String documentName,
+  }) async {
+    final printer = defaultBluetoothPrinter;
+    if (printer == null || printer.macAddress == null || printer.macAddress!.isEmpty) {
+      throw Exception(
+        "No default Bluetooth printer configured. Please go to PRINTER MANAGEMENT and set your Sewoo LK-P43II as the default Bluetooth printer.",
+      );
+    }
+
+    try {
+      debugPrint('PrinterService.printPdfViaBluetooth starting for $documentName (${pdfBytes.length} bytes)');
+
+      // 1. Connect to Sewoo Bluetooth Thermal Printer via SPP
+      final isConnected = await connectBluetoothPrinter(printer.macAddress!);
+      if (!isConnected) {
+        throw Exception(
+          "Could not connect to Bluetooth printer '${printer.name}' (${printer.macAddress}). Please ensure printer is powered on and in range.",
+        );
+      }
+
+      // 2. Load ESC/POS Profile (Generic 80mm/104mm thermal printer)
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
+
+      bytes += generator.reset();
+
+      // 3. Rasterize PDF pages at 203 DPI (native Sewoo LK-P43II resolution)
+      int pageCount = 0;
+      await for (final page in Printing.raster(pdfBytes, dpi: 203)) {
+        pageCount++;
+        debugPrint('PrinterService: rasterizing page $pageCount...');
+        final pngBytes = await page.toPng();
+        var image = img.decodeImage(pngBytes);
+        if (image != null) {
+          // Composite onto an opaque white background: Printing.raster renders
+          // transparent RGBA (0,0,0,0) for empty paper, which esc_pos_utils_plus
+          // grayscale+invert turns into solid black (255).
+          final whiteBg = img.Image(width: image.width, height: image.height)
+            ..clear(img.ColorRgba8(255, 255, 255, 255));
+          img.compositeImage(whiteBg, image);
+          image = whiteBg;
+
+          // Constrain width to 832 dots (4.5" / 104 mm printable on LK-P43II @ 203 DPI)
+          // and align to a multiple of 8 so esc_pos_utils_plus never hits its
+          // fixed-length List.filled + insertAll bug on non-8-aligned widths (e.g. 831 px).
+          final int clampedWidth = image.width > 832 ? 832 : image.width;
+          final int alignedWidth = clampedWidth >= 8 ? (clampedWidth & ~7) : 8;
+          if (image.width != alignedWidth) {
+            image = img.copyResize(image, width: alignedWidth);
+          }
+
+          // Slice tall receipt images into vertical strips of 128 rows.
+          // This keeps each GS v 0 raster command under 10 KB, completely preventing
+          // buffer overflows in mobile thermal printers like Sewoo LK-P43II.
+          const int sliceHeight = 128;
+          for (int y = 0; y < image.height; y += sliceHeight) {
+            final int h = (y + sliceHeight <= image.height) ? sliceHeight : (image.height - y);
+            final slice = img.copyCrop(image, x: 0, y: y, width: image.width, height: h);
+            bytes += generator.imageRaster(slice, align: PosAlign.center);
+          }
+        }
+      }
+
+      debugPrint('PrinterService: prepared ${bytes.length} bytes of raster ESC/POS data across $pageCount page(s)');
+
+      // Feed paper for clean manual tear-off past the cutter bar
+      bytes += generator.feed(4);
+
+      // 4. Send directly to Bluetooth socket in chunks
+      final bool success = await _writeBytesInChunks(bytes, chunkSize: 4096);
+      debugPrint('PrinterService: printPdfViaBluetooth result: $success');
+      return success;
+    } catch (e, stack) {
+      debugPrint('PrinterService.printPdfViaBluetooth error: $e\n$stack');
+      rethrow;
     }
   }
 

@@ -8,10 +8,12 @@ class SynchronizeSalesInvoiceUseCase {
   Future<SyncBatchResult> execute({
     required String siteCode,
     bool uploadOnly = false,
+    bool downloadOnly = false,
   }) async {
     return await _repository.synchronizeSalesInvoiceData(
       siteCode,
       uploadOnly: uploadOnly,
+      downloadOnly: downloadOnly,
     );
   }
 }

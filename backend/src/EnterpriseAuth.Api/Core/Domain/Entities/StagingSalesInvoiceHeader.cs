@@ -79,7 +79,9 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         public string? TransactionMode { get; set; }
 
         [NotMapped]
-        [MaxLength(50)]
+        public string? SettlementType { get; set; }
+
+        [NotMapped]
         public string? TabletSource { get; set; }
 
         [NotMapped]

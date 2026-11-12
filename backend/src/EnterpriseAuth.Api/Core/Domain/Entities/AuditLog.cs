@@ -21,10 +21,16 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("EntityIdString")]
         public string EntityIdString { get; set; } = string.Empty;
 
+        private string _actionType = string.Empty;
+
         [Required]
         [MaxLength(20)]
         [Column("ActionType")]
-        public string ActionType { get; set; } = string.Empty; // INSERT, UPDATE, DELETE
+        public string ActionType
+        {
+            get => _actionType;
+            set => _actionType = value != null && value.Length > 20 ? value.Substring(0, 20) : (value ?? string.Empty);
+        }
 
         [Column("Payload")]
         public string? Payload { get; set; }

@@ -19,6 +19,7 @@ import '../../../domain/services/pricing_engine_service.dart';
 import '../../../domain/models/transaction_config.dart';
 import '../../../../../core/secure_storage_service.dart';
 import '../../../../../core/services/device_info_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/industrial_numeric_keypad.dart';
 import 'lot_selection_screen.dart';
 
 class AddItemDetailScreen extends StatefulWidget {
@@ -45,8 +46,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   String _formatQty(num val) =>
       val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(2);
 
-  int _quantity = 1;
-  final TextEditingController _qtyController = TextEditingController(text: '1');
+  int _quantity = 0;
+  final TextEditingController _qtyController = TextEditingController();
+  final FocusNode _qtyFocusNode = FocusNode();
 
   final TextEditingController _basePriceController = TextEditingController();
   double get _basePrice => double.tryParse(_basePriceController.text) ?? 0.0;
@@ -58,6 +60,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   final TextEditingController _discountAmtController = TextEditingController(
     text: '0.00',
   );
+  final FocusNode _discountFocusNode = FocusNode();
+  final FocusNode _discountAmtFocusNode = FocusNode();
   bool _isManualDiscount = false;
 
   double _vatRatePercent = 0.0; // Automatically resolved via VAT Matrix
@@ -87,6 +91,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   final PricingEngineService _pricingEngine = PricingEngineService();
 
   double _originalInvoicedQty = 0.0;
+  bool _isKeypadExpanded = true;
 
   TransactionConfig get _txConfig {
     try {
@@ -108,6 +113,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         ? widget.product.warehouse
         : (DeviceInfoService.instance.assignedWarehouse ?? '');
     _location = DeviceInfoService.instance.assignedLocation ?? '';
+    _isKeypadExpanded = widget.existingItem == null;
     if (widget.existingItem != null) {
       _quantity = widget.existingItem!.quantity.toInt();
       _originalInvoicedQty = widget.existingItem!.quantity;
@@ -144,10 +150,53 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         _loadSpecificLotStock();
       }
     } else {
+      _quantity = 0;
+      _qtyController.text = '';
       if (!_isReturnMode) {
         _loadItemStocks().then((_) => _resolvePrice());
       }
     }
+
+    _discountFocusNode.addListener(() {
+      if (_discountFocusNode.hasFocus) {
+        _discountController.clear();
+      } else {
+        if (_discountController.text.trim().isEmpty) {
+          _discountController.text = _discountPercent.toStringAsFixed(_discountPercent % 1 == 0 ? 0 : 2);
+        }
+      }
+    });
+    _discountAmtFocusNode.addListener(() {
+      if (_discountAmtFocusNode.hasFocus) {
+        _discountAmtController.clear();
+      } else {
+        if (_discountAmtController.text.trim().isEmpty) {
+          final lineGross = _basePrice * _quantity;
+          final amt = lineGross * (_discountPercent / 100.0);
+          _discountAmtController.text = amt.toStringAsFixed(2);
+        }
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _qtyFocusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _qtyController.dispose();
+    _qtyFocusNode.dispose();
+    _basePriceController.dispose();
+    _discountController.dispose();
+    _discountAmtController.dispose();
+    _discountFocusNode.dispose();
+    _discountAmtFocusNode.dispose();
+    PricingEngineService.clearCache();
+    super.dispose();
   }
 
   Future<void> _resolvePrice({bool immediate = false, bool forceRefresh = false}) async {
@@ -190,7 +239,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         bpcsho: bpcsho,
         facilityFlag: facilityFlag,
         sku: widget.product.sku,
-        qty: _quantity.toDouble(),
+        qty: _quantity > 0 ? _quantity.toDouble() : 1.0,
         siteCode: siteCode,
         forceRefresh: forceRefresh,
       );
@@ -200,13 +249,17 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         setState(() {
           _basePriceController.text = result.basePrice.toStringAsFixed(2);
           if (!_isManualDiscount) {
-            _discountPercent = result.discountPct;
-            _discountController.text = result.discountPct.toString();
+            _discountPercent = result.discountPct.clamp(0.0, 5.0);
+            _discountController.text = _discountPercent.toString();
             final initDiscAmt = result.basePrice * _quantity * (_discountPercent / 100);
             _discountAmtController.text = initDiscAmt.toStringAsFixed(2);
             _discountAmountFlat = result.discountAmountFlat;
             _priceSource = result.source;
           } else {
+            if (_discountPercent > 5.0) {
+              _discountPercent = 5.0;
+              _discountController.text = '5.00';
+            }
             final lineGross = result.basePrice * _quantity;
             final amt = lineGross * (_discountPercent / 100.0);
             _discountAmtController.text = amt.toStringAsFixed(2);
@@ -356,16 +409,6 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _qtyController.dispose();
-    _discountController.dispose();
-    _discountAmtController.dispose();
-    _basePriceController.dispose();
-    PricingEngineService.clearCache();
-    super.dispose();
-  }
-
   bool get _isSalesOrder {
     try {
       final state = context.read<SalesInvoiceBloc>().state;
@@ -390,40 +433,108 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   void _syncDiscountAmtFromPercent() {
     final lineGross = _basePrice * _quantity;
+    if (_discountPercent > 5.0) {
+      _discountPercent = 5.0;
+      _discountController.text = '5.00';
+    }
     final amt = lineGross * (_discountPercent / 100.0);
     _discountAmtController.text = amt.toStringAsFixed(2);
   }
 
   void _onDiscountPercentChanged(String val) {
     _isManualDiscount = true;
-    final parsedPct = double.tryParse(val.trim());
-    if (parsedPct == null) {
+    final trimmed = val.trim();
+    if (trimmed.isEmpty) {
       _discountPercent = 0.0;
-      _discountAmtController.text = '0.00';
+      _discountAmtController.text = '';
       setState(() {});
       return;
     }
-    _discountPercent = parsedPct.clamp(0.0, 100.0);
+    final parsedPct = double.tryParse(trimmed);
+    if (parsedPct == null) {
+      _discountPercent = 0.0;
+      _discountAmtController.text = '';
+      setState(() {});
+      return;
+    }
+
     final lineGross = _basePrice * _quantity;
-    final amt = lineGross * (_discountPercent / 100.0);
-    _discountAmtController.text = amt.toStringAsFixed(2);
+    if (parsedPct > 5.0) {
+      _discountPercent = 5.0;
+      _discountController.value = const TextEditingValue(
+        text: '5.00',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+      final amt = lineGross * 0.05;
+      _discountAmtController.text = amt.toStringAsFixed(2);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum discount allowed is 5%'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else if (parsedPct < 0.0) {
+      _discountPercent = 0.0;
+      _discountController.value = const TextEditingValue(
+        text: '0.00',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+      _discountAmtController.text = '0.00';
+    } else {
+      _discountPercent = parsedPct;
+      final amt = lineGross * (_discountPercent / 100.0);
+      _discountAmtController.text = amt.toStringAsFixed(2);
+    }
     setState(() {});
   }
 
   void _onDiscountAmtChanged(String val) {
     _isManualDiscount = true;
-    final parsedAmt = double.tryParse(val.trim());
+    final trimmed = val.trim();
     final lineGross = _basePrice * _quantity;
-    if (parsedAmt == null || lineGross <= 0) {
+    if (trimmed.isEmpty || lineGross <= 0) {
       _discountPercent = 0.0;
-      _discountController.text = '0.00';
+      _discountController.text = '';
       setState(() {});
       return;
     }
-    final clampedAmt = parsedAmt.clamp(0.0, lineGross);
-    final pct = (clampedAmt / lineGross) * 100.0;
-    _discountPercent = double.parse(pct.toStringAsFixed(2));
-    _discountController.text = _discountPercent.toStringAsFixed(2);
+    final parsedAmt = double.tryParse(trimmed);
+    if (parsedAmt == null) {
+      _discountPercent = 0.0;
+      _discountController.text = '';
+      setState(() {});
+      return;
+    }
+
+    final maxAllowedAmt = double.parse((lineGross * 0.05).toStringAsFixed(2));
+    if (parsedAmt > maxAllowedAmt) {
+      _discountPercent = 5.0;
+      _discountController.text = '5.00';
+      final maxAmtStr = maxAllowedAmt.toStringAsFixed(2);
+      _discountAmtController.value = TextEditingValue(
+        text: maxAmtStr,
+        selection: TextSelection.collapsed(offset: maxAmtStr.length),
+      );
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Maximum discount allowed is 5% (Rs $maxAmtStr)'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else if (parsedAmt < 0.0) {
+      _discountPercent = 0.0;
+      _discountController.text = '0.00';
+      _discountAmtController.value = const TextEditingValue(
+        text: '0.00',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+    } else {
+      final pct = (parsedAmt / lineGross) * 100.0;
+      _discountPercent = double.parse(pct.toStringAsFixed(2));
+      _discountController.text = _discountPercent.toStringAsFixed(_discountPercent % 1 == 0 ? 0 : 2);
+    }
     setState(() {});
   }
 
@@ -450,6 +561,32 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     });
 
     _resolvePrice(immediate: true);
+  }
+
+  void _handleQtyInput(String val) {
+    final parsed = int.tryParse(val.trim());
+    if (parsed != null && parsed > 0) {
+      int updatedQty = parsed;
+      if (_enforceLimit) {
+        if (updatedQty > _maxValidQty) {
+          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_formatQty(_maxValidQty)}).');
+          _qtyController.text = _quantity.toString();
+          return;
+        }
+      } else if (!_isSalesOrder && _maxValidQty > 0 && updatedQty > _maxValidQty) {
+        _showStockErrorDialog(
+          'Insufficient stock in this lot (${_formatQty(_maxValidQty)} available). Please adjust.',
+        );
+        _qtyController.text = _quantity.toString();
+        return;
+      }
+      setState(() => _quantity = updatedQty);
+      _syncDiscountAmtFromPercent();
+      _resolvePrice();
+    } else {
+      setState(() => _quantity = 0);
+      _syncDiscountAmtFromPercent();
+    }
   }
 
   double get _discountAmount =>
@@ -504,15 +641,30 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
         perms.contains('admin') ||
         perms.contains('*');
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+    return PopScope(
+      canPop: !_isKeypadExpanded,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isKeypadExpanded) {
+          setState(() => _isKeypadExpanded = false);
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: theme.colorScheme.surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: theme.primaryColor),
+            onPressed: () {
+              if (_isKeypadExpanded) {
+                setState(() => _isKeypadExpanded = false);
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
         title: Text(
           widget.existingItem != null
               ? 'Edit Item [${_txConfig.abbreviation}]'
@@ -676,6 +828,14 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                       setState(() {});
                     },
                   ),
+                  if (!isFocLocked && (_basePrice <= 0.0001 || (_priceAfterDiscount + _vatAmount) <= 0.0001))
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        'Amount is 0.00 — Product cannot be added with zero amount',
+                        style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   if (!canOverridePrice)
                     const Padding(
                       padding: EdgeInsets.only(top: 4.0),
@@ -708,25 +868,35 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     children: [
                       Expanded(
                         child: _buildInputField(
-                          'Discount %',
+                          'Discount % (Max 5%)',
                           _discountController,
                           isDark,
+                          focusNode: _discountFocusNode,
                           suffixText: '%',
+                          hintText: '0',
                           enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
                           onChanged: _onDiscountPercentChanged,
+                          onTap: () {
+                            _discountController.clear();
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildInputField(
-                          'Discount Amt',
+                          'Discount Amt (Max 5%)',
                           _discountAmtController,
                           isDark,
+                          focusNode: _discountAmtFocusNode,
                           prefixText: 'Rs ',
                           cardAlignRight: true,
                           isRed: true,
+                          hintText: '0.00',
                           enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
                           onChanged: _onDiscountAmtChanged,
+                          onTap: () {
+                            _discountAmtController.clear();
+                          },
                         ),
                       ),
                     ],
@@ -836,10 +1006,21 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                               Expanded(
                                 child: TextField(
                                   controller: _qtyController,
+                                  focusNode: _qtyFocusNode,
+                                  autofocus: true,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _submitOrder(),
                                   textAlign: TextAlign.center,
-                                  keyboardType: TextInputType.number,
+                                  readOnly: true,
+                                  showCursor: true,
+                                  keyboardType: TextInputType.none,
                                   enabled: !isFocLocked,
-                                  decoration: const InputDecoration(
+                                  onTap: () {
+                                    if (!_isKeypadExpanded) {
+                                      setState(() => _isKeypadExpanded = true);
+                                    }
+                                  },
+                                  decoration: InputDecoration(
                                     border: InputBorder.none,
                                     focusedBorder: InputBorder.none,
                                     enabledBorder: InputBorder.none,
@@ -847,36 +1028,19 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                                     isDense: true,
                                     filled: false,
                                     contentPadding: EdgeInsets.zero,
+                                    hintText: '0',
+                                    hintStyle: TextStyle(
+                                      color: isDark ? Colors.white38 : Colors.black38,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
                                   ),
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: isFocLocked ? Colors.grey : (isDark ? Colors.white : Colors.black),
                                   ),
-                                  onChanged: (val) {
-                                    final parsed = int.tryParse(val);
-                                    if (parsed != null && parsed > 0) {
-                                      int updatedQty = parsed;
-                                      if (_enforceLimit) {
-                                        if (updatedQty > _maxValidQty) {
-                                          _showStockErrorDialog('Cannot exceed original invoiced quantity (${_formatQty(_maxValidQty)}).');
-                                          _qtyController.text = _quantity.toString();
-                                          return;
-                                        }
-                                      } else if (!_isSalesOrder &&
-                                          _maxValidQty > 0 &&
-                                          updatedQty > _maxValidQty) {
-                                        _showStockErrorDialog(
-                                          'Insufficient stock in this lot (${_formatQty(_maxValidQty)} available). Please adjust.',
-                                        );
-                                        _qtyController.text = _quantity.toString();
-                                        return;
-                                      }
-                                      setState(() => _quantity = updatedQty);
-                                      _syncDiscountAmtFromPercent();
-                                      _resolvePrice();
-                                    }
-                                  },
+                                  onChanged: _handleQtyInput,
                                 ),
                               ),
                               _buildStepperButton(
@@ -984,278 +1148,326 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                   ),
                 ],
 
-                // Add/Cancel Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            if (widget.editingIndex != null) {
-                              Navigator.of(context).pop();
-                            } else {
-                              Navigator.of(context)
-                                ..pop()
-                                ..pop();
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: Colors.grey.withOpacity(0.3),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                // Large Industrial Numeric Keypad (Collapsible)
+                IndustrialNumericKeypad(
+                  isExpanded: _isKeypadExpanded,
+                  onToggleExpanded: () {
+                    setState(() {
+                      _isKeypadExpanded = !_isKeypadExpanded;
+                    });
+                  },
+                  onDigitPressed: (digit) {
+                    String current = _qtyController.text.trim();
+                    if (current == '0') current = '';
+                    String next = current + digit;
+                    _qtyController.text = next;
+                    _handleQtyInput(next);
+                  },
+                  onClear: () {
+                    _qtyController.text = '';
+                    _handleQtyInput('');
+                  },
+                  onBackspace: () {
+                    String current = _qtyController.text.trim();
+                    if (current.isNotEmpty) {
+                      String next = current.substring(0, current.length - 1);
+                      _qtyController.text = next;
+                      _handleQtyInput(next);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+
+                // Giant ENTER / ADD Button
+                SizedBox(
+                  height: 60,
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _quantity > 0 ? _submitOrder : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: (!isFocLocked && (_basePrice <= 0.0001 || (_priceAfterDiscount + _vatAmount) <= 0.0001))
+                          ? Colors.grey.shade700
+                          : theme.primaryColor,
+                      disabledBackgroundColor: isDark ? Colors.grey[850] : Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    icon: Icon(
+                      (!isFocLocked && (_basePrice <= 0.0001 || (_priceAfterDiscount + _vatAmount) <= 0.0001))
+                          ? Icons.block
+                          : Icons.check_circle_rounded,
+                      size: 24,
+                      color: _quantity > 0 ? Colors.white : (isDark ? Colors.grey[600] : Colors.grey[400]),
+                    ),
+                    label: Text(
+                      _quantity > 0
+                          ? (!isFocLocked && (_basePrice <= 0.0001 || (_priceAfterDiscount + _vatAmount) <= 0.0001)
+                              ? 'CANNOT ADD (ZERO AMOUNT)'
+                              : (_isReturnMode
+                                  ? 'CONFIRM RETURN ($_quantity)'
+                                  : widget.editingIndex != null
+                                      ? 'UPDATE ORDER (${CurrencyFormatter.format(_priceAfterDiscount + _vatAmount)})'
+                                      : 'ADD TO ORDER (${CurrencyFormatter.format(_priceAfterDiscount + _vatAmount)})'))
+                          : 'ENTER QUANTITY',
+                      style: TextStyle(
+                        color: _quantity > 0 ? Colors.white : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        letterSpacing: 0.8,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: SizedBox(
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (_debounce?.isActive == true || _isResolvingPrice) {
-                              _debounce!.cancel();
-                              await _resolvePriceNow();
-                            }
-                            if (!_isSalesOrder && _quantity > _maxValidQty) {
-                              _showStockErrorDialog(
-                                'Cannot proceed: Insufficient stock in this lot (${_formatQty(_maxValidQty)} available).',
-                              );
-                              return;
-                            }
+                  ),
+                ),
+                const SizedBox(height: 6),
 
-                            final item = CartItem(
-                              product: widget.product,
-                              quantity: _quantity.toDouble(),
-                              lotNumber: _lotNumber,
-                              warehouse: _warehouse,
-                              warehouseName: _warehouseName,
-                              location: _location,
-                              locationType: _locationType,
-                              basePrice: _basePrice,
-                              discountPercent: _discountPercent,
-                              vatRatePercent: _vatRatePercent,
-                              taxRule: _taxRuleCode,
-                              isFoc: isFocLocked,
-                              pricingSource: _isManualDiscount ? 'MANUAL' : _priceSource,
-                              discountAmountFlat: _discountAmountFlat,
-                              priceListCode: _priceListCode,
-                              reasonType: _reasonType,
-                            );
-
-                            CartItem? focItem;
-                            if (!isFocLocked && _hasFoc && _focQuantity > 0) {
-                              final bool isSameItem = _focItemSku.isEmpty || _focItemSku == widget.product.sku;
-                              final String targetFocSku = _focItemSku.isEmpty ? widget.product.sku : _focItemSku;
-                              
-                              String focName = '';
-                              String focLotNumber = '';
-                              String focWarehouse = '';
-                              String focWarehouseName = '';
-                              String focLocation = '';
-                              String focLocationType = '';
-                              String focSalesUnit = 'EA';
-                              double focTotalStock = 0.0;
-                              
-                              final db = await LocalDatabaseHelper.instance.database;
-
-                              final sumResult = await db.rawQuery(
-                                'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
-                                [targetFocSku.trim()]
-                              );
-                              if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
-                                focTotalStock = (sumResult.first['total'] as num).toDouble();
-                              }
-
-                              if (focTotalStock <= 0.0001) {
-                                if (mounted) {
-                                  await showDialog<void>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: const Text('FOC Promotion Unavailable'),
-                                      content: Text(
-                                        'Purchasing ${widget.product.name} qualifies for free item ($targetFocSku), but $targetFocSku is currently out of stock in van inventory. It will not be added.',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx),
-                                          child: const Text('OK'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-                              } else {
-                                if (isSameItem) {
-                                  focName = widget.product.name;
-                                  focSalesUnit = widget.product.salesUnit.isNotEmpty ? widget.product.salesUnit : 'EA';
-                                  focLotNumber = _lotNumber;
-                                  focWarehouse = _warehouse;
-                                  focWarehouseName = _warehouseName;
-                                  focLocation = _location;
-                                  focLocationType = _locationType;
-                                } else {
-                                  final lotRows = await db.query(
-                                    LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-                                    where: 'itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "") AND totalQty > 0',
-                                    whereArgs: [targetFocSku.trim()],
-                                    orderBy: 'totalQty DESC',
-                                    limit: 1,
-                                  );
-                                  if (lotRows.isNotEmpty) {
-                                    final r = lotRows.first;
-                                    focName = r['itemName']?.toString() ?? '';
-                                    focSalesUnit = (r['salesUnit'] as String?)?.trim().isNotEmpty == true
-                                        ? (r['salesUnit'] as String).trim()
-                                        : 'EA';
-                                    focLotNumber = r['lotNumber']?.toString() ?? '';
-                                    focWarehouse = r['warehouse']?.toString() ?? '';
-                                    focWarehouseName = r['warehouseName']?.toString() ?? '';
-                                    focLocation = r['location']?.toString() ?? '';
-                                    focLocationType = r['locationType']?.toString() ?? '';
-                                  }
-                                }
-
-                                if (focLotNumber.isEmpty) {
-                                  final anyLot = await db.query(
-                                    LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
-                                    where: 'itemCode = ?',
-                                    whereArgs: [targetFocSku.trim()],
-                                    limit: 1,
-                                  );
-                                  if (anyLot.isNotEmpty) {
-                                    final r = anyLot.first;
-                                    focLotNumber = r['lotNumber']?.toString() ?? '';
-                                    focWarehouse = r['warehouse']?.toString() ?? '';
-                                    focWarehouseName = r['warehouseName']?.toString() ?? '';
-                                    focLocation = r['location']?.toString() ?? '';
-                                    focLocationType = r['locationType']?.toString() ?? '';
-                                    if (focName.isEmpty) focName = r['itemName']?.toString() ?? '';
-                                  }
-                                }
-
-                                final focProduct = isSameItem 
-                                  ? widget.product 
-                                  : SalesInvoiceProductModel(
-                                      sku: targetFocSku,
-                                      name: focName.isNotEmpty ? focName : targetFocSku,
-                                      stockQty: focTotalStock,
-                                      warehouse: focWarehouse,
-                                      salesUnit: focSalesUnit,
-                                      cce0: '',
-                                    );
-
-                                focItem = CartItem(
-                                  product: focProduct,
-                                  quantity: _focQuantity,
-                                  basePrice: 0.0,
-                                  discountPercent: 100.0,
-                                  lotNumber: focLotNumber,
-                                  warehouse: focWarehouse,
-                                  warehouseName: focWarehouseName,
-                                  location: focLocation,
-                                  locationType: focLocationType,
-                                  vatRatePercent: _vatRatePercent,
-                                  taxRule: _taxRuleCode,
-                                  isFoc: true,
-                                  mainItemSku: widget.product.sku,
-                                  pricingSource: _priceSource,
-                                  discountAmountFlat: 0.0,
-                                  priceListCode: _priceListCode,
-                                  reasonType: _reasonType,
-                                );
-                              }
-                            }
-
-                            if (!mounted) return;
-                            
-                            final bloc = context.read<SalesInvoiceBloc>();
-                            final state = bloc.state;
-                            if (state is! SalesInvoiceLoaded) return;
-
-                            if (widget.editingIndex != null) {
-                              bloc.add(UpdateCartItem(widget.editingIndex!, item));
-                              if (focItem == null) {
-                                bloc.add(RemoveLinkedFocItem(widget.product.sku));
-                              }
-                              if (_isReturnMode && state.transactionType == 'PREVIEW_INVOICE' && _quantity > 0) {
-                                bloc.add(ConvertToCreditNote());
-                              }
-                              
-                              if (focItem != null) {
-                                final cartItems = state.cartItems;
-                                int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && (i.mainItemSku == widget.product.sku || i.product.sku == focItem!.product.sku));
-                                if (existingFocIndex != -1) {
-                                  final existingFoc = cartItems[existingFocIndex];
-                                  focItem = focItem!.copyWith(
-                                    lotNumber: existingFoc.lotNumber, 
-                                    location: existingFoc.location, 
-                                    warehouse: existingFoc.warehouse,
-                                    warehouseName: existingFoc.warehouseName,
-                                    locationType: existingFoc.locationType
-                                  );
-                                  bloc.add(UpdateCartItem(existingFocIndex, focItem!));
-                                } else {
-                                  bloc.add(AddCartItem(focItem!));
-                                }
-                              }
-                              if (widget.fromProductSelection) {
-                                Navigator.of(context)..pop()..pop();
-                              } else {
-                                Navigator.of(context).pop();
-                              }
-                            } else {
-                              bloc.add(AddCartItem(item));
-                              if (focItem != null) {
-                                bloc.add(AddCartItem(focItem!));
-                              }
-                              Navigator.of(context)
-                                ..pop()
-                                ..pop();
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            _isReturnMode
-                                ? 'Confirm Return Qty'
-                                : widget.editingIndex != null
-                                    ? 'Update Order'
-                                    : 'Add to Order',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
+                // Cancel Button
+                SizedBox(
+                  height: 36,
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
+    ),
+  );
+}
+
+  Future<void> _submitOrder() async {
+    if (_quantity <= 0) {
+      _showStockErrorDialog('Please enter a valid quantity.');
+      return;
+    }
+    if (_debounce?.isActive == true || _isResolvingPrice) {
+      _debounce?.cancel();
+      await _resolvePriceNow();
+    }
+    if (!_isSalesOrder && _quantity > _maxValidQty) {
+      _showStockErrorDialog(
+        'Cannot proceed: Insufficient stock in this lot (${_formatQty(_maxValidQty)} available).',
+      );
+      return;
+    }
+
+    final bool isFocLocked = widget.existingItem?.isFoc == true;
+
+    if (!isFocLocked && (_basePrice <= 0.0001 || (_priceAfterDiscount + _vatAmount) <= 0.0001)) {
+      _showStockErrorDialog('Cannot add product with 0.00 amount. Product price must be greater than zero.');
+      return;
+    }
+
+    if (!isFocLocked && _discountPercent > 5.0001) {
+      _showStockErrorDialog('Discount cannot exceed 5%. Current discount: ${_discountPercent.toStringAsFixed(2)}%');
+      return;
+    }
+
+    final item = CartItem(
+      product: widget.product,
+      quantity: _quantity.toDouble(),
+      lotNumber: _lotNumber,
+      warehouse: _warehouse,
+      warehouseName: _warehouseName,
+      location: _location,
+      locationType: _locationType,
+      basePrice: _basePrice,
+      discountPercent: _discountPercent,
+      vatRatePercent: _vatRatePercent,
+      taxRule: _taxRuleCode,
+      isFoc: isFocLocked,
+      pricingSource: _isManualDiscount ? 'MANUAL' : _priceSource,
+      discountAmountFlat: _discountAmountFlat,
+      priceListCode: _priceListCode,
+      reasonType: _reasonType,
     );
+
+    CartItem? focItem;
+    if (!isFocLocked && _hasFoc && _focQuantity > 0) {
+      final bool isSameItem = _focItemSku.isEmpty || _focItemSku == widget.product.sku;
+      final String targetFocSku = _focItemSku.isEmpty ? widget.product.sku : _focItemSku;
+      
+      String focName = '';
+      String focLotNumber = '';
+      String focWarehouse = '';
+      String focWarehouseName = '';
+      String focLocation = '';
+      String focLocationType = '';
+      String focSalesUnit = 'EA';
+      double focTotalStock = 0.0;
+      
+      final db = await LocalDatabaseHelper.instance.database;
+
+      final sumResult = await db.rawQuery(
+        'SELECT SUM(totalQty) as total FROM ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} WHERE itemCode = ? AND (stockStatus = "A" OR stockStatus IS NULL OR stockStatus = "")',
+        [targetFocSku.trim()]
+      );
+      if (sumResult.isNotEmpty && sumResult.first['total'] != null) {
+        focTotalStock = (sumResult.first['total'] as num).toDouble();
+      }
+
+      if (focTotalStock <= 0.0001) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('FOC Promotion Unavailable'),
+              content: Text(
+                'Purchasing ${widget.product.name} qualifies for free item ($targetFocSku), but $targetFocSku is currently out of stock in van inventory. It will not be added.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        final sameLotMatches = await db.query(
+          LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+          where: 'itemCode = ? AND lotNumber = ? AND totalQty > 0',
+          whereArgs: [targetFocSku.trim(), _lotNumber],
+          limit: 1,
+        );
+        
+        if (sameLotMatches.isNotEmpty) {
+          final r = sameLotMatches.first;
+          focName = r['itemName']?.toString() ?? '';
+          focSalesUnit = (r['salesUnit'] as String?)?.trim().isNotEmpty == true
+              ? (r['salesUnit'] as String).trim()
+              : 'EA';
+          focLotNumber = r['lotNumber']?.toString() ?? '';
+          focWarehouse = r['warehouse']?.toString() ?? '';
+          focWarehouseName = r['warehouseName']?.toString() ?? '';
+          focLocation = r['location']?.toString() ?? '';
+          focLocationType = r['locationType']?.toString() ?? '';
+        } else {
+          final anyStockedLot = await db.query(
+            LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+            where: 'itemCode = ? AND totalQty > 0',
+            whereArgs: [targetFocSku.trim()],
+            orderBy: 'totalQty DESC',
+            limit: 1,
+          );
+          if (anyStockedLot.isNotEmpty) {
+            final r = anyStockedLot.first;
+            focName = r['itemName']?.toString() ?? '';
+            focSalesUnit = (r['salesUnit'] as String?)?.trim().isNotEmpty == true
+                ? (r['salesUnit'] as String).trim()
+                : 'EA';
+            focLotNumber = r['lotNumber']?.toString() ?? '';
+            focWarehouse = r['warehouse']?.toString() ?? '';
+            focWarehouseName = r['warehouseName']?.toString() ?? '';
+            focLocation = r['location']?.toString() ?? '';
+            focLocationType = r['locationType']?.toString() ?? '';
+          }
+        }
+
+        if (focLotNumber.isEmpty) {
+          final anyLot = await db.query(
+            LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+            where: 'itemCode = ?',
+            whereArgs: [targetFocSku.trim()],
+            limit: 1,
+          );
+          if (anyLot.isNotEmpty) {
+            final r = anyLot.first;
+            focLotNumber = r['lotNumber']?.toString() ?? '';
+            focWarehouse = r['warehouse']?.toString() ?? '';
+            focWarehouseName = r['warehouseName']?.toString() ?? '';
+            focLocation = r['location']?.toString() ?? '';
+            focLocationType = r['locationType']?.toString() ?? '';
+            if (focName.isEmpty) focName = r['itemName']?.toString() ?? '';
+          }
+        }
+
+        final focProduct = isSameItem 
+          ? widget.product 
+          : SalesInvoiceProductModel(
+              sku: targetFocSku,
+              name: focName.isNotEmpty ? focName : targetFocSku,
+              stockQty: focTotalStock,
+              warehouse: focWarehouse,
+              salesUnit: focSalesUnit,
+              cce0: '',
+            );
+
+        focItem = CartItem(
+          product: focProduct,
+          quantity: _focQuantity,
+          basePrice: 0.0,
+          discountPercent: 100.0,
+          lotNumber: focLotNumber,
+          warehouse: focWarehouse,
+          warehouseName: focWarehouseName,
+          location: focLocation,
+          locationType: focLocationType,
+          vatRatePercent: _vatRatePercent,
+          taxRule: _taxRuleCode,
+          isFoc: true,
+          mainItemSku: widget.product.sku,
+          pricingSource: _priceSource,
+          discountAmountFlat: 0.0,
+          priceListCode: _priceListCode,
+          reasonType: _reasonType,
+        );
+      }
+    }
+
+    if (!mounted) return;
+    
+    final bloc = context.read<SalesInvoiceBloc>();
+    final state = bloc.state;
+    if (state is! SalesInvoiceLoaded) return;
+
+    if (widget.editingIndex != null) {
+      bloc.add(UpdateCartItem(widget.editingIndex!, item));
+      if (focItem == null) {
+        bloc.add(RemoveLinkedFocItem(widget.product.sku));
+      }
+      if (_isReturnMode && state.transactionType == 'PREVIEW_INVOICE' && _quantity > 0) {
+        bloc.add(ConvertToCreditNote());
+      }
+      
+      if (focItem != null) {
+        final cartItems = state.cartItems;
+        int existingFocIndex = cartItems.indexWhere((i) => i.isFoc && (i.mainItemSku == widget.product.sku || i.product.sku == focItem!.product.sku));
+        if (existingFocIndex != -1) {
+          final existingFoc = cartItems[existingFocIndex];
+          focItem = focItem!.copyWith(
+            lotNumber: existingFoc.lotNumber, 
+            location: existingFoc.location, 
+            warehouse: existingFoc.warehouse,
+            warehouseName: existingFoc.warehouseName,
+            locationType: existingFoc.locationType
+          );
+          bloc.add(UpdateCartItem(existingFocIndex, focItem!));
+        } else {
+          bloc.add(AddCartItem(focItem!));
+        }
+      }
+      Navigator.of(context).pop();
+    } else {
+      bloc.add(AddCartItem(item));
+      if (focItem != null) {
+        bloc.add(AddCartItem(focItem!));
+      }
+      Navigator.of(context).pop();
+    }
   }
 
   Widget _buildStepperButton(
@@ -1382,6 +1594,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
     bool isDark, {
     String? prefixText,
     String? suffixText,
+    String? hintText,
+    FocusNode? focusNode,
+    VoidCallback? onTap,
     Function(String)? onChanged,
     bool alignRight = false,
     bool cardAlignRight = false,
@@ -1440,6 +1655,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     child: IntrinsicWidth(
                       child: TextField(
                         controller: controller,
+                        focusNode: focusNode,
+                        onTap: onTap,
                         enabled: enabled,
                         textAlign: TextAlign.left,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1458,6 +1675,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           focusedBorder: InputBorder.none,
                           errorBorder: InputBorder.none,
                           disabledBorder: InputBorder.none,
+                          hintText: hintText,
+                          hintStyle: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: isDark ? Colors.white30 : Colors.black26,
+                          ),
                           suffixText: suffixText,
                           suffixStyle: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -1499,6 +1722,8 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           const SizedBox(height: 2),
           TextField(
             controller: controller,
+            focusNode: focusNode,
+            onTap: onTap,
             enabled: enabled,
             textAlign: cardAlignRight ? TextAlign.right : TextAlign.left,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1517,6 +1742,12 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
               focusedBorder: InputBorder.none,
               errorBorder: InputBorder.none,
               disabledBorder: InputBorder.none,
+              hintText: hintText,
+              hintStyle: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDark ? Colors.white30 : Colors.black26,
+              ),
               prefixText: prefixText,
               prefixStyle: TextStyle(
                 fontWeight: FontWeight.bold,

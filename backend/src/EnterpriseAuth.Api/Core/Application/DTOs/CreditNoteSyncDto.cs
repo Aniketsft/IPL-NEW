@@ -8,6 +8,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string CreditNoteType { get; set; } = string.Empty; // REVERSAL, STANDALONE, AMOUNT_ONLY / CASH_ONLY
         public string X3CreditNoteType { get; set; } = "CRN";
         public string SalesSite { get; set; } = "SCG";
+        public string? ShippingSite { get; set; }
         public string CustomerCode { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;
         public string Currency { get; set; } = "MUR";

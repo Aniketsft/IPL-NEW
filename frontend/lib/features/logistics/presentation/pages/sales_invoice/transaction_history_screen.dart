@@ -852,11 +852,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                     : 'EA',
                                               ),
                                               lotNumber: item['lotNumber'] ?? '',
+                                              warehouse: item['warehouse'] ?? '',
+                                              location: item['location'] ?? '',
                                               quantity: effectiveQty > 0 ? effectiveQty : 1.0,
                                               basePrice: effectivePrice,
                                               discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
                                               taxRule: item['taxRule'] ?? '',
-                                              vatRatePercent: 0.0,
+                                              vatRatePercent: (item['vatRatePercent'] as num?)?.toDouble() ?? 0.0,
+                                              pricingSource: item['pricingSource'] ?? 'X3_HISTORIC',
+                                              priceListCode: item['priceListCode'] ?? 'X3_INVOICE',
                                             )
                                           )
                                         );

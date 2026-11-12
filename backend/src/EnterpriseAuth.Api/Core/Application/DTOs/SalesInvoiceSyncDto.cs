@@ -6,6 +6,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string InvoiceId { get; set; } = string.Empty;
         public string? SalesSite { get; set; }
+        public string? ShippingSite { get; set; }
         public string? CustomerCode { get; set; }
         public string? SalesRep { get; set; }
         public string? PricingRule { get; set; }
@@ -38,6 +39,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? DocumentId { get; set; }
         public string? X3InvoiceDocumentId { get; set; }
         public string? SalesSite { get; set; }
+        public string? ShippingSite { get; set; }
         public string? CustomerCode { get; set; }
         public string? CustomerName { get; set; }
     }
@@ -62,5 +64,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Cce0 { get; set; }
         public string? TaxRule { get; set; }
         public bool IsFoc { get; set; }
+        public string? MainItemSku { get; set; }
     }
 }

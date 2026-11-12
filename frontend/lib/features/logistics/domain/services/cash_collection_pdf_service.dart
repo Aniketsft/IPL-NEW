@@ -1,14 +1,14 @@
 import 'dart:typed_data';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'thermal_template.dart';
 
+/// Cash receipt from debtors renderer.
+///
+/// Layout follows `MS Templates/Receipt From Debtors Template.txt`
+/// on the 68 column, 4.5" (104 mm) Sewoo LK-P43II roll.
 class CashCollectionPdfService {
-  final numberFormat = NumberFormat('#,##0.00', 'en_US');
-
-  /// Generates a comprehensive 80mm thermal receipt slip for cash collections
   Future<Uint8List> generateCollectionReceiptPdf({
-    required PdfPageFormat pageFormat,
+    PdfPageFormat? pageFormat, // kept for call-site compatibility (layout is fixed 104 mm)
     required String receiptRef,
     required String customerCode,
     required String customerName,
@@ -20,339 +20,84 @@ class CashCollectionPdfService {
     required List<Map<String, dynamic>> paymentTenders,
     required double totalCollected,
     bool isZeroOffset = false,
+    String customerAddress = '',
+    String customerVatNo = '',
+    String customerBrn = '',
   }) async {
-    final pdf = pw.Document();
+    final d = ThermalDoc();
 
-    final format = pageFormat.copyWith(
-      height: double.infinity,
-      marginTop: 8,
-      marginBottom: 8,
-      marginLeft: 8,
-      marginRight: 8,
-    );
+    d.center(company.isNotEmpty ? company : ThermalCompany.name, bold: true);
+    d.blank();
+    d.line('    Vat Registratrion No      : ${ThermalCompany.vatNo}');
+    d.line('    Business Registration No. : ${ThermalCompany.brn}');
+    d.blank();
+    d.center('CASH RECEIPTS', bold: true);
+    d.blank();
 
-    final formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(dateTime);
+    d.meta('Salesman', salesRep.isNotEmpty ? salesRep : ThermalSession.username);
+    d.meta('Truck', siteCode.isNotEmpty ? siteCode : ThermalSession.siteCode);
+    d.meta('Pay No', receiptRef, bold: true);
+    d.meta('Print Date Time', ThermalDoc.printStamp(dateTime));
+    d.meta('Customer\'s Code', customerCode);
+    d.meta('Customer\'s Name', customerName);
+    d.meta('Customer\'s Address', customerAddress);
+    d.meta('VAT Registration No', customerVatNo);
+    d.meta('BRN', customerBrn);
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: format,
-        build: (pw.Context context) {
-          return pw.Container(
-            width: 288, // Standard 80mm roll printable area
-            alignment: pw.Alignment.topLeft,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        company.isNotEmpty ? company : 'INNODIS LTD',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'OFFICIAL COLLECTION RECEIPT',
-                        style: pw.TextStyle(
-                          fontSize: 11,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 1),
-                      pw.Text(
-                        'CASH & RECEIVABLE SETTLEMENT',
-                        style: const pw.TextStyle(
-                          fontSize: 8,
-                          color: PdfColors.grey700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                _buildDivider(),
+    d.rule();
+    d.line(' ${ThermalDoc.l('Invoice No', 40)}${ThermalDoc.r('Amount', 26)}');
+    d.rule();
+    for (final doc in settledDocuments) {
+      final docNo = (doc['documentNo'] ?? '').toString();
+      final docType = (doc['docType'] ?? '').toString().toUpperCase();
+      final settled = (doc['settledAmount'] as num?)?.toDouble() ?? 0.0;
+      final label = docType.isNotEmpty && docType != 'INV' ? '$docNo ($docType)' : docNo;
+      d.line(' ${ThermalDoc.l(label, 40)}${ThermalDoc.r(ThermalDoc.money(settled), 26)}');
+    }
+    d.rule();
+    d.blank();
 
-                // Metadata Rows
-                _buildMetaRow('Receipt No:', receiptRef, isBold: true),
-                _buildMetaRow('Date & Time:', formattedDate),
-                if (siteCode.isNotEmpty) _buildMetaRow('Sales Site:', siteCode),
-                if (salesRep.isNotEmpty) _buildMetaRow('Collected By:', salesRep),
-                _buildMetaRow('Customer Code:', customerCode),
-                if (customerName.isNotEmpty)
-                  _buildMetaRow('Customer Name:', customerName),
+    final sum = totalCollected.abs();
+    d.line(' Received the sum of Rs = ${ThermalDoc.money(sum)}', bold: true);
 
-                pw.SizedBox(height: 6),
-                _buildDivider(),
+    // Tender detail (cash / cheque / digital reference) for audit.
+    if (isZeroOffset || paymentTenders.isEmpty) {
+      d.line(' Settled via Credit Note offset (balance cleared).');
+    } else {
+      for (final t in paymentTenders) {
+        final method = (t['method'] ?? 'CASH').toString().toUpperCase();
+        final amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        d.line(' Paid by ${ThermalDoc.l(method, 14)}${ThermalDoc.r(ThermalDoc.money(amount), 12)}');
+        final chequeNo = (t['chequeNumber'] ?? '').toString();
+        final bank = (t['bankName'] ?? '').toString();
+        final chequeDate = (t['chequeDate'] ?? '').toString();
+        final ref = (t['reference'] ?? t['qrTransactionRef'] ?? '').toString();
+        if (chequeNo.isNotEmpty || bank.isNotEmpty) {
+          d.paragraph('Cheque: $chequeNo Bank: $bank ${chequeDate.isNotEmpty ? 'Date: $chequeDate' : ''}',
+              indent: 3);
+        }
+        if (ref.isNotEmpty) d.paragraph('Ref: $ref', indent: 3);
+      }
+    }
 
-                // Section: Settled Documents
-                pw.Text(
-                  'SETTLED DOCUMENTS',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 4),
+    d.blank(2);
+    d.line(' -------------------------          --------------------------');
+    d.line(' SALESMAN\'S SIGNATURE                CUSTOMER\'S SIGNATURE');
+    d.blank(2);
+    d.line('                 -----------------------------------');
+    d.line('                 Name of Signatory in Block Letters');
+    d.blank();
+    d.rule();
+    d.center('Computer Generated Copy');
+    d.center('---Thank You/Merci---');
+    d.blank(2);
 
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Expanded(
-                      flex: 4,
-                      child: pw.Text(
-                        'DOCUMENT #',
-                        style: pw.TextStyle(
-                          fontSize: 8,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    pw.Expanded(
-                      flex: 2,
-                      child: pw.Text(
-                        'DUE (Rs)',
-                        textAlign: pw.TextAlign.right,
-                        style: pw.TextStyle(
-                          fontSize: 8,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    pw.Expanded(
-                      flex: 3,
-                      child: pw.Text(
-                        'SETTLED (Rs)',
-                        textAlign: pw.TextAlign.right,
-                        style: pw.TextStyle(
-                          fontSize: 8,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                pw.SizedBox(height: 2),
-                pw.Container(height: 0.5, color: PdfColors.grey400),
-                pw.SizedBox(height: 3),
-
-                ...settledDocuments.map((doc) {
-                  final docNo = (doc['documentNo'] ?? '').toString();
-                  final docType = (doc['docType'] ?? 'INV').toString();
-                  final double due = (doc['originalDue'] as num?)?.toDouble() ?? 0.0;
-                  final double settled = (doc['settledAmount'] as num?)?.toDouble() ?? 0.0;
-
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Expanded(
-                          flex: 4,
-                          child: pw.Text(
-                            '$docNo (${docType.toUpperCase()})',
-                            style: const pw.TextStyle(fontSize: 8),
-                          ),
-                        ),
-                        pw.Expanded(
-                          flex: 2,
-                          child: pw.Text(
-                            numberFormat.format(due),
-                            textAlign: pw.TextAlign.right,
-                            style: const pw.TextStyle(
-                              fontSize: 8,
-                              color: PdfColors.grey700,
-                            ),
-                          ),
-                        ),
-                        pw.Expanded(
-                          flex: 3,
-                          child: pw.Text(
-                            numberFormat.format(settled),
-                            textAlign: pw.TextAlign.right,
-                            style: pw.TextStyle(
-                              fontSize: 8,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-
-                pw.SizedBox(height: 6),
-                _buildDivider(),
-
-                // Section: Payment Breakdown (Tenders)
-                pw.Text(
-                  'PAYMENT TENDERS',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 4),
-
-                if (isZeroOffset || paymentTenders.isEmpty) ...[
-                  _buildMetaRow(
-                    'BALANCE OFFSET:',
-                    'Rs ${numberFormat.format(totalCollected.abs())}',
-                    isBold: true,
-                  ),
-                  pw.Text(
-                    'Balance cleared via Credit Note offset.',
-                    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                  ),
-                ] else ...[
-                  ...paymentTenders.map((tender) {
-                    final method = (tender['method'] ?? 'CASH').toString().toUpperCase();
-                    final double amount = (tender['amount'] as num?)?.toDouble() ?? 0.0;
-                    final chequeNo = (tender['chequeNumber'] ?? '').toString();
-                    final bankName = (tender['bankName'] ?? '').toString();
-                    final chequeDate = (tender['chequeDate'] ?? '').toString();
-                    final ref = (tender['reference'] ?? tender['qrTransactionRef'] ?? '').toString();
-
-                    return pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        _buildMetaRow(
-                          method,
-                          'Rs ${numberFormat.format(amount)}',
-                          isBold: true,
-                        ),
-                        if (chequeNo.isNotEmpty || bankName.isNotEmpty)
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.only(left: 6, bottom: 2),
-                            child: pw.Text(
-                              'Cheque: $chequeNo • Bank: $bankName ${chequeDate.isNotEmpty ? "• Date: $chequeDate" : ""}',
-                              style: const pw.TextStyle(
-                                fontSize: 7.5,
-                                color: PdfColors.grey700,
-                              ),
-                            ),
-                          ),
-                        if (ref.isNotEmpty)
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.only(left: 6, bottom: 2),
-                            child: pw.Text(
-                              'Ref: $ref',
-                              style: const pw.TextStyle(
-                                fontSize: 7.5,
-                                color: PdfColors.grey700,
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  }),
-                ],
-
-                pw.SizedBox(height: 6),
-                _buildDivider(),
-
-                // Total Summary
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        'TOTAL SETTLED:',
-                        style: pw.TextStyle(
-                          fontSize: 11,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.Text(
-                        'Rs ${numberFormat.format(totalCollected.abs())}',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                _buildDivider(),
-                pw.SizedBox(height: 10),
-
-                // Signatures
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Container(
-                          width: 100,
-                          height: 0.5,
-                          color: PdfColors.grey600,
-                        ),
-                        pw.SizedBox(height: 2),
-                        pw.Text(
-                          'Customer Signature',
-                          style: const pw.TextStyle(fontSize: 7.5),
-                        ),
-                      ],
-                    ),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Container(
-                          width: 100,
-                          height: 0.5,
-                          color: PdfColors.grey600,
-                        ),
-                        pw.SizedBox(height: 2),
-                        pw.Text(
-                          'Sales Rep Signature',
-                          style: const pw.TextStyle(fontSize: 7.5),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                pw.SizedBox(height: 12),
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'THANK YOU FOR YOUR PAYMENT!',
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'OFFLINE SETTLEMENT • PENDING CLOUD SYNC',
-                        style: const pw.TextStyle(
-                          fontSize: 7,
-                          color: PdfColors.grey600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    return pdf.save();
+    return d.build();
   }
 
-  /// Convenience method to generate a receipt for a single historical payment row
+  /// Receipt for a single historical payment row (reprint).
   Future<Uint8List> generateSingleReceiptPdf({
-    required PdfPageFormat pageFormat,
+    PdfPageFormat? pageFormat,
     required Map<String, dynamic> item,
   }) async {
     final docNo = item['documentNo']?.toString() ?? '';
@@ -381,14 +126,16 @@ class CashCollectionPdfService {
         : (paymentId.isNotEmpty ? paymentId : 'REC-${DateTime.now().millisecondsSinceEpoch}');
 
     return generateCollectionReceiptPdf(
-      pageFormat: pageFormat,
       receiptRef: receiptRef,
       customerCode: custNo,
-      customerName: '',
+      customerName: thermalFirst(item, ['customerName', 'customerNm', 'name']),
       dateTime: parsedDate,
       salesRep: userName,
       siteCode: siteCode,
       company: company,
+      customerAddress: thermalFirst(item, ['customerAddress', 'address']),
+      customerVatNo: thermalFirst(item, ['customerVatNo', 'vatNo']),
+      customerBrn: thermalFirst(item, ['customerBrn', 'brn']),
       settledDocuments: [
         {
           'documentNo': docNo,
@@ -409,44 +156,6 @@ class CashCollectionPdfService {
       ],
       totalCollected: amount,
       isZeroOffset: method == 'CN_OFFSET',
-    );
-  }
-
-  pw.Widget _buildMetaRow(String label, String value, {bool isBold = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 8.5,
-              color: PdfColors.grey700,
-              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-            ),
-          ),
-          pw.SizedBox(width: 8),
-          pw.Expanded(
-            child: pw.Text(
-              value,
-              textAlign: pw.TextAlign.right,
-              style: pw.TextStyle(
-                fontSize: 8.5,
-                fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildDivider() {
-    return pw.Container(
-      height: 1,
-      color: PdfColors.grey400,
-      margin: const pw.EdgeInsets.symmetric(vertical: 4),
     );
   }
 }

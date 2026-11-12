@@ -16,6 +16,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/cash_collection_pdf_service.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_event.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
@@ -1318,17 +1319,37 @@ class _OpenInvoicesScreenState extends State<OpenInvoicesScreen> {
   Future<void> _printReceipt(Map<String, dynamic> item) async {
     final docNo = item['documentNo']?.toString() ?? 'Receipt';
     try {
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) => CashCollectionPdfService().generateSingleReceiptPdf(
-          pageFormat: format,
-          item: item,
-        ),
-        name: 'Receipt_${docNo}.pdf',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sending receipt to Sewoo Bluetooth printer...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      final pdfBytes = await CashCollectionPdfService().generateSingleReceiptPdf(
+        pageFormat: PdfPageFormat.roll80,
+        item: item,
       );
+      await PrinterService.instance.printPdfViaBluetooth(
+        pdfBytes: pdfBytes,
+        documentName: 'Receipt_${docNo}.pdf',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Receipt $docNo printed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to print receipt: $e')),
+          SnackBar(
+            content: Text('Failed to print receipt: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

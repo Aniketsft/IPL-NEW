@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:enterprise_auth_mobile/core/models/site_context.dart';
 
 class UnsyncedSummary {
   final int invoices;
@@ -126,6 +127,51 @@ class LocalDatabaseHelper {
       'salesFlag': 1,
       'financialSiteCode': 'IPL',
       'financialSiteName': 'Innodis Poulet Ltée',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'SCG',
+      'salesSiteName': 'Consumer Shop To Shop',
+      'salesFlag': 1,
+      'financialSiteCode': 'CGD',
+      'financialSiteName': 'Commercial Cold Store Grand Distribution',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'CGD',
+      'salesSiteName': 'Commercial Cold Store Grand Distribution',
+      'salesFlag': 1,
+      'financialSiteCode': 'CGD',
+      'financialSiteName': 'Commercial Cold Store Grand Distribution',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'SCP',
+      'salesSiteName': 'Chilled Shop To Shop',
+      'salesFlag': 1,
+      'financialSiteCode': 'SCP',
+      'financialSiteName': 'Chilled Shop To Shop',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'SDA',
+      'salesSiteName': 'Dairy Shop To Shop',
+      'salesFlag': 1,
+      'financialSiteCode': 'DPD',
+      'financialSiteName': 'Dairy Distribution',
+      'legalCompany': 'INL',
+      'updatedAt': '2026-10-31T00:00:00.000Z',
+    },
+    {
+      'salesSiteCode': 'SFF',
+      'salesSiteName': 'Frozen Shop To Shop',
+      'salesFlag': 1,
+      'financialSiteCode': 'FFD',
+      'financialSiteName': 'Frozen Food Distribution',
       'legalCompany': 'INL',
       'updatedAt': '2026-10-31T00:00:00.000Z',
     },
@@ -341,6 +387,9 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNoteLines, 'returnCondition', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNoteLines, 'expiryDate', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNoteLines, 'location', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'x3StockReceiptId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'x3RefundPaymentId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiInvoices, 'x3DocumentId', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'isPartiallyReversed', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'deliveryDate', 'TEXT');
@@ -2343,6 +2392,8 @@ class LocalDatabaseHelper {
         cce0 TEXT,
         taxRule TEXT,
         isFoc INTEGER DEFAULT 0,
+        mainItemSku TEXT DEFAULT "",
+        discountPercent REAL DEFAULT 0,
         isReversed INTEGER DEFAULT 0,
         pricingSource TEXT DEFAULT "",
         discountAmountFlat REAL DEFAULT 0,
@@ -4273,6 +4324,8 @@ class LocalDatabaseHelper {
         cnl.creditNoteId,
         cnl.lineNo,
         cnl.quantity,
+        cnl.originInvoiceId,
+        cnl.originLineNo,
         COALESCE(cnl.standaloneSku, il.sku) AS sku,
         COALESCE(cnl.standaloneName, il.name) AS name,
         COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
@@ -4280,7 +4333,11 @@ class LocalDatabaseHelper {
         COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
         COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
         COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
-        COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
+        COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0,
+        COALESCE(cnl.stockStatus, 'A') AS stockStatus,
+        cnl.returnCondition AS returnCondition,
+        cnl.expiryDate AS expiryDate,
+        COALESCE(cnl.location, il.location) AS location
       FROM $tableSiCreditNoteLines cnl
       LEFT JOIN $tableSiInvoiceLines il
         ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
@@ -4309,11 +4366,22 @@ class LocalDatabaseHelper {
     );
   }
 
-  Future<void> markCreditNoteSynced(String creditNoteId, {String? x3DocumentId}) async {
+  Future<void> markCreditNoteSynced(
+    String creditNoteId, {
+    String? x3DocumentId,
+    String? x3StockReceiptId,
+    String? x3RefundPaymentId,
+  }) async {
     final db = await database;
     final updates = <String, dynamic>{'isSynced': 1};
     if (x3DocumentId != null && x3DocumentId.isNotEmpty) {
       updates['x3DocumentId'] = x3DocumentId;
+    }
+    if (x3StockReceiptId != null && x3StockReceiptId.isNotEmpty) {
+      updates['x3StockReceiptId'] = x3StockReceiptId;
+    }
+    if (x3RefundPaymentId != null && x3RefundPaymentId.isNotEmpty) {
+      updates['x3RefundPaymentId'] = x3RefundPaymentId;
     }
     await db.update(
       tableSiCreditNotes,
@@ -4321,6 +4389,24 @@ class LocalDatabaseHelper {
       where: 'creditNoteId = ?',
       whereArgs: [creditNoteId],
     );
+  }
+
+  Future<void> markCreditNoteStockReceiptSynced(
+    String creditNoteId, {
+    String? x3ReceiptId,
+  }) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      if (x3ReceiptId != null && x3ReceiptId.isNotEmpty) 'x3StockReceiptId': x3ReceiptId,
+    };
+    if (updates.isNotEmpty) {
+      await db.update(
+        tableSiCreditNotes,
+        updates,
+        where: 'creditNoteId = ?',
+        whereArgs: [creditNoteId],
+      );
+    }
   }
 
   Future<List<Map<String, dynamic>>> getPaymentsForInvoice(String invoiceId) async {
@@ -4783,8 +4869,14 @@ class LocalDatabaseHelper {
     final whereArgs = <dynamic>[];
 
     if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
-      whereClauses.add('(site = ? OR site = "" OR site IS NULL)');
-      whereArgs.add(siteCode);
+      final finSite = await getFinancialSiteForSalesSite(siteCode);
+      if (finSite != siteCode && finSite.isNotEmpty) {
+        whereClauses.add('(site = ? OR site = ? OR site = "" OR site IS NULL)');
+        whereArgs.addAll([siteCode, finSite]);
+      } else {
+        whereClauses.add('(site = ? OR site = "" OR site IS NULL)');
+        whereArgs.add(siteCode);
+      }
     }
 
     if (customerNo != null && customerNo.isNotEmpty) {
@@ -5613,7 +5705,30 @@ class LocalDatabaseHelper {
     } catch (e) {
       debugPrint('getFinancialSiteForSalesSite error: $e');
     }
+    // Static fallback baseline for known Innodis operational distribution sites
+    if (cleanSite == 'SCG') return 'CGD';
+    // Note: SCP is explicitly excluded from mapping to POD
+    if (cleanSite == 'SDA') return 'DPD';
+    if (cleanSite == 'SFF') return 'FFD';
+
     return cleanSite;
+  }
+
+  Future<SiteContext> getSiteContext([String? overrideSite]) async {
+    String? site = overrideSite;
+    if (site == null || site.isEmpty) {
+      site = await SecureStorageService().getSiteCode();
+    }
+    final cleanSite = (site ?? '').trim().toUpperCase();
+    final isAll = cleanSite.isEmpty || cleanSite == 'ALL';
+    final finSite = await getFinancialSiteForSalesSite(cleanSite);
+
+    return SiteContext(
+      rawSiteCode: cleanSite.isEmpty ? 'ALL' : cleanSite,
+      shippingSiteCode: isAll ? '' : cleanSite,
+      financialSiteCode: isAll ? '' : finSite,
+      isMultiSiteAdmin: isAll,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getFacilities() async {
@@ -5656,6 +5771,73 @@ class LocalDatabaseHelper {
         }
       }
       await batch.commit(noResult: true);
+    });
+  }
+
+  Future<void> syncDocumentSequencesHighWaterMark(List<dynamic> rawSequences) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final item in rawSequences) {
+        if (item is Map) {
+          final docType = (item['docType'] ?? item['DocType'] ?? '').toString().trim().toUpperCase();
+          final financialSite = (item['financialSite'] ?? item['FinancialSite'] ?? '').toString().trim().toUpperCase();
+          final rawLorry = (item['lorryCode'] ?? item['LorryCode'] ?? '00').toString().trim().toUpperCase();
+          final yearMonth = (item['yearMonth'] ?? item['YearMonth'] ?? '').toString().trim();
+          final serverSeq = int.tryParse((item['lastSequence'] ?? item['LastSequence'] ?? 0).toString()) ?? 0;
+
+          // Format lorryCode consistently to match DocumentSequenceService
+          String cleanLorry = rawLorry.replaceAll(RegExp(r'[^0-9]'), '');
+          if (cleanLorry.isEmpty) {
+            cleanLorry = '00';
+          } else if (cleanLorry.length == 1) {
+            cleanLorry = cleanLorry.padLeft(2, '0');
+          } else if (cleanLorry.length > 4) {
+            cleanLorry = cleanLorry.substring(cleanLorry.length - 4);
+          }
+
+          if (docType.isEmpty || financialSite.isEmpty || yearMonth.isEmpty || serverSeq <= 0) {
+            continue;
+          }
+
+          final existingRows = await txn.query(
+            tableDocumentSequences,
+            where: 'docType = ? AND financialSite = ? AND lorryCode = ? AND yearMonth = ?',
+            whereArgs: [docType, financialSite, cleanLorry, yearMonth],
+            limit: 1,
+          );
+
+          if (existingRows.isEmpty) {
+            await txn.insert(
+              tableDocumentSequences,
+              {
+                'docType': docType,
+                'financialSite': financialSite,
+                'lorryCode': cleanLorry,
+                'deviceTag': '0',
+                'yearMonth': yearMonth,
+                'lastSequence': serverSeq,
+                'updatedAt': DateTime.now().toIso8601String(),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+            debugPrint('LocalDatabaseHelper: Initialized sequence for $docType-$financialSite-$cleanLorry-$yearMonth to server high-water mark $serverSeq');
+          } else {
+            final localSeq = (existingRows.first['lastSequence'] as num?)?.toInt() ?? 0;
+            if (serverSeq > localSeq) {
+              await txn.update(
+                tableDocumentSequences,
+                {
+                  'lastSequence': serverSeq,
+                  'updatedAt': DateTime.now().toIso8601String(),
+                },
+                where: 'docType = ? AND financialSite = ? AND lorryCode = ? AND yearMonth = ?',
+                whereArgs: [docType, financialSite, cleanLorry, yearMonth],
+              );
+              debugPrint('LocalDatabaseHelper: Advanced local sequence for $docType-$financialSite-$cleanLorry-$yearMonth from $localSeq to server high-water mark $serverSeq');
+            }
+          }
+        }
+      }
     });
   }
 }

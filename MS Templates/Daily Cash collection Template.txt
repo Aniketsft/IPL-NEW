@@ -1,0 +1,57 @@
+                         {{COMPANYNAME}}
+               
+
+    DAILY CASH COLLECTION REPORT @ {{PRINTDATE}}
+----------------------------------------------------------------
+     Please receive the following slips                 Amount
+----------------------------------------------------------------
+     			CASH FROM DEBTORS
+ FROM:{{RECEIPTFROMDEBTORSINVOICENO}} TO:{{RECEIPTFTODEBTORSINVOICENO}}  
+                                         {{TOTALRECEIPFROMDEBTORSSUMMARY}}
+                         
+
+     			CASH SALES INVOICES
+ FROM: {{CASHSALESFROMINVOICENO}}  TO:{{CASHSALESTOINVOICENO}}  
+                                        {{TOTALINVOICECASH}}
+                              
+
+     			CASH SALES REFUND
+ FROM: {{CASHCREDITNOTEFROMINVOICENO}}  TO:{{CASHCREDITNOTESTOINVOICENO}}
+                                           {{TOTALCREDITNOTECASH1}}
+                              
+
+-------------------------------------------------------------------
+    TOTAL                                       {{NETINVOICECASH}} 
+-------------------------------------------------------------------
+     			CREDIT SALES INVOICES
+ FROM {{CREDITSALESFROMINVOICENO}}     TO: {{CREDITSALESTOINVOICENO}}          
+                                            {{TOTALINVOICECREDIT}}
+     
+     			CREDIT NOTE INVOICES
+ FROM: {{CREDITCREDITNOTEFROMINVOICENO}}  TO: {{CREDITCREDITNOTETOINVOICENO}}           
+                                              {{TOTALCREDITNOTECREDIT}}
+     
+-------------------------------------------------------------------
+     PLEASE RECEIVE THE FOLLOWIING CASH                 Amount
+     CASH                                     {{TOTALRECEIPTCASH}}
+     CASH SALES REFUNDS                       {{TOTALCREDITNOTECASH}}
+                                           --------------------------
+                                              {{NETCASH}}
+
+     NOTES .................
+
+     COINS .................
+
+     CHEQUES ...............                {{TOTALRECEIPTCHEQUES}}
+-------------------------------------------------------------------
+     TOTAL                              {{TOTALRECEIPTCASHCHEQUES}}
+-------------------------------------------------------------------
+
+     SALEMAN:.....{{PREPAREDBY}}.............
+     
+     STORE : ...{{STORE}}.......
+
+     RECEIVED BY.....................            Sig:.............
+
+
+

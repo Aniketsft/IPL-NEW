@@ -45,16 +45,20 @@ class PrepareReversalCreditNote extends SalesInvoiceEvent {
   final String originalInvoiceId;
   final int category;
   final bool isReturn;
+  final String? returnCondition;
+  final String? returnStockStatus;
 
   const PrepareReversalCreditNote({
     required this.items,
     required this.originalInvoiceId,
     this.category = 2,
     this.isReturn = false,
+    this.returnCondition,
+    this.returnStockStatus,
   });
 
   @override
-  List<Object?> get props => [items, originalInvoiceId, category, isReturn];
+  List<Object?> get props => [items, originalInvoiceId, category, isReturn, returnCondition, returnStockStatus];
 }
 
 class SetCustomer extends SalesInvoiceEvent {

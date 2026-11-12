@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
 import '../../../../../core/utils/barcode_scanner/hardware_scanner_mixin.dart';
 import '../../../../../core/utils/barcode_scanner/offline_barcode_processor.dart';
@@ -13,6 +14,9 @@ import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../bloc/sales_invoice_bloc.dart';
 import '../../bloc/sales_invoice_state.dart';
 import 'add_item_detail_screen.dart';
+import 'order_summary_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/industrial_numeric_keypad.dart';
+import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SalesInvoiceProductSelectionScreen extends StatefulWidget {
@@ -29,6 +33,9 @@ class _SalesInvoiceProductSelectionScreenState
     extends State<SalesInvoiceProductSelectionScreen> with HardwareScannerMixin {
   late SalesInvoiceProductRepository _repository;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _hasAutofocused = false;
+  bool _isKeypadExpanded = true;
   String _stockFilter = 'all'; // Default to all as requested
   String? _selectedWarehouse;
   List<String> _warehouses = [];
@@ -80,7 +87,7 @@ class _SalesInvoiceProductSelectionScreenState
       }
 
       if (mounted) {
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => AddItemDetailScreen(
@@ -91,6 +98,11 @@ class _SalesInvoiceProductSelectionScreenState
             ),
           ),
         );
+        if (mounted) {
+          _searchController.clear();
+          _resetAndFetch();
+          Future.delayed(const Duration(milliseconds: 150), _focusSearchField);
+        }
       }
     } catch (e) {
       _showErrorDialog('Scan Error', 'An error occurred while processing the scan.');
@@ -124,6 +136,13 @@ class _SalesInvoiceProductSelectionScreenState
     _scrollController.addListener(_onScroll);
   }
 
+  void _focusSearchField() {
+    if (!mounted) return;
+    if (!_isKeypadExpanded) {
+      setState(() => _isKeypadExpanded = true);
+    }
+  }
+
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
@@ -135,6 +154,7 @@ class _SalesInvoiceProductSelectionScreenState
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -146,6 +166,27 @@ class _SalesInvoiceProductSelectionScreenState
       _isInit = true;
       _initData();
     }
+    if (!_hasAutofocused) {
+      _hasAutofocused = true;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _focusSearchField();
+          });
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              _focusSearchField();
+            }
+          });
+        }
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusSearchField();
+        });
+      }
+    }
   }
 
   Future<void> _initData() async {
@@ -155,7 +196,7 @@ class _SalesInvoiceProductSelectionScreenState
       final state = context.read<SalesInvoiceBloc>().state;
       final isSalesOrder = state is SalesInvoiceLoaded && state.transactionType == 'SI_SALES_ORDER';
       setState(() {
-        _searchController.text = prefs.getString('si_product_search') ?? '';
+        _searchController.text = '';
         _stockFilter = isSalesOrder ? 'all' : (prefs.getString('si_product_stock_filter') ?? 'all');
         _selectedWarehouse = prefs.getString('si_product_warehouse');
       });
@@ -231,14 +272,31 @@ class _SalesInvoiceProductSelectionScreenState
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return IndustrialModuleLayout(
-      title: 'Select Product',
-      body: Column(
-        children: [
-          StandardFilter(
-            onApply: _resetAndFetch,
-            searchController: _searchController,
-            onSearchChanged: (val) => _resetAndFetch(),
+    return PopScope(
+      canPop: !_isKeypadExpanded,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isKeypadExpanded) {
+          setState(() => _isKeypadExpanded = false);
+        }
+      },
+      child: IndustrialModuleLayout(
+        title: 'Select Product',
+        body: Column(
+          children: [
+            StandardFilter(
+              autofocus: false,
+              focusNode: _searchFocusNode,
+              keyboardType: TextInputType.none,
+              readOnly: true,
+              onSearchTap: () {
+                if (!_isKeypadExpanded) {
+                  setState(() => _isKeypadExpanded = true);
+                }
+              },
+              onApply: _resetAndFetch,
+              searchController: _searchController,
+              onSearchChanged: (val) => _resetAndFetch(),
             hasActiveFilters:
                 _selectedWarehouse != null || _stockFilter != 'all',
             onReset: () {
@@ -286,6 +344,103 @@ class _SalesInvoiceProductSelectionScreenState
               );
             },
           ),
+          // View Order Bar
+          BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
+            builder: (context, state) {
+              final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
+              final grandTotal = state is SalesInvoiceLoaded ? state.grandTotal : 0.0;
+              final distinctCount = cartItems.length;
+              final totalQuantity = cartItems.fold<double>(0.0, (sum, item) => sum + item.quantity);
+
+              return Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E222B) : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: distinctCount > 0
+                        ? theme.primaryColor.withOpacity(0.5)
+                        : (isDark ? Colors.white10 : Colors.black12),
+                    width: distinctCount > 0 ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.shopping_bag_outlined, color: theme.primaryColor, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            distinctCount > 0
+                                ? '$distinctCount Lines (${totalQuantity % 1 == 0 ? totalQuantity.toInt() : totalQuantity.toStringAsFixed(1)} Items)'
+                                : '0 Items in Order',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          if (distinctCount > 0)
+                            Text(
+                              'Total: ${CurrencyFormatter.format(grandTotal)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: theme.primaryColor,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const OrderSummaryScreen(),
+                          ),
+                        );
+                        if (mounted) {
+                          Future.delayed(const Duration(milliseconds: 150), _focusSearchField);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.primaryColor,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 36),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                      label: const Text(
+                        'VIEW ORDER',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           // Product List
           Expanded(
             child: _products.isEmpty && _isLoading
@@ -312,10 +467,37 @@ class _SalesInvoiceProductSelectionScreenState
                     },
                   ),
           ),
+          // Industrial Numeric Keypad
+          IndustrialNumericKeypad(
+            isExpanded: _isKeypadExpanded,
+            onToggleExpanded: () {
+              setState(() {
+                _isKeypadExpanded = !_isKeypadExpanded;
+              });
+            },
+            onDigitPressed: (digit) {
+              _searchController.text += digit;
+              _resetAndFetch();
+            },
+            onClear: () {
+              _searchController.clear();
+              _resetAndFetch();
+            },
+            onBackspace: () {
+              if (_searchController.text.isNotEmpty) {
+                _searchController.text = _searchController.text.substring(
+                  0,
+                  _searchController.text.length - 1,
+                );
+                _resetAndFetch();
+              }
+            },
+          ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildProductCard(
     BuildContext context,
@@ -343,8 +525,8 @@ class _SalesInvoiceProductSelectionScreenState
     final isInStock = actualStock > 0;
 
     return InkWell(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => AddItemDetailScreen(
@@ -355,6 +537,11 @@ class _SalesInvoiceProductSelectionScreenState
             ),
           ),
         );
+        if (mounted) {
+          _searchController.clear();
+          _resetAndFetch();
+          Future.delayed(const Duration(milliseconds: 150), _focusSearchField);
+        }
       },
       borderRadius: BorderRadius.circular(8),
       child: Container(

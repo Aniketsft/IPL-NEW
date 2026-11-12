@@ -31,9 +31,11 @@ class ApiConfig {
 
   /// Generates the base URL for API calls based on the platform.
   static String get baseUrl {
+    final cleanIp = serverIp.trim();
+    final cleanPort = serverPort.trim();
     if (!kIsWeb) {
       if (Platform.isAndroid || Platform.isIOS) {
-        return 'http://$serverIp:$serverPort/api/';
+        return 'http://$cleanIp:$cleanPort/api/';
       }
     }
     return 'https://localhost:$localPort/api/';

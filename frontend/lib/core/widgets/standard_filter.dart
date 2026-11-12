@@ -1,6 +1,7 @@
 import 'package:enterprise_auth_mobile/core/widgets/filter_input_widgets.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class StandardFilter extends StatefulWidget {
   final TextEditingController searchController;
@@ -13,6 +14,12 @@ class StandardFilter extends StatefulWidget {
   final ValueChanged<String>? onSearchChanged;
   final String title;
   final bool hasActiveFilters;
+  final bool autofocus;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputType keyboardType;
+  final VoidCallback? onSearchTap;
+  final bool readOnly;
 
   const StandardFilter({
     super.key,
@@ -23,9 +30,15 @@ class StandardFilter extends StatefulWidget {
     this.onApply,
     this.onReset,
     this.onSearchChanged,
+    this.onSubmitted,
     this.title = 'FILTERS',
     this.hasActiveFilters = false,
     this.showFilterButton = true,
+    this.autofocus = false,
+    this.focusNode,
+    this.keyboardType = TextInputType.text,
+    this.onSearchTap,
+    this.readOnly = false,
   });
 
   final bool showFilterButton;
@@ -37,6 +50,23 @@ class StandardFilter extends StatefulWidget {
 class _StandardFilterState extends State<StandardFilter> {
   Timer? _debounceTimer;
   final ValueNotifier<int> _rebuildNotifier = ValueNotifier(0);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autofocus && widget.keyboardType != TextInputType.none) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            if (widget.focusNode != null) {
+              FocusScope.of(context).requestFocus(widget.focusNode);
+            }
+            SystemChannels.textInput.invokeMethod('TextInput.show');
+          }
+        });
+      });
+    }
+  }
 
   @override
   void didUpdateWidget(covariant StandardFilter oldWidget) {
@@ -118,25 +148,48 @@ class _StandardFilterState extends State<StandardFilter> {
         children: [
           // Premium Search Bar
           Expanded(
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
-              ),
-              child: TextField(
-                controller: widget.searchController,
-                onChanged: widget.onSearchChanged,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: widget.searchHint,
-                  hintStyle:
-                      TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 14),
-                  prefixIcon:
-                      Icon(Icons.search_rounded, color: orange, size: 20),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            child: GestureDetector(
+              onTap: () {
+                if (widget.onSearchTap != null) {
+                  widget.onSearchTap!();
+                } else {
+                  if (widget.focusNode != null) {
+                    FocusScope.of(context).requestFocus(widget.focusNode);
+                  }
+                  if (widget.keyboardType != TextInputType.none) {
+                    SystemChannels.textInput.invokeMethod('TextInput.show');
+                  }
+                }
+              },
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
+                ),
+                child: TextField(
+                  controller: widget.searchController,
+                  focusNode: widget.focusNode,
+                  autofocus: widget.autofocus && widget.keyboardType != TextInputType.none,
+                  readOnly: widget.readOnly || widget.keyboardType == TextInputType.none,
+                  cursorColor: orange,
+                  showCursor: true,
+                  textInputAction: TextInputAction.search,
+                  keyboardType: widget.keyboardType,
+                  onTap: widget.onSearchTap,
+                  onChanged: widget.onSearchChanged,
+                  onSubmitted: widget.onSubmitted,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: widget.searchHint,
+                    hintStyle:
+                        TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 14),
+                    prefixIcon:
+                        Icon(Icons.search_rounded, color: orange, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             ),

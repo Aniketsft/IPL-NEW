@@ -376,7 +376,8 @@ class TransactionHistoryRepository {
           'months': 6,
         };
         if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
-          queryParams['sitecode'] = siteCode.trim();
+          final finSite = await _dbHelper.getFinancialSiteForSalesSite(siteCode.trim());
+          queryParams['sitecode'] = finSite.isNotEmpty ? finSite : siteCode.trim();
         }
 
         final response = await _networkService.dio.get(
@@ -842,5 +843,76 @@ class TransactionHistoryRepository {
       chequeList: chequeList,
       cashRefundedOnReturns: cashRefunded,
     );
+  }
+
+  /// Product level Sales / Returns / Net quantities for the Sales Summary
+  /// (see `MS Templates/Sales Summary Template.txt`).
+  ///
+  /// Each row: `sku`, `name`, `uom`, `salesQty`, `returnQty`, `salesValue`,
+  /// `returnValue`.
+  Future<List<Map<String, dynamic>>> getSalesSummaryRows({
+    required String startDate,
+    required String endDate,
+  }) async {
+    final db = await _database;
+    final Map<String, Map<String, dynamic>> byKey = {};
+
+    Map<String, dynamic> bucket(String sku, String name, String uom) {
+      return byKey.putIfAbsent(sku, () => {
+            'sku': sku,
+            'name': name,
+            'uom': uom,
+            'salesQty': 0.0,
+            'returnQty': 0.0,
+            'salesValue': 0.0,
+            'returnValue': 0.0,
+          });
+    }
+
+    try {
+      final sales = await db.rawQuery(
+        'SELECT l.sku AS sku, MAX(l.name) AS name, MAX(l.salesUnit) AS uom, '
+        'SUM(l.quantity) AS qty, SUM(l.quantity * l.basePrice) AS value '
+        'FROM ${LocalDatabaseHelper.tableSiInvoiceLines} l '
+        'JOIN ${LocalDatabaseHelper.tableSiInvoices} i ON i.invoiceId = l.invoiceId '
+        'WHERE i.createdAt >= ? AND i.createdAt <= ? '
+        'AND (i.transactionType IS NULL OR i.transactionType = \'INVOICE\') '
+        'GROUP BY l.sku ORDER BY l.sku',
+        [startDate, endDate],
+      );
+      for (final r in sales) {
+        final b = bucket(r['sku']?.toString() ?? '', r['name']?.toString() ?? '',
+            r['uom']?.toString() ?? '');
+        b['salesQty'] = (r['qty'] as num?)?.toDouble() ?? 0.0;
+        b['salesValue'] = (r['value'] as num?)?.toDouble() ?? 0.0;
+      }
+    } catch (e) {
+      debugPrint('getSalesSummaryRows (sales) failed: $e');
+    }
+
+    try {
+      final returns = await db.rawQuery(
+        'SELECT l.sku AS sku, MAX(l.name) AS name, MAX(l.salesUnit) AS uom, '
+        'SUM(l.quantity) AS qty, SUM(l.quantity * l.price) AS value '
+        'FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} l '
+        'JOIN ${LocalDatabaseHelper.tableSiCreditNotes} c ON c.creditNoteId = l.creditNoteId '
+        'WHERE c.createdAt >= ? AND c.createdAt <= ? '
+        'GROUP BY l.sku ORDER BY l.sku',
+        [startDate, endDate],
+      );
+      for (final r in returns) {
+        final b = bucket(r['sku']?.toString() ?? '', r['name']?.toString() ?? '',
+            r['uom']?.toString() ?? '');
+        b['returnQty'] = (r['qty'] as num?)?.toDouble() ?? 0.0;
+        b['returnValue'] = (r['value'] as num?)?.toDouble() ?? 0.0;
+        if ((b['name'] as String).isEmpty) b['name'] = r['name']?.toString() ?? '';
+      }
+    } catch (e) {
+      debugPrint('getSalesSummaryRows (returns) failed: $e');
+    }
+
+    final rows = byKey.values.toList()
+      ..sort((a, b) => (a['sku'] as String).compareTo(b['sku'] as String));
+    return rows;
   }
 }

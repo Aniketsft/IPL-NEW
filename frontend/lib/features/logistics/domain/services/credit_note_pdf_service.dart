@@ -1,121 +1,145 @@
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'thermal_template.dart';
 
+/// Credit note / cash sales refund renderer.
+///
+/// Layout follows `MS Templates/CashSalesRefund and CreditNote Template.txt`
+/// on the 68 column, 4.5" (104 mm) Sewoo LK-P43II roll.
 class CreditNotePdfService {
-  final numberFormat = NumberFormat('#,##0.00', 'en_US');
-
-  Future<Uint8List> generateCreditNotePdf({
-    required PdfPageFormat pageFormat,
+  ThermalDoc buildCreditNoteDoc({
     required CreditNoteModel creditNote,
     List<Map<String, dynamic>> resolvedLines = const [],
-  }) async {
-    final pdf = pw.Document();
+    Map<String, dynamic>? customer,
+    String? salesman,
+    String? storeCode,
+  }) {
+    final d = ThermalDoc();
 
-    final format = pageFormat.copyWith(
-      height: double.infinity,
-      marginTop: 10,
-      marginBottom: 10,
-      marginLeft: 10,
-      marginRight: 10,
-    );
+    final settlement = creditNote.settlementType.toString().toUpperCase();
+    final site = creditNote.salesSite.toString();
+    final isCashRefund = creditNote.creditNoteType == CreditNoteType.cashOnly ||
+        settlement.contains('REFUND') ||
+        settlement == 'CASH';
+    final docTitle = isCashRefund ? 'CASH SALES REFUND' : 'CREDIT NOTE';
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: format,
-        build: (pw.Context context) {
-          return pw.Container(
-            width: 288,
-            alignment: pw.Alignment.topLeft,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _buildHeader(),
-                pw.SizedBox(height: 10),
-                _buildMetadata(creditNote),
-                pw.SizedBox(height: 10),
-                _buildDivider(),
-                pw.SizedBox(height: 5),
-                if (resolvedLines.isNotEmpty) ...[
-                  _buildLineItems(resolvedLines),
-                  pw.SizedBox(height: 5),
-                ],
-                _buildTotals(creditNote),
-                pw.SizedBox(height: 15),
-                _buildFooter(),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    return pdf.save();
-  }
-
-  pw.Widget _buildHeader() {
-    return pw.Center(
-      child: pw.Column(
-        children: [
-          pw.Text(
-            'INNODIS LTD',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            'CREDIT NOTE / RETURN VOUCHER',
-            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 2),
-          pw.Text(
-            'Official Commercial Return',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildMetadata(CreditNoteModel creditNote) {
-    DateTime parsedDate;
+    DateTime printed;
     try {
-      parsedDate = DateTime.parse(creditNote.createdAt);
+      printed = DateTime.parse(creditNote.createdAt);
     } catch (_) {
-      parsedDate = DateTime.now();
-    }
-    final formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(parsedDate);
-
-    String typeLabel = 'REVERSAL';
-    if (creditNote.creditNoteType == CreditNoteType.standalone) {
-      // Maps to API 'STANDALONE'
-      typeLabel = 'OPEN CREDIT NOTE';
-    } else if (creditNote.creditNoteType == CreditNoteType.cashOnly) {
-      typeLabel = 'CASH REFUND';
+      printed = DateTime.now();
     }
 
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        _buildMetaRow('Credit Note #:', creditNote.creditNoteId, isBold: true),
-        _buildMetaRow('Date:', formattedDate),
-        _buildMetaRow('Type:', typeLabel),
-        if (creditNote.originalInvoiceId != null && creditNote.originalInvoiceId!.isNotEmpty)
-          _buildMetaRow('Origin Invoice:', creditNote.originalInvoiceId!),
-        if (creditNote.linkedInvoiceIds.isNotEmpty)
-          _buildMetaRow('Linked Invoices:', creditNote.linkedInvoiceIds.join(', ')),
-        pw.SizedBox(height: 4),
-        _buildMetaRow('Customer Code:', creditNote.customerCode),
-        _buildMetaRow('Customer Name:', creditNote.customerName),
-        _buildMetaRow('Refund Method:', creditNote.settlementType, isBold: true),
-        if (creditNote.reason != null && creditNote.reason!.isNotEmpty)
-          _buildMetaRow('Reason:', _formatReason(creditNote.reason!)),
-        if (creditNote.x3DocumentId != null && creditNote.x3DocumentId!.isNotEmpty)
-          _buildMetaRow('Sage X3 Doc #:', creditNote.x3DocumentId!),
-      ],
-    );
+    d.companyHeader();
+    d.center(docTitle, bold: true);
+    d.blank();
+
+    final cust = customer ?? const <String, dynamic>{};
+    d.meta('Voucher No', creditNote.creditNoteId, bold: true);
+    d.meta('Account No', creditNote.customerCode);
+    d.meta('Customer\'s Name', creditNote.customerName);
+    d.meta('Customer\'s Address', thermalFirst(cust, ['address', 'customerAddress', 'address1']));
+    d.meta('VAT Registration No', thermalFirst(cust, ['vatNo', 'vatRegNo', 'vatNumber', 'taxNumber']));
+    d.meta('BRN', thermalFirst(cust, ['brn', 'businessRegNo']));
+    if (creditNote.originalInvoiceId != null && creditNote.originalInvoiceId!.isNotEmpty) {
+      d.meta('Original Invoice', creditNote.originalInvoiceId!);
+    }
+    if (creditNote.linkedInvoiceIds.isNotEmpty) {
+      d.meta('Linked Invoices', creditNote.linkedInvoiceIds.join(', '));
+    }
+    d.meta('Reason', _formatReason(creditNote.reason ?? ''));
+    d.meta('Print Date Time', ThermalDoc.printStamp());
+    d.meta('Document Date', DateFormat('dd/MM/yyyy HH:mm').format(printed));
+    thermalItemHeader(d);
+
+    // Resolve line figures. Lines may or may not carry VAT; when they don't,
+    // VAT is derived from the credit note grand total so columns reconcile.
+    final rows = resolvedLines.map((l) {
+      final qty = (l['quantity'] as num?)?.toDouble() ?? 0.0;
+      final price = (l['basePrice'] as num?)?.toDouble() ?? (l['price'] as num?)?.toDouble() ?? 0.0;
+      final disc = (l['discountAmount'] as num?)?.toDouble() ?? 0.0;
+      final vat = (l['vatAmount'] as num?)?.toDouble();
+      return _Row(
+        code: l['sku']?.toString() ?? '',
+        name: l['name']?.toString() ?? l['sku']?.toString() ?? 'Item',
+        qty: qty,
+        uom: l['salesUnit']?.toString() ?? l['unit']?.toString() ?? 'EA',
+        price: price,
+        discount: disc,
+        vat: vat,
+        status: (l['stockStatus']?.toString() ?? 'A').trim().toUpperCase(),
+      );
+    }).toList();
+
+    final net = _rowsNet(rows);
+    final knownVat = rows.fold<double>(0.0, (s, r) => s + (r.vat ?? 0));
+    final derivedVat = rows.any((r) => r.vat == null)
+        ? (creditNote.grandTotal - net).clamp(0.0, double.infinity)
+        : knownVat;
+
+    double totalDiscount = 0;
+    for (final r in rows) {
+      final lineNet = r.qty * r.price - r.discount;
+      final lineVat = r.vat ??
+          (net > 0 ? derivedVat * (lineNet / net) : 0.0);
+      totalDiscount += r.discount;
+      thermalItemRow(
+        d,
+        code: r.code,
+        description: r.name,
+        qty: r.qty,
+        uom: r.uom,
+        unitPrice: r.price,
+        discount: r.discount,
+        vat: lineVat,
+        total: lineNet + lineVat,
+      );
+      if (r.status == 'Q') d.line('   [STA: Q - QUARANTINE]');
+    }
+    d.rule();
+
+    final gross = creditNote.grandTotal + totalDiscount;
+    d.total('TOTAL GROSS AMOUNT  :', ThermalDoc.money(gross));
+    d.total('TOTAL LINE DISCOUNT :', ThermalDoc.money(totalDiscount));
+    d.total('VAT                 :', ThermalDoc.money(derivedVat));
+    d.total('NET AMT             :', ThermalDoc.money(creditNote.grandTotal), bold: true);
+    d.blank();
+    d.line(' SALESMAN : ${salesman ?? creditNote.salesRep ?? ThermalSession.username}');
+    d.blank();
+    d.line(' Sig:.........................');
+    d.blank();
+    d.line(' CUSTOMER Sig:..........................');
+    d.blank();
+    d.line(' STORE : ${storeCode ?? (site.isNotEmpty ? site : ThermalSession.siteCode)}');
+    d.blank();
+    thermalTerms(d);
+    d.blank();
+    d.line(' 1 of 1');
+    d.blank(2);
+
+    return d;
   }
+
+  Future<Uint8List> generateCreditNotePdf({
+    PdfPageFormat? pageFormat, // kept for call-site compatibility (layout is fixed 104 mm)
+    required CreditNoteModel creditNote,
+    List<Map<String, dynamic>> resolvedLines = const [],
+    Map<String, dynamic>? customer,
+    String? salesman,
+    String? storeCode,
+  }) =>
+      buildCreditNoteDoc(
+        creditNote: creditNote,
+        resolvedLines: resolvedLines,
+        customer: customer,
+        salesman: salesman,
+        storeCode: storeCode,
+      ).build();
+
+  double _rowsNet(List<_Row> rows) =>
+      rows.fold<double>(0.0, (s, r) => s + (r.qty * r.price - r.discount));
 
   String _formatReason(String reason) {
     const defaultDescriptions = {
@@ -135,188 +159,25 @@ class CreditNotePdfService {
     }
     return trimmed;
   }
+}
 
-  pw.Widget _buildMetaRow(String label, String value, {bool isBold = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 9,
-              color: PdfColors.grey700,
-              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-            ),
-          ),
-          pw.SizedBox(width: 8),
-          pw.Expanded(
-            child: pw.Text(
-              value,
-              textAlign: pw.TextAlign.right,
-              style: pw.TextStyle(
-                fontSize: 9,
-                fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildDivider() {
-    return pw.Container(
-      height: 1,
-      color: PdfColors.grey400,
-      margin: const pw.EdgeInsets.symmetric(vertical: 4),
-    );
-  }
-
-  pw.Widget _buildLineItems(List<Map<String, dynamic>> lines) {
-    return pw.Column(
-      children: [
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Expanded(
-              flex: 4,
-              child: pw.Text(
-                'RETURNED ITEM',
-                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-              ),
-            ),
-            pw.Expanded(
-              flex: 1,
-              child: pw.Text(
-                'QTY',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-              ),
-            ),
-            pw.Expanded(
-              flex: 2,
-              child: pw.Text(
-                'TOTAL (Rs)',
-                textAlign: pw.TextAlign.right,
-                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        pw.SizedBox(height: 3),
-        _buildDivider(),
-        pw.SizedBox(height: 3),
-        ...lines.map((line) {
-          final name = line['name']?.toString() ?? line['sku']?.toString() ?? 'Item';
-          final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
-          final price = (line['basePrice'] as num?)?.toDouble() ?? 0.0;
-          final unit = line['salesUnit']?.toString() ?? line['unit']?.toString() ?? 'EA';
-          final lineTotal = qty * price;
-
-          return pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 2),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Expanded(
-                  flex: 4,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        name,
-                        style: const pw.TextStyle(fontSize: 9),
-                      ),
-                      pw.Text(
-                        '${qty.toStringAsFixed(0)} $unit x Rs ${numberFormat.format(price)}',
-                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 1,
-                  child: pw.Text(
-                    '${qty.toStringAsFixed(0)} $unit',
-                    textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 9),
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    numberFormat.format(lineTotal),
-                    textAlign: pw.TextAlign.right,
-                    style: const pw.TextStyle(fontSize: 9),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  pw.Widget _buildTotals(CreditNoteModel creditNote) {
-    return pw.Column(
-      children: [
-        _buildDivider(),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(
-              'TOTAL REFUND:',
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              'Rs ${numberFormat.format(creditNote.grandTotal)}',
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-              textAlign: pw.TextAlign.right,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _buildFooter() {
-    return pw.Center(
-      child: pw.Column(
-        children: [
-          pw.Text(
-            'Goods received and restocked.',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-          ),
-          pw.SizedBox(height: 15),
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-            children: [
-              pw.Column(
-                children: [
-                  pw.Container(width: 80, height: 1, color: PdfColors.black),
-                  pw.SizedBox(height: 2),
-                  pw.Text('Customer Signature', style: const pw.TextStyle(fontSize: 7)),
-                ],
-              ),
-              pw.Column(
-                children: [
-                  pw.Container(width: 80, height: 1, color: PdfColors.black),
-                  pw.SizedBox(height: 2),
-                  pw.Text('Rep Signature', style: const pw.TextStyle(fontSize: 7)),
-                ],
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 8),
-          pw.Text(
-            'Thank you for your business.',
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
-          ),
-        ],
-      ),
-    );
-  }
+class _Row {
+  final String code;
+  final String name;
+  final double qty;
+  final String uom;
+  final double price;
+  final double discount;
+  final double? vat;
+  final String status;
+  _Row({
+    required this.code,
+    required this.name,
+    required this.qty,
+    required this.uom,
+    required this.price,
+    required this.discount,
+    required this.vat,
+    required this.status,
+  });
 }
