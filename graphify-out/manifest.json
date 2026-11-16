@@ -7067,8 +7067,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\config\\api_config.dart": {
-    "mtime": 1794505868.727096,
-    "ast_hash": "05e0f895d9837223484d9b049ce14f3d",
+    "mtime": 1794544972.5790336,
+    "ast_hash": "b02b7be184be310b9d2abe8637add869",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\config\\auth_config.dart": {
@@ -7107,8 +7107,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\printer_service.dart": {
-    "mtime": 1794512438.2716827,
-    "ast_hash": "ca8f9cf83b5feb18c380509645d6006c",
+    "mtime": 1794561897.6700566,
+    "ast_hash": "64b98331e5bd4f0d4a726b43638bae26",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\services\\tcp_print_service.dart": {
@@ -7482,7 +7482,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\credit_note_pdf_service.dart": {
-    "mtime": 1794512476.545447,
+    "mtime": 1794512549.0375032,
     "ast_hash": "110166661669a64bc681b9e588d38807",
     "semantic_hash": ""
   },
@@ -7502,7 +7502,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\sales_invoice_pdf_service.dart": {
-    "mtime": 1794512489.2090116,
+    "mtime": 1794512549.138197,
     "ast_hash": "5c2d723381e3063934402406ff677ea7",
     "semantic_hash": ""
   },
@@ -7707,7 +7707,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\invoice_preview_screen.dart": {
-    "mtime": 1794512498.628816,
+    "mtime": 1794512549.5527506,
     "ast_hash": "061cce4df4cc1d2263709bd0201078f6",
     "semantic_hash": ""
   },
@@ -8962,8 +8962,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\thermal_template.dart": {
-    "mtime": 1794512446.3891945,
-    "ast_hash": "a54650c94a98f93804b927e0808d472b",
+    "mtime": 1794559740.1382036,
+    "ast_hash": "d1a154389028f3646711751a647e3d8d",
     "semantic_hash": ""
   }
 }

@@ -540,9 +540,6 @@ class PrinterService {
       if (await Permission.bluetoothConnect.isDenied) {
         await Permission.bluetoothConnect.request();
       }
-      if (await Permission.bluetooth.isDenied) {
-        await Permission.bluetooth.request();
-      }
       // Location fallback for Android 10/11
       if (await Permission.location.isDenied) {
         await Permission.location.request();
@@ -578,7 +575,8 @@ class PrinterService {
         return true;
       }
 
-      // 4. Connect to printer by MAC address
+      // 4. Connect to printer by MAC address (force clean socket first if stale)
+      await disconnectBluetooth();
       bool connected = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
       debugPrint('PrinterService.connect($macAddress) -> $connected');
 
@@ -604,18 +602,57 @@ class PrinterService {
     }
   }
 
-  Future<bool> _writeBytesInChunks(List<int> bytes, {int chunkSize = 4096}) async {
-    debugPrint('PrinterService: writing ${bytes.length} bytes to Bluetooth socket...');
+  static final Map<int, List<({String text, bool bold})>> _pdfThermalLineCache = {};
+
+  static int _fingerprintPdf(Uint8List bytes) {
+    int hash = 0x811c9dc5;
+    final int step = bytes.length > 4096 ? (bytes.length ~/ 2048) : 1;
+    for (int i = 0; i < bytes.length; i += step) {
+      hash ^= bytes[i];
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return (hash ^ bytes.length) & 0x7fffffff;
+  }
+
+  /// Registers the 68-column native ESC/POS lines that produced [pdfBytes] so
+  /// any caller passing [pdfBytes] to [printPdfViaBluetooth] automatically
+  /// prints crisp hardware-font ESC/POS text instead of slow raster bitmaps.
+  static void registerPdfThermalLines(
+    Uint8List pdfBytes,
+    List<({String text, bool bold})> lines,
+  ) {
+    if (_pdfThermalLineCache.length >= 32) {
+      _pdfThermalLineCache.remove(_pdfThermalLineCache.keys.first);
+    }
+    _pdfThermalLineCache[_fingerprintPdf(pdfBytes)] = List.unmodifiable(lines);
+  }
+
+  static List<({String text, bool bold})>? lookupPdfThermalLines(Uint8List pdfBytes) =>
+      _pdfThermalLineCache[_fingerprintPdf(pdfBytes)];
+
+  Future<bool> _writeBytesInChunks(List<int> bytes, {int chunkSize = 512}) async {
+    debugPrint('PrinterService: writing ${bytes.length} bytes to Bluetooth socket (chunkSize=$chunkSize)...');
     for (int i = 0; i < bytes.length; i += chunkSize) {
       final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
       final chunk = bytes.sublist(i, end);
-      final ok = await PrintBluetoothThermal.writeBytes(chunk);
+      bool ok = await PrintBluetoothThermal.writeBytes(chunk);
+      if (!ok && i == 0) {
+        final mac = defaultBluetoothPrinter?.macAddress;
+        if (mac != null && mac.isNotEmpty) {
+          debugPrint('PrinterService: first chunk write failed, reconnecting to $mac and retrying...');
+          await disconnectBluetooth();
+          final reconnected = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+          if (reconnected) {
+            ok = await PrintBluetoothThermal.writeBytes(chunk);
+          }
+        }
+      }
       if (!ok) {
         debugPrint('PrinterService: writeBytes failed at offset $i (chunk size ${chunk.length})');
         return false;
       }
       if (end < bytes.length) {
-        await Future.delayed(const Duration(milliseconds: 20));
+        await Future.delayed(const Duration(milliseconds: 35));
       }
     }
     debugPrint('PrinterService: write completed successfully (${bytes.length} bytes)');
@@ -729,28 +766,50 @@ class PrinterService {
         );
       }
 
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(PaperSize.mm80, profile);
-      List<int> bytes = [];
+      // Build clean, standard ESC/POS byte stream directly without
+      // esc_pos_utils_plus per-line control bloat (ESC $ 00 00, FS ., etc.).
+      final List<int> bytes = <int>[
+        0x1B, 0x40, // ESC @ : Initialize printer
+        0x1B, 0x61, 0x00, // ESC a 0 : Left alignment
+        0x1B, 0x4D, 0x00, // ESC M 0 : Font A (12x24, 69 cols on 832-dot Sewoo LK-P43II)
+        0x1B, 0x45, 0x00, // ESC E 0 : Bold off
+      ];
 
-      bytes += generator.reset();
+      bool currentBold = false;
       for (final line in lines) {
-        if (line.text.trim().isEmpty) {
-          bytes += generator.emptyLines(1);
-        } else {
-          bytes += generator.text(
-            line.text,
-            styles: PosStyles(
-              bold: line.bold,
-              fontType: PosFontType.fontA,
-            ),
-          );
+        final String trimmedRight = line.text.replaceAll(RegExp(r'\s+$'), '');
+        if (trimmedRight.isEmpty) {
+          bytes.add(0x0D);
+          bytes.add(0x0A);
+          continue;
         }
-      }
-      bytes += generator.feed(4);
 
-      debugPrint('PrinterService: prepared ${bytes.length} bytes of native ESC/POS text for $documentName');
-      final bool success = await _writeBytesInChunks(bytes, chunkSize: 4096);
+        if (line.bold != currentBold) {
+          currentBold = line.bold;
+          bytes.addAll(<int>[0x1B, 0x45, currentBold ? 0x01 : 0x00]);
+        }
+
+        // Emit strict printable ASCII (0x20..0x7E) only to prevent weird symbols
+        for (int i = 0; i < trimmedRight.length; i++) {
+          final int code = trimmedRight.codeUnitAt(i);
+          bytes.add((code >= 0x20 && code <= 0x7E) ? code : 0x20);
+        }
+        bytes.add(0x0D);
+        bytes.add(0x0A);
+      }
+
+      if (currentBold) {
+        bytes.addAll(const <int>[0x1B, 0x45, 0x00]);
+      }
+
+      // Feed 4 blank lines for clean manual tear-off past the cutter bar
+      for (int i = 0; i < 4; i++) {
+        bytes.add(0x0D);
+        bytes.add(0x0A);
+      }
+
+      debugPrint('PrinterService: prepared ${bytes.length} bytes of clean ESC/POS text for $documentName');
+      final bool success = await _writeBytesInChunks(bytes, chunkSize: 512);
       debugPrint('PrinterService: printThermalLinesViaBluetooth result: $success');
       return success;
     } catch (e, stack) {
@@ -763,6 +822,19 @@ class PrinterService {
     required Uint8List pdfBytes,
     required String documentName,
   }) async {
+    // Fast path: if these PDF bytes were produced by ThermalDoc.build(),
+    // route directly to native ESC/POS text printing instead of slow rasterization.
+    final cachedLines = lookupPdfThermalLines(pdfBytes);
+    if (cachedLines != null && cachedLines.isNotEmpty) {
+      debugPrint(
+        'PrinterService.printPdfViaBluetooth: routing $documentName (${cachedLines.length} lines) to native ESC/POS text',
+      );
+      return printThermalLinesViaBluetooth(
+        lines: cachedLines,
+        documentName: documentName,
+      );
+    }
+
     final printer = defaultBluetoothPrinter;
     if (printer == null || printer.macAddress == null || printer.macAddress!.isEmpty) {
       throw Exception(
@@ -831,7 +903,7 @@ class PrinterService {
       bytes += generator.feed(4);
 
       // 4. Send directly to Bluetooth socket in chunks
-      final bool success = await _writeBytesInChunks(bytes, chunkSize: 4096);
+      final bool success = await _writeBytesInChunks(bytes, chunkSize: 512);
       debugPrint('PrinterService: printPdfViaBluetooth result: $success');
       return success;
     } catch (e, stack) {

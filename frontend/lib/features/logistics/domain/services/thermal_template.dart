@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 
 /// Logged-in session details printed on the thermal documents
 /// (SALESMAN / STORE fields). Kept in sync by `AuthBloc.onChange`.
@@ -241,7 +242,9 @@ class ThermalDoc {
       ),
     );
 
-    return pdf.save();
+    final bytes = await pdf.save();
+    PrinterService.registerPdfThermalLines(bytes, toPrintLines());
+    return bytes;
   }
 }
 
