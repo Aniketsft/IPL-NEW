@@ -464,6 +464,15 @@ class SalesInvoiceSyncRepository {
                   ? cn['deviceId']
                   : resolvedCrnTablet);
 
+          String resolvedDeviceLorry = (DeviceInfoService.instance.assignedLocation ?? '').trim();
+          if (resolvedDeviceLorry.isEmpty) {
+            try {
+              final devLoc = await LocalDatabaseHelper.instance.getDeviceLocation(cleanCrnDeviceId.toString());
+              resolvedDeviceLorry = devLoc?['locationCode']?.toString().trim() ?? '';
+            } catch (_) {}
+          }
+          final String effectiveCrnSite = (cn['salesSite'] ?? siteCode).toString().trim();
+
           final payload = {
             "creditNoteId": creditNoteId,
             "creditNoteType": (category == 3) ? 'RETURN' : (cn['creditNoteType'] ?? 'CRN'),
@@ -486,22 +495,31 @@ class SalesInvoiceSyncRepository {
             "transactionalId": creditNoteId,
             "settlementType": cn['settlementType'] ?? (refunds.any((r) => (r['method'] ?? '').toString().toUpperCase() == 'CASH') ? 'CASH' : 'CREDIT'),
             "grandTotal": (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
-            "lines": lines.map((l) => {
-              "lineNo": l['lineNo'] ?? 1000,
-              "quantity": (l['quantity'] as num?)?.toDouble() ?? 0.0,
-              "sku": l['sku'] ?? '',
-              "name": l['name'] ?? '',
-              "salesUnit": l['salesUnit'] ?? 'EA',
-              "basePrice": (l['basePrice'] as num?)?.toDouble() ?? 0.0,
-              "taxRule": l['taxRule'] ?? '',
-              "lotNumber": l['lotNumber'] ?? '',
-              "warehouse": l['warehouse'] ?? '',
-              "cce0": l['cce0'] ?? '',
-              "stockStatus": l['stockStatus'] ?? 'A',
-              "returnCondition": l['returnCondition'] ?? cn['reason'],
-              "expiryDate": l['expiryDate'],
-              "location": l['location'] ?? 'LOC1',
-              "originLineNo": l['originLineNo'] ?? l['lineNo']
+            "lines": lines.map((l) {
+              final rawLoc = (l['location'] ?? '').toString().trim();
+              final bool isValidLineLoc = rawLoc.isNotEmpty &&
+                  rawLoc.toUpperCase() != 'LOC1' &&
+                  rawLoc.toUpperCase() != effectiveCrnSite.toUpperCase();
+              final resolvedLineLoc = resolvedDeviceLorry.isNotEmpty
+                  ? resolvedDeviceLorry
+                  : (isValidLineLoc ? rawLoc : 'LOC1');
+              return {
+                "lineNo": l['lineNo'] ?? 1000,
+                "quantity": (l['quantity'] as num?)?.toDouble() ?? 0.0,
+                "sku": l['sku'] ?? '',
+                "name": l['name'] ?? '',
+                "salesUnit": l['salesUnit'] ?? 'EA',
+                "basePrice": (l['basePrice'] as num?)?.toDouble() ?? 0.0,
+                "taxRule": l['taxRule'] ?? '',
+                "lotNumber": l['lotNumber'] ?? '',
+                "warehouse": l['warehouse'] ?? '',
+                "cce0": l['cce0'] ?? '',
+                "stockStatus": l['stockStatus'] ?? 'A',
+                "returnCondition": l['returnCondition'] ?? cn['reason'],
+                "expiryDate": l['expiryDate'],
+                "location": resolvedLineLoc,
+                "originLineNo": l['originLineNo'] ?? l['lineNo']
+              };
             }).toList(),
             "refunds": refunds.map((r) => {
               "localRefundId": r['refundId'],
@@ -519,12 +537,21 @@ class SalesInvoiceSyncRepository {
             final displayId = _extractX3InvoiceId(creditNoteId, response.data);
             String? x3StockReceiptId;
             String? x3RefundPaymentId;
+            bool stockReceiptSynced = false;
+            String? stockReceiptError;
             if (response.data is Map) {
-              if (response.data['x3StockReceiptId'] != null) {
-                x3StockReceiptId = response.data['x3StockReceiptId']?.toString();
+              if (response.data['x3StockReceiptId'] != null &&
+                  response.data['x3StockReceiptId'].toString().trim().isNotEmpty) {
+                x3StockReceiptId = response.data['x3StockReceiptId'].toString().trim();
               }
-              if (response.data['x3RefundPaymentId'] != null) {
-                x3RefundPaymentId = response.data['x3RefundPaymentId']?.toString();
+              if (response.data['x3RefundPaymentId'] != null &&
+                  response.data['x3RefundPaymentId'].toString().trim().isNotEmpty) {
+                x3RefundPaymentId = response.data['x3RefundPaymentId'].toString().trim();
+              }
+              stockReceiptSynced = response.data['stockReceiptSynced'] == true;
+              if (response.data['stockReceiptError'] != null &&
+                  response.data['stockReceiptError'].toString().trim().isNotEmpty) {
+                stockReceiptError = response.data['stockReceiptError'].toString().trim();
               }
             }
 
@@ -537,8 +564,11 @@ class SalesInvoiceSyncRepository {
             if (response.data is Map && (response.data['refundSynced'] == true || x3RefundPaymentId != null)) {
               await LocalDatabaseHelper.instance.markCreditNoteRefundsSynced(creditNoteId, x3PaymentId: x3RefundPaymentId);
             }
-            if (x3StockReceiptId != null) {
-              await LocalDatabaseHelper.instance.markCreditNoteStockReceiptSynced(creditNoteId, x3ReceiptId: x3StockReceiptId);
+            if (x3StockReceiptId != null || stockReceiptSynced) {
+              await LocalDatabaseHelper.instance.markCreditNoteStockReceiptSynced(
+                creditNoteId,
+                x3ReceiptId: x3StockReceiptId ?? 'ZSMRWEBA-OK',
+              );
             }
             successes.add(displayId);
             final List<String> msgs = [];
@@ -548,6 +578,13 @@ class SalesInvoiceSyncRepository {
             if (msgs.isEmpty) {
               msgs.add('Created in Sage X3: $displayId');
             }
+            if (category == 3 && !msgs.any((m) => m.contains('ZSMRWEBA'))) {
+              if (stockReceiptSynced || x3StockReceiptId != null) {
+                msgs.add('Misc Stock Receipt (ZSMRWEBA) created in Sage X3: ${x3StockReceiptId ?? "OK"}');
+              } else if (stockReceiptError != null) {
+                msgs.add('Misc Stock Receipt (ZSMRWEBA) failed: $stockReceiptError');
+              }
+            }
             entityReports.add(SyncEntityReport(
               entityName: displayId,
               direction: SyncDirection.upload,
@@ -556,6 +593,37 @@ class SalesInvoiceSyncRepository {
               documentId: displayId,
               messages: msgs,
             ));
+
+            // Add explicit Misc Stock Receipt (ZSMRWEBA) report card for Customer Returns
+            if (category == 3 || stockReceiptSynced || x3StockReceiptId != null || stockReceiptError != null) {
+              if (stockReceiptSynced || x3StockReceiptId != null) {
+                final receiptId = x3StockReceiptId ?? 'ZSMRWEBA ($creditNoteId)';
+                successes.add(receiptId);
+                entityReports.add(SyncEntityReport(
+                  entityName: receiptId,
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.success,
+                  count: 1,
+                  documentId: receiptId,
+                  messages: [
+                    'Misc Stock Receipt (ZSMRWEBA) created in Sage X3: $receiptId (Return $creditNoteId)',
+                  ],
+                ));
+              } else if (stockReceiptError != null) {
+                final err = 'Misc Stock Receipt ($creditNoteId): $stockReceiptError';
+                failures.add(err);
+                entityReports.add(SyncEntityReport(
+                  entityName: 'ZSMRWEBA ($creditNoteId)',
+                  direction: SyncDirection.upload,
+                  status: SyncStatus.failed,
+                  errorCode: 'ERR_UPLOAD_MISC_RECEIPT',
+                  userMessage: err,
+                  technicalDetails: stockReceiptError,
+                  documentId: creditNoteId,
+                  messages: ['Misc Stock Receipt (ZSMRWEBA) failed: $stockReceiptError'],
+                ));
+              }
+            }
           } else {
             final err = '$creditNoteId: ${response.data}';
             failures.add(err);

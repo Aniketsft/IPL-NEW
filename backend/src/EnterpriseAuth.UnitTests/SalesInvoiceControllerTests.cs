@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using EnterpriseAuth.Api.Controllers;
 using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Application.Interfaces;
+using EnterpriseAuth.Api.Core.Application.Services;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -37,7 +38,8 @@ namespace EnterpriseAuth.UnitTests
 
         private SalesInvoiceController CreateControllerWithUser(string? siteClaim = null)
         {
-            var controller = new SalesInvoiceController(_repoMock.Object, _dbContext, _soapMock.Object, _loggerMock.Object);
+            var siteResolver = new SiteContextResolver(_repoMock.Object, Mock.Of<ILogger<SiteContextResolver>>());
+            var controller = new SalesInvoiceController(_repoMock.Object, _dbContext, _soapMock.Object, _loggerMock.Object, siteResolver);
 
             var claims = new List<Claim>();
             if (siteClaim != null)

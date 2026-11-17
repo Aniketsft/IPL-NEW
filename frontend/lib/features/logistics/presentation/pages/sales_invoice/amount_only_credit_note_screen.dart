@@ -50,6 +50,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
 
   bool _isLoading = false;
   bool _isProcessing = false;
+  String _selectedRefundMethod = CreditNoteRefundMethod.cash;
 
   final currencyFormat = CurrencyFormatter.currencyFormat;
 
@@ -353,6 +354,7 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
         reference: _referenceController.text.trim().isNotEmpty
             ? _referenceController.text.trim()
             : _selectedInvoiceIds.join(', '),
+        refundMethod: _selectedRefundMethod,
       );
 
       if (!mounted) return;
@@ -377,6 +379,9 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
               const SizedBox(height: 8),
               Text('Customer: ${creditNote.customerName}'),
               Text('Refund Amount: ${currencyFormat.format(creditNote.grandTotal)}'),
+              Text(
+                'Settlement: ${creditNote.settlementType == CreditNoteRefundMethod.credit ? "Credit on Account (MRCRE)" : "Cash Refund (MRCAS)"}',
+              ),
               Text('Linked Invoices: ${_selectedInvoiceIds.join(', ')}'),
               const SizedBox(height: 12),
               const Text('Stock replenished and transaction recorded for synchronization.', style: TextStyle(fontSize: 12, color: Colors.grey)),
@@ -582,6 +587,45 @@ class _AmountOnlyCreditNoteScreenState extends State<AmountOnlyCreditNoteScreen>
                         labelText: 'Internal Reference / Notes (Optional)',
                         border: OutlineInputBorder(),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'REFUND SETTLEMENT',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.payments_outlined, size: 16),
+                                SizedBox(width: 6),
+                                Flexible(child: Text('Cash Refund', overflow: TextOverflow.ellipsis)),
+                              ],
+                            ),
+                            selected: _selectedRefundMethod == CreditNoteRefundMethod.cash,
+                            onSelected: (_) => setState(() => _selectedRefundMethod = CreditNoteRefundMethod.cash),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.account_balance_wallet_outlined, size: 16),
+                                SizedBox(width: 6),
+                                Flexible(child: Text('Credit on Account', overflow: TextOverflow.ellipsis)),
+                              ],
+                            ),
+                            selected: _selectedRefundMethod == CreditNoteRefundMethod.credit,
+                            onSelected: (_) => setState(() => _selectedRefundMethod = CreditNoteRefundMethod.credit),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -608,6 +608,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
     HapticFeedback.mediumImpact();
     setState(() => _isLoading = true);
 
+    final prevLocation = _currentDeviceLocation ?? _userSiteCode;
+    final prevWarehouse = _currentWarehouse;
+
     // 1. Immediately update SQLite
     final currentDev = _devices.firstWhere(
       (d) => d.deviceId == _currentDeviceId,
@@ -638,7 +641,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       _currentWarehouse = warehouse;
     });
 
-    // 2. Sync to Backend
+    // 2. Sync to Backend (enforcing Option A: 1 active device per lorry)
     try {
       final token = await _storage.getToken();
       final encodedId = Uri.encodeComponent(_currentDeviceId);
@@ -660,6 +663,36 @@ class _DevicesScreenState extends State<DevicesScreen> {
         final saved = DeviceItem.fromJson(jsonDecode(resp.body));
         await _db.insertOrUpdateDeviceLocation(saved.toMap());
         _syncCurrentDeviceFromList([saved]);
+      } else if (resp.statusCode == 409) {
+        // Backend rejected due to lorry conflict with another active device — revert local change
+        final reverted = currentDev.copyWith(
+          locationCode: prevLocation,
+          warehouseCode: prevWarehouse,
+          updatedAt: DateTime.now(),
+        );
+        await _db.insertOrUpdateDeviceLocation(reverted.toMap());
+        await DeviceInfoService.instance.setAssignedLocation(
+          siteCode: _userSiteCode,
+          warehouseCode: prevWarehouse,
+          locationCode: prevLocation,
+        );
+        if (mounted) {
+          setState(() {
+            _currentDeviceLocation = prevLocation;
+            _currentWarehouse = prevWarehouse;
+            _isLoading = false;
+          });
+        }
+        String errMsg = 'Lorry $newLocation is already assigned to another active device.';
+        try {
+          final errJson = jsonDecode(resp.body);
+          if (errJson is Map && errJson['message'] != null) {
+            errMsg = errJson['message'].toString();
+          }
+        } catch (_) {}
+        await _loadFromLocalDb();
+        _showErrorSnackBar(errMsg);
+        return;
       }
     } catch (e) {
       debugPrint('Lorry location online sync deferred (saved offline in SQLite): $e');
@@ -2025,31 +2058,39 @@ class _DevicesScreenState extends State<DevicesScreen> {
                                 ),
                                 title: Row(
                                   children: [
-                                    Text(
-                                      'Lorry ${item.location}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: isSelected
-                                            ? primary
-                                            : (isDark ? Colors.white : Colors.black87),
+                                    Flexible(
+                                      child: Text(
+                                        'Lorry ${item.location}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: isSelected
+                                              ? primary
+                                              : (isDark ? Colors.white : Colors.black87),
+                                        ),
                                       ),
                                     ),
                                     if (item.plateNumber != null && item.plateNumber!.isNotEmpty) ...[
                                       const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: isDark ? Colors.white10 : Colors.grey.shade200,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          item.plateNumber!,
-                                          style: TextStyle(
-                                            fontFamily: 'monospace',
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: primary,
+                                      Flexible(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white10 : Colors.grey.shade200,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            item.plateNumber!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontFamily: 'monospace',
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: primary,
+                                            ),
                                           ),
                                         ),
                                       ),

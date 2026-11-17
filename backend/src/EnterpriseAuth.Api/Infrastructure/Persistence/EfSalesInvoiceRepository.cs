@@ -613,6 +613,72 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return cleanSite;
         }
 
+        public async Task<IEnumerable<string>> GetExistingHipoDocumentIdsFromX3Async(string? siteCode = null)
+        {
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var schema = _schemaProvider.GetSchemaName();
+            var cleanSite = (siteCode ?? string.Empty).Trim().ToUpperInvariant();
+            if (cleanSite == "ALL") cleanSite = string.Empty;
+
+            try
+            {
+                using IDbConnection db = new SqlConnection(_connectionString);
+                string sinvoiceSql = $@"
+                    SELECT LTRIM(RTRIM(NUM_0)) AS DocId
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.SINVOICE WITH (NOLOCK)
+                    WHERE NUM_0 LIKE 'H%'
+                      AND (@SiteCode = '' OR LTRIM(RTRIM(SALFCY_0)) = @SiteCode)
+                    UNION
+                    SELECT LTRIM(RTRIM(INVREF_0)) AS DocId
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.SINVOICE WITH (NOLOCK)
+                    WHERE INVREF_0 LIKE 'H%'
+                      AND (@SiteCode = '' OR LTRIM(RTRIM(SALFCY_0)) = @SiteCode);";
+
+                var sinvoiceIds = await db.QueryAsync<string>(sinvoiceSql, new { SiteCode = cleanSite });
+                foreach (var id in sinvoiceIds)
+                {
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        ids.Add(id.Trim());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to query SINVOICE HIPO document sequences in schema {Schema}", schema);
+            }
+
+            try
+            {
+                using IDbConnection db = new SqlConnection(_connectionString);
+                string smvthSql = $@"
+                    SELECT LTRIM(RTRIM(VCRNUM_0)) AS DocId
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.SMVTH WITH (NOLOCK)
+                    WHERE VCRTYP_0 = 19
+                      AND VCRNUM_0 LIKE 'H%';";
+
+                var smvthIds = await db.QueryAsync<string>(smvthSql);
+                foreach (var id in smvthIds)
+                {
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        var trimmed = id.Trim();
+                        if (string.IsNullOrEmpty(cleanSite) ||
+                            (trimmed.Length > 2 && trimmed.Substring(2).StartsWith(cleanSite, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            ids.Add(trimmed);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to query SMVTH HIPO document sequences in schema {Schema}", schema);
+            }
+
+            return ids;
+        }
+
         public async Task<string> GetX3HistoryWatermarkAsync(string siteCode, int months = 6)
         {
             using IDbConnection db = new SqlConnection(_connectionString);

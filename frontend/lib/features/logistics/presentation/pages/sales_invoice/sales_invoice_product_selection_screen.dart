@@ -12,6 +12,7 @@ import '../../../../../core/widgets/search_picker_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../bloc/sales_invoice_bloc.dart';
+import '../../bloc/sales_invoice_event.dart';
 import '../../bloc/sales_invoice_state.dart';
 import 'add_item_detail_screen.dart';
 import 'order_summary_screen.dart';
@@ -36,6 +37,8 @@ class _SalesInvoiceProductSelectionScreenState
   final FocusNode _searchFocusNode = FocusNode();
   bool _hasAutofocused = false;
   bool _isKeypadExpanded = true;
+  bool _useSystemKeyboard = false;
+  bool _allowProgrammaticPop = false;
   String _stockFilter = 'all'; // Default to all as requested
   String? _selectedWarehouse;
   List<String> _warehouses = [];
@@ -138,8 +141,37 @@ class _SalesInvoiceProductSelectionScreenState
 
   void _focusSearchField() {
     if (!mounted) return;
-    if (!_isKeypadExpanded) {
+    if (_useSystemKeyboard) {
+      FocusScope.of(context).requestFocus(_searchFocusNode);
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    } else if (!_isKeypadExpanded) {
       setState(() => _isKeypadExpanded = true);
+    }
+  }
+
+  void _toggleInputMode() {
+    if (_useSystemKeyboard) {
+      // Switch from system keyboard -> industrial 0-9 keypad
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+      _searchFocusNode.unfocus();
+      setState(() {
+        _useSystemKeyboard = false;
+        _isKeypadExpanded = true;
+      });
+    } else {
+      // Switch from industrial 0-9 keypad -> system keyboard
+      setState(() {
+        _useSystemKeyboard = true;
+        _isKeypadExpanded = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        FocusScope.of(context).requestFocus(_searchFocusNode);
+        _searchController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _searchController.text.length),
+        );
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      });
     }
   }
 
@@ -267,33 +299,105 @@ class _SalesInvoiceProductSelectionScreenState
     }
   }
 
+  Future<void> _confirmExitProductSelection({required bool isGoingHome}) async {
+    final bool? shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(child: Text('Leave Order?')),
+          ],
+        ),
+        content: const Text(
+          'You have items in your order summary. Are you sure you want to leave? All unsaved progress may be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('STAY'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('LEAVE'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLeave == true && mounted) {
+      setState(() => _allowProgrammaticPop = true);
+      context.read<SalesInvoiceBloc>().add(ClearCart());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (isGoingHome) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        } else if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final salesState = context.watch<SalesInvoiceBloc>().state;
+    final hasOrderItems =
+        salesState is SalesInvoiceLoaded && salesState.cartItems.isNotEmpty;
 
     return PopScope(
-      canPop: !_isKeypadExpanded,
+      canPop: _allowProgrammaticPop || (!hasOrderItems && !_isKeypadExpanded),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        if (_isKeypadExpanded) {
+        if (hasOrderItems) {
+          _confirmExitProductSelection(isGoingHome: false);
+        } else if (_isKeypadExpanded) {
           setState(() => _isKeypadExpanded = false);
         }
       },
       child: IndustrialModuleLayout(
         title: 'Select Product',
+        onHomePressed: () {
+          if (hasOrderItems) {
+            _confirmExitProductSelection(isGoingHome: true);
+          } else {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        },
         body: Column(
           children: [
             StandardFilter(
               autofocus: false,
               focusNode: _searchFocusNode,
-              keyboardType: TextInputType.none,
-              readOnly: true,
+              keyboardType: _useSystemKeyboard ? TextInputType.text : TextInputType.none,
+              readOnly: !_useSystemKeyboard,
               onSearchTap: () {
-                if (!_isKeypadExpanded) {
+                if (_useSystemKeyboard) {
+                  FocusScope.of(context).requestFocus(_searchFocusNode);
+                  SystemChannels.textInput.invokeMethod('TextInput.show');
+                } else if (!_isKeypadExpanded) {
                   setState(() => _isKeypadExpanded = true);
                 }
               },
+              suffixIcon: IconButton(
+                onPressed: _toggleInputMode,
+                tooltip: _useSystemKeyboard ? 'Switch to 0-9 Keypad' : 'Switch to Keyboard',
+                splashRadius: 18,
+                icon: Icon(
+                  _useSystemKeyboard ? Icons.dialpad_rounded : Icons.keyboard_alt_outlined,
+                  size: 20,
+                  color: _useSystemKeyboard
+                      ? theme.primaryColor
+                      : (isDark ? Colors.white54 : Colors.black45),
+                ),
+              ),
               onApply: _resetAndFetch,
               searchController: _searchController,
               onSearchChanged: (val) => _resetAndFetch(),
@@ -467,32 +571,41 @@ class _SalesInvoiceProductSelectionScreenState
                     },
                   ),
           ),
-          // Industrial Numeric Keypad
-          IndustrialNumericKeypad(
-            isExpanded: _isKeypadExpanded,
-            onToggleExpanded: () {
-              setState(() {
-                _isKeypadExpanded = !_isKeypadExpanded;
-              });
-            },
-            onDigitPressed: (digit) {
-              _searchController.text += digit;
-              _resetAndFetch();
-            },
-            onClear: () {
-              _searchController.clear();
-              _resetAndFetch();
-            },
-            onBackspace: () {
-              if (_searchController.text.isNotEmpty) {
-                _searchController.text = _searchController.text.substring(
-                  0,
-                  _searchController.text.length - 1,
+          // Industrial Numeric Keypad (shown when not using system keyboard)
+          if (!_useSystemKeyboard)
+            IndustrialNumericKeypad(
+              isExpanded: _isKeypadExpanded,
+              onToggleExpanded: () {
+                setState(() {
+                  _isKeypadExpanded = !_isKeypadExpanded;
+                });
+              },
+              onDigitPressed: (digit) {
+                final newText = _searchController.text + digit;
+                _searchController.value = TextEditingValue(
+                  text: newText,
+                  selection: TextSelection.collapsed(offset: newText.length),
                 );
                 _resetAndFetch();
-              }
-            },
-          ),
+              },
+              onClear: () {
+                _searchController.clear();
+                _resetAndFetch();
+              },
+              onBackspace: () {
+                if (_searchController.text.isNotEmpty) {
+                  final newText = _searchController.text.substring(
+                    0,
+                    _searchController.text.length - 1,
+                  );
+                  _searchController.value = TextEditingValue(
+                    text: newText,
+                    selection: TextSelection.collapsed(offset: newText.length),
+                  );
+                  _resetAndFetch();
+                }
+              },
+            ),
         ],
       ),
     ),

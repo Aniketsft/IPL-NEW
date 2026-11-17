@@ -77,7 +77,7 @@ class DocumentSequenceService {
       devLoc = await _dbHelper.getDeviceLocation(resolvedDeviceId);
     } catch (_) {}
 
-    // 3. Resolve Lorry Code
+    // 3. Resolve Lorry Code (Option A: strict 1-device-per-lorry, never silently share '00')
     String cleanLorry = (lorryCode ?? '').trim().toUpperCase();
     if (cleanLorry.isEmpty && devLoc != null && devLoc['locationCode'] != null) {
       cleanLorry = devLoc['locationCode'].toString().trim().toUpperCase();
@@ -85,24 +85,13 @@ class DocumentSequenceService {
     if (cleanLorry.isEmpty && DeviceInfoService.instance.assignedLocation != null && DeviceInfoService.instance.assignedLocation!.trim().isNotEmpty) {
       cleanLorry = DeviceInfoService.instance.assignedLocation!.trim().toUpperCase();
     }
-    if (cleanLorry.isEmpty) {
-      // Fallback: pick the first lorry location registered for this site
-      try {
-        final locs = await db.query(
-          LocalDatabaseHelper.tableLocations,
-          where: '${LocalDatabaseHelper.colLocType} = ? AND ${LocalDatabaseHelper.colLocSite} = ?',
-          whereArgs: ['LORRY', effectiveSalesSite],
-          limit: 1,
-        );
-        if (locs.isNotEmpty && locs.first[LocalDatabaseHelper.colLocCode] != null) {
-          cleanLorry = locs.first[LocalDatabaseHelper.colLocCode].toString().trim().toUpperCase();
-        }
-      } catch (_) {}
-    }
     // Extract numeric lorry digits (e.g. '57' from 'Lorry 57', 'LORRY57', or '57')
     String lorryNum = cleanLorry.replaceAll(RegExp(r'[^0-9]'), '');
     if (lorryNum.isEmpty) {
-      lorryNum = '00';
+      throw StateError(
+        'No lorry assigned to this device (current location: "${cleanLorry.isEmpty ? "UNASSIGNED" : cleanLorry}"). '
+        'Please assign a valid lorry in Device Management before creating documents.',
+      );
     } else if (lorryNum.length == 1) {
       lorryNum = lorryNum.padLeft(2, '0');
     } else if (lorryNum.length > 4) {

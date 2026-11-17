@@ -20,9 +20,11 @@ class CreditNotePdfService {
 
     final settlement = creditNote.settlementType.toString().toUpperCase();
     final site = creditNote.salesSite.toString();
-    final isCashRefund = creditNote.creditNoteType == CreditNoteType.cashOnly ||
-        settlement.contains('REFUND') ||
-        settlement == 'CASH';
+    final isCreditOnAccount = settlement == 'CREDIT';
+    final isCashRefund = !isCreditOnAccount &&
+        (creditNote.creditNoteType == CreditNoteType.cashOnly ||
+            settlement.contains('REFUND') ||
+            settlement == 'CASH');
     final docTitle = isCashRefund ? 'CASH SALES REFUND' : 'CREDIT NOTE';
 
     DateTime printed;
@@ -50,6 +52,7 @@ class CreditNotePdfService {
       d.meta('Linked Invoices', creditNote.linkedInvoiceIds.join(', '));
     }
     d.meta('Reason', _formatReason(creditNote.reason ?? ''));
+    d.meta('Refund Type', isCreditOnAccount ? 'Credit on Account (MRCRE)' : 'Cash Refund (MRCAS)');
     d.meta('Print Date Time', ThermalDoc.printStamp());
     d.meta('Document Date', DateFormat('dd/MM/yyyy HH:mm').format(printed));
     thermalItemHeader(d);

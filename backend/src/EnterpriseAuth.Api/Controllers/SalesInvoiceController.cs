@@ -110,21 +110,22 @@ namespace EnterpriseAuth.Api.Controllers
                         message = "Invoice already processed and synced."
                     });
                 }
+            }
 
-                // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3 for this exact transaction?
-                var priorAudit = await _dbContext.X3SoapAudits
-                    .Where(a => a.ActionName == "ImportSalesInvoice" && a.Identifier == payload.InvoiceId && a.IsSuccess)
-                    .OrderByDescending(a => a.CreatedAt)
-                    .FirstOrDefaultAsync();
+            // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3 for this exact transaction
+            //    (including cases where the backend crashed before committing StagingSalesInvoiceHeaders)?
+            var priorAudit = await _dbContext.X3SoapAudits
+                .Where(a => a.ActionName == "ImportSalesInvoice" && a.Identifier == payload.InvoiceId && a.IsSuccess)
+                .OrderByDescending(a => a.CreatedAt)
+                .FirstOrDefaultAsync();
 
-                if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
-                {
-                    var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
-                    var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
-                    var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
-                    recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
-                    recoveredRawPayload = priorAudit.ResponsePayload;
-                }
+            if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
+            {
+                var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
+                var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
+                var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
+                recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
+                recoveredRawPayload = priorAudit.ResponsePayload;
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
@@ -445,21 +446,22 @@ namespace EnterpriseAuth.Api.Controllers
                             message = "Credit note already processed and synced."
                         });
                     }
+                }
 
-                    // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3?
-                    var priorAudit = await _dbContext.X3SoapAudits
-                        .Where(a => a.ActionName == "ImportCreditNote" && a.Identifier == payload.CreditNoteId && a.IsSuccess)
-                        .OrderByDescending(a => a.CreatedAt)
-                        .FirstOrDefaultAsync();
+                // 1. Idempotency check: Did a previous SOAP request already succeed in Sage X3
+                //    (including cases where the backend crashed before committing StagingSalesInvoiceHeaders)?
+                var priorAudit = await _dbContext.X3SoapAudits
+                    .Where(a => a.ActionName == "ImportCreditNote" && a.Identifier == payload.CreditNoteId && a.IsSuccess)
+                    .OrderByDescending(a => a.CreatedAt)
+                    .FirstOrDefaultAsync();
 
-                    if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
-                    {
-                        var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
-                        var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
-                        var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
-                        recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
-                        recoveredRawPayload = priorAudit.ResponsePayload;
-                    }
+                if (priorAudit != null && !string.IsNullOrEmpty(priorAudit.ResponsePayload) && priorAudit.ResponsePayload.Contains("Creation of "))
+                {
+                    var idx = priorAudit.ResponsePayload.IndexOf("Creation of ");
+                    var sub = priorAudit.ResponsePayload.Substring(idx + "Creation of ".Length);
+                    var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
+                    recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
+                    recoveredRawPayload = priorAudit.ResponsePayload;
                 }
 
                 var userSiteCode = User.FindFirst("SiteCode")?.Value;
@@ -767,6 +769,7 @@ namespace EnterpriseAuth.Api.Controllers
                 bool stockReceiptSynced = false;
                 string? x3StockReceiptId = null;
                 string? stockReceiptError = null;
+                var stockReceiptMessages = new List<string>();
 
                 bool isCustomerReturn = payload.Category == 3
                     || payload.StockTransaction == 1
@@ -781,21 +784,35 @@ namespace EnterpriseAuth.Api.Controllers
                         if (miscResult.Success || (!string.IsNullOrEmpty(miscResult.RawPayload) && miscResult.RawPayload.Contains("Creation of ", StringComparison.OrdinalIgnoreCase)))
                         {
                             stockReceiptSynced = true;
-                            x3StockReceiptId = miscResult.DocumentId;
-                            existingHeader.X3StockReceiptId = miscResult.DocumentId;
+                            x3StockReceiptId = !string.IsNullOrWhiteSpace(miscResult.DocumentId)
+                                ? miscResult.DocumentId
+                                : (!string.IsNullOrWhiteSpace(miscResult.RequestNumber) ? $"REQ-{miscResult.RequestNumber}" : "ZSMRWEBA-OK");
+                            existingHeader.X3StockReceiptId = x3StockReceiptId;
                             await _dbContext.SaveChangesAsync();
+
+                            stockReceiptMessages.Add($"Misc Stock Receipt (ZSMRWEBA) created in Sage X3: {x3StockReceiptId}");
+                            if (miscResult.Messages != null && miscResult.Messages.Count > 0)
+                            {
+                                stockReceiptMessages.AddRange(miscResult.Messages);
+                            }
                         }
                         else
                         {
                             stockReceiptError = !string.IsNullOrWhiteSpace(miscResult.TechnicalError)
                                 ? miscResult.TechnicalError
                                 : string.Join(" | ", miscResult.Messages);
+                            if (string.IsNullOrWhiteSpace(stockReceiptError))
+                            {
+                                stockReceiptError = "Sage X3 ZSMRWEBA import returned unsuccessful status.";
+                            }
+                            stockReceiptMessages.Add($"Misc Stock Receipt (ZSMRWEBA) failed: {stockReceiptError}");
                             _logger.LogWarning("ZSMRWEBA Stock Receipt returned notice for {CreditNoteId}: {Error}", payload.CreditNoteId, stockReceiptError);
                         }
                     }
                     catch (Exception smrEx)
                     {
                         stockReceiptError = smrEx.Message;
+                        stockReceiptMessages.Add($"Misc Stock Receipt (ZSMRWEBA) error: {stockReceiptError}");
                         _logger.LogError(smrEx, "Exception during ZSMRWEBA Miscellaneous Stock Receipt for {CreditNoteId}: {Error}", payload.CreditNoteId, smrEx.Message);
                     }
                 }
@@ -813,7 +830,7 @@ namespace EnterpriseAuth.Api.Controllers
                         EntityIdString = syncDevId,
                         ActionType = "SYNC_CREDIT_NOTE",
                         Site = syncSite,
-                        Payload = $"{{\"CreditNoteId\":\"{payload.CreditNoteId}\",\"X3DocId\":\"{x3DocId}\"}}",
+                        Payload = $"{{\"CreditNoteId\":\"{payload.CreditNoteId}\",\"X3DocId\":\"{x3DocId}\",\"X3StockReceiptId\":\"{x3StockReceiptId}\"}}",
                         PerformedBy = syncUser,
                         PerformedAt = DateTime.UtcNow,
                         DeviceId = syncDevId
@@ -825,6 +842,16 @@ namespace EnterpriseAuth.Api.Controllers
                     _logger.LogWarning("Failed to write DeviceSync audit for Credit Note {CreditNoteId}: {Msg}", payload.CreditNoteId, auditEx.Message);
                 }
 
+                var combinedMessages = new List<string> { $"Created in Sage X3: {x3DocId}" };
+                if (importResult?.Messages != null && importResult.Messages.Count > 0)
+                {
+                    combinedMessages.AddRange(importResult.Messages);
+                }
+                if (stockReceiptMessages.Count > 0)
+                {
+                    combinedMessages.AddRange(stockReceiptMessages);
+                }
+
                 return Ok(new
                 {
                     success = true,
@@ -832,15 +859,14 @@ namespace EnterpriseAuth.Api.Controllers
                     x3Request = x3ReqNum,
                     x3DocumentId = x3DocId,
                     rawPayload = x3RawPayload,
-                    messages = importResult?.Messages != null && importResult.Messages.Count > 0 
-                        ? importResult.Messages 
-                        : new List<string> { $"Created in Sage X3: {x3DocId}" },
+                    messages = combinedMessages,
                     refundSynced,
                     x3RefundPaymentId,
                     refundError,
                     stockReceiptSynced,
                     x3StockReceiptId,
-                    stockReceiptError
+                    stockReceiptError,
+                    stockReceiptMessages
                 });
             }
             catch (Exception ex)
@@ -1355,6 +1381,10 @@ namespace EnterpriseAuth.Api.Controllers
                     {
                         msgs.Add($"Sage X3 Document: {docId}");
                     }
+                    else if (a.IsSuccess)
+                    {
+                        msgs.Add($"Imported in Sage X3 ({a.ActionName})");
+                    }
 
                     return new
                     {
@@ -1388,16 +1418,24 @@ namespace EnterpriseAuth.Api.Controllers
                 var (siteCtx, _) = await _siteResolver.ResolveSiteContextAsync(User, siteCode, allowAll: true);
                 var cleanSite = siteCtx?.FinancialSiteCode ?? siteCode?.Trim().ToUpperInvariant() ?? "";
 
-                // Query all HIPO invoice and credit note IDs from Staging table
+                // Query all HIPO invoice, credit note, and return IDs from BOTH HIPO Staging AND Sage X3 (SINVOICE + SMVTH)
+                // so that even after a backend crash or staging DB reset, sequence high-water marks never reset.
                 var query = _dbContext.StagingSalesInvoiceHeaders.AsNoTracking();
                 if (!string.IsNullOrWhiteSpace(cleanSite) && cleanSite != "ALL")
                 {
                     query = query.Where(h => h.SalesSite == cleanSite || h.InvoiceId.Contains(cleanSite));
                 }
 
-                var candidateIds = await query
+                var stagingIds = await query
                     .Select(h => h.InvoiceId)
                     .ToListAsync();
+
+                var x3Ids = await _repository.GetExistingHipoDocumentIdsFromX3Async(cleanSite);
+                var candidateIds = stagingIds
+                    .Concat(x3Ids)
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
                 var prefixes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 foreach (var id in candidateIds)

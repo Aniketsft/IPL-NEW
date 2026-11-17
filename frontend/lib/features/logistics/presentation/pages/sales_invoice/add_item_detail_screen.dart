@@ -251,9 +251,9 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
           if (!_isManualDiscount) {
             _discountPercent = result.discountPct.clamp(0.0, 5.0);
             _discountController.text = _discountPercent.toString();
-            final initDiscAmt = result.basePrice * _quantity * (_discountPercent / 100);
-            _discountAmtController.text = initDiscAmt.toStringAsFixed(2);
             _discountAmountFlat = result.discountAmountFlat;
+            final initDiscAmt = (result.basePrice * _quantity * (_discountPercent / 100)) + _discountAmountFlat;
+            _discountAmtController.text = initDiscAmt.toStringAsFixed(2);
             _priceSource = result.source;
           } else {
             if (_discountPercent > 5.0) {
@@ -443,6 +443,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   void _onDiscountPercentChanged(String val) {
     _isManualDiscount = true;
+    _discountAmountFlat = 0.0;
     final trimmed = val.trim();
     if (trimmed.isEmpty) {
       _discountPercent = 0.0;
@@ -491,6 +492,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
 
   void _onDiscountAmtChanged(String val) {
     _isManualDiscount = true;
+    _discountAmountFlat = 0.0;
     final trimmed = val.trim();
     final lineGross = _basePrice * _quantity;
     if (trimmed.isEmpty || lineGross <= 0) {
@@ -590,7 +592,7 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
   }
 
   double get _discountAmount =>
-      _basePrice * _quantity * (_discountPercent / 100);
+      (_basePrice * _quantity * (_discountPercent / 100)) + _discountAmountFlat;
   double get _priceAfterDiscount => (_basePrice * _quantity) - _discountAmount;
   double get _vatAmount => _priceAfterDiscount * (_vatRatePercent / 100);
 
@@ -877,7 +879,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
                           onChanged: _onDiscountPercentChanged,
                           onTap: () {
-                            _discountController.clear();
+                            _discountController.selection = TextSelection(
+                              baseOffset: 0,
+                              extentOffset: _discountController.text.length,
+                            );
                           },
                         ),
                       ),
@@ -895,7 +900,10 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                           enabled: !_isReturnMode && !isFocLocked && canOverrideDiscount,
                           onChanged: _onDiscountAmtChanged,
                           onTap: () {
-                            _discountAmtController.clear();
+                            _discountAmtController.selection = TextSelection(
+                              baseOffset: 0,
+                              extentOffset: _discountAmtController.text.length,
+                            );
                           },
                         ),
                       ),
@@ -1157,6 +1165,28 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     });
                   },
                   onDigitPressed: (digit) {
+                    if (_discountFocusNode.hasFocus) {
+                      String current = _discountController.text.trim();
+                      if (current == '0' || current == '0.0' || current == '0.00') current = '';
+                      final next = current + digit;
+                      _discountController.value = TextEditingValue(
+                        text: next,
+                        selection: TextSelection.collapsed(offset: next.length),
+                      );
+                      _onDiscountPercentChanged(next);
+                      return;
+                    }
+                    if (_discountAmtFocusNode.hasFocus) {
+                      String current = _discountAmtController.text.trim();
+                      if (current == '0' || current == '0.0' || current == '0.00') current = '';
+                      final next = current + digit;
+                      _discountAmtController.value = TextEditingValue(
+                        text: next,
+                        selection: TextSelection.collapsed(offset: next.length),
+                      );
+                      _onDiscountAmtChanged(next);
+                      return;
+                    }
                     String current = _qtyController.text.trim();
                     if (current == '0') current = '';
                     String next = current + digit;
@@ -1164,10 +1194,44 @@ class _AddItemDetailScreenState extends State<AddItemDetailScreen> {
                     _handleQtyInput(next);
                   },
                   onClear: () {
+                    if (_discountFocusNode.hasFocus) {
+                      _discountController.clear();
+                      _onDiscountPercentChanged('');
+                      return;
+                    }
+                    if (_discountAmtFocusNode.hasFocus) {
+                      _discountAmtController.clear();
+                      _onDiscountAmtChanged('');
+                      return;
+                    }
                     _qtyController.text = '';
                     _handleQtyInput('');
                   },
                   onBackspace: () {
+                    if (_discountFocusNode.hasFocus) {
+                      final current = _discountController.text.trim();
+                      if (current.isNotEmpty) {
+                        final next = current.substring(0, current.length - 1);
+                        _discountController.value = TextEditingValue(
+                          text: next,
+                          selection: TextSelection.collapsed(offset: next.length),
+                        );
+                        _onDiscountPercentChanged(next);
+                      }
+                      return;
+                    }
+                    if (_discountAmtFocusNode.hasFocus) {
+                      final current = _discountAmtController.text.trim();
+                      if (current.isNotEmpty) {
+                        final next = current.substring(0, current.length - 1);
+                        _discountAmtController.value = TextEditingValue(
+                          text: next,
+                          selection: TextSelection.collapsed(offset: next.length),
+                        );
+                        _onDiscountAmtChanged(next);
+                      }
+                      return;
+                    }
                     String current = _qtyController.text.trim();
                     if (current.isNotEmpty) {
                       String next = current.substring(0, current.length - 1);

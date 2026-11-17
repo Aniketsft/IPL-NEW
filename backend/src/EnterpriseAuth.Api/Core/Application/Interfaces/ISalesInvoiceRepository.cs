@@ -26,5 +26,6 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<EnterpriseAuth.Api.Core.Application.DTOs.CustomerLiveCreditDto?> GetCustomerLiveCreditAsync(string customerNo);
         Task<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto?> GetCustomerByCodeAsync(string customerCode);
         Task<EnterpriseAuth.Api.Core.Application.DTOs.ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode);
+        Task<IEnumerable<string>> GetExistingHipoDocumentIdsFromX3Async(string? siteCode = null);
     }
 }

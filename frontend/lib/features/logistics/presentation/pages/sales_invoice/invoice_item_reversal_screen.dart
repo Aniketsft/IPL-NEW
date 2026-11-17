@@ -226,9 +226,10 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
 
     final availableReasons = await LocalDatabaseHelper.instance.getCreditNoteReasons();
     String selectedReasonCode = availableReasons.isNotEmpty ? availableReasons.first['code']! : 'RET';
+    String selectedRefundMethod = 'CASH';
 
     // Summary confirmation dialog
-    final confirmedReason = await showDialog<String>(
+    final confirmedSelection = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
@@ -264,6 +265,31 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text('Stock for reversed items will be replenished.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Refund Method *',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Cash Refund', style: TextStyle(fontSize: 12))),
+                          selected: selectedRefundMethod == 'CASH',
+                          onSelected: (_) => setDialogState(() => selectedRefundMethod = 'CASH'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Credit on Acct', style: TextStyle(fontSize: 12))),
+                          selected: selectedRefundMethod == 'CREDIT',
+                          onSelected: (_) => setDialogState(() => selectedRefundMethod = 'CREDIT'),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: selectedReasonCode,
@@ -301,7 +327,10 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                 onPressed: () {
-                  Navigator.of(ctx).pop(selectedReasonCode);
+                  Navigator.of(ctx).pop({
+                    'reason': selectedReasonCode,
+                    'refundMethod': selectedRefundMethod,
+                  });
                 },
                 child: const Text('Confirm Reversal'),
               ),
@@ -311,14 +340,15 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
       ),
     );
 
-    if (confirmedReason == null || confirmedReason.isEmpty || !mounted) return;
+    if (confirmedSelection == null || (confirmedSelection['reason'] ?? '').isEmpty || !mounted) return;
 
     setState(() => _isProcessing = true);
     try {
       final creditNote = await _repository.partialReverseInvoice(
         widget.transaction,
         selectedLines,
-        reason: confirmedReason,
+        reason: confirmedSelection['reason'],
+        refundMethod: confirmedSelection['refundMethod'],
       );
       if (!mounted) return;
       setState(() => _isProcessing = false);

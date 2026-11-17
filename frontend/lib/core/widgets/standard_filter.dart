@@ -20,6 +20,7 @@ class StandardFilter extends StatefulWidget {
   final TextInputType keyboardType;
   final VoidCallback? onSearchTap;
   final bool readOnly;
+  final Widget? suffixIcon;
 
   const StandardFilter({
     super.key,
@@ -39,6 +40,7 @@ class StandardFilter extends StatefulWidget {
     this.keyboardType = TextInputType.text,
     this.onSearchTap,
     this.readOnly = false,
+    this.suffixIcon,
   });
 
   final bool showFilterButton;
@@ -187,6 +189,7 @@ class _StandardFilterState extends State<StandardFilter> {
                         TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 14),
                     prefixIcon:
                         Icon(Icons.search_rounded, color: orange, size: 20),
+                    suffixIcon: widget.suffixIcon,
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),

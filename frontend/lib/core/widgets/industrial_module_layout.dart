@@ -14,6 +14,7 @@ class IndustrialModuleLayout extends StatelessWidget {
   final bool showLogout;
   final bool showPlantName;
   final bool showHome;
+  final VoidCallback? onHomePressed;
   final Widget? bottomNavigationBar;
 
   const IndustrialModuleLayout({
@@ -25,6 +26,7 @@ class IndustrialModuleLayout extends StatelessWidget {
     this.showLogout = false,
     this.showPlantName = false,
     this.showHome = true,
+    this.onHomePressed,
     this.bottomNavigationBar,
   });
 
@@ -64,8 +66,9 @@ class IndustrialModuleLayout extends StatelessWidget {
                       tooltip: 'Back to Home',
                       onPressed: isSyncing
                           ? null
-                          : () => Navigator.of(context)
-                              .popUntil((route) => route.isFirst),
+                          : (onHomePressed ??
+                              () => Navigator.of(context)
+                                  .popUntil((route) => route.isFirst)),
                     ),
                   if (showPlantName || showLogout)
                     Center(

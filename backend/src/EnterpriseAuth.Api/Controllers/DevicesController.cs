@@ -61,6 +61,31 @@ namespace EnterpriseAuth.Api.Controllers
             return $"HM{maxIndex + 1}";
         }
 
+        private static bool IsConcreteLorryLocation(string? locationCode, string? siteCode)
+        {
+            if (string.IsNullOrWhiteSpace(locationCode)) return false;
+            var cleanLoc = locationCode.Trim();
+            if (!string.IsNullOrWhiteSpace(siteCode) &&
+                string.Equals(cleanLoc, siteCode.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            // Any lorry identifier containing at least one digit (e.g. "57", "L57", "N8") is a concrete vehicle slot
+            return cleanLoc.Any(char.IsDigit);
+        }
+
+        private async Task<DeviceLocation?> FindConflictingLorryDeviceAsync(string currentDeviceId, string siteCode, string locationCode)
+        {
+            var cleanLoc = locationCode.Trim().ToLowerInvariant();
+            var cleanSite = (siteCode ?? string.Empty).Trim().ToLowerInvariant();
+            return await _context.DeviceLocations
+                .FirstOrDefaultAsync(d =>
+                    d.IsActive &&
+                    d.DeviceId != currentDeviceId &&
+                    d.SiteCode.ToLower() == cleanSite &&
+                    d.LocationCode.ToLower() == cleanLoc);
+        }
+
         /// <summary>
         /// Get next auto-incremented standardized device name (e.g. HM1, HM2).
         /// </summary>
@@ -268,6 +293,17 @@ namespace EnterpriseAuth.Api.Controllers
                 return Conflict(new { message = $"Device name '{cleanName}' is already assigned to another tablet. Please enter a unique name." });
             }
 
+            // Guardrail 3 (Option A): Enforce 1 active device per concrete lorry location
+            var cleanLoc = request.LocationCode.Trim();
+            if (IsConcreteLorryLocation(cleanLoc, effectiveSite))
+            {
+                var lorryConflict = await FindConflictingLorryDeviceAsync(string.Empty, effectiveSite, cleanLoc);
+                if (lorryConflict != null)
+                {
+                    return Conflict(new { message = $"Lorry '{cleanLoc}' is already assigned to active device '{lorryConflict.DeviceName}'. Release or reassign '{lorryConflict.DeviceName}' first to prevent duplicate document numbers." });
+                }
+            }
+
             // Generate Backend UUID
             var newUuid = Guid.NewGuid().ToString();
 
@@ -358,11 +394,14 @@ namespace EnterpriseAuth.Api.Controllers
                 device = await _context.DeviceLocations.FirstOrDefaultAsync(d => d.DeviceId == targetId && d.IsActive);
             }
 
-            // 2. Secondary lookup by unique physical HardwareIdentifier (e.g. ANDROID_ID)
+            // 2. Secondary lookup by unique physical HardwareIdentifier (e.g. ANDROID_ID) - survives app delete & reinstall
             if (device == null && !string.IsNullOrWhiteSpace(request.HardwareIdentifier))
             {
                 var cleanHwId = request.HardwareIdentifier.Trim();
-                device = await _context.DeviceLocations.FirstOrDefaultAsync(d => d.HardwareIdentifier == cleanHwId && d.IsActive);
+                device = await _context.DeviceLocations
+                    .Where(d => d.HardwareIdentifier == cleanHwId && d.IsActive)
+                    .OrderByDescending(d => d.UpdatedAt)
+                    .FirstOrDefaultAsync();
             }
 
             // 3. Tertiary fallback lookup by DeviceName if valid HM pattern
@@ -515,14 +554,34 @@ namespace EnterpriseAuth.Api.Controllers
                 return Forbid();
             }
 
-            device.LocationCode = dto.LocationCode.Trim();
+            var cleanLoc = dto.LocationCode.Trim();
+            if (IsConcreteLorryLocation(cleanLoc, device.SiteCode))
+            {
+                var lorryConflict = await FindConflictingLorryDeviceAsync(device.DeviceId, device.SiteCode, cleanLoc);
+                if (lorryConflict != null)
+                {
+                    if (dto.ForceReassign && IsAdminUser(usernameClaim))
+                    {
+                        lorryConflict.LocationCode = lorryConflict.SiteCode;
+                        lorryConflict.WarehouseCode = lorryConflict.SiteCode;
+                        lorryConflict.UpdatedAt = DateTime.UtcNow;
+                        lorryConflict.UpdatedBy = usernameClaim;
+                    }
+                    else
+                    {
+                        return Conflict(new { message = $"Lorry '{cleanLoc}' is already assigned to active device '{lorryConflict.DeviceName}'. Release or reassign '{lorryConflict.DeviceName}' first to prevent duplicate document numbers." });
+                    }
+                }
+            }
+
+            device.LocationCode = cleanLoc;
             if (!string.IsNullOrEmpty(dto.WarehouseCode))
             {
                 device.WarehouseCode = dto.WarehouseCode.Trim();
             }
             else
             {
-                device.WarehouseCode = dto.LocationCode.Trim();
+                device.WarehouseCode = cleanLoc;
             }
             device.UpdatedAt = DateTime.UtcNow;
             device.UpdatedBy = usernameClaim;
@@ -604,8 +663,27 @@ namespace EnterpriseAuth.Api.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.LocationCode))
             {
-                device.LocationCode = dto.LocationCode.Trim();
-                device.WarehouseCode = !string.IsNullOrWhiteSpace(dto.WarehouseCode) ? dto.WarehouseCode.Trim() : dto.LocationCode.Trim();
+                var cleanLoc = dto.LocationCode.Trim();
+                if (IsConcreteLorryLocation(cleanLoc, device.SiteCode))
+                {
+                    var lorryConflict = await FindConflictingLorryDeviceAsync(device.DeviceId, device.SiteCode, cleanLoc);
+                    if (lorryConflict != null)
+                    {
+                        if (dto.ForceReassign)
+                        {
+                            lorryConflict.LocationCode = lorryConflict.SiteCode;
+                            lorryConflict.WarehouseCode = lorryConflict.SiteCode;
+                            lorryConflict.UpdatedAt = DateTime.UtcNow;
+                            lorryConflict.UpdatedBy = usernameClaim;
+                        }
+                        else
+                        {
+                            return Conflict(new { message = $"Lorry '{cleanLoc}' is already assigned to active device '{lorryConflict.DeviceName}'. Release or reassign '{lorryConflict.DeviceName}' first to prevent duplicate document numbers." });
+                        }
+                    }
+                }
+                device.LocationCode = cleanLoc;
+                device.WarehouseCode = !string.IsNullOrWhiteSpace(dto.WarehouseCode) ? dto.WarehouseCode.Trim() : cleanLoc;
             }
             else if (!string.IsNullOrWhiteSpace(dto.WarehouseCode))
             {

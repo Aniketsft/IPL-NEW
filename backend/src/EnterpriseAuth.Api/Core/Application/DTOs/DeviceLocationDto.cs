@@ -50,6 +50,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
     {
         public string LocationCode { get; set; } = string.Empty;
         public string? WarehouseCode { get; set; }
+        public bool ForceReassign { get; set; } = false;
     }
 
     public class DeviceAdminConfigRequestDto
@@ -61,6 +62,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? HepProfileId { get; set; }
         public string? HepApiKey { get; set; }
         public bool? IsLocked { get; set; }
+        public bool ForceReassign { get; set; } = false;
     }
 
     public class DeviceLicenseToggleDto

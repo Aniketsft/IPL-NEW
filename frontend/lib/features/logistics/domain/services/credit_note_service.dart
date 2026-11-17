@@ -22,6 +22,7 @@ class CreditNoteService {
     String? deviceId,
     int stockTransaction = 0,
     String? stockStatus,
+    String? refundMethod,
   }) async {
     final db = await _dbProvider();
 
@@ -57,6 +58,9 @@ class CreditNoteService {
     if (payments.isNotEmpty) {
       primaryPayment = payments.first;
       settlementType = (primaryPayment['method'] as String? ?? 'CASH').toUpperCase();
+    }
+    if (refundMethod != null && refundMethod.trim().isNotEmpty) {
+      settlementType = refundMethod.trim().toUpperCase();
     }
 
     // 3. Fetch invoice lines
@@ -248,6 +252,7 @@ class CreditNoteService {
     String? deviceId,
     int stockTransaction = 0,
     String? stockStatus,
+    String? refundMethod,
   }) async {
     if (selectedLines.isEmpty) {
       throw ArgumentError('At least one line must be selected for partial reversal.');
@@ -268,7 +273,7 @@ class CreditNoteService {
       throw StateError('Invoice $invoiceId has already been fully reversed.');
     }
 
-    // 2. Fetch original payments to mirror settlement method
+    // 2. Fetch original payments to mirror settlement method (unless explicitly overridden)
     final payments = await db.query(
       LocalDatabaseHelper.tableSiPayments,
       where: 'invoiceId = ?',
@@ -279,6 +284,9 @@ class CreditNoteService {
     if (payments.isNotEmpty) {
       primaryPayment = payments.first;
       settlementType = (primaryPayment['method'] as String? ?? 'CASH').toUpperCase();
+    }
+    if (refundMethod != null && refundMethod.trim().isNotEmpty) {
+      settlementType = refundMethod.trim().toUpperCase();
     }
 
     // 3. Fetch all original invoice lines
@@ -575,10 +583,22 @@ class CreditNoteService {
       stockTransaction: stockTransaction,
     );
 
-    // Fetch default bank outside transaction to prevent sqflite lock contention
+    // Fetch default bank and device lorry location outside transaction to prevent sqflite lock contention
     final defaultBank = await LocalDatabaseHelper.instance.getDefaultBank(salesSite);
     final defaultBankCode = defaultBank['bankCode'] ?? '';
     final defaultBankName = defaultBank['bankName'] ?? '';
+    String deviceLorry = (DeviceInfoService.instance.assignedLocation ?? '').trim();
+    if (deviceLorry.isEmpty) {
+      try {
+        final lookupDevId = (deviceId != null && deviceId.trim().isNotEmpty)
+            ? deviceId.trim()
+            : DeviceInfoService.instance.deviceId;
+        if (lookupDevId.isNotEmpty) {
+          final devLoc = await LocalDatabaseHelper.instance.getDeviceLocation(lookupDevId);
+          deviceLorry = devLoc?['locationCode']?.toString().trim() ?? '';
+        }
+      } catch (_) {}
+    }
 
     await db.transaction((txn) async {
       await txn.insert(LocalDatabaseHelper.tableSiCreditNotes, creditNote.toMap());
@@ -636,7 +656,13 @@ class CreditNoteService {
             ? item.stockStatus
             : ((stockStatus != null && stockStatus.isNotEmpty) ? stockStatus : 'A');
         final lineCondition = item.returnCondition ?? reason;
-        final lineLocation = item.location ?? (salesSite == 'IPL' ? 'IPLCH' : 'LOC1');
+        final rawItemLoc = (item.location ?? '').trim();
+        final bool hasValidItemLoc = rawItemLoc.isNotEmpty &&
+            rawItemLoc.toUpperCase() != 'LOC1' &&
+            rawItemLoc.toUpperCase() != salesSite.toUpperCase();
+        final lineLocation = deviceLorry.isNotEmpty
+            ? deviceLorry
+            : (hasValidItemLoc ? rawItemLoc : (salesSite == 'IPL' ? 'IPLCH' : 'LOC1'));
 
         await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
           'creditNoteId': creditNoteId,
@@ -792,6 +818,7 @@ class CreditNoteService {
     String? reference,
     String? reason,
     String? salesRep,
+    String refundMethod = CreditNoteRefundMethod.cash,
   }) async {
     if (linkedInvoiceIds.isEmpty) {
       throw ArgumentError('Amount-only credit note requires at least 1 linked invoice.');
@@ -837,9 +864,14 @@ class CreditNoteService {
     final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
       docType: 'CRN',
       salesSite: salesSite,
+      lorryCode: DeviceInfoService.instance.assignedLocation,
       deviceId: deviceId,
     );
     final now = DateTime.now().toIso8601String();
+
+    final resolvedMethod = refundMethod.trim().toUpperCase() == CreditNoteRefundMethod.credit
+        ? CreditNoteRefundMethod.credit
+        : CreditNoteRefundMethod.cash;
 
     final creditNote = CreditNoteModel(
       creditNoteId: creditNoteId,
@@ -852,7 +884,7 @@ class CreditNoteService {
       grandTotal: refundAmount,
       originalInvoiceId: linkedInvoiceIds.isNotEmpty ? linkedInvoiceIds.first : null,
       linkedInvoiceIds: linkedInvoiceIds,
-      settlementType: CreditNoteRefundMethod.cash,
+      settlementType: resolvedMethod,
       reference: reference ?? linkedInvoiceIds.join(','),
       isSynced: 0,
       createdAt: now,
@@ -867,7 +899,7 @@ class CreditNoteService {
 
       await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
         'creditNoteId': creditNoteId,
-        'method': CreditNoteRefundMethod.cash,
+        'method': resolvedMethod,
         'amount': refundAmount,
       });
 
@@ -927,6 +959,7 @@ class CreditNoteService {
     required String createdBy,
     String? deviceId,
     String? reference,
+    String refundMethod = CreditNoteRefundMethod.cash,
   }) => createAmountOnlyCreditNote(
     salesSite: salesSite,
     customerCode: customerCode,
@@ -937,5 +970,6 @@ class CreditNoteService {
     createdBy: createdBy,
     deviceId: deviceId,
     reference: reference,
+    refundMethod: refundMethod,
   );
 }

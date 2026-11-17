@@ -401,6 +401,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             );
           }
           await db.insertOrUpdateDeviceLocation(Map<String, dynamic>.from(data));
+
+          // Immediately pull authoritative document sequence high-water marks (Sage X3 + HIPO)
+          // so a deleted/reinstalled app immediately resumes above existing numbers even before manual sync.
+          try {
+            final seqUri = Uri.parse('${ApiConfig.baseUrl}SalesInvoice/document-sequences')
+                .replace(queryParameters: {'siteCode': site});
+            final seqResp = await http.get(
+              seqUri,
+              headers: {
+                'Content-Type': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+                'X-Device-Id': DeviceInfoService.isValidUuid(uuid) ? uuid : devId,
+              },
+            ).timeout(const Duration(seconds: 6));
+
+            if (seqResp.statusCode == 200 && seqResp.body.trim().isNotEmpty) {
+              final decoded = jsonDecode(seqResp.body);
+              if (decoded is List && decoded.isNotEmpty) {
+                await db.syncDocumentSequencesHighWaterMark(decoded);
+              }
+            }
+          } catch (seqErr) {
+            print('AuthBloc: Document sequence login sync skipped: $seqErr');
+          }
         }
       }
     } catch (e) {

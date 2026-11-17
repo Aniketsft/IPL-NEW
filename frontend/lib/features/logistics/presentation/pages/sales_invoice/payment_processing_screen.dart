@@ -79,6 +79,8 @@ class PaymentProcessingScreen extends StatefulWidget {
 class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   String _selectedMethod =
       'CASH'; // 'CASH', 'CHEQUE', 'CREDIT', 'MYT MONEY', 'BLINK'
+  String _selectedRefundMethod =
+      CreditNoteRefundMethod.cash; // 'CASH' (MRCAS) or 'CREDIT' (MRCRE)
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
   final _reasonController = TextEditingController();
@@ -481,7 +483,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
       // Handle Credit Note / Return Refund flow
       if (isRefund) {
-        const refundMethod = 'CASH';
+        final refundMethod = _selectedRefundMethod;
 
         final isReturnTransaction = cartState.transactionType == 'RETURN' ||
             cartState.transactionType == 'CUSTOMER_RETURN' ||
@@ -515,6 +517,14 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           } catch (_) {}
         }
 
+        String deviceLorry = (DeviceInfoService.instance.assignedLocation ?? '').trim();
+        if (deviceLorry.isEmpty) {
+          try {
+            final devLoc = await LocalDatabaseHelper.instance.getDeviceLocation(deviceId);
+            deviceLorry = devLoc?['locationCode']?.toString().trim() ?? '';
+          } catch (_) {}
+        }
+
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
           salesSite: effectiveSiteCode,
           customerCode: customer['code'],
@@ -532,9 +542,15 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           items: cartState.cartItems.asMap().entries.map((entry) {
             final item = entry.value;
             final itemWarehouse = item.warehouse.isNotEmpty ? item.warehouse : effectiveSiteCode;
-            final itemLocation = item.location.isNotEmpty 
-                ? item.location 
-                : (isReturnTransaction ? (effectiveSiteCode == 'IPL' ? 'IPLCH' : effectiveSiteCode) : null);
+            final rawItemLoc = item.location.trim();
+            final bool hasValidItemLoc = rawItemLoc.isNotEmpty &&
+                rawItemLoc.toUpperCase() != 'LOC1' &&
+                rawItemLoc.toUpperCase() != effectiveSiteCode.toUpperCase();
+            final itemLocation = deviceLorry.isNotEmpty
+                ? deviceLorry
+                : (hasValidItemLoc
+                    ? rawItemLoc
+                    : (isReturnTransaction ? (effectiveSiteCode == 'IPL' ? 'IPLCH' : effectiveSiteCode) : null));
             return CreditNoteLineModel(
               creditNoteId: '',
               lineNo: (entry.key + 1) * 1000,
@@ -567,6 +583,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
         context.read<SalesInvoiceBloc>().add(ClearCart());
 
+        final bool isCreditRefund = refundMethod == CreditNoteRefundMethod.credit;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -577,8 +594,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               discountAmount: totalDiscount,
               vatAmount: totalVat,
               grandTotal: grandTotal,
-              paymentMethod: 'CASH REFUND',
-              paymentStatus: 'REFUNDED',
+              paymentMethod: isCreditRefund ? 'CREDIT ON ACCOUNT' : 'CASH REFUND',
+              paymentStatus: isCreditRefund ? 'ON ACCOUNT' : 'REFUNDED',
               items: cartItems,
               isCreditNote: true,
               creditNoteReason: reasonDisplay,
@@ -1090,6 +1107,81 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  Widget _buildRefundOptionTile({
+    required String method,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final bool isSelected = _selectedRefundMethod == method;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color accent = method == CreditNoteRefundMethod.credit
+        ? Colors.blue
+        : AppTheme.primaryAmber;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedRefundMethod = method),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? accent.withOpacity(0.14)
+                : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? accent
+                  : (isDark ? Colors.white12 : Colors.black12),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: isSelected
+                    ? accent
+                    : (isDark ? Colors.white70 : Colors.black54),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? accent
+                            : (isDark ? Colors.white : Colors.black87),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_circle_rounded, size: 18, color: accent),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildMethodButton(
@@ -1655,61 +1747,82 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryAmber.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.primaryAmber.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryAmber.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.payments_outlined, color: AppTheme.primaryAmber, size: 28),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'REFUND METHOD *',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'REFUND METHOD: CASH',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Colors.green.withOpacity(0.5)),
-                                      ),
-                                      child: const Text(
-                                        'CASH ONLY',
-                                        style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  isReturn
-                                      ? 'Customer return refund of ${currencyFormat.format(grandTotal)} will be disbursed in Cash.'
-                                      : 'Credit note refund of ${currencyFormat.format(grandTotal)} is disbursed in Cash.',
-                                  style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color),
-                                ),
-                              ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildRefundOptionTile(
+                              method: CreditNoteRefundMethod.cash,
+                              title: 'Cash Refund',
+                              subtitle: 'Disburse cash (MRCAS)',
+                              icon: Icons.payments_outlined,
+                            ),
+                            const SizedBox(width: 10),
+                            _buildRefundOptionTile(
+                              method: CreditNoteRefundMethod.credit,
+                              title: 'Credit on Account',
+                              subtitle: 'Apply to balance (MRCRE)',
+                              icon: Icons.account_balance_wallet_outlined,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: (_selectedRefundMethod == CreditNoteRefundMethod.credit
+                                    ? Colors.blue
+                                    : AppTheme.primaryAmber)
+                                .withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: (_selectedRefundMethod == CreditNoteRefundMethod.credit
+                                      ? Colors.blue
+                                      : AppTheme.primaryAmber)
+                                  .withOpacity(0.35),
                             ),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _selectedRefundMethod == CreditNoteRefundMethod.credit
+                                    ? Icons.account_balance_wallet_outlined
+                                    : Icons.payments_outlined,
+                                size: 20,
+                                color: _selectedRefundMethod == CreditNoteRefundMethod.credit
+                                    ? Colors.blue
+                                    : AppTheme.primaryAmber,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _selectedRefundMethod == CreditNoteRefundMethod.credit
+                                      ? (isReturn
+                                          ? 'Customer return refund of ${currencyFormat.format(grandTotal)} will be credited to customer account (MRCRE).'
+                                          : 'Credit note of ${currencyFormat.format(grandTotal)} will be credited to customer account (MRCRE).')
+                                      : (isReturn
+                                          ? 'Customer return refund of ${currencyFormat.format(grandTotal)} will be disbursed in Cash (MRCAS).'
+                                          : 'Credit note refund of ${currencyFormat.format(grandTotal)} will be disbursed in Cash (MRCAS).'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).textTheme.bodySmall?.color,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -2039,7 +2152,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        widget.isCreditNoteRefund ? 'TOTAL REFUND (CASH)' : 'TOTAL PAID',
+                        widget.isCreditNoteRefund
+                            ? (_selectedRefundMethod == CreditNoteRefundMethod.credit
+                                ? 'REFUND (ON ACCOUNT)'
+                                : 'TOTAL REFUND (CASH)')
+                            : 'TOTAL PAID',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.bodySmall?.color,
                           fontSize: 14,

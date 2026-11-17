@@ -491,6 +491,7 @@ class TransactionHistoryRepository {
     TransactionModel transaction, {
     String? reason,
     String? salesRep,
+    String? refundMethod,
   }) async {
     final creditNoteService = CreditNoteService(dbProvider: () => _database);
     return await creditNoteService.createReversalCreditNote(
@@ -499,6 +500,7 @@ class TransactionHistoryRepository {
       reason: reason,
       salesRep: salesRep,
       deviceId: transaction.auditMetadata.deviceId,
+      refundMethod: refundMethod,
     );
   }
 
@@ -518,6 +520,7 @@ class TransactionHistoryRepository {
     List<Map<String, dynamic>> selectedLines, {
     String? reason,
     String? salesRep,
+    String? refundMethod,
   }) async {
     final creditNoteService = CreditNoteService(dbProvider: () => _database);
     return await creditNoteService.createPartialReversalCreditNote(
@@ -527,6 +530,7 @@ class TransactionHistoryRepository {
       reason: reason,
       salesRep: salesRep,
       deviceId: transaction.auditMetadata.deviceId,
+      refundMethod: refundMethod,
     );
   }
 

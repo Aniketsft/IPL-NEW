@@ -40,6 +40,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   final _currencyFormat = CurrencyFormatter.currencyFormat;
 
   bool _isProcessingScan = false;
+  bool _allowProgrammaticPop = false;
   final Map<int, double> _selectedReversalQuantities = {};
   bool _isReturnTransaction = false;
   ReturnCondition _selectedReturnCondition = ReturnCondition.normal;
@@ -47,6 +48,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   List<Map<String, dynamic>> _linkedCreditNotes = [];
   Map<String, dynamic>? _invoiceRecord;
   String? _creditNoteReason;
+  String? _creditNoteSettlementType;
   bool _isLoadingReversals = false;
   String? _checkedDocId;
 
@@ -64,8 +66,13 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           _linkedCreditNotes = results[0] as List<Map<String, dynamic>>;
           _invoiceRecord = results[1] as Map<String, dynamic>?;
           final cn = results[2] as Map<String, dynamic>?;
-          if (cn != null && cn['reason'] != null) {
-            _creditNoteReason = cn['reason'] as String?;
+          if (cn != null) {
+            if (cn['reason'] != null) {
+              _creditNoteReason = cn['reason'] as String?;
+            }
+            if (cn['settlementType'] != null) {
+              _creditNoteSettlementType = cn['settlementType'] as String?;
+            }
           }
           _isLoadingReversals = false;
         });
@@ -124,6 +131,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
           );
         }).toList();
 
+        final settlementType = (cnMap['settlementType']?.toString() ?? 'CASH').toUpperCase();
+        final isCreditSettlement = settlementType == 'CREDIT';
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -134,8 +144,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               discountAmount: totalDiscount,
               vatAmount: totalVat,
               grandTotal: grandTotal,
-              paymentMethod: 'CASH REFUND',
-              paymentStatus: 'REFUNDED',
+              paymentMethod: isCreditSettlement ? 'CREDIT ON ACCOUNT' : 'CASH REFUND',
+              paymentStatus: isCreditSettlement ? 'ON ACCOUNT' : 'REFUNDED',
               items: items,
               isCreditNote: true,
               creditNoteReason: reason,
@@ -426,9 +436,26 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
             ? 'CN'
             : cartState.config.abbreviation;
 
-        return IndustrialModuleLayout(
-          title: 'Order Summary [$effectiveAbbreviation]',
-          body: Column(
+        final bool shouldGuardExit = !_allowProgrammaticPop &&
+            ((!isPreviewInvoice && !isPreviewCreditNote && cartState.cartItems.isNotEmpty) ||
+                _selectedReversalQuantities.isNotEmpty);
+
+        return PopScope(
+          canPop: !shouldGuardExit,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            _confirmExitOrderSummary(cartState, isGoingHome: false);
+          },
+          child: IndustrialModuleLayout(
+            title: 'Order Summary [$effectiveAbbreviation]',
+            onHomePressed: () {
+              if (shouldGuardExit) {
+                _confirmExitOrderSummary(cartState, isGoingHome: true);
+              } else {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
+            },
+            body: Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
@@ -760,7 +787,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                           child: TextButton.icon(
                             onPressed: () {
                               if (Navigator.of(context).canPop()) {
-                                Navigator.of(context).pop();
+                                setState(() => _allowProgrammaticPop = true);
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted && Navigator.of(context).canPop()) {
+                                    Navigator.of(context).pop();
+                                  }
+                                });
                                 return;
                               }
                               final authState = context.read<AuthBloc>().state;
@@ -849,6 +881,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                               height: 48,
                               child: ElevatedButton.icon(
                                 onPressed: () {
+                                  final isCreditSettlement = (_creditNoteSettlementType ?? '').toUpperCase() == 'CREDIT';
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -859,8 +892,8 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                         discountAmount: cartState.totalDiscount,
                                         vatAmount: cartState.totalVat,
                                         grandTotal: cartState.grandTotal,
-                                        paymentMethod: 'CASH REFUND',
-                                        paymentStatus: 'REFUNDED',
+                                        paymentMethod: isCreditSettlement ? 'CREDIT ON ACCOUNT' : 'CASH REFUND',
+                                        paymentStatus: isCreditSettlement ? 'ON ACCOUNT' : 'REFUNDED',
                                         items: cartState.cartItems,
                                         isCreditNote: true,
                                         creditNoteReason: _creditNoteReason,
@@ -1193,6 +1226,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                       final isCn = (cartState.config.mode.isCreditNote ||
                                               cartState.transactionType == 'PREVIEW_CREDIT_NOTE') &&
                                           cartState.transactionType != 'PREVIEW_INVOICE';
+                                      final isCreditSettlement = (_creditNoteSettlementType ?? '').toUpperCase() == 'CREDIT';
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -1203,8 +1237,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                             discountAmount: cartState.totalDiscount,
                                             vatAmount: cartState.totalVat,
                                             grandTotal: cartState.grandTotal,
-                                            paymentMethod: isCn ? 'CASH REFUND' : 'INVOICE',
-                                            paymentStatus: isCn ? 'REFUNDED' : 'PAID',
+                                            paymentMethod: isCn
+                                                ? (isCreditSettlement ? 'CREDIT ON ACCOUNT' : 'CASH REFUND')
+                                                : 'INVOICE',
+                                            paymentStatus: isCn
+                                                ? (isCreditSettlement ? 'ON ACCOUNT' : 'REFUNDED')
+                                                : 'PAID',
                                             items: cartState.cartItems,
                                             isCreditNote: isCn,
                                           ),
@@ -1248,9 +1286,62 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               ),
             ],
           ),
+          ),
         );
       },
     );
+  }
+
+  Future<void> _confirmExitOrderSummary(
+    SalesInvoiceLoaded cartState, {
+    required bool isGoingHome,
+  }) async {
+    final bool? shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(child: Text('Leave Order Summary?')),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to leave Order Summary? All unsaved progress may be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('STAY'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('LEAVE'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLeave == true && mounted) {
+      setState(() => _allowProgrammaticPop = true);
+      if (!cartState.config.requireItemSelectionForAction) {
+        context.read<SalesInvoiceBloc>().add(ClearCart());
+      } else {
+        _selectedReversalQuantities.clear();
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (isGoingHome) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        } else if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
   }
 
   IconData _getConfirmIcon(TransactionConfig config) {
@@ -2030,6 +2121,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     final isSelected = _selectedReversalQuantities.containsKey(index);
     final selectedQty = _selectedReversalQuantities[index] ?? item.quantity;
     final isViewOnly = !config.canRemoveItems;
+    final double lineGross = item.basePrice * item.quantity;
+    final double lineDiscount = item.discountAmount;
+    final bool hasDiscount = !config.isSalesOrder && lineDiscount > 0.004;
+    final String discountPctStr = item.discountPercent > 0
+        ? '${item.discountPercent.toStringAsFixed(item.discountPercent % 1 == 0 ? 0 : 2)}%'
+        : '';
 
     return Material(
       color: isSelected
@@ -2220,9 +2317,33 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                'SKU: ${item.product.sku}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'SKU: ${item.product.sku}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                  if (hasDiscount)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                      ),
+                      child: Text(
+                        discountPctStr.isNotEmpty
+                            ? 'Disc $discountPctStr (-${_currencyFormat.format(lineDiscount)})'
+                            : 'Disc -${_currencyFormat.format(lineDiscount)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               if (item.isFoc)
                 Padding(
@@ -2398,26 +2519,41 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         ],
                       ),
                     ),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: config.isSalesOrder ? '' : 'Total: ',
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasDiscount)
+                          Text(
+                            _currencyFormat.format(lineGross),
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              decoration: TextDecoration.lineThrough,
                             ),
                           ),
-                          TextSpan(
-                            text: config.isSalesOrder ? '' : _currencyFormat.format(item.total),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.primaryColor,
-                            ),
+                        RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: config.isSalesOrder ? '' : 'Total: ',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              TextSpan(
+                                text: config.isSalesOrder ? '' : _currencyFormat.format(item.total),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.primaryColor,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

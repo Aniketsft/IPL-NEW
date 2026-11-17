@@ -416,7 +416,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private async Task<(string TabletName, string? AssignedWarehouse, string? AssignedLocation)> ResolveDeviceIdentityAsync(
             string? rawTabletSource,
             string? rawDeviceId,
-            string? userName)
+            string? userName,
+            string? siteCode = null)
         {
             var httpContext = _httpContextAccessor.HttpContext;
             var headerDeviceId = (httpContext != null && httpContext.Request.Headers.TryGetValue("X-Device-Id", out var hDev))
@@ -427,6 +428,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 ? rawDeviceId.Trim()
                 : (headerDeviceId ?? string.Empty);
             var cleanUser = (userName ?? string.Empty).Trim();
+            var cleanSite = (siteCode ?? string.Empty).Trim();
 
             try
             {
@@ -466,6 +468,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     matched = activeDevices.FirstOrDefault(d =>
                         !string.IsNullOrWhiteSpace(d.AssignedUserName) &&
                         string.Equals(d.AssignedUserName.Trim(), cleanUser, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (matched == null && !string.IsNullOrEmpty(cleanSite) && !string.Equals(cleanSite, "ALL", StringComparison.OrdinalIgnoreCase))
+                {
+                    matched = activeDevices.FirstOrDefault(d =>
+                        string.Equals(d.SiteCode?.Trim(), cleanSite, StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(d.LocationCode));
                 }
 
                 if (matched != null && !string.IsNullOrWhiteSpace(matched.DeviceName))
@@ -1332,6 +1341,101 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return line;
         }
 
+        private static string ResolveGeneratedDocNumber(StagingSalesInvoiceHeader header, string fallbackReference)
+        {
+            string candidate = !string.IsNullOrWhiteSpace(header.InvoiceId)
+                ? header.InvoiceId.Trim()
+                : (!string.IsNullOrWhiteSpace(header.TransactionalId)
+                    ? header.TransactionalId.Trim()
+                    : (fallbackReference ?? string.Empty).Trim());
+            return candidate.Length > 20 ? candidate.Substring(0, 20) : candidate;
+        }
+
+        private static bool IsDuplicateKeySoapResult(X3ImportResult res)
+        {
+            var combined = $"{res.TechnicalError} {string.Join(" ", res.Messages ?? new List<string>())} {res.RawPayload}";
+            return combined.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("Record already", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("Duplicate", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("existant", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<string?> TryVerifySinvoiceExistsInX3Async(string schema, string docNumber, string? expectedCustomerCode)
+        {
+            if (string.IsNullOrWhiteSpace(docNumber)) return null;
+            try
+            {
+                using var conn = new SqlConnection(_innodisConnectionString);
+                await conn.OpenAsync();
+                foreach (var candSchema in new[] { schema, "INLDRYRUN", "INL", "X3" }.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var found = await conn.QueryFirstOrDefaultAsync<string>(
+                            $@"SELECT TOP 1 LTRIM(RTRIM(NUM_0))
+                               FROM x3.{candSchema}.SINVOICE WITH (NOLOCK)
+                               WHERE LTRIM(RTRIM(NUM_0)) = @DocNum
+                                 AND (@Cust = '' OR LTRIM(RTRIM(BPCINV_0)) = @Cust)",
+                            new { DocNum = docNumber.Trim(), Cust = (expectedCustomerCode ?? string.Empty).Trim() });
+                        if (!string.IsNullOrWhiteSpace(found))
+                        {
+                            return found.Trim();
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private async Task<string?> TryVerifySmvthExistsInX3Async(string schema, string docNumber, string? vcrDes = null)
+        {
+            try
+            {
+                using var verifyConn = new SqlConnection(_innodisConnectionString);
+                await verifyConn.OpenAsync();
+                foreach (var candSchema in new[] { schema, "INLDRYRUN", "INL", "X3" }.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(docNumber))
+                        {
+                            var byNum = await verifyConn.QueryFirstOrDefaultAsync<string>(
+                                $@"SELECT TOP 1 LTRIM(RTRIM(VCRNUM_0))
+                                   FROM x3.{candSchema}.SMVTH WITH (NOLOCK)
+                                   WHERE VCRTYP_0 = 19
+                                     AND LTRIM(RTRIM(VCRNUM_0)) = @DocNum
+                                   ORDER BY CREDAT_0 DESC, ROWID DESC",
+                                new { DocNum = docNumber.Trim() });
+                            if (!string.IsNullOrWhiteSpace(byNum))
+                            {
+                                return byNum.Trim();
+                            }
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(vcrDes))
+                        {
+                            var byDes = await verifyConn.QueryFirstOrDefaultAsync<string>(
+                                $@"SELECT TOP 1 LTRIM(RTRIM(VCRNUM_0))
+                                   FROM x3.{candSchema}.SMVTH WITH (NOLOCK)
+                                   WHERE VCRTYP_0 = 19
+                                     AND LTRIM(RTRIM(VCRDES_0)) = @VcrDes
+                                   ORDER BY CREDAT_0 DESC, ROWID DESC",
+                                new { VcrDes = vcrDes.Trim() });
+                            if (!string.IsNullOrWhiteSpace(byDes))
+                            {
+                                return byDes.Trim();
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return null;
+        }
+
         public async Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice)
         {
             var result = new X3ImportResult { Identifier = invoice.InvoiceId };
@@ -1408,11 +1512,12 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string invType = isCreditInvoice ? "MICRE" : "MICAS";
 
                 string originDocNum = !string.IsNullOrWhiteSpace(invoice.OriginInvoiceId) ? invoice.OriginInvoiceId.Trim() : "";
+                string docNumber = ResolveGeneratedDocNumber(invoice, reference);
 
                 // Proven 18-position layout matching Syracuse ZSIHWEBA template (Image 2, lines 1-18):
-                // Pos 1: V | Pos 2: SALFCY | Pos 3: SIVTYP | Pos 4: STOFCY | Pos 5: INVTYP (1) | Pos 6: NUM (blank) | Pos 7: BPCINV | Pos 8: ACCDAT | Pos 9: INVREF (reference)
+                // Pos 1: V | Pos 2: SALFCY | Pos 3: SIVTYP | Pos 4: STOFCY | Pos 5: INVTYP (1) | Pos 6: NUM (docNumber) | Pos 7: BPCINV | Pos 8: ACCDAT | Pos 9: INVREF (reference)
                 // Pos 10: STOMVTFLG (2) | Pos 11: REP | Pos 12: CUR (MUR) | Pos 13: STRDUDDAT | Pos 14: blank | Pos 15: blank | Pos 16: SIHORI (1) | Pos 17: SIHORINUM (originDocNum) | Pos 18: ZTABLETSRC
-                string invoiceHeader = $"V;{salesSite};{invType};{shippingSite};1;;{invoice.CustomerCode};{invoiceDate};{reference};2;{primarySalesRep};MUR;{dueDate};;;1;{originDocNum};{tabletSource};|";
+                string invoiceHeader = $"V;{salesSite};{invType};{shippingSite};1;{docNumber};{invoice.CustomerCode};{invoiceDate};{reference};2;{primarySalesRep};MUR;{dueDate};;;1;{originDocNum};{tabletSource};|";
                 fileBuilder.Append(invoiceHeader);
 
                 // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER), valid TABWRH warehouses & STOCK in shippingSite
@@ -1628,6 +1733,19 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // 5. Parse Response
                 var parsedResult = ParseSoapResponse(responseXml, result);
+
+                // Verify created document directly in SINVOICE if X3 returned REQ-* or a duplicate-key retry after a crash
+                if (!string.IsNullOrWhiteSpace(docNumber) &&
+                    ((parsedResult.Success && (string.IsNullOrWhiteSpace(parsedResult.DocumentId) || parsedResult.DocumentId.StartsWith("REQ-", StringComparison.OrdinalIgnoreCase)))
+                     || (!parsedResult.Success && IsDuplicateKeySoapResult(parsedResult))))
+                {
+                    var verifiedNum = await TryVerifySinvoiceExistsInX3Async(schema, docNumber, invoice.CustomerCode);
+                    if (!string.IsNullOrWhiteSpace(verifiedNum))
+                    {
+                        parsedResult.DocumentId = verifiedNum;
+                        parsedResult.Success = true;
+                    }
+                }
                 
                 // For Sales Invoices, we trust O_STATUS >= 1
                 await InsertSoapAuditAsync("ImportSalesInvoice", invoice.InvoiceId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
@@ -1717,12 +1835,14 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedCrnSite, crnSchema);
                 // Sage X3 sales invoice type for credit notes AND returns:
-                // MRCAS for credit note where cash is refunded
-                // MRCRE for credit note where credit on account is refunded
-                bool isCashRefund = string.Equals(creditNote.SettlementType, "CASH", StringComparison.OrdinalIgnoreCase)
-                    || (creditNote.Payments != null && creditNote.Payments.Any(p => 
+                // MRCAS for credit note / return where cash is refunded
+                // MRCRE for credit note / return where credit on account is refunded
+                bool hasExplicitCreditSettlement = string.Equals(creditNote.SettlementType, "CREDIT", StringComparison.OrdinalIgnoreCase);
+                bool isCashRefund = !hasExplicitCreditSettlement && (
+                    string.Equals(creditNote.SettlementType, "CASH", StringComparison.OrdinalIgnoreCase)
+                    || (creditNote.Payments != null && creditNote.Payments.Any(p =>
                         string.Equals(p.PaymentMethod, "CASH", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(p.PaymentMethod, "CSH", StringComparison.OrdinalIgnoreCase)));
+                        string.Equals(p.PaymentMethod, "CSH", StringComparison.OrdinalIgnoreCase))));
 
                 string crnType = isCashRefund ? "MRCAS" : "MRCRE";
 
@@ -1802,6 +1922,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     creditNote.DeviceId,
                     creditNote.UserName ?? creditNote.CreatedBy);
 
+                string docNumber = ResolveGeneratedDocNumber(creditNote, reference);
+
                 var crnHeaderValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     { "SALFCY", salesSite }, // Use mapped financial sales site for Position 2 (SALFCY)
@@ -1809,11 +1931,11 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     { "STOFCY", shippingSite }, // Use mapped physical shipping site for Position 4 (STOFCY)
                     { "FCY", salesSite },
                     { "INVTYP", category.ToString() },
-                    { "NUM", "" },
-                    { "NUM_0", "" },
-                    { "INVNUM", "" },
-                    { "VCRNUM", "" },
-                    { "SIHNUM", "" },
+                    { "NUM", docNumber },
+                    { "NUM_0", docNumber },
+                    { "INVNUM", docNumber },
+                    { "VCRNUM", docNumber },
+                    { "SIHNUM", docNumber },
                     { "BPCINV", creditNote.CustomerCode ?? "" },
                     { "BPR", creditNote.CustomerCode ?? "" },
                     { "BPCORD", creditNote.CustomerCode ?? "" },
@@ -1857,7 +1979,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // Header Record (Matching Sage X3 ZSCRWEB template):
                 var crnTemplateFields = await GetTemplateHeaderFieldsAsync("ZSCRWEB", crnSchema);
-                string fallbackCrnHeader = $"V;{salesSite};{crnType};{shippingSite};{category};;{creditNote.CustomerCode};{creditNoteDate};{reference};{stockTransaction};3;{primaryCrnRep};MUR;{dueDate};;0;{reason};{sihoriFlag};{sihoriNum};{tabletSource};|";
+                string fallbackCrnHeader = $"V;{salesSite};{crnType};{shippingSite};{category};{docNumber};{creditNote.CustomerCode};{creditNoteDate};{reference};{stockTransaction};3;{primaryCrnRep};MUR;{dueDate};;0;{reason};{sihoriFlag};{sihoriNum};{tabletSource};|";
                 fileBuilder.Append(ConstructDynamicVHeader(crnTemplateFields, crnHeaderValues, fallbackCrnHeader));
 
                 // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER) & valid TABWRH warehouses
@@ -1989,6 +2111,20 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 // 4. Parse Response
                 var parsedResult = ParseSoapResponse(responseXml, result);
+
+                // Verify created document directly in SINVOICE if X3 returned REQ-* or a duplicate-key retry after a crash
+                if (!string.IsNullOrWhiteSpace(docNumber) &&
+                    ((parsedResult.Success && (string.IsNullOrWhiteSpace(parsedResult.DocumentId) || parsedResult.DocumentId.StartsWith("REQ-", StringComparison.OrdinalIgnoreCase)))
+                     || (!parsedResult.Success && IsDuplicateKeySoapResult(parsedResult))))
+                {
+                    var verifiedNum = await TryVerifySinvoiceExistsInX3Async(crnSchema, docNumber, creditNote.CustomerCode);
+                    if (!string.IsNullOrWhiteSpace(verifiedNum))
+                    {
+                        parsedResult.DocumentId = verifiedNum;
+                        parsedResult.Success = true;
+                    }
+                }
+
                 await InsertSoapAuditAsync("ImportCreditNote", creditNote.InvoiceId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
                 return parsedResult;
             }
@@ -2069,31 +2205,192 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                 string schema = ResolveX3Schema();
 
-                // Authoritative site resolution: SALFCY (user login claim) -> STOFCY (shipping facility)
+                // Authoritative site resolution: prefer user login SiteCode claim (e.g. SCG/POD) first
+                // because header.SalesSite may have been normalized to FinancialSiteCode (e.g. CGD).
                 var userSiteCode = _httpContextAccessor.HttpContext?.User?.FindFirst("SiteCode")?.Value;
-                string requestedSite = (!string.IsNullOrWhiteSpace(header.SalesSite) && header.SalesSite != "ALL")
-                    ? header.SalesSite.Trim()
-                    : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode : "POD");
+                string requestedSite = (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL")
+                    ? userSiteCode.Trim()
+                    : (!string.IsNullOrWhiteSpace(header.SalesSite) && header.SalesSite != "ALL" ? header.SalesSite.Trim() : "POD");
 
                 var (salesSite, shippingSite) = await ResolveSiteMappingAsync(requestedSite, schema);
 
-                // Entry / Transaction code based on site/company:
-                // For IPL site: ZIPL2; For other sites: ZINL2
-                string entCod = string.Equals(shippingSite, "IPL", StringComparison.OrdinalIgnoreCase) || string.Equals(salesSite, "IPL", StringComparison.OrdinalIgnoreCase)
-                    ? "ZIPL2"
-                    : "ZINL2";
+                var (tabletSource, assignedWarehouse, assignedLocation) = await ResolveDeviceIdentityAsync(
+                    header.TabletSource,
+                    header.DeviceId,
+                    header.UserName ?? header.CreatedBy,
+                    requestedSite);
 
+                // Extract lorry code embedded in HIPO document ID (e.g. HRCGD08112600005 -> 08) as fallback
+                string? embeddedLorry = null;
+                if (!string.IsNullOrWhiteSpace(header.InvoiceId) && header.InvoiceId.Length >= 12 && header.InvoiceId.StartsWith("H", StringComparison.OrdinalIgnoreCase))
+                {
+                    string pfx = header.InvoiceId.Substring(0, header.InvoiceId.Length - 5);
+                    if (pfx.Length > 6)
+                    {
+                        string middle = pfx.Substring(2, pfx.Length - 6);
+                        var lorryMatch = System.Text.RegularExpressions.Regex.Match(middle, @"^([A-Za-z]+)(\d+)$");
+                        if (lorryMatch.Success && lorryMatch.Groups[2].Value != "00")
+                        {
+                            embeddedLorry = lorryMatch.Groups[2].Value;
+                        }
+                    }
+                }
+
+                string firstLineLoc = lines
+                    .Select(l => (l.Location ?? "").Trim())
+                    .FirstOrDefault(locVal =>
+                        !string.IsNullOrWhiteSpace(locVal)
+                        && !string.Equals(locVal, "LOC1", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(locVal, salesSite, StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(locVal, shippingSite, StringComparison.OrdinalIgnoreCase)) ?? "";
+
+                string candidateLorry = !string.IsNullOrWhiteSpace(assignedLocation)
+                    ? assignedLocation.Trim()
+                    : (!string.IsNullOrWhiteSpace(firstLineLoc)
+                        ? firstLineLoc
+                        : (!string.IsNullOrWhiteSpace(embeddedLorry)
+                            ? embeddedLorry
+                            : (shippingSite == "IPL" ? "IPLCH" : shippingSite)));
+
+                string resolvedLoc = candidateLorry;
+                string entCod = "";
+                string trsCod = "";
+
+                // Verify (STOFCY, LOC) against STOLOC and (ENTCOD, TRSCOD) against SMVTH / GAUTO in Sage X3
+                try
+                {
+                    using var x3Conn = new SqlConnection(_innodisConnectionString);
+                    await x3Conn.OpenAsync();
+                    var candidateSchemas = new[] { schema, "INLDRYRUN", "INL", "X3" }
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    foreach (var candSchema in candidateSchemas)
+                    {
+                        bool foundStoloc = false;
+                        // 1. Verify exact STOFCY_0 where candidateLorry (e.g. N8) is created in STOLOC
+                        try
+                        {
+                            var stolocMatch = await x3Conn.QueryFirstOrDefaultAsync(
+                                $@"SELECT TOP 1
+                                       LTRIM(RTRIM(STOFCY_0)) AS SiteCode,
+                                       LTRIM(RTRIM(LOC_0)) AS LocCode
+                                   FROM x3.{candSchema}.STOLOC WITH (NOLOCK)
+                                   WHERE LTRIM(RTRIM(LOC_0)) = @Loc
+                                   ORDER BY
+                                       CASE
+                                           WHEN LTRIM(RTRIM(STOFCY_0)) = @ShippingSite THEN 0
+                                           WHEN LTRIM(RTRIM(STOFCY_0)) = @RequestedSite THEN 1
+                                           WHEN LTRIM(RTRIM(STOFCY_0)) = @SalesSite THEN 2
+                                           ELSE 3
+                                       END",
+                                new
+                                {
+                                    Loc = candidateLorry,
+                                    ShippingSite = shippingSite,
+                                    RequestedSite = requestedSite,
+                                    SalesSite = salesSite
+                                });
+
+                            if (stolocMatch != null)
+                            {
+                                string matchedSite = ((string?)stolocMatch.SiteCode ?? "").Trim();
+                                string matchedLoc = ((string?)stolocMatch.LocCode ?? "").Trim();
+                                if (!string.IsNullOrWhiteSpace(matchedSite)) shippingSite = matchedSite;
+                                if (!string.IsNullOrWhiteSpace(matchedLoc)) resolvedLoc = matchedLoc;
+                                foundStoloc = true;
+                            }
+                            else
+                            {
+                                var fallbackLoc = await x3Conn.QueryFirstOrDefaultAsync<string>(
+                                    $@"SELECT TOP 1 LTRIM(RTRIM(LOC_0))
+                                       FROM x3.{candSchema}.STOLOC WITH (NOLOCK)
+                                       WHERE LTRIM(RTRIM(STOFCY_0)) = @ShippingSite
+                                         AND LTRIM(RTRIM(ISNULL(LOC_0, ''))) <> ''
+                                       ORDER BY CASE WHEN LTRIM(RTRIM(LOC_0)) LIKE @LocPattern THEN 0 ELSE 1 END, LOC_0",
+                                    new { ShippingSite = shippingSite, LocPattern = $"%{candidateLorry}%" });
+                                if (!string.IsNullOrWhiteSpace(fallbackLoc))
+                                {
+                                    resolvedLoc = fallbackLoc.Trim();
+                                    foundStoloc = true;
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // 2. Discover historical SMVTH (VCRTYP_0 = 19) ENTCOD_0 and TRSCOD_0 in its own isolated try/catch
+                        try
+                        {
+                            var smvthSample = await x3Conn.QueryFirstOrDefaultAsync(
+                                $@"SELECT TOP 1
+                                       LTRIM(RTRIM(ISNULL(ENTCOD_0, ''))) AS EntCod,
+                                       LTRIM(RTRIM(ISNULL(TRSCOD_0, ''))) AS TrsCod
+                                   FROM x3.{candSchema}.SMVTH WITH (NOLOCK)
+                                   WHERE VCRTYP_0 = 19
+                                     AND (LTRIM(RTRIM(ISNULL(ENTCOD_0, ''))) <> '' OR LTRIM(RTRIM(ISNULL(TRSCOD_0, ''))) <> '')
+                                   ORDER BY
+                                       CASE WHEN LTRIM(RTRIM(STOFCY_0)) = @ShippingSite THEN 0 ELSE 1 END,
+                                       CREDAT_0 DESC",
+                                new { ShippingSite = shippingSite });
+
+                            if (smvthSample != null)
+                            {
+                                string sampleEnt = ((string?)smvthSample.EntCod ?? "").Trim();
+                                string sampleTrs = ((string?)smvthSample.TrsCod ?? "").Trim();
+                                if (!string.IsNullOrWhiteSpace(sampleEnt)) entCod = sampleEnt;
+                                if (!string.IsNullOrWhiteSpace(sampleTrs)) trsCod = sampleTrs;
+                            }
+                        }
+                        catch { }
+
+                        // 3. Validate/fallback Automatic Journal against GAUTACE in its own isolated try/catch
+                        try
+                        {
+                            var gautaceCodes = (await x3Conn.QueryAsync<string>(
+                                $@"SELECT DISTINCT LTRIM(RTRIM(COD_0))
+                                   FROM x3.{candSchema}.GAUTACE WITH (NOLOCK)
+                                   WHERE LTRIM(RTRIM(ISNULL(COD_0, ''))) <> ''"))
+                                .Where(c => !string.IsNullOrWhiteSpace(c))
+                                .Select(c => c.Trim())
+                                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                            if (gautaceCodes.Count > 0)
+                            {
+                                if (!string.IsNullOrWhiteSpace(entCod) && !gautaceCodes.Contains(entCod))
+                                {
+                                    entCod = gautaceCodes.Contains("STK") ? "STK" : "";
+                                }
+                                else if (string.IsNullOrWhiteSpace(entCod) && gautaceCodes.Contains("STK"))
+                                {
+                                    entCod = "STK";
+                                }
+                            }
+                        }
+                        catch { }
+
+                        if (foundStoloc || !string.IsNullOrWhiteSpace(entCod) || !string.IsNullOrWhiteSpace(trsCod))
+                        {
+                            break;
+                        }
+                    }
+                }
+                catch (Exception metaEx)
+                {
+                    Console.WriteLine($"[SageX3SoapService] ZSMRWEBA metadata lookup notice: {metaEx.Message}");
+                }
+
+                Console.WriteLine($"[SageX3SoapService] ZSMRWEBA resolved STOFCY='{shippingSite}', LOC='{resolvedLoc}', ENTCOD='{entCod}', TRSCOD='{trsCod}'");
+
+                string docNumber = ResolveGeneratedDocNumber(header, header.InvoiceId ?? "");
                 string vcrDes = $"Return {header.InvoiceId}".Trim();
                 if (vcrDes.Length > 30) vcrDes = vcrDes.Substring(0, 30);
 
                 // --- Record E (Table SMVTH, Lines 1-9) ---
                 // 1: E, 2: ENTCOD, 3: VCRTYP, 4: VCRNUM, 5: STOFCY, 6: IPTDAT, 7: VCRDES, 8: PJT, 9: TRSCOD
-                fileBuilder.Append($"E;{entCod};19;;{shippingSite};{receiptDate};{vcrDes};;;|");
+                fileBuilder.Append($"E;{entCod};19;{docNumber};{shippingSite};{receiptDate};{vcrDes};;{trsCod};|");
 
-                var (tabletSource, assignedWarehouse, assignedLocation) = await ResolveDeviceIdentityAsync(
-                    header.TabletSource,
-                    header.DeviceId,
-                    header.UserName ?? header.CreatedBy);
+                var itemMetadata = await GetItemMetadataAsync(lines.Select(l => l.Sku));
 
                 int vcrLin = 1;
                 foreach (var line in lines)
@@ -2102,6 +2399,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                     string sku = (line.Sku ?? "").Trim();
                     string unit = !string.IsNullOrWhiteSpace(line.SalesUnit) ? line.SalesUnit.Trim().ToUpperInvariant() : "EA";
+                    if (itemMetadata.TryGetValue(sku, out var meta) && !string.IsNullOrWhiteSpace(meta.SalesUnit))
+                    {
+                        if (string.IsNullOrWhiteSpace(unit) || string.Equals(unit, "EA", StringComparison.OrdinalIgnoreCase))
+                        {
+                            unit = meta.SalesUnit.Trim().ToUpperInvariant();
+                        }
+                    }
                     string qtyStr = line.Quantity.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
                     string priceStr = line.BasePrice > 0 ? line.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
 
@@ -2113,9 +2417,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     string expDate = (line.ExpiryDate ?? "").Replace("-", "").Replace(" ", "").Replace(":", "").Trim();
                     if (expDate.Length > 8) expDate = expDate.Substring(0, 8);
 
-                    string loc = !string.IsNullOrWhiteSpace(line.Location)
-                        ? line.Location.Trim()
-                        : (!string.IsNullOrWhiteSpace(assignedLocation) ? assignedLocation.Trim() : (shippingSite == "IPL" ? "IPLCH" : shippingSite));
+                    string loc = resolvedLoc;
 
                     // Stock Status: strictly "A" (Active/Salable) or "Q" (Quarantine/Damaged/Expired)
                     string sta = string.Equals(line.StockStatus, "Q", StringComparison.OrdinalIgnoreCase) ? "Q" : "A";
@@ -2177,6 +2479,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var response = await _httpClient.SendAsync(request);
                 responseXml = await response.Content.ReadAsStringAsync();
 
+                Console.WriteLine("====== SAGE X3 MISC STOCK RECEIPT SOAP RESPONSE (ZSMRWEBA) ======");
+                Console.WriteLine(responseXml);
+                Console.WriteLine("=================================================================");
+
                 if (!response.IsSuccessStatusCode)
                 {
                     result.Success = false;
@@ -2186,6 +2492,22 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 }
 
                 var parsedResult = ParseSoapResponse(responseXml, result);
+
+                // If ZSMRWEBA succeeded without emitting a "Creation of ..." trace message (or returned REQ-*),
+                // or failed with a duplicate-key retry after a crash, verify directly against x3.<schema>.SMVTH by VCRNUM_0 / VCRDES_0.
+                if (string.IsNullOrWhiteSpace(parsedResult.DocumentId)
+                    || parsedResult.DocumentId.StartsWith("REQ-", StringComparison.OrdinalIgnoreCase)
+                    || (!parsedResult.Success && IsDuplicateKeySoapResult(parsedResult)))
+                {
+                    var verifiedVcrNum = await TryVerifySmvthExistsInX3Async(schema, docNumber, vcrDes);
+                    if (!string.IsNullOrWhiteSpace(verifiedVcrNum))
+                    {
+                        parsedResult.DocumentId = verifiedVcrNum;
+                        parsedResult.Success = true;
+                        Console.WriteLine($"[SageX3SoapService] Verified created ZSMRWEBA document in SMVTH: {parsedResult.DocumentId}");
+                    }
+                }
+
                 await InsertSoapAuditAsync("ImportMiscReceipt", header.InvoiceId, soapEnvelope, responseXml, parsedResult.Success, parsedResult.Success ? null : string.Join(" | ", parsedResult.Messages));
                 return parsedResult;
             }
@@ -2903,6 +3225,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 else
                 {
                     result.Success = endpointSuccess && importSuccess;
+                    if (result.Success && !string.IsNullOrWhiteSpace(result.RequestNumber))
+                    {
+                        result.DocumentId = $"REQ-{result.RequestNumber}";
+                    }
                 }
 
                 return result;
