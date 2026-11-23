@@ -700,7 +700,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<LocationLookupDto>> GetLocationLookupsAsync(string site)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            var sql = @"
+            var sql = $@"
                 SELECT 
                     T1.STOFCY_0 as Site,
                     T1.LOC_0 as Location,
@@ -731,7 +731,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public async Task<IEnumerable<LocationLookupDto>> GetTargetLocationsAsync(string site, string itemCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
-            var sql = @"
+            var sql = $@"
                 SELECT DISTINCT
                     T1.[Site],
                     T1.[Location],

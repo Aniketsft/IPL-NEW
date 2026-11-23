@@ -6,8 +6,10 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
 {
     public interface ISalesInvoiceRepository
     {
-        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode = "");
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode = "", bool bypassCache = false);
+        Task<string> GetCustomersWatermarkAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceProductDto>> GetProductsAsync(string sitecode);
+        Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceProductDto>> GetProductsAsync(string sitecode, string? lorryCode);
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceItemStockDto>> GetItemStockDetailsAsync(string sitecode);
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.TaxMatrixDto>> GetTaxDeterminationsAsync();
         Task<IEnumerable<EnterpriseAuth.Api.Core.Application.DTOs.TaxRateDto>> GetTaxRatesAsync();
@@ -26,6 +28,7 @@ namespace EnterpriseAuth.Api.Core.Application.Interfaces
         Task<EnterpriseAuth.Api.Core.Application.DTOs.CustomerLiveCreditDto?> GetCustomerLiveCreditAsync(string customerNo);
         Task<EnterpriseAuth.Api.Core.Application.DTOs.SalesInvoiceCustomerDto?> GetCustomerByCodeAsync(string customerCode);
         Task<EnterpriseAuth.Api.Core.Application.DTOs.ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode);
+        Task<EnterpriseAuth.Api.Core.Application.DTOs.ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode, string? lorryCode);
         Task<IEnumerable<string>> GetExistingHipoDocumentIdsFromX3Async(string? siteCode = null);
     }
 }

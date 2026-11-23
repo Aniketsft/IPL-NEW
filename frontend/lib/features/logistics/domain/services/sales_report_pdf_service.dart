@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/sales_invoice_product_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/eod_report_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'thermal_template.dart';
 
 /// Management reports for the 4.5" (104 mm) Sewoo LK-P43II roll.
@@ -40,10 +41,25 @@ class SalesReportPdfService {
     d.rule();
 
     double totalValue = 0;
+    double retA = 0.0;
+    double retR = 0.0;
+    double retQ = 0.0;
+    double valA = 0.0;
+    double valR = 0.0;
+    double valQ = 0.0;
     if (productRows.isNotEmpty) {
       for (final r in productRows) {
         final sales = (r['salesQty'] as num?)?.toDouble() ?? 0.0;
         final ret = (r['returnQty'] as num?)?.toDouble() ?? 0.0;
+        final rowRetA = (r['returnQtyA'] as num?)?.toDouble() ?? 0.0;
+        final rowRetR = (r['returnQtyR'] as num?)?.toDouble() ?? 0.0;
+        final rowRetQ = (r['returnQtyQ'] as num?)?.toDouble() ?? 0.0;
+        retA += rowRetA;
+        retR += rowRetR;
+        retQ += rowRetQ;
+        valA += (r['returnValueA'] as num?)?.toDouble() ?? 0.0;
+        valR += (r['returnValueR'] as num?)?.toDouble() ?? 0.0;
+        valQ += (r['returnValueQ'] as num?)?.toDouble() ?? 0.0;
         final uom = (r['uom'] ?? '').toString();
         final name = (r['name'] ?? '').toString();
         totalValue += ((r['salesValue'] as num?)?.toDouble() ?? 0.0) -
@@ -57,6 +73,14 @@ class SalesReportPdfService {
         for (final extra in nameLines.skip(1)) {
           d.line(' $extra');
         }
+        if (ret > 0.0001 && (rowRetA > 0 || rowRetR > 0 || rowRetQ > 0)) {
+          final parts = <String>[
+            if (rowRetA > 0) 'A:${ThermalDoc.qty(rowRetA)}',
+            if (rowRetR > 0) 'R:${ThermalDoc.qty(rowRetR)}',
+            if (rowRetQ > 0) 'Q:${ThermalDoc.qty(rowRetQ)}',
+          ];
+          d.line('   Return Sta: ${parts.join('  ')}');
+        }
       }
     } else {
       d.line(' No product movement recorded for this date.');
@@ -69,9 +93,17 @@ class SalesReportPdfService {
     d.line(' ${ThermalDoc.l('TOTAL PRICE', 40)}${ThermalDoc.r(ThermalDoc.money(totalValue), 26)}',
         bold: true);
     d.blank();
+    if (retA > 0 || retR > 0 || retQ > 0) {
+      d.line(' Return Breakdown by Status:', bold: true);
+      d.line('   ${ThermalDoc.l('[A] Normal / Sellable', 36)}${ThermalDoc.r('${ThermalDoc.qty(retA)} (${ThermalDoc.money(valA)})', 28)}');
+      d.line('   ${ThermalDoc.l('[R] Damaged', 36)}${ThermalDoc.r('${ThermalDoc.qty(retR)} (${ThermalDoc.money(valR)})', 28)}');
+      d.line('   ${ThermalDoc.l('[Q] Expired / Quarantine', 36)}${ThermalDoc.r('${ThermalDoc.qty(retQ)} (${ThermalDoc.money(valQ)})', 28)}');
+      d.blank();
+    }
     final invCount = invoices.where((i) => i.type == 'INVOICE').length;
+    final retCount = invoices.where((i) => i.type == 'RETURN').length;
     final cnCount = invoices.where((i) => i.type == 'CREDIT_NOTE').length;
-    d.line(' Invoices: $invCount   Credit Notes: $cnCount');
+    d.line(' Invoices: $invCount   Returns: $retCount   Credit Notes: $cnCount');
     d.blank(2);
 
     return d.build();
@@ -85,9 +117,14 @@ class SalesReportPdfService {
     required List<SalesInvoiceProductModel> items,
     required String warehouseLabel,
     String? salesman,
+    String? reportDate,
+    bool isHistoricalDate = false,
   }) async {
     final d = ThermalDoc();
     final stamp = DateFormat('yyyyMMddHHmm').format(DateTime.now());
+    final effectiveReportDate = (reportDate != null && reportDate.isNotEmpty)
+        ? reportDate
+        : DateFormat('dd MMM yyyy').format(DateTime.now());
 
     d.center(ThermalCompany.name, bold: true);
     d.blank();
@@ -103,10 +140,16 @@ class SalesReportPdfService {
     d.meta('Voucher No', 'STK-$stamp', labelWidth: 17);
     d.meta('Store', warehouseLabel, labelWidth: 17);
     d.meta('Salesman', salesman ?? ThermalSession.username, labelWidth: 17);
+    d.meta('Report Date', effectiveReportDate, labelWidth: 17);
     d.meta('Print Date Time', ThermalDoc.printStamp(), labelWidth: 17);
+    if (isHistoricalDate) {
+      d.line(' Note: Van stock reflects live synced device inventory.');
+    }
 
     void section(String title, String status) {
-      final list = items.where((i) => i.stockStatus == status).toList();
+      final list = items
+          .where((i) => StockStatus.fromCode(i.stockStatus).code == status)
+          .toList();
       d.rule();
       d.line(' $title', bold: true);
       d.rule();
@@ -130,8 +173,8 @@ class SalesReportPdfService {
     }
 
     section('[A] APPROVED / SELLABLE STOCK', 'A');
-    section('[Q] CUSTOMER RETURNS (QUARANTINE)', 'Q');
-    section('[R] ISSUE IN STOCK (DAMAGED)', 'R');
+    section('[R] DAMAGED / REJECTED STOCK', 'R');
+    section('[Q] QUARANTINE / EXPIRED STOCK', 'Q');
 
     final totalUnits = items.fold(0.0, (s, i) => s + i.stockQty);
     d.rule();
@@ -234,15 +277,34 @@ class SalesReportPdfService {
       creditNoteTotal,
     );
 
+    if (data.returnStatusBreakdowns.isNotEmpty) {
+      d.line(' RETURNS BY STOCK STATUS:', bold: true);
+      for (final b in data.returnStatusBreakdowns) {
+        final st = StockStatus.fromCode(b.stockStatus);
+        final statusLabel = switch (st) {
+          StockStatus.approved => 'Normal / Sellable',
+          StockStatus.rejected => 'Damaged / Rejected',
+          StockStatus.quarantine => 'Expired / Quarantine',
+        };
+        final left = '   [${st.code}] $statusLabel (${ThermalDoc.qty(b.totalQty)})';
+        d.line(' ${ThermalDoc.l(left, 48)}${ThermalDoc.r(ThermalDoc.money(b.totalAmount), 18)}');
+      }
+      d.blank();
+    }
+
     // Cash hand-over
-    final cashReceived = data.physicalCashFromInvoices + data.physicalCashFromCollections;
-    final netCash = cashReceived - cashRefund;
+    final cashReceived = data.totalPhysicalCashReceived;
+    final netCash = data.netPhysicalCashInHand;
+    final cashToHandOver = data.physicalCashToHandOver;
     d.rule();
     d.line(' ${ThermalDoc.l('PLEASE RECEIVE THE FOLLOWING CASH', 48)}${ThermalDoc.r('Amount', 18)}');
-    d.line(' ${ThermalDoc.l('CASH', 48)}${ThermalDoc.r(ThermalDoc.money(cashReceived), 18)}');
+    d.line(' ${ThermalDoc.l('CASH RECEIVED', 48)}${ThermalDoc.r(ThermalDoc.money(cashReceived), 18)}');
     d.line(' ${ThermalDoc.l('CASH SALES REFUNDS', 48)}${ThermalDoc.r(ThermalDoc.money(cashRefund), 18)}');
     d.line(' ${' ' * 48}${'-' * 18}');
-    d.line(' ${ThermalDoc.l('', 48)}${ThermalDoc.r(ThermalDoc.money(netCash), 18)}', bold: true);
+    d.line(' ${ThermalDoc.l('NET CASH IN HAND', 48)}${ThermalDoc.r(ThermalDoc.money(netCash), 18)}', bold: true);
+    if (netCash < -0.005) {
+      d.line(' ${ThermalDoc.l('CASH SHORTFALL (OWED TO SALESMAN)', 48)}${ThermalDoc.r(ThermalDoc.money(netCash.abs()), 18)}', bold: true);
+    }
     d.blank();
     d.line(' NOTES .................');
     d.blank();
@@ -258,8 +320,19 @@ class SalesReportPdfService {
       }
     }
     d.rule();
-    d.line(' ${ThermalDoc.l('TOTAL', 48)}${ThermalDoc.r(ThermalDoc.money(netCash + data.totalChequesAmount), 18)}', bold: true);
+    d.line(' ${ThermalDoc.l('TOTAL HANDOVER (CASH + CHEQUES)', 48)}${ThermalDoc.r(ThermalDoc.money(cashToHandOver + data.totalChequesAmount), 18)}', bold: true);
+    if (netCash < -0.005) {
+      d.line(' Note: Negative cash shortfall not deducted from cheques.');
+    }
     d.rule();
+    if (data.cashShortfallRefunds.isNotEmpty) {
+      d.line(' CASH REFUNDS ISSUED WITH INSUFFICIENT CASH:', bold: true);
+      for (final s in data.cashShortfallRefunds) {
+        final label = '${s.creditNoteId} (Ref: ${ThermalDoc.money(s.refundAmount)})';
+        d.line('   ${ThermalDoc.l(label, 46)}${ThermalDoc.r('-${ThermalDoc.money(s.shortfallAmount)}', 18)}');
+      }
+      d.rule();
+    }
     if (data.totalDigitalAmount > 0) {
       d.line(' ${ThermalDoc.l('Digital receipts (not handed over)', 48)}${ThermalDoc.r(ThermalDoc.money(data.totalDigitalAmount), 18)}');
       d.rule();

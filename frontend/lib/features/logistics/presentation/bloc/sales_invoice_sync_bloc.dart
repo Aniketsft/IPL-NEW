@@ -38,6 +38,11 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
         siteCode: event.siteCode,
         uploadOnly: event.uploadOnly,
         downloadOnly: event.downloadOnly,
+        onProgress: (stepMessage) {
+          if (!emit.isDone) {
+            emit(SalesInvoiceSyncInProgress(stepMessage));
+          }
+        },
       );
       if (batchResult.isTotalFailure) {
         emit(SalesInvoiceSyncFailure(

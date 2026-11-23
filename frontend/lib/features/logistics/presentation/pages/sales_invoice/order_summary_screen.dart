@@ -23,6 +23,7 @@ import 'add_item_detail_screen.dart';
 import 'invoice_preview_screen.dart';
 import '../../../domain/models/transaction_config.dart';
 import '../../../domain/models/stock_status.dart';
+import '../../../data/models/credit_note_model.dart';
 import '../../../data/repositories/transaction_history_repository.dart';
 import '../../../domain/services/pricing_engine_service.dart';
 import '../../../domain/services/vat_calculator_service.dart';
@@ -106,12 +107,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
       final repo = TransactionHistoryRepository();
       final lines = await repo.getTransactionLines(cnId);
       final customerMap = await LocalDatabaseHelper.instance.getSalesInvoiceCustomerByCode(customerCode);
+      final cnModel = CreditNoteModel.fromMap(cnMap);
 
       if (context.mounted) {
         Navigator.pop(context); // Dismiss loading
         final items = lines.map((item) {
           final originalQty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
           final basePrice = (item['basePrice'] as num?)?.toDouble() ?? ((item['total'] as num?)?.toDouble() ?? 0.0);
+          final lineStatus = StockStatus.fromCode(item['stockStatus']?.toString()).code;
           return CartItem(
             product: SalesInvoiceProductModel(
               sku: item['sku'] ?? '',
@@ -121,13 +124,17 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               salesUnit: (item['salesUnit'] != null && (item['salesUnit'] as String).isNotEmpty)
                   ? item['salesUnit']
                   : 'EA',
+              stockStatus: lineStatus,
             ),
             lotNumber: item['lotNumber'] ?? '',
+            warehouse: item['warehouse'] ?? '',
+            location: item['location'] ?? '',
             quantity: originalQty > 0 ? originalQty : 1.0,
             basePrice: basePrice,
             discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,
             taxRule: item['taxRule'] ?? '',
             vatRatePercent: 0.0,
+            stockStatus: lineStatus,
           );
         }).toList();
 
@@ -149,6 +156,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               items: items,
               isCreditNote: true,
               creditNoteReason: reason,
+              creditNoteModel: cnModel,
             ),
           ),
         );
@@ -329,22 +337,55 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         return;
       }
       
+      if (!mounted) return;
+      final loadedState = context.read<SalesInvoiceBloc>().state;
+      if (loadedState is! SalesInvoiceLoaded) return;
+      final isReturnMode = loadedState.config.isReturnOrCreditNote;
+
+      final siteCode = await SecureStorageService().getSiteCode();
+      if (!mounted) return;
       final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
-      final product = await repository.getProductByItemCode(scanResult.itemCode);
-      
-      if (product == null) {
-        _showErrorDialog('Product Not Found', 'The product is not available in the sales invoice catalog.');
+      final scope = await repository.resolveAssignedLorryScope(siteCode: siteCode);
+      if (!scope.isAssigned) {
+        _showErrorDialog(
+          'Lorry Not Assigned',
+          'Assign a lorry to this tablet for site ${scope.siteCode} and sync stock before scanning.',
+        );
         return;
       }
 
-      // Check if product is already in the cart
-      final currentState = context.read<SalesInvoiceBloc>().state;
-      if (currentState is! SalesInvoiceLoaded) return;
-      final cartItems = currentState.cartItems;
+      final product = await repository.getProductByItemCode(
+        scanResult.itemCode,
+        siteCode: scope.siteCode,
+        stockStatus: 'ALL',
+      );
+      
+      if (product == null) {
+        _showErrorDialog(
+          'Not In Lorry Stock',
+          '${scanResult.itemCode} is not in assigned lorry ${scope.lorryCode} (${scope.siteCode}). Sync if stock changed.',
+        );
+        return;
+      }
+
+      final parsedStatus = StockStatus.fromCode(product.stockStatus);
+      if (!isReturnMode && !parsedStatus.isSellable) {
+        _showErrorDialog(
+          'Non-Sellable Stock (${parsedStatus.code})',
+          '${product.sku} in lorry ${scope.lorryCode} only has ${parsedStatus.shortLabel}. Only Status A stock can be sold.',
+        );
+        return;
+      }
+
+      // Check if product with matching status is already in the cart
+      final cartItems = loadedState.cartItems;
+      final targetStatus = parsedStatus.code;
       CartItem? existingItem;
       int? editingIndex;
       for (int i = 0; i < cartItems.length; i++) {
-        if (cartItems[i].product.sku == product.sku) {
+        if (cartItems[i].product.sku == product.sku &&
+            StockStatus.fromCode(cartItems[i].stockStatus).code == targetStatus &&
+            !cartItems[i].isFoc) {
           existingItem = cartItems[i];
           editingIndex = i;
           break;
@@ -520,7 +561,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                             final cond = _isReturnTransaction
                                 ? _selectedReturnCondition
                                 : ReturnCondition.fromId(cartState.returnCondition);
-                            final isSellable = cond.stockStatus == 'A';
+                            final badgeColor = cond.status.badgeColor(isDark: isDark);
                             return InkWell(
                               onTap: _isReturnTransaction
                                   ? () async {
@@ -586,17 +627,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: isSellable
-                                                  ? Colors.green.withOpacity(0.15)
-                                                  : Colors.amber.withOpacity(0.15),
+                                              color: badgeColor.withOpacity(0.15),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
-                                              isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                              cond.stockBadgeLabel,
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
-                                                color: isSellable ? Colors.green : Colors.amber.shade800,
+                                                color: badgeColor,
                                               ),
                                             ),
                                           ),
@@ -1463,12 +1502,16 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         return;
       }
 
-      // Pre-fetch stock details for all unique SKUs in ordered items
+      // Pre-fetch sellable ('A') stock details in assigned lorry for all unique SKUs in ordered items
       final Map<String, List<SalesInvoiceItemStockModel>> stockBySku = {};
       for (final item in orderedItems) {
         final sku = item.product.sku;
         if (!stockBySku.containsKey(sku)) {
-          stockBySku[sku] = await repo.getSalesInvoiceItemStockDetails(sku);
+          stockBySku[sku] = await repo.getSalesInvoiceItemStockDetails(
+            sku,
+            siteCode: siteCode,
+            stockStatus: 'A',
+          );
         }
       }
 
@@ -1619,19 +1662,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         );
       }
 
-      // 5. Live Price, Discount, VAT Calculation & Auto-Lot Assignment
+      // 5. Live Price, Discount, VAT Calculation & Multi-Lot Auto-Allocation
       final List<CartItem> finalInvoiceItems = [];
       final List<Map<String, dynamic>> qualifiedFocList = [];
+      final Map<String, Map<String, double>> reservedBySku = {};
 
       for (final item in orderedItems) {
-        final stocks = stockBySku[item.product.sku] ?? await repo.getSalesInvoiceItemStockDetails(item.product.sku);
+        final stocks = stockBySku[item.product.sku] ??
+            await repo.getSalesInvoiceItemStockDetails(
+              item.product.sku,
+              siteCode: siteCode,
+              stockStatus: 'A',
+            );
         stockBySku[item.product.sku] = stocks;
         final itemTaxLevel = stocks.isNotEmpty ? stocks.first.taxLevel : '';
-        final defaultLot = stocks.isNotEmpty ? stocks.first.lotNumber : item.lotNumber;
-        final defaultWarehouse = stocks.isNotEmpty ? stocks.first.warehouse : item.warehouse;
-        final defaultLocation = stocks.isNotEmpty ? stocks.first.location : item.location;
-        final defaultWarehouseName = stocks.isNotEmpty ? stocks.first.warehouseName : item.warehouseName;
-        final defaultLocationType = stocks.isNotEmpty ? stocks.first.locationType : item.locationType;
 
         final pricingResult = await pricingEngine.resolvePrice(
           customerCode: customerCode,
@@ -1646,23 +1690,89 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
         final vatDetails = await vatCalculator.resolveVatDetails(customerTaxRule, itemTaxLevel);
 
-        finalInvoiceItems.add(
-          item.copyWith(
-            basePrice: pricingResult.basePrice,
-            discountPercent: pricingResult.discountPct,
-            discountAmountFlat: pricingResult.discountAmountFlat,
-            vatRatePercent: vatDetails.rate,
-            taxRule: vatDetails.code.isNotEmpty ? vatDetails.code : item.taxRule,
-            pricingSource: pricingResult.source,
-            priceListCode: pricingResult.priceListCode,
-            reasonType: pricingResult.reasonType,
-            lotNumber: item.lotNumber.isNotEmpty ? item.lotNumber : defaultLot,
-            warehouse: item.warehouse.isNotEmpty ? item.warehouse : defaultWarehouse,
-            warehouseName: item.warehouseName.isNotEmpty ? item.warehouseName : defaultWarehouseName,
-            location: item.location.isNotEmpty ? item.location : defaultLocation,
-            locationType: item.locationType.isNotEmpty ? item.locationType : defaultLocationType,
-          ),
+        final skuReserved = reservedBySku.putIfAbsent(item.product.sku, () => {});
+        final allocations = SalesInvoiceProductRepository.allocateAcrossLoadedLots(
+          stocks,
+          requestedQty: item.quantity,
+          preferredLot: item.lotNumber.isNotEmpty ? item.lotNumber : null,
+          reservedQtyByLotKey: skuReserved,
         );
+
+        if (allocations.isEmpty) {
+          final defaultLot = stocks.isNotEmpty ? stocks.first.lotNumber : item.lotNumber;
+          final defaultWarehouse = stocks.isNotEmpty ? stocks.first.warehouse : item.warehouse;
+          final defaultLocation = stocks.isNotEmpty ? stocks.first.location : item.location;
+          final defaultWarehouseName = stocks.isNotEmpty ? stocks.first.warehouseName : item.warehouseName;
+          final defaultLocationType = stocks.isNotEmpty ? stocks.first.locationType : item.locationType;
+
+          finalInvoiceItems.add(
+            item.copyWith(
+              basePrice: pricingResult.basePrice,
+              discountPercent: pricingResult.discountPct,
+              discountAmountFlat: pricingResult.discountAmountFlat,
+              vatRatePercent: vatDetails.rate,
+              taxRule: vatDetails.code.isNotEmpty ? vatDetails.code : item.taxRule,
+              pricingSource: pricingResult.source,
+              priceListCode: pricingResult.priceListCode,
+              reasonType: pricingResult.reasonType,
+              lotNumber: item.lotNumber.isNotEmpty ? item.lotNumber : defaultLot,
+              warehouse: item.warehouse.isNotEmpty ? item.warehouse : defaultWarehouse,
+              warehouseName: item.warehouseName.isNotEmpty ? item.warehouseName : defaultWarehouseName,
+              location: item.location.isNotEmpty ? item.location : defaultLocation,
+              locationType: item.locationType.isNotEmpty ? item.locationType : defaultLocationType,
+              stockStatus: StockStatus.codeApproved,
+            ),
+          );
+        } else {
+          double allocatedFlatSoFar = 0.0;
+          final totalAllocQty = allocations.fold<double>(0.0, (s, a) => s + a.allocatedQty);
+          for (int i = 0; i < allocations.length; i++) {
+            final alloc = allocations[i];
+            final lotKey = SalesInvoiceProductRepository.lotAllocationKey(
+              alloc.lotNumber,
+              alloc.warehouse,
+              alloc.location,
+            );
+            skuReserved[lotKey] = (skuReserved[lotKey] ?? 0.0) + alloc.allocatedQty;
+
+            final double lineFlatDisc;
+            if (pricingResult.discountAmountFlat <= 0 || allocations.length == 1) {
+              lineFlatDisc = pricingResult.discountAmountFlat;
+            } else if (i == allocations.length - 1) {
+              lineFlatDisc = double.parse(
+                (pricingResult.discountAmountFlat - allocatedFlatSoFar)
+                    .clamp(0.0, pricingResult.discountAmountFlat)
+                    .toStringAsFixed(2),
+              );
+            } else {
+              final share = totalAllocQty > 0 ? (alloc.allocatedQty / totalAllocQty) : 0.0;
+              lineFlatDisc = double.parse(
+                (pricingResult.discountAmountFlat * share).toStringAsFixed(2),
+              );
+              allocatedFlatSoFar += lineFlatDisc;
+            }
+
+            finalInvoiceItems.add(
+              item.copyWith(
+                quantity: alloc.allocatedQty,
+                basePrice: pricingResult.basePrice,
+                discountPercent: pricingResult.discountPct,
+                discountAmountFlat: lineFlatDisc,
+                vatRatePercent: vatDetails.rate,
+                taxRule: vatDetails.code.isNotEmpty ? vatDetails.code : item.taxRule,
+                pricingSource: pricingResult.source,
+                priceListCode: pricingResult.priceListCode,
+                reasonType: pricingResult.reasonType,
+                lotNumber: alloc.lotNumber,
+                warehouse: alloc.warehouse,
+                warehouseName: alloc.warehouseName,
+                location: alloc.location,
+                locationType: alloc.locationType,
+                stockStatus: StockStatus.fromCode(alloc.stockStatus).code,
+              ),
+            );
+          }
+        }
 
         if (pricingResult.hasFoc && pricingResult.focQuantity > 0 && pricingResult.focItemSku.isNotEmpty) {
           qualifiedFocList.add({
@@ -1673,24 +1783,39 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         }
       }
 
-      // 6. Process Qualified Fresh FOC Items (Intelligent Stock Handling)
+      // 6. Process Qualified Fresh FOC Items (Multi-Lot & Intelligent Stock Handling)
       for (final focEntry in qualifiedFocList) {
         final String focSku = focEntry['focSku'] as String;
         final double focQty = focEntry['focQty'] as double;
         final CartItem mainItem = focEntry['mainItem'] as CartItem;
 
-        final focStocks = stockBySku[focSku] ?? await repo.getSalesInvoiceItemStockDetails(focSku);
+        final focStocks = stockBySku[focSku] ??
+            await repo.getSalesInvoiceItemStockDetails(
+              focSku,
+              siteCode: siteCode,
+              stockStatus: 'A',
+            );
         stockBySku[focSku] = focStocks;
-        final double totalAvail = focStocks.fold<double>(0.0, (s, l) => s + l.totalQty);
+        final focReserved = reservedBySku.putIfAbsent(focSku, () => {});
 
+        double remainingForFoc = 0.0;
+        for (final s in focStocks) {
+          final k = SalesInvoiceProductRepository.lotAllocationKey(s.lotNumber, s.warehouse, s.location);
+          final net = s.totalQty - (focReserved[k] ?? 0.0);
+          if (net > 0) remainingForFoc += net;
+        }
+        final double totalRawAvail = focStocks.fold<double>(0.0, (s, l) => s + l.totalQty);
         final bool isSameSkuFoc = focSku == mainItem.product.sku;
+        final focProductModel = await repo.getProductByItemCode(
+          focSku,
+          siteCode: siteCode,
+          stockStatus: 'A',
+        );
+        final String giftName = focProductModel?.name ?? (focSku == mainItem.product.sku ? mainItem.product.name : focSku);
 
-        if (isSameSkuFoc) {
-          // Scenario 1: Buy X, Get X Free (Same SKU) -> Ordered units allocated first!
-          final double orderedQty = mainItem.quantity;
-          final double remainingForFree = totalAvail - orderedQty;
-
-          if (remainingForFree <= 0.0001) {
+        double qtyToAllocateFoc = 0.0;
+        if (remainingForFoc <= 0.0001) {
+          if (isSameSkuFoc) {
             if (context.mounted) {
               Navigator.pop(context); // Close spinner for alert
               await showDialog<void>(
@@ -1698,114 +1823,20 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 builder: (ctx) => AlertDialog(
                   title: const Text('Free Promotion Unavailable'),
                   content: Text(
-                    'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but all available stock ($totalAvail) is reserved for your ordered quantity. Free item cannot be added.',
+                    'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but all available stock ($totalRawAvail) is reserved for your ordered quantity. Free item cannot be added.',
                   ),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
                   ],
                 ),
               );
-              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+              if (context.mounted) {
+                showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+              }
             }
-          } else if (remainingForFree < focQty) {
+          } else {
             if (context.mounted) {
               Navigator.pop(context);
-              await showDialog<void>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Partial Free Promotion Added'),
-                  content: Text(
-                    'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but only $remainingForFree unit(s) remain in stock after fulfilling ordered items. Adding $remainingForFree free unit(s).',
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-                  ],
-                ),
-              );
-              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
-            }
-
-            final focProductModel = await repo.getProductByItemCode(focSku);
-            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
-            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
-            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
-            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
-            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
-            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
-                ? focStocks.first.salesUnit
-                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
-
-            finalInvoiceItems.add(
-              CartItem(
-                product: focProductModel ??
-                    SalesInvoiceProductModel(
-                      sku: focSku,
-                      name: mainItem.product.name,
-                      stockQty: totalAvail,
-                      warehouse: focWarehouse,
-                      salesUnit: focSalesUnit,
-                    ),
-                quantity: remainingForFree,
-                basePrice: 0.0,
-                discountPercent: 0.0,
-                vatRatePercent: 0.0,
-                taxRule: 'VAT0',
-                isFoc: true,
-                mainItemSku: mainItem.product.sku,
-                pricingSource: 'FOC',
-                lotNumber: focLot,
-                warehouse: focWarehouse,
-                warehouseName: focWarehouseName,
-                location: focLocation,
-                locationType: focLocationType,
-              ),
-            );
-          } else {
-            // Full stock available for free items
-            final focProductModel = await repo.getProductByItemCode(focSku);
-            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
-            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
-            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
-            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
-            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
-            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
-                ? focStocks.first.salesUnit
-                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
-
-            finalInvoiceItems.add(
-              CartItem(
-                product: focProductModel ??
-                    SalesInvoiceProductModel(
-                      sku: focSku,
-                      name: mainItem.product.name,
-                      stockQty: totalAvail,
-                      warehouse: focWarehouse,
-                      salesUnit: focSalesUnit,
-                    ),
-                quantity: focQty,
-                basePrice: 0.0,
-                discountPercent: 0.0,
-                vatRatePercent: 0.0,
-                taxRule: 'VAT0',
-                isFoc: true,
-                mainItemSku: mainItem.product.sku,
-                pricingSource: 'FOC',
-                lotNumber: focLot,
-                warehouse: focWarehouse,
-                warehouseName: focWarehouseName,
-                location: focLocation,
-                locationType: focLocationType,
-              ),
-            );
-          }
-        } else {
-          // Scenario 2: Buy Y, Get Z Free (Cross-SKU Promotional Gift)
-          final focProductModel = await repo.getProductByItemCode(focSku);
-          final String giftName = focProductModel?.name ?? focSku;
-
-          if (totalAvail <= 0.0001) {
-            if (context.mounted) {
-              Navigator.pop(context); // Close spinner for user decision
               final bool? proceedWithoutGift = await showDialog<bool>(
                 context: context,
                 barrierDismissible: false,
@@ -1838,73 +1869,53 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               );
 
               if (proceedWithoutGift != true) {
-                return; // User cancelled conversion
+                return;
               }
-              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+              if (context.mounted) {
+                showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+              }
             }
-            // User chose to proceed without gift -> continue loop
-          } else if (totalAvail < focQty) {
-            if (context.mounted) {
-              Navigator.pop(context);
-              await showDialog<void>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Partial Free Gift Stock'),
-                  content: Text(
-                    'Free promotional item $giftName (SKU: $focSku) only has $totalAvail available in stock. Adding $totalAvail free unit(s).',
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-                  ],
+          }
+        } else if (remainingForFoc < focQty) {
+          qtyToAllocateFoc = remainingForFoc;
+          if (context.mounted) {
+            Navigator.pop(context);
+            await showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text(isSameSkuFoc ? 'Partial Free Promotion Added' : 'Partial Free Gift Stock'),
+                content: Text(
+                  isSameSkuFoc
+                      ? 'Purchasing ${mainItem.product.name} qualifies for ${focQty % 1 == 0 ? focQty.toInt() : focQty}x free unit(s), but only $remainingForFoc unit(s) remain in stock after fulfilling ordered items. Adding $remainingForFoc free unit(s).'
+                      : 'Free promotional item $giftName (SKU: $focSku) only has $remainingForFoc available in stock. Adding $remainingForFoc free unit(s).',
                 ),
-              );
-              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
-            }
-
-            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
-            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
-            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
-            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
-            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
-            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
-                ? focStocks.first.salesUnit
-                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
-
-            finalInvoiceItems.add(
-              CartItem(
-                product: focProductModel ??
-                    SalesInvoiceProductModel(
-                      sku: focSku,
-                      name: giftName,
-                      stockQty: totalAvail,
-                      warehouse: focWarehouse,
-                      salesUnit: focSalesUnit,
-                    ),
-                quantity: totalAvail,
-                basePrice: 0.0,
-                discountPercent: 0.0,
-                vatRatePercent: 0.0,
-                taxRule: 'VAT0',
-                isFoc: true,
-                mainItemSku: mainItem.product.sku,
-                pricingSource: 'FOC',
-                lotNumber: focLot,
-                warehouse: focWarehouse,
-                warehouseName: focWarehouseName,
-                location: focLocation,
-                locationType: focLocationType,
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+                ],
               ),
             );
-          } else {
-            // Full stock available
-            final focLot = focStocks.isNotEmpty ? focStocks.first.lotNumber : '';
-            final focWarehouse = focStocks.isNotEmpty ? focStocks.first.warehouse : '';
-            final focWarehouseName = focStocks.isNotEmpty ? focStocks.first.warehouseName : '';
-            final focLocation = focStocks.isNotEmpty ? focStocks.first.location : '';
-            final focLocationType = focStocks.isNotEmpty ? focStocks.first.locationType : '';
-            final focSalesUnit = (focStocks.isNotEmpty && focStocks.first.salesUnit.isNotEmpty)
-                ? focStocks.first.salesUnit
-                : (focProductModel?.salesUnit.isNotEmpty == true ? focProductModel!.salesUnit : 'EA');
+            if (context.mounted) {
+              showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator()));
+            }
+          }
+        } else {
+          qtyToAllocateFoc = focQty;
+        }
+
+        if (qtyToAllocateFoc > 0.0001) {
+          final focAllocs = SalesInvoiceProductRepository.allocateAcrossLoadedLots(
+            focStocks,
+            requestedQty: qtyToAllocateFoc,
+            preferredLot: isSameSkuFoc && mainItem.lotNumber.isNotEmpty ? mainItem.lotNumber : null,
+            reservedQtyByLotKey: focReserved,
+          );
+          for (final focAlloc in focAllocs) {
+            final k = SalesInvoiceProductRepository.lotAllocationKey(
+              focAlloc.lotNumber,
+              focAlloc.warehouse,
+              focAlloc.location,
+            );
+            focReserved[k] = (focReserved[k] ?? 0.0) + focAlloc.allocatedQty;
 
             finalInvoiceItems.add(
               CartItem(
@@ -1912,11 +1923,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                     SalesInvoiceProductModel(
                       sku: focSku,
                       name: giftName,
-                      stockQty: totalAvail,
-                      warehouse: focWarehouse,
-                      salesUnit: focSalesUnit,
+                      stockQty: totalRawAvail,
+                      warehouse: focAlloc.warehouse,
+                      salesUnit: focAlloc.salesUnit,
+                      stockStatus: StockStatus.codeApproved,
                     ),
-                quantity: focQty,
+                quantity: focAlloc.allocatedQty,
                 basePrice: 0.0,
                 discountPercent: 0.0,
                 vatRatePercent: 0.0,
@@ -1924,11 +1936,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 isFoc: true,
                 mainItemSku: mainItem.product.sku,
                 pricingSource: 'FOC',
-                lotNumber: focLot,
-                warehouse: focWarehouse,
-                warehouseName: focWarehouseName,
-                location: focLocation,
-                locationType: focLocationType,
+                lotNumber: focAlloc.lotNumber,
+                warehouse: focAlloc.warehouse,
+                warehouseName: focAlloc.warehouseName,
+                location: focAlloc.location,
+                locationType: focAlloc.locationType,
+                stockStatus: StockStatus.codeApproved,
               ),
             );
           }
@@ -2320,9 +2333,72 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'SKU: ${item.product.sku}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'SKU: ${item.product.sku}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        ),
+                        if (item.lotNumber.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blueGrey.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Lot: ${item.lotNumber}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.grey[300] : Colors.blueGrey[700],
+                              ),
+                            ),
+                          ),
+                        if (config.isReturnOrCreditNote ||
+                            config.mode.isCreditNote ||
+                            cartState.transactionType == 'PREVIEW_CREDIT_NOTE' ||
+                            _isReturnTransaction ||
+                            cartState.returnCondition != null)
+                          Builder(
+                            builder: (_) {
+                              final StockStatus cardStatus;
+                              if (_isReturnTransaction) {
+                                cardStatus = _selectedReturnCondition.status;
+                              } else if (StockStatus.fromCode(item.stockStatus) != StockStatus.approved) {
+                                cardStatus = StockStatus.fromCode(item.stockStatus);
+                              } else if (StockStatus.fromCode(item.product.stockStatus) != StockStatus.approved) {
+                                cardStatus = StockStatus.fromCode(item.product.stockStatus);
+                              } else if ((cartState.returnStockStatus ?? '').isNotEmpty) {
+                                cardStatus = StockStatus.fromCode(cartState.returnStockStatus);
+                              } else {
+                                cardStatus = StockStatus.approved;
+                              }
+                              final statusColor = cardStatus.badgeColor(isDark: isDark);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: statusColor.withValues(alpha: 0.55)),
+                                ),
+                                child: Text(
+                                  'STATUS ${cardStatus.code}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                   if (hasDiscount)
                     Container(

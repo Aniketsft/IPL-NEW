@@ -44,10 +44,10 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _logger = logger;
         }
 
-        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode)
+        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode = "", bool bypassCache = false)
         {
             var cacheKey = $"Customers_{_schemaProvider.GetSchemaName()}_{sitecode ?? "ALL"}";
-            if (_memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesInvoiceCustomerDto>? cached) && cached != null)
+            if (!bypassCache && _memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesInvoiceCustomerDto>? cached) && cached != null)
             {
                 return cached;
             }
@@ -117,19 +117,26 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryFirstOrDefaultAsync<SalesInvoiceCustomerDto>(sql, new { CustomerCode = customerCode.Trim() });
         }
 
-        public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
+        public Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode)
+            => GetProductsAsync(sitecode, null);
+
+        public async Task<IEnumerable<SalesInvoiceProductDto>> GetProductsAsync(string sitecode, string? lorryCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var cleanSite = (sitecode ?? string.Empty).Trim();
+            var cleanLorry = string.IsNullOrWhiteSpace(lorryCode) ? string.Empty : lorryCode.Trim();
             string sql = $@"
                 SELECT 
                     LTRIM(RTRIM(itm.ITMREF_0)) AS Sku,
                     LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))) AS Name,
                     LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(stk.WRH_0)), ''), LTRIM(RTRIM(stk.LOC_0)), stk.STOFCY_0))) AS Warehouse,
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(stk.STA_0)), ''), 'A'))) AS StockStatus,
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS StockQty
                 FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK)
                 INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk WITH (NOLOCK)
-                    ON itm.ITMREF_0 = stk.ITMREF_0 AND stk.STA_0 = 'A'
+                    ON itm.ITMREF_0 = stk.ITMREF_0
+                   AND LEFT(LTRIM(RTRIM(COALESCE(stk.STA_0, ''))), 1) IN ('A', 'Q', 'R')
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw WITH (NOLOCK)
                     ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
@@ -137,27 +144,31 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 WHERE 
                     itm.ITMSTA_0 = 1
                     AND LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode
+                    AND (@LorryCode = '' OR LTRIM(RTRIM(stk.WRH_0)) = @LorryCode OR LTRIM(RTRIM(stk.LOC_0)) = @LorryCode)
                     AND stk.QTYSTU_0 > 0
-                    AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                    AND (LEFT(LTRIM(RTRIM(COALESCE(stk.STA_0, 'A'))), 1) IN ('Q', 'R') OR sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                     AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
                 GROUP BY 
                     LTRIM(RTRIM(itm.ITMREF_0)),
                     LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))),
-                    LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN')));";
+                    LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))),
+                    COALESCE(NULLIF(LTRIM(RTRIM(stk.WRH_0)), ''), LTRIM(RTRIM(stk.LOC_0)), stk.STOFCY_0),
+                    COALESCE(NULLIF(LTRIM(RTRIM(stk.STA_0)), ''), 'A');";
 
-            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = cleanSite });
+            return await db.QueryAsync<SalesInvoiceProductDto>(sql, new { SiteCode = cleanSite, LorryCode = cleanLorry });
         }
 
         public async Task<IEnumerable<SalesInvoiceItemStockDto>> GetItemStockDetailsAsync(string sitecode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (sitecode ?? string.Empty).Trim();
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0))) AS Warehouse, 
-                    LTRIM(RTRIM(COALESCE(zlw.WRHNAM_0, stk.STOFCY_0))) AS WarehouseName, 
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(stk.WRH_0)), ''), zlw.WAREHOUSE_0, stk.STOFCY_0))) AS Warehouse, 
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(wrh.WRHNAM_0)), ''), NULLIF(LTRIM(RTRIM(zlw.WRHNAM_0)), ''), stk.STOFCY_0))) AS WarehouseName, 
                     LTRIM(RTRIM(stk.LOC_0)) AS Location, 
-                    LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) AS LocationType,
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(atra.TEXTE_0)), ''), NULLIF(LTRIM(RTRIM(zlw.LOCTYPNAM_0)), ''), ''))) AS LocationType,
                     LTRIM(RTRIM(itm.ITMREF_0)) AS ItemCode,
                     LTRIM(RTRIM(COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''))) AS ItemName,  
                     SUM(COALESCE(stk.QTYSTU_0, 0)) AS TotalQty,
@@ -167,26 +178,39 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(COALESCE(itm.SAU_0, 'UN'))) AS SalesUnit,
                     LTRIM(RTRIM(COALESCE(itm.EANCOD_0, ''))) AS Barcode,
                     LTRIM(RTRIM(stk.STOFCY_0)) AS SiteCode,
-                    LTRIM(RTRIM(COALESCE(stk.STA_0, 'A'))) AS StockStatus
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOCK stk WITH (NOLOCK)
-                INNER JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ITMMASTER itm WITH (NOLOCK)
+                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(stk.STA_0)), ''), 'A'))) AS StockStatus
+                FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK stk WITH (NOLOCK)
+                INNER JOIN {_syncSettings.X3DatabaseName}.{schema}.ITMMASTER itm WITH (NOLOCK)
                     ON stk.ITMREF_0 = itm.ITMREF_0 AND itm.ITMSTA_0 = 1
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.ZLOCWRH zlw WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.ZLOCWRH zlw WITH (NOLOCK)
                     ON stk.STOFCY_0 = zlw.WAREHOUSE_0 AND stk.LOC_0 = zlw.LOCATION_0
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.STOLOT sl WITH (NOLOCK)
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.WAREHOUSE wrh WITH (NOLOCK)
+                    ON wrh.WRH_0 = stk.WRH_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOLOC stol WITH (NOLOCK)
+                    ON stol.STOFCY_0 = stk.STOFCY_0 AND stol.LOC_0 = stk.LOC_0
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.ATEXTRA atra WITH (NOLOCK)
+                    ON stol.STOFCY_0 = atra.IDENT1_0
+                   AND stol.LOCTYP_0 = atra.IDENT2_0
+                   AND atra.CODFIC_0 = 'TABLOCTYP'
+                   AND atra.LANGUE_0 = 'BRI'
+                   AND atra.ZONE_0 = 'TYPDESAXX'
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOLOT sl WITH (NOLOCK)
                     ON stk.ITMREF_0 = sl.ITMREF_0 AND stk.LOT_0 = sl.LOT_0
                 WHERE LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode
-                  AND stk.STA_0 IN ('A', 'Q', 'R')
+                  AND LEFT(LTRIM(RTRIM(COALESCE(stk.STA_0, ''))), 1) IN ('A', 'Q', 'R')
                   AND stk.QTYSTU_0 > 0
-                  AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
+                  AND (LEFT(LTRIM(RTRIM(COALESCE(stk.STA_0, 'A'))), 1) IN ('Q', 'R') OR sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE))
                   AND LTRIM(RTRIM(COALESCE(zlw.LOCTYPNAM_0, ''))) NOT IN ('IPL Spare Parts', 'IPL Hatchery', 'IPL Packaging Materials', 'IPL Diesel')
                 GROUP BY 
-                    stk.STOFCY_0, COALESCE(zlw.WAREHOUSE_0, stk.WRH_0, stk.STOFCY_0), COALESCE(zlw.WRHNAM_0, stk.STOFCY_0), 
-                    stk.LOC_0, zlw.LOCTYPNAM_0,
+                    stk.STOFCY_0,
+                    COALESCE(NULLIF(LTRIM(RTRIM(stk.WRH_0)), ''), zlw.WAREHOUSE_0, stk.STOFCY_0),
+                    COALESCE(NULLIF(LTRIM(RTRIM(wrh.WRHNAM_0)), ''), NULLIF(LTRIM(RTRIM(zlw.WRHNAM_0)), ''), stk.STOFCY_0),
+                    stk.LOC_0,
+                    COALESCE(NULLIF(LTRIM(RTRIM(atra.TEXTE_0)), ''), NULLIF(LTRIM(RTRIM(zlw.LOCTYPNAM_0)), ''), ''),
                     itm.ITMREF_0, COALESCE(itm.ITMDES1_0, itm.ZFULLDES_0, ''), stk.LOT_0, itm.VACITM_0, itm.CCE_0, itm.SAU_0, itm.EANCOD_0,
-                    stk.STA_0
+                    COALESCE(NULLIF(LTRIM(RTRIM(stk.STA_0)), ''), 'A')
                 ORDER BY 
-                    stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0, stk.STA_0";
+                    stk.STOFCY_0, itm.ITMREF_0, stk.LOT_0, COALESCE(NULLIF(LTRIM(RTRIM(stk.STA_0)), ''), 'A')";
 
             return await db.QueryAsync<SalesInvoiceItemStockDto>(sql, new { SiteCode = cleanSite });
         }
@@ -749,7 +773,7 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     )
                 FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK stk WITH (NOLOCK)
                 WHERE (@SiteCode = '' OR @SiteCode = 'ALL' OR LTRIM(RTRIM(stk.STOFCY_0)) = @SiteCode)
-                  AND stk.STA_0 = 'A'
+                  AND LEFT(LTRIM(RTRIM(COALESCE(stk.STA_0, ''))), 1) IN ('A', 'Q', 'R')
                   AND stk.QTYSTU_0 > 0;
             ";
             var watermark = await db.ExecuteScalarAsync<string>(sql, new 
@@ -780,6 +804,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return watermark ?? "EMPTY";
         }
 
+        public async Task<string> GetCustomersWatermarkAsync()
+        {
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var schema = _schemaProvider.GetSchemaName();
+            string sql = $@"
+                SELECT CONCAT(
+                    (SELECT CONCAT(COALESCE(CONVERT(VARCHAR(30), MAX(c.UPDDAT_0), 126), '1970-01-01'), '_', COUNT(*))
+                     FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c WITH (NOLOCK)
+                     WHERE c.BPCNAM_0 IS NOT NULL AND c.BPCNAM_0 <> ''),
+                    '|',
+                    (SELECT CONCAT(COALESCE(CONVERT(VARCHAR(30), MAX(d.UPDDAT_0), 126), '1970-01-01'), '_', COALESCE(SUM(d.AMTCUR_0 - d.PAYCUR_0), 0), '_', COUNT(*))
+                     FROM {_syncSettings.X3DatabaseName}.{schema}.GACCDUDATE d WITH (NOLOCK)
+                     WHERE (d.AMTCUR_0 - d.PAYCUR_0) > 0 AND d.BPRTYP_0 = 1)
+                );
+            ";
+            var watermark = await db.ExecuteScalarAsync<string>(sql);
+            return watermark ?? "EMPTY";
+        }
+
         public async Task<CustomerLiveCreditDto?> GetCustomerLiveCreditAsync(string customerNo)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
@@ -800,11 +843,54 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             return await db.QueryFirstOrDefaultAsync<CustomerLiveCreditDto>(sql, new { CustomerNo = (customerNo ?? "").Trim() });
         }
 
-        public async Task<ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode)
+        public Task<ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode)
+            => GetProductLiveStockAsync(productCode, siteCode, null);
+
+        public async Task<ProductLiveStockDto?> GetProductLiveStockAsync(string productCode, string siteCode, string? lorryCode)
         {
             using IDbConnection db = new SqlConnection(_connectionString);
             var schema = _schemaProvider.GetSchemaName();
             var cleanSite = (siteCode ?? "").Trim();
+            var cleanLorry = string.IsNullOrWhiteSpace(lorryCode) ? string.Empty : lorryCode.Trim();
+            var cleanSku = (productCode ?? "").Trim();
+
+            if (!string.IsNullOrEmpty(cleanLorry))
+            {
+                string lorrySql = $@"
+                    SELECT 
+                        @ProductCode                                    AS ProductCode,
+                        @SiteCode                                       AS SiteCode,
+                        ISNULL(SUM(s.QTYSTU_0), 0)                      AS PhysicalStock,
+                        CAST(0 AS decimal(18, 4))                       AS AllocatedStock,
+                        ISNULL(SUM(s.QTYSTU_0), 0)                      AS LiveAvailableStock
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.STOCK s WITH (NOLOCK)
+                    LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOLOT sl WITH (NOLOCK)
+                        ON s.ITMREF_0 = sl.ITMREF_0 AND s.LOT_0 = sl.LOT_0
+                    WHERE LTRIM(RTRIM(s.ITMREF_0)) = @ProductCode
+                      AND LTRIM(RTRIM(s.STOFCY_0)) = @SiteCode
+                      AND (LTRIM(RTRIM(s.WRH_0)) = @LorryCode OR LTRIM(RTRIM(s.LOC_0)) = @LorryCode)
+                      AND LEFT(LTRIM(RTRIM(COALESCE(s.STA_0, ''))), 1) = 'A'
+                      AND s.QTYSTU_0 > 0
+                      AND (sl.SHLDAT_0 IS NULL OR sl.SHLDAT_0 >= CAST(GETDATE() AS DATE));
+                ";
+
+                var lorryResult = await db.QueryFirstOrDefaultAsync<ProductLiveStockDto>(lorrySql, new
+                {
+                    ProductCode = cleanSku,
+                    SiteCode = cleanSite,
+                    LorryCode = cleanLorry
+                });
+
+                return lorryResult ?? new ProductLiveStockDto
+                {
+                    ProductCode = cleanSku,
+                    SiteCode = cleanSite,
+                    PhysicalStock = 0,
+                    AllocatedStock = 0,
+                    LiveAvailableStock = 0
+                };
+            }
+
             string sql = $@"
                 SELECT 
                     @ProductCode                                                        AS ProductCode,
@@ -814,13 +900,13 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     (ISNULL(SUM(s.QTYSTU_0), 0) - ISNULL(SUM(m.CUMALL_0), 0))           AS LiveAvailableStock
                 FROM {_syncSettings.X3DatabaseName}.{schema}.ITMMVT m WITH (NOLOCK)
                 LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.STOCK s WITH (NOLOCK)
-                    ON m.ITMREF_0 = s.ITMREF_0 AND m.STOFCY_0 = s.STOFCY_0 AND s.STA_0 = 'A' AND s.QTYSTU_0 > 0
+                    ON m.ITMREF_0 = s.ITMREF_0 AND m.STOFCY_0 = s.STOFCY_0 AND LEFT(LTRIM(RTRIM(COALESCE(s.STA_0, ''))), 1) = 'A' AND s.QTYSTU_0 > 0
                 WHERE m.ITMREF_0 = @ProductCode AND LTRIM(RTRIM(m.STOFCY_0)) = @SiteCode
                 GROUP BY m.ITMREF_0;
             ";
             var result = await db.QueryFirstOrDefaultAsync<ProductLiveStockDto>(sql, new 
             { 
-                ProductCode = (productCode ?? "").Trim(), 
+                ProductCode = cleanSku, 
                 SiteCode = cleanSite
             });
 

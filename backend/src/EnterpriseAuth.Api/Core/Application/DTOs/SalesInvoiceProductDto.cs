@@ -9,5 +9,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public double StockQty { get; set; }
         public string Warehouse { get; set; } = string.Empty;
         public string SalesUnit { get; set; } = string.Empty;
+        public string StockStatus { get; set; } = "A";
     }
 }

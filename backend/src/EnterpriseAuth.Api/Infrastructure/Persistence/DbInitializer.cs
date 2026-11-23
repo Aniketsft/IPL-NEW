@@ -99,6 +99,29 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 }
             }
 
+            var extraModulePermissions = new[]
+            {
+                "logistics.sales.discount_limit",
+                "logistics.reports.previous_date"
+            };
+
+            foreach (var modPrefix in extraModulePermissions)
+            {
+                foreach (var action in actions)
+                {
+                    var permName = $"{modPrefix}.{action}".ToLowerInvariant();
+                    if (!existingPermissions.ContainsKey(permName))
+                    {
+                        permissionsToAdd.Add(new Permission
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = permName,
+                            Description = $"{action} access to {modPrefix}"
+                        });
+                    }
+                }
+            }
+
             if (permissionsToAdd.Any())
             {
                 await context.Permissions.AddRangeAsync(permissionsToAdd);
@@ -1313,6 +1336,12 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     BEGIN
                         INSERT INTO [dbo].[GlobalSettings] ([SettingKey], [SettingValue], [LastUpdatedBy], [UpdatedAt], [Action])
                         VALUES ('X3Schema', 'INLDRYRUN', 'SYSTEM', GETUTCDATE(), 'INSERT');
+                    END
+
+                    IF NOT EXISTS (SELECT 1 FROM [dbo].[GlobalSettings] WHERE [SettingKey] = 'MaxDiscountPercent')
+                    BEGIN
+                        INSERT INTO [dbo].[GlobalSettings] ([SettingKey], [SettingValue], [LastUpdatedBy], [UpdatedAt], [Action])
+                        VALUES ('MaxDiscountPercent', '5.0', 'SYSTEM', GETUTCDATE(), 'INSERT');
                     END
                 ";
                 await context.Database.ExecuteSqlRawAsync(sql);

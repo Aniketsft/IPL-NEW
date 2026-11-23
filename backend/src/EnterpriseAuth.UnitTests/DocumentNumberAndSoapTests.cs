@@ -358,5 +358,154 @@ namespace EnterpriseAuth.UnitTests
             });
             Assert.IsType<ConflictObjectResult>(conflictResult.Result);
         }
+
+        [Fact]
+        public async Task DevicesController_GetSiteLorries_UsesLightweightSiteQuery_KeepsWeb_ExcludesDamageBays()
+        {
+            using var db = CreateInMemoryDb();
+            var syncRepoMock = new Mock<ISyncRepository>();
+            syncRepoMock
+                .Setup(r => r.GetSiteLocationsAsync("SCG"))
+                .ReturnsAsync(new[]
+                {
+                    new LocationLookupDto { Site = "SCG", Location = "N3", Warehouse = "N3", WarehouseName = "9418 DC 12 former 30", LocationType = "N3", LocationTypeName = "5308 JL 16 (former 30)" },
+                    new LocationLookupDto { Site = "SCG", Location = "N6", Warehouse = "N6", WarehouseName = "5308 JL 16 former 62", LocationType = "N6", LocationTypeName = "9418 DC 12 (former 62)" },
+                    new LocationLookupDto { Site = "SCG", Location = "N8", Warehouse = "N8", WarehouseName = "398 JN 15 former 81", LocationType = "N8", LocationTypeName = "398 JN 15 (former 81)" },
+                    new LocationLookupDto { Site = "SCG", Location = "SCGDAM", Warehouse = "SCG", WarehouseName = "Consumer Shop To Shop", LocationType = "CGDAM", LocationTypeName = "SCG Damage" },
+                    new LocationLookupDto { Site = "SCG", Location = "WEB", Warehouse = "WEB", WarehouseName = "WEB", LocationType = "WEB", LocationTypeName = "SCG-WEB" },
+                });
+
+            var controller = new DevicesController(db, syncRepoMock.Object);
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim("SiteCode", "SCG"),
+                        new Claim("username", "admin")
+                    }, "TestAuth"))
+                }
+            };
+
+            var actionResult = await controller.GetSiteLorries("SCG");
+            var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
+            var lorries = Assert.IsAssignableFrom<IEnumerable<LorryLookupDto>>(ok.Value).ToList();
+
+            Assert.Equal(4, lorries.Count);
+            Assert.Contains(lorries, l => l.Location == "N3" && l.PlateNumber == "5308 JL 16 (former 30)" && l.Site == "SCG");
+            Assert.Contains(lorries, l => l.Location == "N6" && l.PlateNumber == "9418 DC 12 (former 62)" && l.Site == "SCG");
+            Assert.Contains(lorries, l => l.Location == "N8" && l.PlateNumber == "398 JN 15 (former 81)" && l.Site == "SCG");
+            Assert.Contains(lorries, l => l.Location == "WEB" && l.PlateNumber == "SCG-WEB" && l.Site == "SCG");
+            Assert.DoesNotContain(lorries, l => l.Location == "SCGDAM");
+
+            syncRepoMock.Verify(r => r.GetSiteLocationsAsync("SCG"), Times.Once);
+            syncRepoMock.Verify(r => r.GetRefreshPackageAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AllocateAndImportSalesInvoiceAsync_WithMultiLotLines_SplitsLotsWithProRatedDiscountsAndEmitsSeparateDRecords()
+        {
+            using var db = CreateInMemoryDb();
+            const string docNum = "HISCGN3112600009";
+            var (service, handler) = CreateSoapService(db, docNum);
+
+            var singleCombinedInvoice = new StagingSalesInvoiceHeader
+            {
+                InvoiceId = docNum,
+                SalesSite = "SCG",
+                CustomerCode = "C001",
+                CreatedAt = "20261118",
+                DueDate = "20261118",
+                TabletSource = "HM4",
+                Lines = new List<StagingSalesInvoiceLine>
+                {
+                    new()
+                    {
+                        InvoiceId = docNum,
+                        LineNo = 1,
+                        Sku = "SKU-MULTI",
+                        Name = "Frozen Chicken",
+                        Quantity = 18,
+                        BasePrice = 100,
+                        DiscountAmount = 90,
+                        DiscountAmountFlat = 90,
+                        Discount3 = 90,
+                        VatAmount = 256.50,
+                        Total = 1966.50,
+                        SalesUnit = "EA",
+                        TaxRule = "VAT15",
+                        Warehouse = "N3",
+                        Location = "N3",
+                        LotNumber = "LOT-1"
+                    },
+                    new()
+                    {
+                        InvoiceId = docNum,
+                        LineNo = 2,
+                        Sku = "SKU-MULTI",
+                        Name = "Frozen Chicken",
+                        Quantity = 2,
+                        BasePrice = 0,
+                        IsFoc = true,
+                        MainItemSku = "SKU-MULTI",
+                        SalesUnit = "EA",
+                        TaxRule = "VAT0",
+                        Warehouse = "N3",
+                        Location = "N3",
+                        LotNumber = ""
+                    }
+                }
+            };
+
+            var stockMap = new Dictionary<string, List<SageX3SoapService.StockSlot>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["SKU-MULTI"] = new List<SageX3SoapService.StockSlot>
+                {
+                    new() { Warehouse = "N3", Location = "N3", LotNumber = "LOT-1", Qty = 10m },
+                    new() { Warehouse = "N3", Location = "N3", LotNumber = "LOT-2", Qty = 15m }
+                }
+            };
+
+            var modified = SageX3SoapService.AllocateInvoiceLinesByLot(singleCombinedInvoice, stockMap, "N3", "N3");
+            Assert.True(modified);
+            Assert.Equal(3, singleCombinedInvoice.Lines.Count);
+
+            var linesList = singleCombinedInvoice.Lines.ToList();
+            var line1 = linesList[0];
+            var line2 = linesList[1];
+            var focLine = linesList[2];
+
+            Assert.Equal("LOT-1", line1.LotNumber);
+            Assert.Equal(10, line1.Quantity);
+            Assert.Equal(50.0, line1.DiscountAmount);
+
+            Assert.Equal("LOT-2", line2.LotNumber);
+            Assert.Equal(8, line2.Quantity);
+            Assert.Equal(40.0, line2.DiscountAmount);
+
+            Assert.Equal("LOT-2", focLine.LotNumber);
+            Assert.Equal(2, focLine.Quantity);
+            Assert.True(focLine.IsFoc);
+
+            var soapRes = await service.ImportSalesInvoiceAsync(singleCombinedInvoice);
+            Assert.True(soapRes.Success);
+
+            var iFile = ExtractIFileFromSoap(handler.LastRequestBody);
+            var dRecords = iFile.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                .Where(r => r.StartsWith("D;", StringComparison.Ordinal))
+                .Select(r => r.Split(';'))
+                .ToList();
+
+            Assert.Equal(3, dRecords.Count);
+            Assert.Equal("10", dRecords[0][5]);
+            Assert.Equal("50", dRecords[0][9]);
+            Assert.Equal("2", dRecords[0][17]);  // Source paid line 1 -> FOCFLG = 2
+            Assert.Equal("8", dRecords[1][5]);
+            Assert.Equal("40", dRecords[1][9]);
+            Assert.Equal("2", dRecords[1][17]);  // Source paid line 2 -> FOCFLG = 2
+            Assert.Equal("2", dRecords[2][5]);
+            Assert.Equal("3", dRecords[2][17]);  // FOC line -> FOCFLG = 3
+        }
     }
 }

@@ -792,46 +792,57 @@ namespace EnterpriseAuth.Api.Controllers
         public async Task<ActionResult<IEnumerable<LorryLookupDto>>> GetSiteLorries([FromQuery] string? site = null)
         {
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
-            var effectiveSite = !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" 
+            var rawSite = !string.IsNullOrEmpty(userSiteCode) && userSiteCode != "ALL" 
                 ? userSiteCode 
                 : (!string.IsNullOrEmpty(site) ? site : "POD");
+            var effectiveSite = rawSite.Trim().ToUpperInvariant();
 
             try
             {
-                var pkg = await _syncRepository.GetRefreshPackageAsync(effectiveSite);
-                var locations = pkg.Locations ?? new List<LocationLookupDto>();
+                var locations = (await _syncRepository.GetSiteLocationsAsync(effectiveSite))?.ToList()
+                                ?? new List<LocationLookupDto>();
 
                 var nonVehicleKeywords = new[] { "DAM", "SCRAP", "RETURN", "REJ", "QUAR", "WASTE" };
 
-                // 1. Filter out known storage / return / damage bays
+                LorryLookupDto MapLorryDto(LocationLookupDto l, bool filterPlateKeywords)
+                {
+                    var cleanLoc = l.Location!.Trim();
+                    var cleanTypeName = l.LocationTypeName?.Trim();
+                    var cleanWrh = l.Warehouse?.Trim();
+                    var cleanWrhName = l.WarehouseName?.Trim();
+
+                    var plate = filterPlateKeywords
+                        ? (!string.IsNullOrWhiteSpace(cleanTypeName) && !nonVehicleKeywords.Any(k => cleanTypeName.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0)
+                            ? cleanTypeName
+                            : (!string.IsNullOrWhiteSpace(cleanWrhName) && !nonVehicleKeywords.Any(k => cleanWrhName.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0) && cleanWrhName != cleanWrh && cleanWrhName != cleanLoc
+                                ? cleanWrhName
+                                : null))
+                        : cleanTypeName;
+
+                    var desc = filterPlateKeywords && !string.IsNullOrWhiteSpace(plate)
+                        ? $"{cleanLoc} • {plate}"
+                        : $"{cleanLoc} ({cleanWrhName ?? cleanWrh ?? effectiveSite})";
+
+                    return new LorryLookupDto
+                    {
+                        Site = !string.IsNullOrWhiteSpace(l.Site) ? l.Site.Trim().ToUpperInvariant() : effectiveSite,
+                        Location = cleanLoc,
+                        PlateNumber = plate,
+                        LocationType = l.LocationType?.Trim(),
+                        Warehouse = cleanWrh,
+                        WarehouseName = cleanWrhName,
+                        Description = desc
+                    };
+                }
+
+                // 1. Filter out known storage / return / damage bays (keeps operational locations such as WEB)
                 var candidateLocations = locations
                     .Where(l => !string.IsNullOrWhiteSpace(l.Location))
                     .Where(l => !nonVehicleKeywords.Any(k => l.Location!.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0))
                     .ToList();
 
                 var lorries = candidateLocations
-                    .Select(l =>
-                    {
-                        var plate = !string.IsNullOrWhiteSpace(l.LocationTypeName) && !nonVehicleKeywords.Any(k => l.LocationTypeName.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0)
-                            ? l.LocationTypeName.Trim()
-                            : (!string.IsNullOrWhiteSpace(l.WarehouseName) && !nonVehicleKeywords.Any(k => l.WarehouseName.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0) && l.WarehouseName != l.Warehouse && l.WarehouseName != l.Location
-                                ? l.WarehouseName.Trim()
-                                : null);
-
-                        var desc = !string.IsNullOrWhiteSpace(plate)
-                            ? $"{l.Location} • {plate}"
-                            : $"{l.Location} ({l.WarehouseName ?? l.Warehouse ?? effectiveSite})";
-
-                        return new LorryLookupDto
-                        {
-                            Location = l.Location!,
-                            PlateNumber = plate,
-                            LocationType = l.LocationType,
-                            Warehouse = l.Warehouse,
-                            WarehouseName = l.WarehouseName,
-                            Description = desc
-                        };
-                    })
+                    .Select(l => MapLorryDto(l, filterPlateKeywords: true))
                     .OrderBy(l => l.Location)
                     .ToList();
 
@@ -840,15 +851,7 @@ namespace EnterpriseAuth.Api.Controllers
                 {
                     lorries = locations
                         .Where(l => !string.IsNullOrWhiteSpace(l.Location))
-                        .Select(l => new LorryLookupDto
-                        {
-                            Location = l.Location!,
-                            PlateNumber = l.LocationTypeName,
-                            LocationType = l.LocationType,
-                            Warehouse = l.Warehouse,
-                            WarehouseName = l.WarehouseName,
-                            Description = $"{l.Location} ({l.WarehouseName ?? l.Warehouse ?? effectiveSite})"
-                        })
+                        .Select(l => MapLorryDto(l, filterPlateKeywords: false))
                         .OrderBy(l => l.Location)
                         .ToList();
                 }

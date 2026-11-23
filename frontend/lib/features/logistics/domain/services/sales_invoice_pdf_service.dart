@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'thermal_template.dart';
 
 /// Tax invoice (cash / credit) renderer.
@@ -134,20 +135,27 @@ class SalesInvoicePdfService {
         printedAt: printedAt,
       ).build();
 
-  /// Customer goods return voucher (dual A / Q status receipt).
+  /// Customer goods return voucher (A / R / Q status receipt).
   Future<Uint8List> generateCustomerReturnPdf({
     PdfPageFormat? pageFormat,
     required CreditNoteModel returnModel,
   }) async {
     final d = ThermalDoc();
 
-    final active = returnModel.lines.where((l) => l.stockStatus.toUpperCase() != 'Q').toList();
-    final quarantine = returnModel.lines.where((l) => l.stockStatus.toUpperCase() == 'Q').toList();
+    final active = returnModel.lines
+        .where((l) => StockStatus.fromCode(l.stockStatus) == StockStatus.approved)
+        .toList();
+    final damaged = returnModel.lines
+        .where((l) => StockStatus.fromCode(l.stockStatus) == StockStatus.rejected)
+        .toList();
+    final quarantine = returnModel.lines
+        .where((l) => StockStatus.fromCode(l.stockStatus) == StockStatus.quarantine)
+        .toList();
     final totalUnits = returnModel.lines.fold(0.0, (s, i) => s + i.quantity);
 
     d.companyHeader();
     d.center('CUSTOMER GOODS RETURN VOUCHER', bold: true);
-    d.center('DUAL STATUS RECEIPT (A & Q)');
+    d.center('STATUS BREAKDOWN (A / R / Q)');
     d.blank();
     d.meta('Return No', returnModel.creditNoteId, bold: true);
     d.meta('Account No', returnModel.customerCode);
@@ -160,8 +168,9 @@ class SalesInvoicePdfService {
     }
     d.meta('Settlement', returnModel.settlementType, bold: true);
 
-    void section(String title, List<CreditNoteLineModel> lines, {bool q = false}) {
+    void section(String title, String statusCode, List<CreditNoteLineModel> lines) {
       if (lines.isEmpty) return;
+      final showReason = statusCode != StockStatus.codeApproved;
       d.rule();
       d.line(' $title', bold: true);
       thermalItemHeader(d);
@@ -180,16 +189,17 @@ class SalesInvoicePdfService {
           vat: 0,
           total: total,
         );
-        if (q && i.returnCondition != null && i.returnCondition!.isNotEmpty) {
+        if (showReason && i.returnCondition != null && i.returnCondition!.isNotEmpty) {
           d.line('   >> Reason: ${i.returnCondition}');
         }
         if (i.lot.isNotEmpty) d.line('   Lot: ${i.lot}');
       }
-      d.total('SUBTOTAL ${q ? '(Q)' : '(A)'}      :', ThermalDoc.money(sum), bold: true);
+      d.total('SUBTOTAL ($statusCode)      :', ThermalDoc.money(sum), bold: true);
     }
 
-    section('SECTION 1: SALABLE / GOOD STOCK (STATUS A)', active);
-    section('SECTION 2: QUARANTINE / DAMAGED (STATUS Q)', quarantine, q: true);
+    section('SECTION 1: SALABLE / GOOD STOCK (STATUS A)', StockStatus.codeApproved, active);
+    section('SECTION 2: DAMAGED / REJECTED STOCK (STATUS R)', StockStatus.codeRejected, damaged);
+    section('SECTION 3: QUARANTINE / EXPIRED (STATUS Q)', StockStatus.codeQuarantine, quarantine);
 
     d.rule();
     d.total('TOTAL RETURNED QTY  :', ThermalDoc.qty(totalUnits));

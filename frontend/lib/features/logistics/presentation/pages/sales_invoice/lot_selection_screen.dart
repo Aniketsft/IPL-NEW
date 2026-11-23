@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/sales_invoice_item_stock_model.dart';
 import '../../../data/repositories/sales_invoice_product_repository.dart';
+import '../../../domain/models/stock_status.dart';
 import '../../../../../core/network_service.dart';
+import '../../../../../core/secure_storage_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../bloc/sales_invoice_bloc.dart';
@@ -10,11 +12,15 @@ import '../../bloc/sales_invoice_state.dart';
 class LotSelectionScreen extends StatefulWidget {
   final String itemCode;
   final String salesUnit;
+  final bool allowNonSellable;
+  final String? siteCode;
 
   const LotSelectionScreen({
     super.key, 
     required this.itemCode, 
     required this.salesUnit,
+    this.allowNonSellable = false,
+    this.siteCode,
   });
 
   @override
@@ -43,7 +49,12 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
   Future<void> _loadLots() async {
     try {
       final repository = SalesInvoiceProductRepository(context.read<NetworkService>());
-      final stocks = await repository.getSalesInvoiceItemStockDetails(widget.itemCode);
+      final effectiveSite = widget.siteCode ?? await SecureStorageService().getSiteCode();
+      final stocks = await repository.getSalesInvoiceItemStockDetails(
+        widget.itemCode,
+        siteCode: effectiveSite,
+        stockStatus: 'ALL',
+      );
       
       final state = context.read<SalesInvoiceBloc>().state;
       final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
@@ -53,7 +64,8 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
           if (item.product.sku == widget.itemCode && 
               item.lotNumber == stock.lotNumber && 
               item.location == stock.location && 
-              item.warehouse == stock.warehouse) {
+              item.warehouse == stock.warehouse &&
+              StockStatus.fromCode(item.stockStatus) == StockStatus.fromCode(stock.stockStatus)) {
             cartQty += item.quantity;
           }
         }
@@ -163,17 +175,38 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
   }
 
   Widget _buildLotCard(SalesInvoiceItemStockModel lot, bool isDark, ThemeData theme) {
+    final status = StockStatus.fromCode(lot.stockStatus);
+    final bool isSellable = StockStatus.isRawSellable(lot.stockStatus);
+    final bool selectable = widget.allowNonSellable || isSellable;
+    final statusColor = status.badgeColor(isDark: isDark);
+
     return InkWell(
       onTap: () {
+        if (!selectable) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${status.shortLabel} cannot be sold. Only Status A (Approved) lots can be added to a sale.',
+              ),
+              backgroundColor: statusColor,
+            ),
+          );
+          return;
+        }
         Navigator.pop(context, lot);
       },
       borderRadius: BorderRadius.circular(4),
-      child: Container(
+      child: Opacity(
+        opacity: selectable ? 1.0 : 0.72,
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDark ? Colors.grey[900] : Colors.white,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          border: Border.all(
+            color: selectable ? Colors.grey.withOpacity(0.3) : statusColor.withOpacity(0.45),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,14 +215,36 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'LOT NUMBER',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey[400],
-                    letterSpacing: 0.5,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'LOT NUMBER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey[400],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: statusColor.withOpacity(0.45)),
+                      ),
+                      child: Text(
+                        selectable ? status.shortLabel : '${status.shortLabel} • View Only',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 Flexible(
                   child: Container(
@@ -314,6 +369,7 @@ class _LotSelectionScreenState extends State<LotSelectionScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

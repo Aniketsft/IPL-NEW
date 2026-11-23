@@ -143,6 +143,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       iconColor: Colors.purple,
     ),
     PermissionNode(
+      label: 'Discount Limit Config',
+      moduleId: 'logistics.sales.discount_limit',
+      category: 'sales',
+      description: 'Configure global maximum sales discount percentage',
+      icon: Icons.tune_rounded,
+      iconColor: Colors.deepPurple,
+    ),
+    PermissionNode(
       label: 'Sales Rep Selection',
       moduleId: 'logistics.sales.rep_selection',
       category: 'sales',
@@ -189,6 +197,14 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       description: 'Daily sales summaries, driver settlement & EOD reports',
       icon: Icons.analytics_rounded,
       iconColor: Color(0xFF00B4D8),
+    ),
+    PermissionNode(
+      label: 'Reports: Previous Date',
+      moduleId: 'logistics.reports.previous_date',
+      category: 'sales',
+      description: 'Allow selecting past dates for EOD, Invoice Summary & Stock reports',
+      icon: Icons.date_range_rounded,
+      iconColor: Color(0xFF0096C7),
     ),
     PermissionNode(
       label: 'Supervisor Override OTP',

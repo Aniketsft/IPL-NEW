@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/repositories/i_sales_repository.dart';
+import '../../domain/models/stock_status.dart';
 import '../../domain/models/transaction_config.dart';
 import 'sales_invoice_event.dart';
 import 'sales_invoice_state.dart';
@@ -17,6 +18,7 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     on<RemoveCartItem>(_onRemoveCartItem);
     on<RemoveLinkedFocItem>(_onRemoveLinkedFocItem);
     on<UpdateCartItem>(_onUpdateCartItem);
+    on<UpsertProductLotCartItems>(_onUpsertProductLotCartItems);
     on<SetDeliveryDate>(_onSetDeliveryDate);
     on<ConvertToCreditNote>(_onConvertToCreditNote);
     on<ClearCart>(_onClearCart);
@@ -37,13 +39,34 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     if (currentState is SalesInvoiceLoaded) {
       final isReturn = event.isReturn || event.category == 3;
       final txType = isReturn ? 'RETURN' : 'CREDIT_NOTE';
+      final resolvedCondition = isReturn
+          ? (event.returnCondition ?? currentState.returnCondition ?? 'NORMAL')
+          : null;
+      final resolvedStatus = isReturn
+          ? StockStatus.fromCode(
+              event.returnStockStatus ??
+                  currentState.returnStockStatus ??
+                  ReturnCondition.fromId(resolvedCondition).stockStatus,
+            ).code
+          : null;
+      final updatedItems = isReturn && resolvedStatus != null
+          ? event.items
+              .map(
+                (item) => item.copyWith(
+                  stockStatus: resolvedStatus,
+                  product: item.product.copyWith(stockStatus: resolvedStatus),
+                ),
+              )
+              .toList()
+          : event.items;
+
       emit(currentState.copyWith(
         transactionType: txType,
         originalDocumentId: event.originalInvoiceId,
-        cartItems: event.items,
+        cartItems: updatedItems,
         config: TransactionConfig.forType(txType),
-        returnCondition: isReturn ? (event.returnCondition ?? currentState.returnCondition ?? 'NORMAL') : null,
-        returnStockStatus: isReturn ? (event.returnStockStatus ?? currentState.returnStockStatus ?? 'A') : null,
+        returnCondition: resolvedCondition,
+        returnStockStatus: resolvedStatus,
       ));
     }
   }
@@ -83,10 +106,20 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     }
   }
 
+  bool _canAddOrUpdateCartItem(SalesInvoiceLoaded state, CartItem item) {
+    if (!item.isFoc && (item.basePrice <= 0.0001 || item.total <= 0.0001)) {
+      return false;
+    }
+    if (!state.config.isReturnOrCreditNote && !StockStatus.isRawSellable(item.stockStatus)) {
+      return false;
+    }
+    return true;
+  }
+
   void _onAddCartItem(AddCartItem event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
-      if (!event.item.isFoc && (event.item.basePrice <= 0.0001 || event.item.total <= 0.0001)) {
+      if (!_canAddOrUpdateCartItem(currentState, event.item)) {
         return;
       }
       final updatedCart = List.of(currentState.cartItems)..add(event.item);
@@ -127,11 +160,70 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
   void _onUpdateCartItem(UpdateCartItem event, Emitter<SalesInvoiceState> emit) {
     final currentState = state;
     if (currentState is SalesInvoiceLoaded) {
-      if (!event.item.isFoc && (event.item.basePrice <= 0.0001 || event.item.total <= 0.0001)) {
+      if (!_canAddOrUpdateCartItem(currentState, event.item)) {
         return;
       }
       final updatedCart = List.of(currentState.cartItems);
       updatedCart[event.index] = event.item;
+      emit(currentState.copyWith(cartItems: updatedCart));
+    }
+  }
+
+  void _onUpsertProductLotCartItems(
+    UpsertProductLotCartItems event,
+    Emitter<SalesInvoiceState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! SalesInvoiceLoaded) return;
+
+    for (final item in event.paidItems) {
+      if (!_canAddOrUpdateCartItem(currentState, item)) return;
+    }
+    for (final foc in event.focItems) {
+      if (!_canAddOrUpdateCartItem(currentState, foc)) return;
+    }
+
+    final updatedCart = List<CartItem>.from(currentState.cartItems);
+    int? insertIndex;
+
+    if (event.replaceAllForSku) {
+      for (int i = updatedCart.length - 1; i >= 0; i--) {
+        if (!updatedCart[i].isFoc && updatedCart[i].product.sku == event.sku) {
+          insertIndex = i;
+          updatedCart.removeAt(i);
+        }
+      }
+    } else if (event.editingIndex != null &&
+        event.editingIndex! >= 0 &&
+        event.editingIndex! < updatedCart.length &&
+        !updatedCart[event.editingIndex!].isFoc) {
+      insertIndex = event.editingIndex!;
+      updatedCart.removeAt(event.editingIndex!);
+    }
+
+    // Remove existing FOC lines linked to this SKU before inserting updated FOC items.
+    for (int i = updatedCart.length - 1; i >= 0; i--) {
+      final item = updatedCart[i];
+      if (item.isFoc && item.mainItemSku == event.sku) {
+        if (insertIndex != null && i < insertIndex) {
+          insertIndex--;
+        }
+        updatedCart.removeAt(i);
+      }
+    }
+
+    final targetIndex = (insertIndex != null && insertIndex >= 0 && insertIndex <= updatedCart.length)
+        ? insertIndex
+        : updatedCart.length;
+    final combinedInsert = <CartItem>[...event.paidItems, ...event.focItems];
+    updatedCart.insertAll(targetIndex, combinedInsert);
+
+    if (event.convertToCreditNote && currentState.transactionType == 'PREVIEW_INVOICE') {
+      emit(currentState.copyWith(
+        transactionType: 'CREDIT_NOTE',
+        cartItems: updatedCart,
+      ));
+    } else {
       emit(currentState.copyWith(cartItems: updatedCart));
     }
   }

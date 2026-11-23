@@ -2034,10 +2034,7 @@ class DeliveryRepository implements ILogisticsRepository {
 
 
   Future<void> _saveGlobalSettingsFromSync(Map<String, String> map) async {
-    final db = LocalDatabaseHelper.instance;
-    for (final entry in map.entries) {
-      await db.updateGlobalSetting(entry.key, entry.value, isSynced: true);
-    }
+    await LocalDatabaseHelper.instance.saveGlobalSettingsMap(map);
   }
 }
 

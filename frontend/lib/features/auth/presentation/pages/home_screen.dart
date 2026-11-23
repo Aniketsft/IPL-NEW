@@ -12,6 +12,7 @@ import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/del
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/customer_selection_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/sales_reports_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/pages/sales_invoice/otp_generation_screen.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/widgets/discount_limit_dialog.dart';
 import 'package:enterprise_auth_mobile/core/theme_cubit.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/user_management_screen.dart';
 import 'package:enterprise_auth_mobile/features/administration/ui/screens/devices_screen.dart';
@@ -66,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _lastSyncWasDownloadOnly = false;
   bool _isRecheckingLicense = false;
   UnsyncedSummary _unsyncedSummary = const UnsyncedSummary();
+  double _maxDiscountPercent = 5.0;
 
   bool _hasAccess(String permissionString) {
     return widget.permissions.contains(permissionString);
@@ -77,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadLastSync();
     _loadUnsyncedSummary();
+    _loadDiscountLimit();
     _loadSelectedSalesReps();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndPromptSalesRepSelection();
@@ -200,6 +203,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadDiscountLimit() async {
+    try {
+      final limit = await LocalDatabaseHelper.instance.getMaxDiscountPercent();
+      if (mounted) {
+        setState(() {
+          _maxDiscountPercent = limit;
+        });
+      }
+    } catch (e) {
+      debugPrint("Home: Error loading discount limit: $e");
+    }
+  }
+
   Future<void> _loadUnsyncedSummary() async {
     try {
       final summary = await LocalDatabaseHelper.instance.getUnsyncedSummary();
@@ -297,6 +313,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (salesSyncState is SalesInvoiceSyncSuccess) {
           _loadLastSync();
           _loadUnsyncedSummary();
+          _loadDiscountLimit();
 
           if (_isManualHomeSyncTriggered) {
             _isManualHomeSyncTriggered = false;
@@ -407,6 +424,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _syncJustSucceeded = false;
           _loadLastSync();
           _loadUnsyncedSummary();
+          _loadDiscountLimit();
           // After sync is successfully finished and dismissed, prompt to select sales rep if needed
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -578,6 +596,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _hasAccess('logistics.sales.reports.read');
     final bool hasOtp = _hasAccess('logistics.otp_generation.read') ||
         _hasAccess('logistics.sales.supervisor_otp.read');
+    final bool hasDiscountLimit = _hasAccess('logistics.sales.discount_limit.read') ||
+        _hasAccess('logistics.sales.discount_limit.update') ||
+        _hasAccess('logistics.sales.discount_limit.create') ||
+        _hasAccess('admin') ||
+        _hasAccess('*');
 
     final bool hasPending = _unsyncedSummary.hasUnsynced;
     final int pendingTotal = _unsyncedSummary.totalCount;
@@ -644,6 +667,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Icons.pin_outlined,
           const OtpGenerationScreen(),
           subtitle: 'Supervisor Override PIN',
+        ),
+      if (hasDiscountLimit)
+        _buildMenuButton(
+          context,
+          'Discount Limit',
+          Icons.tune_rounded,
+          null,
+          subtitle: 'Max: ${_maxDiscountPercent % 1 == 0 ? _maxDiscountPercent.toInt() : _maxDiscountPercent.toStringAsFixed(2)}%',
+          onTapOverride: () async {
+            final updated = await DiscountLimitDialog.show(context);
+            if (updated != null || mounted) {
+              _loadDiscountLimit();
+            }
+          },
         ),
       if (_hasAccess('manufacturing.all.read'))
         _buildMenuButton(

@@ -3,6 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/core/config/auth_config.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_event.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
 
 /// Wraps the entire application to detect user interactions and lifecycle changes.
 /// Hand-in-hand with [AuthBloc] and [AuthConfig], it ensures timely inactivity tracking
@@ -45,11 +51,25 @@ class _InactivityWatcherState extends State<InactivityWatcher> with WidgetsBindi
       // Record when we left so we can calculate absence duration on resume
       _pausedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed && mounted) {
+      bool isSyncActive = false;
+      try {
+        final salesState = context.read<SalesInvoiceSyncBloc>().state;
+        final syncState = context.read<SyncBloc>().state;
+        final mfgState = context.read<ManufacturingBloc>().state;
+        isSyncActive = salesState is SalesInvoiceSyncInProgress ||
+            salesState is SalesInvoiceCustomerSyncInProgress ||
+            syncState is SyncInProgress ||
+            mfgState is ManufacturingSyncProgress;
+      } catch (_) {}
+
       final absenceDuration = _pausedAt != null
           ? DateTime.now().difference(_pausedAt!)
           : Duration.zero;
 
-      if (absenceDuration >= AuthConfig.sessionTimeout) {
+      if (isSyncActive) {
+        // Never interrupt or log out while mandatory sync lock is active
+        context.read<AuthBloc>().add(SoftSessionCheck());
+      } else if (absenceDuration >= AuthConfig.sessionTimeout) {
         // Away for a full shift — perform a hard session validation (may logout)
         context.read<AuthBloc>().add(ValidateSession());
       } else {

@@ -335,13 +335,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<string, List<string>>> _siteWarehousesCache = new();
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _validSalesRepsCache = new();
 
-        private sealed class StockSlot
+        public sealed class StockSlot
         {
             public string Warehouse { get; init; } = string.Empty;
             public string Location { get; init; } = string.Empty;
             public string LotNumber { get; init; } = string.Empty;
             public decimal Qty { get; init; }
         }
+
+        private sealed class TemplateDetailLayout
+        {
+            public List<string> DFields { get; init; } = new();
+            public List<string> SFields { get; init; } = new();
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, TemplateDetailLayout> _templateDetailLayoutCache = new();
 
         private async Task<(string SalesSite, string ShippingSite)> ResolveSiteMappingAsync(string? rawSite, string schema)
         {
@@ -832,7 +840,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
         private async Task<Dictionary<string, List<StockSlot>>> GetShippingSiteStockAsync(
             string schema,
             string shippingSite,
-            IEnumerable<string?> itemCodes)
+            IEnumerable<string?> itemCodes,
+            string? preferredLorry = null)
         {
             var result = new Dictionary<string, List<StockSlot>>(StringComparer.OrdinalIgnoreCase);
             try
@@ -844,6 +853,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     .ToList();
                 if (!validCodes.Any() || string.IsNullOrWhiteSpace(shippingSite)) return result;
 
+                var cleanLorry = (preferredLorry ?? string.Empty).Trim().ToUpperInvariant();
                 using var connection = new SqlConnection(_innodisConnectionString);
                 string sql = $@"
                     SELECT
@@ -865,9 +875,24 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         LTRIM(RTRIM(ISNULL(stk.WRH_0, ''))),
                         LTRIM(RTRIM(ISNULL(stk.LOC_0, ''))),
                         LTRIM(RTRIM(ISNULL(stk.LOT_0, '')))
-                    ORDER BY SUM(ISNULL(stk.QTYSTU_0, 0)) DESC";
+                    ORDER BY
+                        CASE
+                            WHEN @Lorry = '' THEN 1
+                            WHEN LTRIM(RTRIM(ISNULL(stk.LOC_0, ''))) = @Lorry
+                              OR LTRIM(RTRIM(ISNULL(stk.WRH_0, ''))) = @Lorry THEN 0
+                            ELSE 1
+                        END,
+                        COALESCE(MIN(sl.SHLDAT_0), '9999-12-31') ASC,
+                        LTRIM(RTRIM(ISNULL(stk.LOT_0, ''))) ASC";
 
-                var rows = await connection.QueryAsync(sql, new { ShippingSite = shippingSite.Trim().ToUpperInvariant(), ItemCodes = validCodes });
+                var rows = await connection.QueryAsync(
+                    sql,
+                    new
+                    {
+                        ShippingSite = shippingSite.Trim().ToUpperInvariant(),
+                        ItemCodes = validCodes,
+                        Lorry = cleanLorry
+                    });
                 foreach (var r in rows)
                 {
                     string sku = (string)r.Sku;
@@ -890,6 +915,244 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 Console.WriteLine($"[SageX3SoapService] Warning: Failed to query STOCK for shipping site {shippingSite}: {ex.Message}");
             }
             return result;
+        }
+
+        private sealed class MutableStockSlot
+        {
+            public string Warehouse { get; init; } = string.Empty;
+            public string Location { get; init; } = string.Empty;
+            public string LotNumber { get; init; } = string.Empty;
+            public double RemainingQty { get; set; }
+        }
+
+        public static bool AllocateInvoiceLinesByLot(
+            StagingSalesInvoiceHeader invoice,
+            Dictionary<string, List<StockSlot>> siteStockMap,
+            string? assignedWarehouse,
+            string? assignedLocation)
+        {
+            if (invoice.Lines == null || invoice.Lines.Count == 0 || siteStockMap == null || siteStockMap.Count == 0)
+            {
+                return false;
+            }
+
+            var remainingBySku = new Dictionary<string, List<MutableStockSlot>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in siteStockMap)
+            {
+                remainingBySku[kvp.Key] = kvp.Value
+                    .Where(s => s.Qty > 0)
+                    .Select(s => new MutableStockSlot
+                    {
+                        Warehouse = s.Warehouse,
+                        Location = s.Location,
+                        LotNumber = s.LotNumber,
+                        RemainingQty = (double)s.Qty
+                    })
+                    .ToList();
+            }
+
+            bool anyModified = false;
+            var rebuiltLines = new List<StagingSalesInvoiceLine>(invoice.Lines.Count);
+
+            foreach (var src in invoice.Lines.ToList())
+            {
+                string sku = (src.Sku ?? string.Empty).Trim();
+                if (string.IsNullOrEmpty(sku) || src.Quantity <= 0.0001 || !remainingBySku.TryGetValue(sku, out var skuSlots) || skuSlots.Count == 0)
+                {
+                    rebuiltLines.Add(src);
+                    continue;
+                }
+
+                string lineLoc = IsPlaceholderStockToken(src.Location) ? string.Empty : (src.Location ?? string.Empty).Trim();
+                string lineWrh = IsPlaceholderStockToken(src.Warehouse) ? string.Empty : (src.Warehouse ?? string.Empty).Trim();
+                string targetLorry = !string.IsNullOrWhiteSpace(assignedLocation)
+                    ? assignedLocation.Trim()
+                    : (!string.IsNullOrWhiteSpace(assignedWarehouse)
+                        ? assignedWarehouse.Trim()
+                        : (!string.IsNullOrWhiteSpace(lineLoc) ? lineLoc : lineWrh));
+
+                List<MutableStockSlot> candidateSlots;
+                if (!string.IsNullOrWhiteSpace(targetLorry))
+                {
+                    candidateSlots = skuSlots
+                        .Where(s => string.Equals(s.Location, targetLorry, StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(s.Warehouse, targetLorry, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+                else
+                {
+                    candidateSlots = skuSlots;
+                }
+
+                if (candidateSlots.Count == 0)
+                {
+                    rebuiltLines.Add(src);
+                    continue;
+                }
+
+                string preferredLot = (src.LotNumber ?? string.Empty).Trim();
+                var orderedSlots = new List<MutableStockSlot>(candidateSlots.Count);
+                if (!string.IsNullOrWhiteSpace(preferredLot))
+                {
+                    orderedSlots.AddRange(candidateSlots.Where(s => string.Equals(s.LotNumber, preferredLot, StringComparison.OrdinalIgnoreCase)));
+                    orderedSlots.AddRange(candidateSlots.Where(s => !string.Equals(s.LotNumber, preferredLot, StringComparison.OrdinalIgnoreCase)));
+                }
+                else
+                {
+                    orderedSlots.AddRange(candidateSlots);
+                }
+
+                var chunks = new List<(string LotNumber, string Warehouse, string Location, double Qty)>();
+                double remainingNeed = src.Quantity;
+
+                foreach (var slot in orderedSlots)
+                {
+                    if (remainingNeed <= 0.0001) break;
+                    if (slot.RemainingQty <= 0.0001) continue;
+
+                    double take = Math.Min(remainingNeed, slot.RemainingQty);
+                    take = Math.Round(take, 4, MidpointRounding.AwayFromZero);
+                    if (take <= 0.0001) continue;
+
+                    slot.RemainingQty = Math.Round(slot.RemainingQty - take, 4, MidpointRounding.AwayFromZero);
+                    remainingNeed = Math.Round(remainingNeed - take, 4, MidpointRounding.AwayFromZero);
+
+                    string resolvedWrh = !string.IsNullOrWhiteSpace(slot.Warehouse) ? slot.Warehouse : lineWrh;
+                    string resolvedLoc = !string.IsNullOrWhiteSpace(slot.Location) ? slot.Location : lineLoc;
+                    chunks.Add((slot.LotNumber, resolvedWrh, resolvedLoc, take));
+                }
+
+                if (chunks.Count == 0)
+                {
+                    // Insufficient available X3 stock slots to allocate: keep existing line untouched so billed total is preserved
+                    rebuiltLines.Add(src);
+                    continue;
+                }
+
+                if (remainingNeed > 0.0001)
+                {
+                    // Append unallocated tail to the last matched chunk so financial total is never silently reduced
+                    var lastIdx = chunks.Count - 1;
+                    var last = chunks[lastIdx];
+                    chunks[lastIdx] = (last.LotNumber, last.Warehouse, last.Location, Math.Round(last.Qty + remainingNeed, 4, MidpointRounding.AwayFromZero));
+                }
+
+                if (chunks.Count == 1)
+                {
+                    var only = chunks[0];
+                    if (string.IsNullOrWhiteSpace(src.LotNumber) && !string.IsNullOrWhiteSpace(only.LotNumber))
+                    {
+                        src.LotNumber = only.LotNumber;
+                        anyModified = true;
+                    }
+                    if (string.IsNullOrWhiteSpace(src.Warehouse) && !string.IsNullOrWhiteSpace(only.Warehouse))
+                    {
+                        src.Warehouse = only.Warehouse;
+                        anyModified = true;
+                    }
+                    if (string.IsNullOrWhiteSpace(src.Location) && !string.IsNullOrWhiteSpace(only.Location))
+                    {
+                        src.Location = only.Location;
+                        anyModified = true;
+                    }
+                    rebuiltLines.Add(src);
+                    continue;
+                }
+
+                // Multi-lot split: mutate first existing line in-place and append additional split lines
+                anyModified = true;
+                double totalSrcQty = src.Quantity;
+                double origDiscAmt = src.DiscountAmount;
+                double origDiscFlat = src.DiscountAmountFlat;
+                double origDisc2 = src.Discount2;
+                double origDisc3 = src.Discount3;
+                double origVat = src.VatAmount;
+                double origTotal = src.Total;
+
+                double accDiscAmt = 0, accDiscFlat = 0, accDisc2 = 0, accDisc3 = 0, accVat = 0, accTotal = 0;
+
+                for (int i = 0; i < chunks.Count; i++)
+                {
+                    var c = chunks[i];
+                    bool isLast = (i == chunks.Count - 1);
+                    double ratio = totalSrcQty > 0 ? (c.Qty / totalSrcQty) : 0;
+
+                    double Prorate(double orig, ref double acc)
+                    {
+                        if (isLast)
+                        {
+                            return Math.Round(Math.Max(0, orig - acc), 2, MidpointRounding.AwayFromZero);
+                        }
+                        double share = Math.Round(orig * ratio, 2, MidpointRounding.AwayFromZero);
+                        acc += share;
+                        return share;
+                    }
+
+                    double lDiscAmt = Prorate(origDiscAmt, ref accDiscAmt);
+                    double lDiscFlat = Prorate(origDiscFlat, ref accDiscFlat);
+                    double lDisc2 = Prorate(origDisc2, ref accDisc2);
+                    double lDisc3 = Prorate(origDisc3, ref accDisc3);
+                    double lVat = Prorate(origVat, ref accVat);
+                    double lTotal = Prorate(origTotal, ref accTotal);
+
+                    if (i == 0)
+                    {
+                        src.Quantity = c.Qty;
+                        src.LotNumber = c.LotNumber;
+                        if (!string.IsNullOrWhiteSpace(c.Warehouse)) src.Warehouse = c.Warehouse;
+                        if (!string.IsNullOrWhiteSpace(c.Location)) src.Location = c.Location;
+                        src.DiscountAmount = lDiscAmt;
+                        src.DiscountAmountFlat = lDiscFlat;
+                        src.Discount2 = lDisc2;
+                        src.Discount3 = lDisc3;
+                        src.VatAmount = lVat;
+                        src.Total = lTotal;
+                        rebuiltLines.Add(src);
+                    }
+                    else
+                    {
+                        rebuiltLines.Add(new StagingSalesInvoiceLine
+                        {
+                            InvoiceId = src.InvoiceId,
+                            LineNo = src.LineNo,
+                            Sku = src.Sku,
+                            Name = src.Name,
+                            Quantity = c.Qty,
+                            BasePrice = src.BasePrice,
+                            DiscountAmount = lDiscAmt,
+                            DiscountAmountFlat = lDiscFlat,
+                            Discount2 = lDisc2,
+                            Discount3 = lDisc3,
+                            VatAmount = lVat,
+                            Total = lTotal,
+                            LotNumber = c.LotNumber,
+                            Warehouse = !string.IsNullOrWhiteSpace(c.Warehouse) ? c.Warehouse : src.Warehouse,
+                            Location = !string.IsNullOrWhiteSpace(c.Location) ? c.Location : src.Location,
+                            SalesUnit = src.SalesUnit,
+                            Cce0 = src.Cce0,
+                            TaxRule = src.TaxRule,
+                            StockStatus = src.StockStatus,
+                            ReturnCondition = src.ReturnCondition,
+                            ExpiryDate = src.ExpiryDate,
+                            IsFoc = src.IsFoc,
+                            MainItemSku = src.MainItemSku,
+                            OriginLineNo = src.OriginLineNo
+                        });
+                    }
+                }
+            }
+
+            if (anyModified)
+            {
+                int seqLineNo = 1;
+                foreach (var l in rebuiltLines)
+                {
+                    l.LineNo = seqLineNo++;
+                }
+                invoice.Lines = rebuiltLines;
+            }
+
+            return anyModified;
         }
 
         private async Task<Dictionary<string, (string SalesUnit, string TaxLevel)>> GetItemMetadataAsync(IEnumerable<string?> itemCodes)
@@ -1078,6 +1341,27 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                 }
                             }
 
+                            List<(Dictionary<string, object> Row, string Field)> sDicts = new();
+                            foreach (var rowObj in rawRows)
+                            {
+                                if (rowObj is IDictionary<string, object> dict)
+                                {
+                                    var ci = new Dictionary<string, object>(dict, StringComparer.OrdinalIgnoreCase);
+                                    string idVal = Convert.ToString(
+                                        ci.TryGetValue("ID_0", out var vId) ? vId :
+                                        (ci.TryGetValue("RECFLE_0", out var vRec) ? vRec :
+                                        (ci.TryGetValue("FIL_0", out var vFil) ? vFil : "")))?.Trim() ?? "";
+                                    string fldVal = Convert.ToString(
+                                        ci.TryGetValue("FLD_0", out var vFld) ? vFld :
+                                        (ci.TryGetValue("OBJECT_0", out var vObj) ? vObj :
+                                        (ci.TryGetValue("ZON_0", out var vZon) ? vZon : "")))?.Trim() ?? "";
+                                    if (string.Equals(idVal, "S", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        sDicts.Add((ci, fldVal));
+                                    }
+                                }
+                            }
+
                             if (vDicts.Any())
                             {
                                 var allColumns = vDicts[0].Row.Keys.ToList();
@@ -1158,6 +1442,7 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                 if (verifiedRankCol != null)
                                 {
                                     Console.WriteLine($"[SageX3SoapService] Verified AOED rank column '{verifiedRankCol}' (withLev={verifiedWithLev}) for {templateCode} in {candSchema}.");
+                                    var layout = new TemplateDetailLayout();
                                     if (dDicts.Any())
                                     {
                                         var sortedD = (verifiedWithLev
@@ -1166,8 +1451,21 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                                                 : dDicts.OrderBy(d => TryExtractDecimal(d.Row, verifiedRankCol, out var rk) ? rk : 0m))
                                             .Select(d => d.Field)
                                             .ToList();
+                                        layout.DFields.AddRange(sortedD);
                                         Console.WriteLine($"[SageX3SoapService] Discovered {sortedD.Count} D-line fields for {templateCode} in {candSchema}: {string.Join(", ", sortedD)}");
                                     }
+                                    if (sDicts.Any())
+                                    {
+                                        var sortedS = (verifiedWithLev
+                                                ? sDicts.OrderBy(s => TryExtractDecimal(s.Row, "LEV_0", out var lv) ? lv : 0m)
+                                                        .ThenBy(s => TryExtractDecimal(s.Row, verifiedRankCol, out var rk) ? rk : 0m)
+                                                : sDicts.OrderBy(s => TryExtractDecimal(s.Row, verifiedRankCol, out var rk) ? rk : 0m))
+                                            .Select(s => s.Field)
+                                            .ToList();
+                                        layout.SFields.AddRange(sortedS);
+                                        Console.WriteLine($"[SageX3SoapService] Discovered {sortedS.Count} S-line fields for {templateCode} in {candSchema}: {string.Join(", ", sortedS)}");
+                                    }
+                                    _templateDetailLayoutCache[cacheKey] = layout;
                                     break;
                                 }
                                 else
@@ -1239,22 +1537,30 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return fieldNames;
         }
 
-        private string ConstructDynamicVHeader(List<string> templateFields, Dictionary<string, string> values, string fallbackHeader)
+        private string ConstructDynamicVHeader(List<string> templateFields, Dictionary<string, string> values, string fallbackHeader) =>
+            ConstructDynamicRecord("V", templateFields, values, fallbackHeader, logTag: "Constructed Dynamic V Header");
+
+        private static string ConstructDynamicRecord(
+            string recordId,
+            List<string> templateFields,
+            Dictionary<string, string> values,
+            string fallbackRecord,
+            string? logTag = null)
         {
             if (templateFields == null || templateFields.Count == 0)
             {
-                return fallbackHeader;
+                return fallbackRecord;
             }
 
-            var parts = new List<string> { "V" };
+            var parts = new List<string> { recordId };
             int repIndex = 0;
 
             foreach (var rawField in templateFields)
             {
                 var f = (rawField ?? string.Empty).Trim();
-                if (string.Equals(f, "V", StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(f, recordId, StringComparison.OrdinalIgnoreCase)) continue;
 
-                // "/" is the record-id row: the first one opens the V record, the next one opens the D record, so stop there
+                // "/" opens the record; a second "/" opens the next record in AOED.
                 if (f == "/")
                 {
                     if (parts.Count > 1) break;
@@ -1268,7 +1574,6 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                     continue;
                 }
 
-                // Normalize: strip [F:SIH], table dots, (0)/(1), and _0/_1 suffixes
                 var cleanNoTable = System.Text.RegularExpressions.Regex.Replace(f, @"^\[[^\]]+\]", "").Trim();
                 if (cleanNoTable.Contains('.')) cleanNoTable = cleanNoTable.Substring(cleanNoTable.LastIndexOf('.') + 1).Trim();
 
@@ -1337,7 +1642,10 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             }
 
             var line = string.Join(";", parts) + ";|";
-            Console.WriteLine($"[SageX3SoapService] Constructed Dynamic V Header: {line}");
+            if (!string.IsNullOrEmpty(logTag))
+            {
+                Console.WriteLine($"[SageX3SoapService] {logTag}: {line}");
+            }
             return line;
         }
 
@@ -1500,7 +1808,8 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 var (tabletSource, assignedWarehouse, assignedLocation) = await ResolveDeviceIdentityAsync(
                     invoice.TabletSource,
                     invoice.DeviceId,
-                    invoice.UserName ?? invoice.CreatedBy);
+                    invoice.UserName ?? invoice.CreatedBy,
+                    shippingSite);
 
                 // Sage X3 sales invoice type:
                 // MICAS for cash transaction on invoice
@@ -1520,12 +1829,27 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 string invoiceHeader = $"V;{salesSite};{invType};{shippingSite};1;{docNumber};{invoice.CustomerCode};{invoiceDate};{reference};2;{primarySalesRep};MUR;{dueDate};;;1;{originDocNum};{tabletSource};|";
                 fileBuilder.Append(invoiceHeader);
 
-                // Pre-resolve item metadata (official SalesUnit and TaxLevel from ITMMASTER), valid TABWRH warehouses & STOCK in shippingSite
+                // Pre-resolve item metadata, valid TABWRH warehouses, ZSIHWEBA AOED layout & STOCK in shippingSite
+                string preferredLorry = !string.IsNullOrWhiteSpace(assignedLocation)
+                    ? assignedLocation.Trim()
+                    : (!string.IsNullOrWhiteSpace(assignedWarehouse) ? assignedWarehouse.Trim() : string.Empty);
                 var itemMetadata = await GetItemMetadataAsync(invoice.Lines.Select(l => l.Sku));
                 var validWarehouses = await GetValidWarehousesAsync(schema);
                 var siteWarehousesMap = await GetSiteWarehousesMapAsync(schema);
                 bool isWarehouseManaged = siteWarehousesMap.TryGetValue(shippingSite, out var validSiteWrhs) && validSiteWrhs.Any();
-                var siteStockMap = await GetShippingSiteStockAsync(schema, shippingSite, invoice.Lines.Select(l => l.Sku));
+                var siteStockMap = await GetShippingSiteStockAsync(schema, shippingSite, invoice.Lines.Select(l => l.Sku), preferredLorry);
+
+                // Expand/allocate any single multi-lot or unassigned-lot line across actual lorry STOCK lots
+                // and keep StagingSalesInvoiceLines synchronized with the split lot breakdown.
+                bool wasSplitOrAllocated = AllocateInvoiceLinesByLot(invoice, siteStockMap, assignedWarehouse, assignedLocation);
+                if (wasSplitOrAllocated && _context.Entry(invoice).State != EntityState.Detached)
+                {
+                    await _context.SaveChangesAsync();
+                }
+
+                // Trigger AOED introspection once per schema so any ZSIHWEBA D/S lot fields are cached
+                await GetTemplateHeaderFieldsAsync("ZSIHWEBA", schema);
+                _templateDetailLayoutCache.TryGetValue($"{schema}_ZSIHWEBA".ToUpperInvariant(), out var templateDetailLayout);
 
                 // Pre-identify Source lines (FOCFLG = 2) and Free lines (FOCFLG = 3)
                 var freeLines = invoice.Lines
@@ -1545,20 +1869,23 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                             continue;
                         }
 
-                        // 2. Check by explicit MainItemSku
+                        // 2. Check by explicit MainItemSku (mark ALL split paid lot lines for that SKU)
                         if (!string.IsNullOrWhiteSpace(fl.MainItemSku))
                         {
-                            var matched = linesList.FirstOrDefault(l =>
+                            var matchedPaid = linesList.Where(l =>
                                 !l.IsFoc && l.BasePrice > 0 &&
-                                string.Equals(l.Sku, fl.MainItemSku, StringComparison.OrdinalIgnoreCase));
-                            if (matched != null)
+                                string.Equals(l.Sku, fl.MainItemSku, StringComparison.OrdinalIgnoreCase)).ToList();
+                            if (matchedPaid.Any())
                             {
-                                sourceLineNos.Add(matched.LineNo);
+                                foreach (var mp in matchedPaid)
+                                {
+                                    sourceLineNos.Add(mp.LineNo);
+                                }
                                 continue;
                             }
                         }
 
-                        // 3. Positional fallback: Preceding promotional paid line in cart
+                        // 3. Positional fallback: Preceding promotional paid line(s) in cart
                         int idx = linesList.IndexOf(fl);
                         if (idx > 0)
                         {
@@ -1666,11 +1993,80 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                         focFlg = "1"; // Regular paid item (No in Sage X3)
                     }
 
-                    // Proven 18-position D-Record layout matching Syracuse ZSIHWEBA (lines 19-36):
-                    // Pos 1: D | Pos 2: SIDLIN | Pos 3: ITMREF | Pos 4: ITMDES | Pos 5: SAU | Pos 6: QTY | Pos 7: GROPRI
-                    // Pos 8: DISC1 | Pos 9: DISC2 | Pos 10: DISC3 | Pos 11: VACITM | Pos 12: ZPRIUOM (blank) | Pos 13: ZPRIQTY (0)
-                    // Pos 14: REP1 | Pos 15: REP2 | Pos 16: WRH | Pos 17: LOC (blank) | Pos 18: FOCFLG
-                    fileBuilder.Append($"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;0;{lineRep1};{lineRep2};{warehouse};{location};{focFlg};|");
+                    string lotNum = (line.LotNumber ?? string.Empty).Trim();
+
+                    // Proven 18-position D-Record layout matching Syracuse ZSIHWEBA (lines 19-36), extended safely when AOED declares D.LOT or an S sub-record
+                    string fallbackD = $"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;0;{lineRep1};{lineRep2};{warehouse};{location};{focFlg};|";
+                    if (templateDetailLayout?.DFields != null &&
+                        templateDetailLayout.DFields.Any(f =>
+                        {
+                            var k = NormalizeTemplateFieldKey(f);
+                            return k == "LOT" || k == "LOTNUM";
+                        }))
+                    {
+                        var dValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            { "SIDLIN", lineMultiplier.ToString() },
+                            { "NUMLIG", lineMultiplier.ToString() },
+                            { "ITMREF", sku },
+                            { "ITMDES", safeLineName },
+                            { "ITMDES1", safeLineName },
+                            { "SAU", unit },
+                            { "PCU", unit },
+                            { "QTY", qty },
+                            { "QTYSTU", qty },
+                            { "QTYPCU", qty },
+                            { "GROPRI", basePrice },
+                            { "NETPRI", basePrice },
+                            { "DISCRGVAL1", disc1 },
+                            { "DISC1", disc1 },
+                            { "DISCRGVAL2", disc2 },
+                            { "DISC2", disc2 },
+                            { "DISCRGVAL3", disc3 },
+                            { "DISC3", disc3 },
+                            { "VACITM", taxRule },
+                            { "ZPRIUOM", "" },
+                            { "ZPRIQTY", "0" },
+                            { "REP", lineRep1 },
+                            { "REP1", lineRep1 },
+                            { "REP_1", lineRep2 },
+                            { "REP2", lineRep2 },
+                            { "WRH", warehouse },
+                            { "LOC", location },
+                            { "FOCFLG", focFlg },
+                            { "LOT", lotNum },
+                            { "LOTNUM", lotNum },
+                            { "STA", "A" },
+                        };
+                        fileBuilder.Append(ConstructDynamicRecord("D", templateDetailLayout.DFields, dValues, fallbackD));
+                    }
+                    else
+                    {
+                        fileBuilder.Append(fallbackD);
+                    }
+
+                    if (templateDetailLayout?.SFields != null &&
+                        templateDetailLayout.SFields.Count > 1 &&
+                        !string.IsNullOrWhiteSpace(lotNum))
+                    {
+                        string sLoc = !string.IsNullOrWhiteSpace(locationInput) ? locationInput : warehouse;
+                        var sValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            { "PCU", unit },
+                            { "SAU", unit },
+                            { "STU", unit },
+                            { "QTYPCU", qty },
+                            { "QTYSTU", qty },
+                            { "QTY", qty },
+                            { "PCUSTUCOE", "1" },
+                            { "LOT", lotNum },
+                            { "LOTNUM", lotNum },
+                            { "LOC", sLoc },
+                            { "WRH", warehouse },
+                            { "STA", "A" },
+                        };
+                        fileBuilder.Append(ConstructDynamicRecord("S", templateDetailLayout.SFields, sValues, string.Empty));
+                    }
 
                     lineMultiplier += 1000;
                 }
@@ -2182,6 +2578,42 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return await ImportCreditNoteAsync(invoiceHeader);
         }
 
+        public static string ResolveMiscReceiptStockStatus(
+            string? stockStatus,
+            string? returnCondition,
+            string? headerReason = null)
+        {
+            string normalizedStatus = (stockStatus ?? string.Empty).Trim().ToUpperInvariant();
+            if (normalizedStatus.StartsWith("R")) return "R";
+            if (normalizedStatus.StartsWith("Q")) return "Q";
+
+            string reason = (!string.IsNullOrWhiteSpace(returnCondition)
+                    ? returnCondition
+                    : headerReason ?? string.Empty)
+                .Trim()
+                .ToUpperInvariant();
+            if (reason is "DEF" or "DAMAGED" or "REJECTED" || reason.Contains("DAMAG")) return "R";
+            if (reason is "EXP" or "EXPIRED" or "QUARANTINE" || reason.Contains("EXPIR")) return "Q";
+
+            if (normalizedStatus.StartsWith("A")) return "A";
+            return "A";
+        }
+
+        public static string ResolveMiscReceiptDescription(string sta, string? returnCondition)
+        {
+            if (!string.IsNullOrWhiteSpace(returnCondition))
+            {
+                return returnCondition.Trim();
+            }
+
+            return sta switch
+            {
+                "R" => "Damaged Return",
+                "Q" => "Expired / Quarantine Return",
+                _ => "Restockable Return",
+            };
+        }
+
         public async Task<X3ImportResult> ImportMiscReceiptAsync(StagingSalesInvoiceHeader header, List<StagingSalesInvoiceLine> lines)
         {
             var result = new X3ImportResult { Identifier = header.InvoiceId };
@@ -2419,12 +2851,13 @@ namespace EnterpriseAuth.Api.Core.Application.Services
 
                     string loc = resolvedLoc;
 
-                    // Stock Status: strictly "A" (Active/Salable) or "Q" (Quarantine/Damaged/Expired)
-                    string sta = string.Equals(line.StockStatus, "Q", StringComparison.OrdinalIgnoreCase) ? "Q" : "A";
+                    // Stock Status: "A" (Normal/Sellable), "R" (Damaged/Rejected), "Q" (Expired/Quarantine)
+                    string sta = ResolveMiscReceiptStockStatus(
+                        line.StockStatus,
+                        line.ReturnCondition,
+                        header.Reason);
 
-                    string mvtDes = !string.IsNullOrWhiteSpace(line.ReturnCondition)
-                        ? line.ReturnCondition.Trim()
-                        : (sta == "Q" ? "Quarantine Return" : "Restockable Return");
+                    string mvtDes = ResolveMiscReceiptDescription(sta, line.ReturnCondition);
                     if (mvtDes.Length > 30) mvtDes = mvtDes.Substring(0, 30);
 
                     // --- Record S (Table STOJOU, Lines 20-31) ---

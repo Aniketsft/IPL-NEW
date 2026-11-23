@@ -40,7 +40,7 @@ class UnsyncedSummary {
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 99;
+  static const _databaseVersion = 101;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -98,7 +98,8 @@ class LocalDatabaseHelper {
 
   static const defaultCreditNoteReasons = [
     {'code': 'RET', 'description': 'Delivery return'},
-    {'code': 'DEF', 'description': 'Faulty equipment'},
+    {'code': 'DEF', 'description': 'Defective / Damaged'},
+    {'code': 'EXP', 'description': 'Expired'},
     {'code': 'MIS', 'description': 'Miscellaneous'},
     {'code': 'DNC', 'description': 'Not Compliant with shipment'},
     {'code': 'PRI', 'description': 'Incorrect price'},
@@ -370,6 +371,16 @@ class LocalDatabaseHelper {
     _database = await openDatabase(
       path,
       version: _databaseVersion,
+      onConfigure: (db) async {
+        try {
+          await db.rawQuery('PRAGMA journal_mode = WAL');
+          await db.rawQuery('PRAGMA synchronous = NORMAL');
+          await db.rawQuery('PRAGMA temp_store = MEMORY');
+          await db.rawQuery('PRAGMA cache_size = -4000');
+        } catch (e) {
+          debugPrint('LocalDatabaseHelper: SQLite WAL/PRAGMA config warning: $e');
+        }
+      },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -427,6 +438,8 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'userName', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'salesSite', 'TEXT');
     await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'customerCode', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'cashInHandBefore', 'REAL DEFAULT 0.0');
+    await _safeAddColumn(_database!, tableSiCreditNoteRefunds, 'cashShortfallAmount', 'REAL DEFAULT 0.0');
 
     // Device fleet management & licensing healing
     await _safeAddColumn(_database!, tableDeviceLocations, 'hardwareModel', 'TEXT');
@@ -629,6 +642,12 @@ class LocalDatabaseHelper {
           );
         }
         await batch.commit(noResult: true);
+      } else {
+        await _database!.insert(
+          tableSiCreditNoteReasons,
+          {'code': 'EXP', 'description': 'Expired'},
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
       }
     } catch (_) {}
 
@@ -2269,6 +2288,50 @@ class LocalDatabaseHelper {
         await _safeAddColumn(db, tableSalesInvoiceItemStockDetails, 'stockStatus', "TEXT DEFAULT 'A'");
       }
     }
+    if (oldVersion < 100) {
+      debugPrint('DB Upgrade: Migrating $tableLocations to composite (location, site) primary key (v100)');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS tbl_locations_new (
+            $colLocCode TEXT NOT NULL,
+            $colLocWrh TEXT,
+            $colLocWrhName TEXT,
+            $colLocType TEXT,
+            $colLocTypeName TEXT,
+            $colLocSite TEXT NOT NULL DEFAULT 'POD',
+            PRIMARY KEY ($colLocCode, $colLocSite)
+          )
+        ''');
+        await db.execute('''
+          INSERT OR REPLACE INTO tbl_locations_new
+          ($colLocCode, $colLocWrh, $colLocWrhName, $colLocType, $colLocTypeName, $colLocSite)
+          SELECT
+            TRIM($colLocCode),
+            $colLocWrh,
+            $colLocWrhName,
+            $colLocType,
+            $colLocTypeName,
+            UPPER(COALESCE(NULLIF(TRIM($colLocSite), ''), 'POD'))
+          FROM $tableLocations
+          WHERE $colLocCode IS NOT NULL AND TRIM($colLocCode) != ''
+        ''');
+        await db.execute('DROP TABLE IF EXISTS $tableLocations');
+        await db.execute('ALTER TABLE tbl_locations_new RENAME TO $tableLocations');
+      } catch (e) {
+        debugPrint('Migration error v100 ($tableLocations): $e');
+      }
+    }
+    if (oldVersion < 101) {
+      debugPrint('DB Upgrade: Creating lorry stock lookup index on $tableSalesInvoiceItemStockDetails (v101)');
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_si_stock_lorry_lookup
+          ON $tableSalesInvoiceItemStockDetails (siteCode, warehouse, location, stockStatus, itemCode)
+        ''');
+      } catch (e) {
+        debugPrint('Migration error v101 ($tableSalesInvoiceItemStockDetails index): $e');
+      }
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -2294,6 +2357,10 @@ class LocalDatabaseHelper {
         deviceId TEXT,
         PRIMARY KEY (itemCode, lotNumber, location, warehouse, stockStatus)
       )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_si_stock_lorry_lookup
+      ON $tableSalesInvoiceItemStockDetails (siteCode, warehouse, location, stockStatus, itemCode)
     ''');
 
     await db.execute('''
@@ -2493,7 +2560,9 @@ class LocalDatabaseHelper {
         deviceId TEXT,
         userName TEXT,
         salesSite TEXT,
-        customerCode TEXT
+        customerCode TEXT,
+        cashInHandBefore REAL DEFAULT 0.0,
+        cashShortfallAmount REAL DEFAULT 0.0
       )
     ''');
 
@@ -2674,12 +2743,13 @@ class LocalDatabaseHelper {
 
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableLocations (
-        $colLocCode TEXT PRIMARY KEY,
+        $colLocCode TEXT NOT NULL,
         $colLocWrh TEXT,
         $colLocWrhName TEXT,
         $colLocType TEXT,
         $colLocTypeName TEXT,
-        $colLocSite TEXT
+        $colLocSite TEXT NOT NULL DEFAULT 'POD',
+        PRIMARY KEY ($colLocCode, $colLocSite)
       )
     ''');
 
@@ -3812,6 +3882,52 @@ class LocalDatabaseHelper {
     );
   }
 
+  Future<String?> getGlobalSetting(String key) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      tableGlobalSettings,
+      where: '$colSettingKey = ?',
+      whereArgs: [key],
+      orderBy: '$colSettingLastUpdated DESC, id DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first[colSettingValue]?.toString();
+  }
+
+  Future<void> saveGlobalSettingsMap(Map<String, String> settingsMap) async {
+    if (settingsMap.isEmpty) return;
+    final currentRows = await getAllGlobalSettings();
+    final currentMap = <String, Map<String, dynamic>>{
+      for (final row in currentRows)
+        if (row[colSettingKey] != null) row[colSettingKey].toString(): row,
+    };
+
+    for (final entry in settingsMap.entries) {
+      final existing = currentMap[entry.key];
+      final existingUnsynced = existing != null && (existing[colSettingIsSynced] == 0);
+      // Do not overwrite a pending offline local change until it has pushed to the server
+      if (existingUnsynced) continue;
+
+      final existingVal = existing?[colSettingValue]?.toString();
+      if (existingVal == entry.value) continue;
+
+      await updateGlobalSetting(entry.key, entry.value, isSynced: true);
+    }
+  }
+
+  Future<double> getMaxDiscountPercent({double fallback = 5.0}) async {
+    try {
+      final raw = await getGlobalSetting('MaxDiscountPercent');
+      if (raw == null || raw.trim().isEmpty) return fallback;
+      final parsed = double.tryParse(raw.trim());
+      if (parsed == null || parsed.isNaN || parsed.isInfinite) return fallback;
+      return parsed.clamp(0.0, 100.0);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   Future<int> getGlobalSettingsUnsyncedCount() async {
     final db = await instance.database;
     try {
@@ -4700,17 +4816,21 @@ class LocalDatabaseHelper {
         }
       }
 
+      final nowIso = DateTime.now().toIso8601String();
+      const chunkSize = 500;
+      Batch batch = txn.batch();
+      int batchCount = 0;
+
       for (final item in rawList) {
         if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
-        final docNo = (map['documentNo'] ?? map['DocumentNo'] ?? '').toString().trim();
-        final custNo = (map['customerNo'] ?? map['CustomerNo'] ?? '').toString().trim();
-        final custName = (map['customerName'] ?? map['CustomerName'] ?? '').toString().trim();
-        final dueDate = (map['dueDate'] ?? map['DueDate'] ?? '').toString().trim();
-        final site = (map['site'] ?? map['Site'] ?? '').toString().trim();
-        final company = (map['company'] ?? map['Company'] ?? '').toString().trim();
-        final docType = (map['docType'] ?? map['DocType'] ?? 'INV').toString().trim();
-        final rawRemaining = (map['remainingAmtLCY'] ?? map['RemainingAmtLCY'] as num?)?.toDouble() ?? 0.0;
+        final docNo = (item['documentNo'] ?? item['DocumentNo'] ?? '').toString().trim();
+        final custNo = (item['customerNo'] ?? item['CustomerNo'] ?? '').toString().trim();
+        final custName = (item['customerName'] ?? item['CustomerName'] ?? '').toString().trim();
+        final dueDate = (item['dueDate'] ?? item['DueDate'] ?? '').toString().trim();
+        final site = (item['site'] ?? item['Site'] ?? '').toString().trim();
+        final company = (item['company'] ?? item['Company'] ?? '').toString().trim();
+        final docType = (item['docType'] ?? item['DocType'] ?? 'INV').toString().trim();
+        final rawRemaining = ((item['remainingAmtLCY'] ?? item['RemainingAmtLCY']) as num?)?.toDouble() ?? 0.0;
 
         if (docNo.isEmpty || dueDate.isEmpty) continue;
 
@@ -4718,15 +4838,14 @@ class LocalDatabaseHelper {
         if (docType == 'CN' || rawRemaining <= 0.001) continue;
 
         final pendingDeduction = pendingPayments[docNo] ?? 0.0;
-        double effectiveRemaining = rawRemaining - pendingDeduction;
-        effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
+        final effectiveRemaining = ((rawRemaining - pendingDeduction) * 100.0).round() / 100.0;
 
         final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
             (docType == 'CN' && effectiveRemaining >= -0.001)
             ? 1
             : 0;
 
-        await txn.insert(
+        batch.insert(
           tableSiOpenInvoices,
           {
             'documentNo': docNo,
@@ -4739,10 +4858,21 @@ class LocalDatabaseHelper {
             'remainingAmtLCY': effectiveRemaining,
             'allocatedAmount': pendingDeduction,
             'isPaid': isPaid,
-            'lastSyncAt': DateTime.now().toIso8601String(),
+            'lastSyncAt': nowIso,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
+        batchCount++;
+        if (batchCount >= chunkSize) {
+          await batch.commit(noResult: true);
+          batch = txn.batch();
+          batchCount = 0;
+          await Future.delayed(Duration.zero);
+        }
+      }
+
+      if (batchCount > 0) {
+        await batch.commit(noResult: true);
       }
     });
   }
@@ -4776,18 +4906,20 @@ class LocalDatabaseHelper {
         }
       }
 
-      // 3. Insert fresh open invoices
+      // 3. Insert fresh open invoices in batch
+      final nowIso = DateTime.now().toIso8601String();
+      final batch = txn.batch();
+      int batchCount = 0;
       for (final item in rawList) {
         if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
-        final docNo = (map['documentNo'] ?? map['DocumentNo'] ?? '').toString().trim();
-        final custNo = (map['customerNo'] ?? map['CustomerNo'] ?? cust).toString().trim();
-        final custName = (map['customerName'] ?? map['CustomerName'] ?? '').toString().trim();
-        final dueDate = (map['dueDate'] ?? map['DueDate'] ?? '').toString().trim();
-        final site = (map['site'] ?? map['Site'] ?? '').toString().trim();
-        final company = (map['company'] ?? map['Company'] ?? '').toString().trim();
-        final docType = (map['docType'] ?? map['DocType'] ?? 'INV').toString().trim();
-        final rawRemaining = (map['remainingAmtLCY'] ?? map['RemainingAmtLCY'] as num?)?.toDouble() ?? 0.0;
+        final docNo = (item['documentNo'] ?? item['DocumentNo'] ?? '').toString().trim();
+        final custNo = (item['customerNo'] ?? item['CustomerNo'] ?? cust).toString().trim();
+        final custName = (item['customerName'] ?? item['CustomerName'] ?? '').toString().trim();
+        final dueDate = (item['dueDate'] ?? item['DueDate'] ?? '').toString().trim();
+        final site = (item['site'] ?? item['Site'] ?? '').toString().trim();
+        final company = (item['company'] ?? item['Company'] ?? '').toString().trim();
+        final docType = (item['docType'] ?? item['DocType'] ?? 'INV').toString().trim();
+        final rawRemaining = ((item['remainingAmtLCY'] ?? item['RemainingAmtLCY']) as num?)?.toDouble() ?? 0.0;
 
         if (docNo.isEmpty || dueDate.isEmpty) continue;
 
@@ -4795,8 +4927,7 @@ class LocalDatabaseHelper {
         if (docType == 'CN' || rawRemaining <= 0.001) continue;
 
         final pendingDeduction = pendingPayments[docNo] ?? 0.0;
-        double effectiveRemaining = rawRemaining - pendingDeduction;
-        effectiveRemaining = double.parse(effectiveRemaining.toStringAsFixed(2));
+        final effectiveRemaining = ((rawRemaining - pendingDeduction) * 100.0).round() / 100.0;
 
         final isPaid = (docType == 'INV' && effectiveRemaining <= 0.001) ||
             (docType == 'CN' && effectiveRemaining >= -0.001)
@@ -4807,7 +4938,7 @@ class LocalDatabaseHelper {
           activeCount++;
         }
 
-        await txn.insert(
+        batch.insert(
           tableSiOpenInvoices,
           {
             'documentNo': docNo,
@@ -4820,10 +4951,14 @@ class LocalDatabaseHelper {
             'remainingAmtLCY': effectiveRemaining,
             'allocatedAmount': pendingDeduction,
             'isPaid': isPaid,
-            'lastSyncAt': DateTime.now().toIso8601String(),
+            'lastSyncAt': nowIso,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
+        batchCount++;
+      }
+      if (batchCount > 0) {
+        await batch.commit(noResult: true);
       }
     });
 
@@ -5506,11 +5641,12 @@ class LocalDatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getLocations({String? siteCode}) async {
     final db = await database;
-    if (siteCode != null && siteCode.isNotEmpty && siteCode != 'ALL') {
+    final cleanSite = siteCode?.trim().toUpperCase();
+    if (cleanSite != null && cleanSite.isNotEmpty && cleanSite != 'ALL') {
       return await db.query(
         tableLocations,
-        where: '$colLocSite = ?',
-        whereArgs: [siteCode],
+        where: 'UPPER(TRIM($colLocSite)) = ?',
+        whereArgs: [cleanSite],
         orderBy: '$colLocCode ASC',
       );
     }
@@ -5522,34 +5658,63 @@ class LocalDatabaseHelper {
     final cleanSite = siteCode.trim().toUpperCase();
     return await db.query(
       tableLocations,
-      where: '$colLocSite = ? AND $colLocCode NOT LIKE "%DAM%" AND $colLocCode NOT LIKE "%SCRAP%" AND $colLocCode NOT LIKE "%RETURN%" AND $colLocCode NOT LIKE "%REJ%" AND $colLocCode NOT LIKE "%QUAR%"',
+      where:
+          "UPPER(TRIM($colLocSite)) = ? AND UPPER($colLocCode) NOT LIKE '%DAM%' AND UPPER($colLocCode) NOT LIKE '%SCRAP%' AND UPPER($colLocCode) NOT LIKE '%RETURN%' AND UPPER($colLocCode) NOT LIKE '%REJ%' AND UPPER($colLocCode) NOT LIKE '%QUAR%' AND UPPER($colLocCode) NOT LIKE '%WASTE%'",
       whereArgs: [cleanSite],
       orderBy: '$colLocCode ASC',
     );
   }
 
-  Future<void> saveLocations(List<dynamic> locations, {String? siteCode}) async {
+  Future<void> saveLocations(
+    List<dynamic> locations, {
+    String? siteCode,
+    bool replaceSite = false,
+  }) async {
     final db = await database;
-    final batch = db.batch();
-    for (final loc in locations) {
-      if (loc is Map) {
-        final locCode = (loc['location'] ?? loc['code'] ?? '').toString().trim();
-        if (locCode.isEmpty) continue;
-        batch.insert(
+    final cleanFallbackSite = siteCode?.trim().toUpperCase();
+    await db.transaction((txn) async {
+      if (replaceSite &&
+          cleanFallbackSite != null &&
+          cleanFallbackSite.isNotEmpty &&
+          cleanFallbackSite != 'ALL') {
+        await txn.delete(
           tableLocations,
-          {
-            colLocCode: locCode,
-            colLocWrh: loc['warehouse']?.toString(),
-            colLocWrhName: loc['warehouseName']?.toString(),
-            colLocType: loc['locationType']?.toString() ?? 'LORRY',
-            colLocTypeName: loc['locationTypeName']?.toString() ?? loc['plateNumber']?.toString(),
-            colLocSite: (loc['site'] ?? siteCode ?? 'POD').toString().trim().toUpperCase(),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          where: 'UPPER(TRIM($colLocSite)) = ?',
+          whereArgs: [cleanFallbackSite],
         );
       }
-    }
-    await batch.commit(noResult: true);
+      final batch = txn.batch();
+      for (final loc in locations) {
+        if (loc is Map) {
+          final locCode = (loc['location'] ?? loc['code'] ?? '').toString().trim();
+          if (locCode.isEmpty) continue;
+          final rawSite = loc['site']?.toString().trim();
+          final resolvedSite = (rawSite != null && rawSite.isNotEmpty)
+              ? rawSite.toUpperCase()
+              : ((cleanFallbackSite != null && cleanFallbackSite.isNotEmpty)
+                  ? cleanFallbackSite
+                  : 'POD');
+          batch.insert(
+            tableLocations,
+            {
+              colLocCode: locCode,
+              colLocWrh: loc['warehouse']?.toString(),
+              colLocWrhName: loc['warehouseName']?.toString(),
+              colLocType: loc['locationType']?.toString() ?? 'LORRY',
+              colLocTypeName: loc['locationTypeName']?.toString() ?? loc['plateNumber']?.toString(),
+              colLocSite: resolvedSite,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<void> clearSalesInvoiceItemStockDetails() async {
+    final db = await database;
+    await db.delete(tableSalesInvoiceItemStockDetails);
   }
 
   // --- Credit Note Reasons (Sage X3 Miscellaneous Table 8) ---
@@ -5839,6 +6004,59 @@ class LocalDatabaseHelper {
         }
       }
     });
+  }
+
+  /// Computes the signed physical cash in hand for [date] across spot cash invoices,
+  /// open invoice cash collections, and cash refunds (may be negative if refunds exceed cash received).
+  static Future<double> computePhysicalCashInHandForDate(
+    DatabaseExecutor db,
+    DateTime date,
+  ) async {
+    final yyyy = date.year.toString().padLeft(4, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    final startDate = '$yyyy-$mm-${dd}T00:00:00';
+    final endDate = '$yyyy-$mm-${dd}T23:59:59';
+
+    double invoiceCash = 0.0;
+    try {
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(P.amount), 0) AS totalCash
+        FROM $tableSiPayments P
+        INNER JOIN $tableSiInvoices I ON P.invoiceId = I.invoiceId
+        WHERE UPPER(P.method) = 'CASH'
+          AND I.transactionType = 'INVOICE'
+          AND COALESCE(P.createdAt, I.createdAt) >= ?
+          AND COALESCE(P.createdAt, I.createdAt) <= ?
+      ''', [startDate, endDate]);
+      invoiceCash = (rows.first['totalCash'] as num?)?.toDouble() ?? 0.0;
+    } catch (_) {}
+
+    double collectionCash = 0.0;
+    try {
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(amount), 0) AS totalCash
+        FROM $tableSiOpenInvoicePayments
+        WHERE UPPER(paymentMethod) = 'CASH'
+          AND createdAt >= ? AND createdAt <= ?
+      ''', [startDate, endDate]);
+      collectionCash = (rows.first['totalCash'] as num?)?.toDouble() ?? 0.0;
+    } catch (_) {}
+
+    double refundedCash = 0.0;
+    try {
+      final rows = await db.rawQuery('''
+        SELECT COALESCE(SUM(R.amount), 0) AS totalCashRefund
+        FROM $tableSiCreditNoteRefunds R
+        LEFT JOIN $tableSiCreditNotes CN ON R.creditNoteId = CN.creditNoteId
+        WHERE UPPER(R.method) = 'CASH'
+          AND COALESCE(R.createdAt, CN.createdAt) >= ?
+          AND COALESCE(R.createdAt, CN.createdAt) <= ?
+      ''', [startDate, endDate]);
+      refundedCash = (rows.first['totalCashRefund'] as num?)?.toDouble() ?? 0.0;
+    } catch (_) {}
+
+    return invoiceCash + collectionCash - refundedCash;
   }
 }
 

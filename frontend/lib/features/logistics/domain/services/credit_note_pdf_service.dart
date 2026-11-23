@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'thermal_template.dart';
 
 /// Credit note / cash sales refund renderer.
@@ -59,11 +60,25 @@ class CreditNotePdfService {
 
     // Resolve line figures. Lines may or may not carry VAT; when they don't,
     // VAT is derived from the credit note grand total so columns reconcile.
-    final rows = resolvedLines.map((l) {
+    final effectiveLines = resolvedLines.isNotEmpty
+        ? resolvedLines
+        : creditNote.lines
+            .map((l) => {
+                  'sku': l.sku,
+                  'name': l.name.isNotEmpty ? l.name : l.sku,
+                  'quantity': l.quantity,
+                  'basePrice': l.price,
+                  'salesUnit': l.salesUnit,
+                  'stockStatus': l.stockStatus,
+                })
+            .toList();
+
+    final rows = effectiveLines.map((l) {
       final qty = (l['quantity'] as num?)?.toDouble() ?? 0.0;
       final price = (l['basePrice'] as num?)?.toDouble() ?? (l['price'] as num?)?.toDouble() ?? 0.0;
       final disc = (l['discountAmount'] as num?)?.toDouble() ?? 0.0;
       final vat = (l['vatAmount'] as num?)?.toDouble();
+      final status = StockStatus.fromCode(l['stockStatus']?.toString()).code;
       return _Row(
         code: l['sku']?.toString() ?? '',
         name: l['name']?.toString() ?? l['sku']?.toString() ?? 'Item',
@@ -72,7 +87,7 @@ class CreditNotePdfService {
         price: price,
         discount: disc,
         vat: vat,
-        status: (l['stockStatus']?.toString() ?? 'A').trim().toUpperCase(),
+        status: status,
       );
     }).toList();
 
@@ -99,7 +114,11 @@ class CreditNotePdfService {
         vat: lineVat,
         total: lineNet + lineVat,
       );
-      if (r.status == 'Q') d.line('   [STA: Q - QUARANTINE]');
+      if (r.status == StockStatus.codeQuarantine) {
+        d.line('   [STA: Q - QUARANTINE / EXPIRED]');
+      } else if (r.status == StockStatus.codeRejected) {
+        d.line('   [STA: R - REJECTED / DAMAGED]');
+      }
     }
     d.rule();
 

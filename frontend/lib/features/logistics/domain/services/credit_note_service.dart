@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
@@ -12,6 +13,228 @@ class CreditNoteService {
 
   CreditNoteService({DbProvider? dbProvider})
       : _dbProvider = dbProvider ?? (() => LocalDatabaseHelper.instance.database);
+
+  Future<Set<String>> _getTableColumns(Transaction txn, String tableName) async {
+    final rows = await txn.rawQuery('PRAGMA table_info($tableName)');
+    return rows
+        .map((r) => (r['name'] ?? '').toString())
+        .where((n) => n.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> _insertCreditNoteLine(
+    Transaction txn,
+    Map<String, Object?> row,
+  ) async {
+    final cols = await _getTableColumns(
+      txn,
+      LocalDatabaseHelper.tableSiCreditNoteLines,
+    );
+    final filtered = cols.isEmpty
+        ? row
+        : Map<String, Object?>.fromEntries(
+            row.entries.where((e) => cols.contains(e.key)),
+          );
+    await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, filtered);
+  }
+
+  String _resolveReturnStockStatus({
+    String? explicitStockStatus,
+    String? reason,
+    int stockTransaction = 0,
+  }) {
+    final trimmed = (explicitStockStatus ?? '').trim();
+    if (trimmed.isNotEmpty) {
+      final explicit = StockStatus.fromCode(trimmed).code;
+      if (explicit != StockStatus.codeApproved) {
+        return explicit;
+      }
+    }
+    final upperReason = (reason ?? '').trim().toUpperCase();
+    if (upperReason.contains('DEF') ||
+        upperReason.contains('DAM') ||
+        upperReason.contains('REJ')) {
+      return StockStatus.codeRejected;
+    }
+    if (upperReason.contains('EXP') || upperReason.contains('QUAR')) {
+      return StockStatus.codeQuarantine;
+    }
+    if (trimmed.isNotEmpty) {
+      return StockStatus.fromCode(trimmed).code;
+    }
+    if (stockTransaction == 1) {
+      return StockStatus.fromReturnReason(reason).code;
+    }
+    return StockStatus.codeQuarantine;
+  }
+
+  Future<void> _replenishLocalStock(
+    Transaction txn, {
+    required String sku,
+    required String itemName,
+    required String lotNumber,
+    required String warehouse,
+    required String location,
+    required double quantity,
+    required String stockStatus,
+    required String now,
+    String taxLevel = '',
+    String cce0 = '',
+    String salesUnit = '',
+  }) async {
+    if (sku.isEmpty || lotNumber.isEmpty || warehouse.isEmpty || location.isEmpty) {
+      return;
+    }
+    final stockCols = await _getTableColumns(
+      txn,
+      LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+    );
+    final hasStatusCol = stockCols.isEmpty || stockCols.contains('stockStatus');
+    final normalizedStatus = StockStatus.fromCode(stockStatus).code;
+    final updated = await txn.rawUpdate(
+      hasStatusCol
+          ? '''
+      UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+      SET totalQty = totalQty + ? 
+      WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+        AND COALESCE(NULLIF(UPPER(TRIM(stockStatus)), ''), 'A') = ?
+      '''
+          : '''
+      UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+      SET totalQty = totalQty + ? 
+      WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ?
+      ''',
+      hasStatusCol
+          ? [quantity, sku, lotNumber, warehouse, location, normalizedStatus]
+          : [quantity, sku, lotNumber, warehouse, location],
+    );
+
+    if (updated == 0) {
+      final assignedSite = (DeviceInfoService.instance.assignedSite ?? '').trim().toUpperCase();
+      final row = <String, Object?>{
+        'itemCode': sku,
+        'itemName': itemName,
+        'lotNumber': lotNumber,
+        'warehouse': warehouse,
+        'location': location,
+        'totalQty': quantity,
+        'taxLevel': taxLevel,
+        'cce0': cce0,
+        'salesUnit': salesUnit,
+        'siteCode': assignedSite,
+        'stockStatus': normalizedStatus,
+        'isSynced': 1,
+        'createdAt': now,
+      };
+      final filtered = stockCols.isEmpty
+          ? row
+          : Map<String, Object?>.fromEntries(
+              row.entries.where((e) => stockCols.contains(e.key)),
+            );
+      await txn.insert(
+        LocalDatabaseHelper.tableSalesInvoiceItemStockDetails,
+        filtered,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  Future<void> _ensureRefundTrackingColumns(DatabaseExecutor db) async {
+    try {
+      final info = await db.rawQuery(
+        'PRAGMA table_info(${LocalDatabaseHelper.tableSiCreditNoteRefunds})',
+      );
+      final existing = info
+          .map((r) => (r['name'] as String?)?.toLowerCase() ?? '')
+          .toSet();
+      if (!existing.contains('cashInHandBefore'.toLowerCase())) {
+        await db.execute(
+          'ALTER TABLE ${LocalDatabaseHelper.tableSiCreditNoteRefunds} ADD COLUMN cashInHandBefore REAL DEFAULT 0.0',
+        );
+      }
+      if (!existing.contains('cashShortfallAmount'.toLowerCase())) {
+        await db.execute(
+          'ALTER TABLE ${LocalDatabaseHelper.tableSiCreditNoteRefunds} ADD COLUMN cashShortfallAmount REAL DEFAULT 0.0',
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Records a refund row in `tbl_si_credit_note_refunds` and silently tracks
+  /// negative physical cash / shortfall when a CASH refund exceeds cash in hand.
+  Future<void> _insertRefundWithShortfallTracking(
+    Transaction txn, {
+    required String creditNoteId,
+    required String method,
+    required double amount,
+    String? bankCode,
+    String? bankName,
+    String? chequeNumber,
+    String? chequeDate,
+    required String createdAt,
+    String? deviceId,
+    required String userName,
+    required String salesSite,
+    required String customerCode,
+  }) async {
+    await _ensureRefundTrackingColumns(txn);
+
+    final methodUpper = method.trim().toUpperCase();
+    double cashInHandBefore = 0.0;
+    double cashShortfallAmount = 0.0;
+
+    if (methodUpper == CreditNoteRefundMethod.cash) {
+      final txDate = DateTime.tryParse(createdAt) ?? DateTime.now();
+      cashInHandBefore =
+          await LocalDatabaseHelper.computePhysicalCashInHandForDate(txn, txDate);
+      final cashAfter = cashInHandBefore - amount;
+      if (cashAfter < -0.0001) {
+        cashShortfallAmount = cashInHandBefore >= 0 ? -cashAfter : amount;
+      }
+    }
+
+    await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
+      'creditNoteId': creditNoteId,
+      'method': methodUpper,
+      'amount': amount,
+      'bankCode': bankCode ?? '',
+      'bankName': bankName ?? '',
+      'chequeNumber': chequeNumber,
+      'chequeDate': chequeDate,
+      'isSynced': 0,
+      'x3PaymentId': null,
+      'syncError': null,
+      'createdAt': createdAt,
+      'deviceId': deviceId,
+      'userName': userName,
+      'salesSite': salesSite,
+      'customerCode': customerCode,
+      'cashInHandBefore': cashInHandBefore,
+      'cashShortfallAmount': cashShortfallAmount,
+    });
+
+    if (cashShortfallAmount > 0.005) {
+      try {
+        await txn.insert(LocalDatabaseHelper.tableOfflineAuditLogs, {
+          'entity': 'CASH_REFUND',
+          'action': 'CASH_REFUND_SHORTFALL',
+          'payload': jsonEncode({
+            'creditNoteId': creditNoteId,
+            'customerCode': customerCode,
+            'refundAmount': amount,
+            'cashInHandBefore': cashInHandBefore,
+            'cashInHandAfter': cashInHandBefore - amount,
+            'cashShortfallAmount': cashShortfallAmount,
+            'salesSite': salesSite,
+            'userName': userName,
+          }),
+          'timestamp': createdAt,
+          'deviceId': deviceId ?? '',
+          'isSynced': 0,
+        });
+      } catch (_) {}
+    }
+  }
 
   Future<CreditNoteModel> createReversalCreditNote({
     required String invoiceId,
@@ -133,22 +356,18 @@ class CreditNoteService {
         final originLineId = line['lineId'] as int;
         final qty = (line['quantity'] as num?)?.toDouble() ?? 0.0;
 
-        // Replenish stock as quarantined (Q) or approved sellable (A) / rejected (R)
-        final sku = line['sku'] as String?;
-        final lotNumber = line['lotNumber'] as String?;
-        final warehouse = line['warehouse'] as String?;
-        final location = line['location'] as String?;
-        final returnStatus = (stockStatus != null)
-            ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
-                ? StockStatus.codeApproved
-                : StockStatus.codeQuarantine)
-            : ((reason?.toUpperCase().contains('DEF') == true ||
-                    reason?.toUpperCase().contains('DAM') == true ||
-                    reason?.toUpperCase().contains('REJ') == true)
-                ? StockStatus.codeRejected
-                : StockStatus.codeQuarantine);
+        // Replenish stock as approved sellable (A), rejected/damaged (R), or quarantine/expired (Q)
+        final sku = (line['sku'] as String? ?? '').trim();
+        final lotNumber = (line['lotNumber'] as String? ?? '').trim();
+        final warehouse = (line['warehouse'] as String? ?? '').trim();
+        final location = (line['location'] as String? ?? '').trim();
+        final returnStatus = _resolveReturnStockStatus(
+          explicitStockStatus: stockStatus,
+          reason: reason,
+          stockTransaction: stockTransaction,
+        );
 
-        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+        await _insertCreditNoteLine(txn, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
           'quantity': qty,
@@ -160,32 +379,20 @@ class CreditNoteService {
           'location': location,
         });
 
-        if (sku != null && lotNumber != null && warehouse != null && location != null) {
-          final updated = await txn.rawUpdate(
-            '''
-            UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-            SET totalQty = totalQty + ? 
-            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND stockStatus = ?
-            ''',
-            [qty, sku, lotNumber, warehouse, location, returnStatus],
-          );
-
-          if (updated == 0) {
-            await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
-              'itemCode': sku,
-              'itemName': line['name'] ?? '',
-              'lotNumber': lotNumber,
-              'warehouse': warehouse,
-              'location': location,
-              'totalQty': qty,
-              'taxLevel': line['taxRule'] ?? '',
-              'cce0': line['cce0'] ?? '',
-              'stockStatus': returnStatus,
-              'isSynced': 1,
-              'createdAt': now,
-            });
-          }
-        }
+        await _replenishLocalStock(
+          txn,
+          sku: sku,
+          itemName: (line['name'] ?? '').toString(),
+          lotNumber: lotNumber,
+          warehouse: warehouse,
+          location: location,
+          quantity: qty,
+          stockStatus: returnStatus,
+          now: now,
+          taxLevel: (line['taxRule'] ?? '').toString(),
+          cce0: (line['cce0'] ?? '').toString(),
+          salesUnit: (line['salesUnit'] ?? '').toString(),
+        );
 
         final lineId = line['lineId'].toString();
         await txn.insert(LocalDatabaseHelper.tableSiInvoiceLineReversals, {
@@ -199,24 +406,22 @@ class CreditNoteService {
         lineNo += 1000;
       }
 
-      // C. Insert refund record
-      await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
-        'creditNoteId': creditNoteId,
-        'method': settlementType,
-        'amount': grandTotal,
-        'bankCode': resolvedBankCode,
-        'bankName': resolvedBankName,
-        'chequeNumber': primaryPayment?['chequeNumber'],
-        'chequeDate': primaryPayment?['chequeDate'],
-        'isSynced': 0,
-        'x3PaymentId': null,
-        'syncError': null,
-        'createdAt': now,
-        'deviceId': deviceId,
-        'userName': createdBy,
-        'salesSite': salesSite,
-        'customerCode': customerCode,
-      });
+      // C. Insert refund record (tracks negative cash / shortfall silently)
+      await _insertRefundWithShortfallTracking(
+        txn,
+        creditNoteId: creditNoteId,
+        method: settlementType,
+        amount: grandTotal,
+        bankCode: resolvedBankCode,
+        bankName: resolvedBankName,
+        chequeNumber: primaryPayment?['chequeNumber']?.toString(),
+        chequeDate: primaryPayment?['chequeDate']?.toString(),
+        createdAt: now,
+        deviceId: deviceId,
+        userName: createdBy,
+        salesSite: salesSite,
+        customerCode: customerCode,
+      );
 
       // D. Mark origin invoice and lines as reversed
       await txn.update(
@@ -408,22 +613,18 @@ class CreditNoteService {
         final reversedQty = item['reversedQty'] as double;
         final originalLine = item['originalLine'] as Map<String, dynamic>;
 
-        final sku = originalLine['sku'] as String?;
-        final lotNumber = originalLine['lotNumber'] as String?;
-        final warehouse = originalLine['warehouse'] as String?;
-        final location = originalLine['location'] as String?;
-        final returnStatus = (stockStatus != null)
-            ? ((stockStatus == 'A' || stockStatus == StockStatus.codeApproved)
-                ? StockStatus.codeApproved
-                : StockStatus.codeQuarantine)
-            : ((reason?.toUpperCase().contains('DEF') == true ||
-                    reason?.toUpperCase().contains('DAM') == true ||
-                    reason?.toUpperCase().contains('REJ') == true)
-                ? StockStatus.codeRejected
-                : StockStatus.codeQuarantine);
+        final sku = (originalLine['sku'] as String? ?? '').trim();
+        final lotNumber = (originalLine['lotNumber'] as String? ?? '').trim();
+        final warehouse = (originalLine['warehouse'] as String? ?? '').trim();
+        final location = (originalLine['location'] as String? ?? '').trim();
+        final returnStatus = _resolveReturnStockStatus(
+          explicitStockStatus: stockStatus,
+          reason: reason,
+          stockTransaction: stockTransaction,
+        );
 
         // B. Insert credit note line
-        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+        await _insertCreditNoteLine(txn, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
           'quantity': reversedQty,
@@ -444,50 +645,41 @@ class CreditNoteService {
           'createdAt': now,
         });
 
-        // D. Replenish stock (partial quantity quarantined into Q or A / R)
-        if (sku != null && lotNumber != null && warehouse != null && location != null) {
-          final updated = await txn.rawUpdate(
-            'UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} SET totalQty = totalQty + ? WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND location = ? AND stockStatus = ?',
-            [reversedQty, sku, lotNumber, warehouse, location, returnStatus],
-          );
-          if (updated == 0) {
-            await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
-              'itemCode': sku,
-              'itemName': originalLine['name'] ?? '',
-              'lotNumber': lotNumber,
-              'warehouse': warehouse,
-              'location': location,
-              'totalQty': reversedQty,
-              'taxLevel': originalLine['taxRule'] ?? '',
-              'cce0': originalLine['cce0'] ?? '',
-              'stockStatus': returnStatus,
-              'isSynced': 1,
-              'createdAt': now,
-            });
-          }
-        }
+        // D. Replenish stock (partial quantity into A, R, or Q)
+        await _replenishLocalStock(
+          txn,
+          sku: sku,
+          itemName: (originalLine['name'] ?? '').toString(),
+          lotNumber: lotNumber,
+          warehouse: warehouse,
+          location: location,
+          quantity: reversedQty,
+          stockStatus: returnStatus,
+          now: now,
+          taxLevel: (originalLine['taxRule'] ?? '').toString(),
+          cce0: (originalLine['cce0'] ?? '').toString(),
+          salesUnit: (originalLine['salesUnit'] ?? '').toString(),
+        );
 
         lineNo += 1000;
       }
 
-      // E. Insert refund record
-      await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
-        'creditNoteId': creditNoteId,
-        'method': settlementType,
-        'amount': grandTotal,
-        'bankCode': resolvedBankCode,
-        'bankName': resolvedBankName,
-        'chequeNumber': primaryPayment?['chequeNumber'],
-        'chequeDate': primaryPayment?['chequeDate'],
-        'isSynced': 0,
-        'x3PaymentId': null,
-        'syncError': null,
-        'createdAt': now,
-        'deviceId': deviceId,
-        'userName': createdBy,
-        'salesSite': salesSite,
-        'customerCode': customerCode,
-      });
+      // E. Insert refund record (tracks negative cash / shortfall silently)
+      await _insertRefundWithShortfallTracking(
+        txn,
+        creditNoteId: creditNoteId,
+        method: settlementType,
+        amount: grandTotal,
+        bankCode: resolvedBankCode,
+        bankName: resolvedBankName,
+        chequeNumber: primaryPayment?['chequeNumber']?.toString(),
+        chequeDate: primaryPayment?['chequeDate']?.toString(),
+        createdAt: now,
+        deviceId: deviceId,
+        userName: createdBy,
+        salesSite: salesSite,
+        customerCode: customerCode,
+      );
 
       // F. Check if ALL lines are now fully reversed → flip isReversed = 1, else isPartiallyReversed = 1
       bool allFullyReversed = true;
@@ -652,9 +844,15 @@ class CreditNoteService {
           }
         }
 
-        final lineStockStatus = (item.stockStatus.isNotEmpty && item.stockStatus != 'A')
-            ? item.stockStatus
-            : ((stockStatus != null && stockStatus.isNotEmpty) ? stockStatus : 'A');
+        final lineStockStatus = _resolveReturnStockStatus(
+          explicitStockStatus: (item.stockStatus.isNotEmpty && item.stockStatus != 'A')
+              ? item.stockStatus
+              : ((stockStatus != null && stockStatus.isNotEmpty)
+                  ? stockStatus
+                  : (item.stockStatus.isNotEmpty ? item.stockStatus : 'A')),
+          reason: reason,
+          stockTransaction: stockTransaction,
+        );
         final lineCondition = item.returnCondition ?? reason;
         final rawItemLoc = (item.location ?? '').trim();
         final bool hasValidItemLoc = rawItemLoc.isNotEmpty &&
@@ -664,7 +862,7 @@ class CreditNoteService {
             ? deviceLorry
             : (hasValidItemLoc ? rawItemLoc : (salesSite == 'IPL' ? 'IPLCH' : 'LOC1'));
 
-        await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
+        await _insertCreditNoteLine(txn, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
           'quantity': item.quantity,
@@ -700,53 +898,39 @@ class CreditNoteService {
               ? (item.standaloneWarehouse ?? item.warehouse)
               : salesSite;
           final resolvedLot = lot.isNotEmpty ? lot : 'RETURN';
-          final loc = lineLocation;
-          final returnStatus = lineStockStatus;
 
-          if (sku.isNotEmpty) {
-            final updated = await txn.rawUpdate(
-              '''
-              UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-              SET totalQty = totalQty + ? 
-              WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND stockStatus = ?
-              ''',
-              [item.quantity, sku, resolvedLot, wh, returnStatus],
-            );
-
-            if (updated == 0) {
-              await txn.insert(LocalDatabaseHelper.tableSalesInvoiceItemStockDetails, {
-                'itemCode': sku,
-                'itemName': item.standaloneName ?? item.name,
-                'lotNumber': resolvedLot,
-                'warehouse': wh,
-                'location': loc,
-                'totalQty': item.quantity,
-                'taxLevel': item.standaloneTaxRule ?? item.taxRule,
-                'cce0': item.standaloneCce0 ?? item.cce0,
-                'stockStatus': returnStatus,
-                'isSynced': 1,
-                'createdAt': now,
-              });
-            }
-          }
+          await _replenishLocalStock(
+            txn,
+            sku: sku,
+            itemName: (item.standaloneName ?? item.name).toString(),
+            lotNumber: resolvedLot,
+            warehouse: wh,
+            location: lineLocation,
+            quantity: item.quantity,
+            stockStatus: lineStockStatus,
+            now: now,
+            taxLevel: (item.standaloneTaxRule ?? item.taxRule).toString(),
+            cce0: (item.standaloneCce0 ?? item.cce0).toString(),
+            salesUnit: (item.standaloneSalesUnit ?? item.salesUnit).toString(),
+          );
         }
 
         lineNo += 1000;
       }
 
-      await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
-        'creditNoteId': creditNoteId,
-        'method': methodUpper,
-        'amount': refundAmount,
-        'bankCode': defaultBankCode,
-        'bankName': defaultBankName,
-        'salesSite': salesSite,
-        'customerCode': customerCode,
-        'createdAt': now,
-        'deviceId': deviceId,
-        'userName': createdBy,
-        'isSynced': 0,
-      });
+      await _insertRefundWithShortfallTracking(
+        txn,
+        creditNoteId: creditNoteId,
+        method: methodUpper,
+        amount: refundAmount,
+        bankCode: defaultBankCode,
+        bankName: defaultBankName,
+        createdAt: now,
+        deviceId: deviceId,
+        userName: createdBy,
+        salesSite: salesSite,
+        customerCode: customerCode,
+      );
 
       if (hasOriginInvoice) {
         bool allFullyReversed = true;
@@ -897,14 +1081,24 @@ class CreditNoteService {
     await db.transaction((txn) async {
       await txn.insert(LocalDatabaseHelper.tableSiCreditNotes, creditNote.toMap());
 
-      await txn.insert(LocalDatabaseHelper.tableSiCreditNoteRefunds, {
-        'creditNoteId': creditNoteId,
-        'method': resolvedMethod,
-        'amount': refundAmount,
-      });
+      await _insertRefundWithShortfallTracking(
+        txn,
+        creditNoteId: creditNoteId,
+        method: resolvedMethod,
+        amount: refundAmount,
+        createdAt: now,
+        deviceId: deviceId,
+        userName: createdBy,
+        salesSite: salesSite,
+        customerCode: customerCode,
+      );
 
       int lineNo = 1000;
       for (final item in returnedItems) {
+        final returnStatus = _resolveReturnStockStatus(
+          explicitStockStatus: item.stockStatus.isNotEmpty ? item.stockStatus : null,
+          reason: item.returnCondition ?? reason,
+        );
         await txn.insert(LocalDatabaseHelper.tableSiCreditNoteLines, {
           'creditNoteId': creditNoteId,
           'lineNo': lineNo,
@@ -919,26 +1113,42 @@ class CreditNoteService {
           'standaloneLot': item.standaloneLot ?? item.lot,
           'standaloneWarehouse': item.standaloneWarehouse ?? item.warehouse,
           'standaloneCce0': item.standaloneCce0 ?? item.cce0,
+          'stockStatus': returnStatus,
+          'returnCondition': item.returnCondition ?? reason,
+          'location': item.location,
         });
 
         // Add back to stock
-        final sku = item.standaloneSku ?? item.sku;
-        final lot = item.standaloneLot ?? item.lot;
-        final wh = item.standaloneWarehouse ?? item.warehouse;
-        final returnStatus = (reason?.toUpperCase().contains('DEF') == true ||
-                reason?.toUpperCase().contains('DAM') == true ||
-                reason?.toUpperCase().contains('REJ') == true)
-            ? StockStatus.codeRejected
-            : StockStatus.codeQuarantine;
+        final sku = (item.standaloneSku ?? item.sku).trim();
+        final lot = (item.standaloneLot ?? item.lot).trim();
+        final wh = (item.standaloneWarehouse ?? item.warehouse).trim();
+        final loc = (item.location ?? '').trim();
         if (sku.isNotEmpty && lot.isNotEmpty && wh.isNotEmpty) {
-          await txn.rawUpdate(
-            '''
-            UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
-            SET totalQty = totalQty + ? 
-            WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND stockStatus = ?
-            ''',
-            [item.quantity, sku, lot, wh, returnStatus],
-          );
+          if (loc.isNotEmpty) {
+            await _replenishLocalStock(
+              txn,
+              sku: sku,
+              itemName: (item.standaloneName ?? item.name).toString(),
+              lotNumber: lot,
+              warehouse: wh,
+              location: loc,
+              quantity: item.quantity,
+              stockStatus: returnStatus,
+              now: now,
+              taxLevel: (item.standaloneTaxRule ?? item.taxRule).toString(),
+              cce0: (item.standaloneCce0 ?? item.cce0).toString(),
+              salesUnit: (item.standaloneSalesUnit ?? item.salesUnit).toString(),
+            );
+          } else {
+            await txn.rawUpdate(
+              '''
+              UPDATE ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails} 
+              SET totalQty = totalQty + ? 
+              WHERE itemCode = ? AND lotNumber = ? AND warehouse = ? AND stockStatus = ?
+              ''',
+              [item.quantity, sku, lot, wh, returnStatus],
+            );
+          }
         }
 
         lineNo += 1000;

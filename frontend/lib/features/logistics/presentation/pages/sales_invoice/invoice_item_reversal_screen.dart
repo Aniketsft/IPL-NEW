@@ -381,10 +381,10 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
               label: const Text('Print Voucher'),
               onPressed: () async {
                 await Printing.layoutPdf(
-                  onLayout: (format) => CreditNotePdfService().generateCreditNotePdf(
+                  onLayout: (format) async => CreditNotePdfService().generateCreditNotePdf(
                     pageFormat: format,
                     creditNote: creditNote,
-                    resolvedLines: [],
+                    resolvedLines: await LocalDatabaseHelper.instance.getMergedCreditNoteLines(creditNote.creditNoteId),
                   ),
                 );
               },
@@ -521,6 +521,7 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
                 name: line['name'] ?? '',
                 stockQty: 0.0,
                 warehouse: warehouse,
+                stockStatus: condition.stockStatus,
                 salesUnit: (line['salesUnit'] != null && (line['salesUnit'] as String).isNotEmpty)
                     ? line['salesUnit']
                     : 'EA',
@@ -536,6 +537,8 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
               vatRatePercent: vatRate,
               pricingSource: 'X3_HISTORIC',
               priceListCode: 'X3_INVOICE',
+              location: (line['location'] ?? '').toString(),
+              stockStatus: condition.stockStatus,
               warehouse: warehouse,
             ),
           ),

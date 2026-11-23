@@ -11,6 +11,7 @@ import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_r
 import 'package:enterprise_auth_mobile/core/config/api_config.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/thermal_template.dart';
 import 'package:http/http.dart' as http;
 import 'auth_event.dart';
@@ -375,6 +376,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data != null && data['deviceId'] != null) {
+          final prevAssigned =
+              (localMapping?['locationCode'] ?? deviceService.assignedLocation)
+                  ?.toString()
+                  .trim()
+                  .toUpperCase() ??
+              '';
           final loc = data['locationCode']?.toString() ?? '';
           final wrh = data['warehouseCode']?.toString();
           final site = data['siteCode']?.toString() ?? siteCode;
@@ -401,6 +408,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             );
           }
           await db.insertOrUpdateDeviceLocation(Map<String, dynamic>.from(data));
+          final newAssigned = loc.trim().toUpperCase();
+          if (prevAssigned.isNotEmpty && newAssigned != prevAssigned) {
+            await SalesInvoiceProductRepository.invalidateStockCache(
+              clearLocalRows: true,
+            );
+          }
 
           // Immediately pull authoritative document sequence high-water marks (Sage X3 + HIPO)
           // so a deleted/reinstalled app immediately resumes above existing numbers even before manual sync.

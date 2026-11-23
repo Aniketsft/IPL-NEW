@@ -802,7 +802,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                     
                                     context.read<SalesInvoiceBloc>().add(ClearCart());
 
-                                    final isCreditNote = tx.type == 'CREDIT_NOTE' || tx.id.startsWith('CN-');
+                                    final isCreditNote = tx.type == 'CREDIT_NOTE' ||
+                                        tx.type == 'RETURN' ||
+                                        tx.id.startsWith('CN-') ||
+                                        tx.id.startsWith('CRN-') ||
+                                        tx.id.startsWith('RTN-') ||
+                                        tx.id.startsWith('HC') ||
+                                        tx.id.startsWith('HR');
                                     String type = widget.isForReversal 
                                         ? 'CREDIT_NOTE' 
                                         : (isCreditNote ? 'PREVIEW_CREDIT_NOTE' : 'PREVIEW_INVOICE');
@@ -839,6 +845,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                       // Support standard quantity lines as well as amount-only credit notes
                                       if (effectiveQty > 0 || effectivePrice.abs() > 0.0001) {
                                         validItemsAdded++;
+                                        final resolvedStatus = StockStatus.fromCode(
+                                          item['stockStatus']?.toString(),
+                                        ).code;
                                         context.read<SalesInvoiceBloc>().add(
                                           AddCartItem(
                                             CartItem(
@@ -847,6 +856,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                 name: item['name'] ?? '',
                                                 stockQty: 0.0,
                                                 warehouse: item['warehouse'] ?? '',
+                                                stockStatus: resolvedStatus,
                                                 salesUnit: (item['salesUnit'] != null && (item['salesUnit'] as String).isNotEmpty)
                                                     ? item['salesUnit']
                                                     : 'EA',
@@ -854,6 +864,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                               lotNumber: item['lotNumber'] ?? '',
                                               warehouse: item['warehouse'] ?? '',
                                               location: item['location'] ?? '',
+                                              stockStatus: resolvedStatus,
                                               quantity: effectiveQty > 0 ? effectiveQty : 1.0,
                                               basePrice: effectivePrice,
                                               discountAmountFlat: (item['discountAmountFlat'] as num?)?.toDouble() ?? 0.0,

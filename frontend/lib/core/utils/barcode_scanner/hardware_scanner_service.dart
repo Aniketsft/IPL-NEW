@@ -34,6 +34,7 @@ class HardwareScannerService {
       EventChannel('com.qunsuo.scanner/stream');
 
   bool _isInitialized = false;
+  bool isLocked = false;
 
   // Keystroke buffer for Keyboard Wedge (HID) fallback
   final StringBuffer _keyBuffer = StringBuffer();
@@ -85,6 +86,7 @@ class HardwareScannerService {
   void _initSunmi() {
     try {
       _sunmiSubscription = SunmiScanner.onBarcodeScanned().listen((barcode) {
+        if (isLocked) return;
         final cleaned = barcode.trim();
         if (cleaned.isNotEmpty) {
           _scannedDataController.add(cleaned);
@@ -102,6 +104,7 @@ class HardwareScannerService {
       await _zebraScanner!.initialize();
 
       _zebraSubscription = _zebraScanner!.onScanResult.listen((result) {
+        if (isLocked) return;
         debugPrint('HardwareScannerService: Raw Zebra Scan - Data: "${result.data}", Type: "${result.labelType}"');
         final cleaned = result.data.trim();
         if (cleaned.isNotEmpty) {
@@ -119,6 +122,7 @@ class HardwareScannerService {
     try {
       _qunsuoSubscription = _qunsuoEventChannel.receiveBroadcastStream().listen(
         (dynamic event) {
+          if (isLocked) return;
           final barcode = event?.toString().trim() ?? '';
           debugPrint('HardwareScannerService: Received Qunsuo Scan: "$barcode"');
           if (barcode.isNotEmpty) {
@@ -143,7 +147,7 @@ class HardwareScannerService {
   }
 
   bool _handleKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return false;
+    if (isLocked || event is! KeyDownEvent) return false;
 
     final now = DateTime.now();
     final elapsed = now.difference(_lastKeyTime).inMilliseconds;

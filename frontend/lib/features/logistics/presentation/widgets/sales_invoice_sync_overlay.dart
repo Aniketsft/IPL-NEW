@@ -1,8 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../data/repositories/sales_invoice_sync_repository.dart';
 import '../bloc/sales_invoice_sync_bloc.dart';
 import '../bloc/sales_invoice_sync_event.dart';
@@ -27,6 +28,9 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
     return BlocListener<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
       listener: (context, syncState) {
         if (syncState is SalesInvoiceSyncSuccess) {
+          try {
+            context.read<AuthBloc>().add(UserInteracted());
+          } catch (_) {}
           final isClean = syncState.batchResult.isCleanSuccess;
           if (isClean) {
             // Auto-dismiss cleanly on 100% success after 3.2s so user can see it properly
@@ -40,6 +44,9 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
             });
           }
         } else if (syncState is SalesInvoiceCustomerSyncSuccess) {
+          try {
+            context.read<AuthBloc>().add(UserInteracted());
+          } catch (_) {}
           // Auto-dismiss cleanly on customer sync success after 3.2s
           Future.delayed(const Duration(milliseconds: 3200), () {
             if (context.mounted) {
@@ -104,13 +111,11 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
               type: MaterialType.transparency,
               child: Stack(
                 children: [
-                  // 1. Frosted Glass Backdrop with touch barrier
+                  // 1. Mandatory modal touch barrier (no GPU blur to preserve 1.1 GB tablet RAM)
                   Positioned.fill(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        color: Colors.black.withOpacity(isDark ? 0.65 : 0.45),
-                      ),
+                    child: ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black.withValues(alpha: isDark ? 0.72 : 0.58),
                     ),
                   ),
 

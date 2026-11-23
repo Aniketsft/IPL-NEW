@@ -65,5 +65,6 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? TaxRule { get; set; }
         public bool IsFoc { get; set; }
         public string? MainItemSku { get; set; }
+        public string? StockStatus { get; set; }
     }
 }

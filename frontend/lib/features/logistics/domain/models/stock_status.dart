@@ -21,7 +21,52 @@ enum StockStatus {
     for (final status in StockStatus.values) {
       if (status.code == normalized) return status;
     }
+    if (normalized.startsWith(codeQuarantine)) return StockStatus.quarantine;
+    if (normalized.startsWith(codeRejected)) return StockStatus.rejected;
     return StockStatus.approved;
+  }
+
+  static bool isRawSellable(String? rawCode) {
+    if (rawCode == null || rawCode.trim().isEmpty) return true;
+    final normalized = rawCode.trim().toUpperCase();
+    return normalized == codeApproved || normalized.startsWith(codeApproved);
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case StockStatus.approved:
+        return 'Status A • Sellable';
+      case StockStatus.quarantine:
+        return 'Status Q • Quarantine';
+      case StockStatus.rejected:
+        return 'Status R • Damaged';
+    }
+  }
+
+  static StockStatus fromReturnReason(String? reason) {
+    final upper = (reason ?? '').trim().toUpperCase();
+    if (upper.isEmpty) return StockStatus.approved;
+    if (upper.contains('DEF') || upper.contains('DAM') || upper.contains('REJ')) {
+      return StockStatus.rejected;
+    }
+    if (upper.contains('EXP') || upper.contains('QUAR')) {
+      return StockStatus.quarantine;
+    }
+    if (upper.contains('RET') || upper.contains('NORM') || upper.contains('GOOD')) {
+      return StockStatus.approved;
+    }
+    return StockStatus.quarantine;
+  }
+
+  Color badgeColor({bool isDark = false}) {
+    switch (this) {
+      case StockStatus.approved:
+        return Colors.green;
+      case StockStatus.quarantine:
+        return isDark ? Colors.amber : Colors.orange.shade800;
+      case StockStatus.rejected:
+        return Colors.redAccent;
+    }
   }
 
   bool get isSellable => this == StockStatus.approved;
@@ -33,16 +78,16 @@ enum StockStatus {
 
 /// Prompt condition chosen by the user when creating a Customer Return:
 /// - Normal -> Restocked to Approved (A) and can be sold again
-/// - Damaged -> Quarantined (Q) and cannot be sold
+/// - Damaged -> Rejected / Damaged (R) and cannot be sold
 /// - Expired -> Quarantined (Q) and cannot be sold
 enum ReturnCondition {
   normal('NORMAL', 'Normal', 'A', 'RET', 'Good condition / Back to sellable stock (A)', Icons.check_circle_outline, Colors.green),
-  damaged('DAMAGED', 'Damaged', 'Q', 'DEF', 'Defective / Damaged (Quarantine Q)', Icons.broken_image_outlined, Colors.redAccent),
+  damaged('DAMAGED', 'Damaged', 'R', 'DEF', 'Defective / Damaged (Status R - Rejected)', Icons.broken_image_outlined, Colors.redAccent),
   expired('EXPIRED', 'Expired', 'Q', 'EXP', 'Expired date (Quarantine Q)', Icons.event_busy_outlined, Colors.orange);
 
   final String id;
   final String label;
-  final String stockStatus; // 'A' or 'Q'
+  final String stockStatus; // 'A', 'R', or 'Q'
   final String reasonCode;  // 'RET', 'DEF', 'EXP'
   final String description;
   final IconData icon;
@@ -57,6 +102,19 @@ enum ReturnCondition {
     this.icon,
     this.color,
   );
+
+  StockStatus get status => StockStatus.fromCode(stockStatus);
+
+  String get stockBadgeLabel {
+    switch (status) {
+      case StockStatus.approved:
+        return 'Stock A (Sellable)';
+      case StockStatus.rejected:
+        return 'Stock R (Damaged)';
+      case StockStatus.quarantine:
+        return 'Stock Q (Expired)';
+    }
+  }
 
   static ReturnCondition fromId(String? id) {
     if (id == null) return ReturnCondition.normal;
@@ -129,7 +187,7 @@ Future<ReturnCondition?> showReturnConditionDialog(BuildContext context) {
             ),
             const SizedBox(height: 18),
             ...ReturnCondition.values.map((cond) {
-              final isSellable = cond.stockStatus == 'A';
+              final badgeColor = cond.status.badgeColor(isDark: isDark);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
                 child: Material(
@@ -174,17 +232,15 @@ Future<ReturnCondition?> showReturnConditionDialog(BuildContext context) {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: isSellable
-                                            ? Colors.green.withOpacity(0.15)
-                                            : Colors.amber.withOpacity(0.15),
+                                        color: badgeColor.withOpacity(0.15),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        isSellable ? 'Stock A (Sellable)' : 'Stock Q (Quarantine)',
+                                        cond.stockBadgeLabel,
                                         style: TextStyle(
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
-                                          color: isSellable ? Colors.green : Colors.amber.shade800,
+                                          color: badgeColor,
                                         ),
                                       ),
                                     ),

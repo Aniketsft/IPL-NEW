@@ -72,6 +72,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
 
     public class LorryLookupDto
     {
+        public string? Site { get; set; }
         public string Location { get; set; } = string.Empty;
         public string? PlateNumber { get; set; }
         public string? LocationType { get; set; }

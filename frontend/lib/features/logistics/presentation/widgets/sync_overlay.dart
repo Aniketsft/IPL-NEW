@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/sync_bloc.dart';
@@ -65,23 +64,26 @@ class SyncOverlay extends StatelessWidget {
                 }
               }
 
+              final bool isSyncing = syncState is SyncInProgress ||
+                  (mfgState is ManufacturingSyncProgress && !isSuccess);
+
               if (!showOverlay) {
                 return const SizedBox.shrink();
               }
 
-              return Material(
-                type: MaterialType.transparency,
-                child: Stack(
-                  children: [
-                    // Frosted Glass Backdrop
-                    Positioned.fill(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          color: Colors.black.withOpacity(isDark ? 0.65 : 0.45),
+              return PopScope(
+                canPop: !isSyncing,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Stack(
+                    children: [
+                      // Mandatory modal touch barrier (no GPU blur to preserve 1.1 GB tablet RAM)
+                      Positioned.fill(
+                        child: ModalBarrier(
+                          dismissible: false,
+                          color: Colors.black.withValues(alpha: isDark ? 0.72 : 0.58),
                         ),
                       ),
-                    ),
 
                     // Centered Minimalist Glass HUD Card
                     Center(
@@ -204,7 +206,8 @@ class SyncOverlay extends StatelessWidget {
                     ),
                   ],
                 ),
-              );
+              ),
+            );
             },
           );
         },

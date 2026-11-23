@@ -10,6 +10,7 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/services/sales_
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'package:enterprise_auth_mobile/core/utils/currency_formatter.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'pdf_preview_screen.dart';
@@ -58,36 +59,67 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   bool _isPrinting = false;
   bool _isGeneratingPreview = false;
 
-  Future<Uint8List> _generateDocumentPdf([PdfPageFormat format = PdfPageFormat.roll80]) async {
-    if (widget.isCreditNote) {
-      final creditNote = widget.creditNoteModel ??
-          CreditNoteModel(
-            creditNoteId: widget.invoiceId,
-            creditNoteType: CreditNoteType.reversal,
-            x3CreditNoteType: 'CRN',
-            salesSite: 'IPL',
-            customerCode: widget.customer['code']?.toString() ?? '',
-            customerName: widget.customer['name']?.toString() ?? '',
-            currency: 'MUR',
-            grandTotal: widget.grandTotal,
-            settlementType: 'REFUND',
-            reference: '',
-            reason: widget.creditNoteReason,
-            createdAt: DateTime.now().toIso8601String(),
-            createdBy: 'USER',
-          );
+  StockStatus _resolveItemStockStatus(int index, CartItem item) {
+    final itemCode = StockStatus.fromCode(item.stockStatus).code;
+    if (itemCode != StockStatus.codeApproved) {
+      return StockStatus.fromCode(itemCode);
+    }
+    final prodCode = StockStatus.fromCode(item.product.stockStatus).code;
+    if (prodCode != StockStatus.codeApproved) {
+      return StockStatus.fromCode(prodCode);
+    }
+    final cnLines = widget.creditNoteModel?.lines ?? const [];
+    if (index >= 0 && index < cnLines.length && cnLines[index].sku == item.product.sku) {
+      return StockStatus.fromCode(cnLines[index].stockStatus);
+    }
+    for (final line in cnLines) {
+      if (line.sku == item.product.sku) {
+        return StockStatus.fromCode(line.stockStatus);
+      }
+    }
+    return StockStatus.approved;
+  }
 
-      return await CreditNotePdfService().generateCreditNotePdf(
-        pageFormat: format,
-        creditNote: creditNote,
-        resolvedLines: widget.items.map((i) => {
+  CreditNoteModel _resolveCreditNoteModel() =>
+      widget.creditNoteModel ??
+      CreditNoteModel(
+        creditNoteId: widget.invoiceId,
+        creditNoteType: CreditNoteType.reversal,
+        x3CreditNoteType: 'CRN',
+        salesSite: 'IPL',
+        customerCode: widget.customer['code']?.toString() ?? '',
+        customerName: widget.customer['name']?.toString() ?? '',
+        currency: 'MUR',
+        grandTotal: widget.grandTotal,
+        settlementType: 'REFUND',
+        reference: '',
+        reason: widget.creditNoteReason,
+        createdAt: DateTime.now().toIso8601String(),
+        createdBy: 'USER',
+      );
+
+  List<Map<String, dynamic>> _buildCreditNoteResolvedLines() =>
+      widget.items.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final i = entry.value;
+        return {
           'sku': i.product.sku,
           'name': i.product.name,
           'quantity': i.quantity,
           'basePrice': i.basePrice,
+          'discountAmount': i.discountAmount,
+          'vatAmount': i.vatAmount,
           'salesUnit': i.product.salesUnit,
-          'stockStatus': i.product.stockStatus,
-        }).toList(),
+          'stockStatus': _resolveItemStockStatus(idx, i).code,
+        };
+      }).toList();
+
+  Future<Uint8List> _generateDocumentPdf([PdfPageFormat format = PdfPageFormat.roll80]) async {
+    if (widget.isCreditNote) {
+      return await CreditNotePdfService().generateCreditNotePdf(
+        pageFormat: format,
+        creditNote: _resolveCreditNoteModel(),
+        resolvedLines: _buildCreditNoteResolvedLines(),
       );
     } else {
       final pdfService = SalesInvoicePdfService();
@@ -152,30 +184,8 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
 
       final doc = widget.isCreditNote
           ? CreditNotePdfService().buildCreditNoteDoc(
-              creditNote: widget.creditNoteModel ??
-                  CreditNoteModel(
-                    creditNoteId: widget.invoiceId,
-                    creditNoteType: CreditNoteType.reversal,
-                    x3CreditNoteType: 'CRN',
-                    salesSite: 'IPL',
-                    customerCode: widget.customer['code']?.toString() ?? '',
-                    customerName: widget.customer['name']?.toString() ?? '',
-                    currency: 'MUR',
-                    grandTotal: widget.grandTotal,
-                    settlementType: 'REFUND',
-                    reference: '',
-                    reason: widget.creditNoteReason,
-                    createdAt: DateTime.now().toIso8601String(),
-                    createdBy: 'USER',
-                  ),
-              resolvedLines: widget.items.map((i) => {
-                'sku': i.product.sku,
-                'name': i.product.name,
-                'quantity': i.quantity,
-                'basePrice': i.basePrice,
-                'salesUnit': i.product.salesUnit,
-                'stockStatus': i.product.stockStatus,
-              }).toList(),
+              creditNote: _resolveCreditNoteModel(),
+              resolvedLines: _buildCreditNoteResolvedLines(),
             )
           : SalesInvoicePdfService().buildInvoiceDoc(
               invoiceId: widget.invoiceId,
@@ -498,7 +508,11 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  children: items.map((item) {
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    final itemStatus = _resolveItemStockStatus(index, item);
+                    final statusColor = itemStatus.badgeColor(isDark: isDark);
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6.0),
                       child: Row(
@@ -525,22 +539,16 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                         decoration: BoxDecoration(
-                                          color: (item.product.stockStatus?.toUpperCase() == 'Q')
-                                              ? Colors.orange.withOpacity(0.15)
-                                              : Colors.green.withOpacity(0.15),
+                                          color: statusColor.withOpacity(0.15),
                                           borderRadius: BorderRadius.circular(4),
                                           border: Border.all(
-                                            color: (item.product.stockStatus?.toUpperCase() == 'Q')
-                                                ? Colors.orange
-                                                : Colors.green,
+                                            color: statusColor,
                                           ),
                                         ),
                                         child: Text(
-                                          (item.product.stockStatus?.toUpperCase() == 'Q') ? 'STATUS Q' : 'STATUS A',
+                                          'STATUS ${itemStatus.code}',
                                           style: TextStyle(
-                                            color: (item.product.stockStatus?.toUpperCase() == 'Q')
-                                                ? Colors.orange.shade800
-                                                : Colors.green.shade800,
+                                            color: statusColor,
                                             fontSize: 9,
                                             fontWeight: FontWeight.bold,
                                           ),

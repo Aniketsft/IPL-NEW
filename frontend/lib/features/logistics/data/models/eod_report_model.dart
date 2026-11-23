@@ -45,6 +45,15 @@ class EodReportModel {
   /// Physical cash refunded to customers on returns today
   final double cashRefundedOnReturns;
 
+  /// Cash received on same-day invoices that were later reversed today
+  final double physicalCashFromReversedInvoices;
+
+  /// Individual cash refunds where physical cash in hand was insufficient (deficit tracked)
+  final List<EodCashShortfallItem> cashShortfallRefunds;
+
+  /// Return/credit note line totals broken down by stock status (A/R/Q)
+  final List<EodReturnStatusBreakdown> returnStatusBreakdowns;
+
   // ── Computed Convenience Totals ───────────────────────────────────────────
   double get totalNetSales => salesGross - totalVat;
   double get totalGrossSales => salesGross;
@@ -68,10 +77,27 @@ class EodReportModel {
       .where((c) => c.paymentMethod.toUpperCase() == 'CASH')
       .fold(0.0, (sum, c) => sum + c.amount);
 
-  /// Exact physical cash that must be physically present in the bag / cash box
+  /// Total gross physical cash received today (invoices + collections + same-day reversed cash invoices)
+  double get totalPhysicalCashReceived =>
+      physicalCashFromInvoices + physicalCashFromCollections + physicalCashFromReversedInvoices;
+
+  /// Exact net physical cash balance (can be negative if cash refunds exceeded cash received)
   double get netPhysicalCashInHand =>
-      (physicalCashFromInvoices + physicalCashFromCollections - cashRefundedOnReturns)
-          .clamp(0.0, double.infinity);
+      totalPhysicalCashReceived - cashRefundedOnReturns;
+
+  bool get isNegativeCashInHand => netPhysicalCashInHand < -0.005;
+
+  /// Positive physical cash to hand over (0.00 when in deficit)
+  double get physicalCashToHandOver =>
+      netPhysicalCashInHand > 0 ? netPhysicalCashInHand : 0.0;
+
+  /// Cash deficit owed back to salesman when cash refunds exceeded physical cash collected
+  double get cashShortfallAmount =>
+      netPhysicalCashInHand < 0 ? netPhysicalCashInHand.abs() : 0.0;
+
+  /// Sum of shortfall amounts recorded at refund time across today's cash refunds
+  double get recordedRefundShortfallTotal =>
+      cashShortfallRefunds.fold(0.0, (sum, item) => sum + item.shortfallAmount);
 
   /// Total value of all physical cheques collected today
   double get totalChequesAmount =>
@@ -101,7 +127,7 @@ class EodReportModel {
 
   /// Grand total money/settlements physically or digitally collected today
   double get grandTotalFundsCollected =>
-      netPhysicalCashInHand + totalChequesAmount + totalDigitalAmount;
+      physicalCashToHandOver + totalChequesAmount + totalDigitalAmount;
 
   const EodReportModel({
     required this.reportDate,
@@ -123,6 +149,43 @@ class EodReportModel {
     this.openInvoiceCollections = const [],
     this.chequeList = const [],
     this.cashRefundedOnReturns = 0.0,
+    this.physicalCashFromReversedInvoices = 0.0,
+    this.cashShortfallRefunds = const [],
+    this.returnStatusBreakdowns = const [],
+  });
+}
+
+/// Breakdown of returned items by stock status (`A`, `R`, `Q`).
+class EodReturnStatusBreakdown {
+  final String stockStatus;
+  final int lineCount;
+  final double totalQty;
+  final double totalAmount;
+
+  const EodReturnStatusBreakdown({
+    required this.stockStatus,
+    this.lineCount = 0,
+    this.totalQty = 0.0,
+    this.totalAmount = 0.0,
+  });
+}
+
+/// Audit item for a cash refund issued when physical cash in hand was insufficient.
+class EodCashShortfallItem {
+  final String creditNoteId;
+  final String customerName;
+  final double refundAmount;
+  final double cashInHandBefore;
+  final double shortfallAmount;
+  final String createdAt;
+
+  const EodCashShortfallItem({
+    required this.creditNoteId,
+    required this.customerName,
+    required this.refundAmount,
+    required this.cashInHandBefore,
+    required this.shortfallAmount,
+    required this.createdAt,
   });
 }
 

@@ -22,6 +22,14 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
     }
 
+    public class SalesSyncExtrasDto
+    {
+        public List<SalesOrderHeaderDto> Orders { get; set; } = new();
+        public List<SalesOrderDetailDto> Details { get; set; } = new();
+        public Dictionary<string, string> GlobalSettingsMap { get; set; } = new();
+        public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
+    }
+
     public class SyncPushRequestDto
     {
         public List<ProductionScanDto> Scans { get; set; } = new();

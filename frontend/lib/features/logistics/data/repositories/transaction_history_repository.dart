@@ -3,6 +3,7 @@ import 'package:enterprise_auth_mobile/features/logistics/data/local/local_datab
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/eod_report_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
@@ -24,6 +25,14 @@ class TransactionHistoryRepository {
 
   Future<Database> get _database async =>
       _dbProvider != null ? await _dbProvider() : await _dbHelper.database;
+
+  Future<Set<String>> _getTableColumns(Database db, String tableName) async {
+    final rows = await db.rawQuery('PRAGMA table_info($tableName)');
+    return rows
+        .map((r) => (r['name'] ?? '').toString())
+        .where((n) => n.isNotEmpty)
+        .toSet();
+  }
 
   Future<List<TransactionModel>> getTransactions({
     String? type,
@@ -136,10 +145,23 @@ class TransactionHistoryRepository {
       }
     }
 
-    // 2. Fetch Dedicated Credit Notes
-    if (type == null || type.isEmpty || type == 'ALL' || type == 'CREDIT_NOTE') {
+    // 2. Fetch Dedicated Credit Notes & Customer Returns
+    if (type == null || type.isEmpty || type == 'ALL' || type == 'CREDIT_NOTE' || type == 'RETURN') {
+      final cnCols = await _getTableColumns(db, LocalDatabaseHelper.tableSiCreditNotes);
       String cnWhere = '1 = 1';
       List<dynamic> cnArgs = [];
+
+      if (type == 'RETURN') {
+        final hasStockTx = cnCols.contains('stockTransaction');
+        final hasCnType = cnCols.contains('creditNoteType');
+        if (hasCnType && hasStockTx) {
+          cnWhere += " AND (UPPER(COALESCE(creditNoteType, '')) = 'RETURN' OR (UPPER(COALESCE(creditNoteType, '')) = 'STANDALONE' AND stockTransaction = 1))";
+        } else if (hasCnType) {
+          cnWhere += " AND UPPER(COALESCE(creditNoteType, '')) = 'RETURN'";
+        } else if (hasStockTx) {
+          cnWhere += ' AND stockTransaction = 1';
+        }
+      }
 
       if (startDate != null && startDate.isNotEmpty) {
         cnWhere += ' AND createdAt >= ?';
@@ -185,9 +207,13 @@ class TransactionHistoryRepository {
 
       for (final cn in cnMaps) {
         final id = cn['creditNoteId'] as String;
+        final cnType = (cn['creditNoteType'] as String?)?.toUpperCase() ?? '';
+        final stockTx = (cn['stockTransaction'] as num?)?.toInt() ?? 0;
+        final isCustomerReturn =
+            cnType == 'RETURN' || (cnType == 'STANDALONE' && stockTx == 1);
         uniqueMap[id] = TransactionModel(
           id: id,
-          type: 'CREDIT_NOTE',
+          type: isCustomerReturn ? 'RETURN' : 'CREDIT_NOTE',
           customerCode: (cn['customerCode'] as String?) ?? '',
           customerName: (cn['customerName'] as String?) ?? '',
           grandTotal: (cn['grandTotal'] as num?)?.toDouble() ?? 0.0,
@@ -270,30 +296,77 @@ class TransactionHistoryRepository {
     return maps.map((e) => e['transactionType'] as String).toList();
   }
 
+  Future<List<Map<String, dynamic>>> _getCreditNoteTransactionLines(
+    Database db,
+    String creditNoteId, {
+    bool includeReversedQty = false,
+  }) async {
+    final cnlCols =
+        await _getTableColumns(db, LocalDatabaseHelper.tableSiCreditNoteLines);
+    final ilCols =
+        await _getTableColumns(db, LocalDatabaseHelper.tableSiInvoiceLines);
+    final reversedQtyCol = includeReversedQty ? '0.0 AS reversedQty,' : '';
+    final stockStatusExpr = cnlCols.contains('stockStatus')
+        ? "COALESCE(NULLIF(UPPER(TRIM(cnl.stockStatus)), ''), 'A')"
+        : "'A'";
+    final returnConditionCol = cnlCols.contains('returnCondition')
+        ? "COALESCE(cnl.returnCondition, '') AS returnCondition,"
+        : "'' AS returnCondition,";
+    final expiryDateCol = cnlCols.contains('expiryDate')
+        ? "COALESCE(cnl.expiryDate, '') AS expiryDate,"
+        : "'' AS expiryDate,";
+    final locationExpr = cnlCols.contains('location') && ilCols.contains('location')
+        ? "COALESCE(NULLIF(cnl.location, ''), il.location, '')"
+        : (cnlCols.contains('location')
+            ? "COALESCE(cnl.location, '')"
+            : (ilCols.contains('location') ? "COALESCE(il.location, '')" : "''"));
+    final vatRateCol = ilCols.contains('vatRatePercent')
+        ? 'COALESCE(il.vatRatePercent, 0.0) AS vatRatePercent,'
+        : '0.0 AS vatRatePercent,';
+    final discountCol = ilCols.contains('discountAmountFlat')
+        ? 'COALESCE(il.discountAmountFlat, 0.0) AS discountAmountFlat,'
+        : '0.0 AS discountAmountFlat,';
+
+    final query = '''
+      SELECT 
+        cnl.lineId,
+        cnl.creditNoteId,
+        cnl.lineNo,
+        cnl.quantity,
+        $reversedQtyCol
+        COALESCE(NULLIF(TRIM(cnl.standaloneSku), ''), il.sku) AS sku,
+        COALESCE(NULLIF(TRIM(cnl.standaloneName), ''), il.name) AS name,
+        COALESCE(NULLIF(TRIM(cnl.standaloneSalesUnit), ''), il.salesUnit, 'EA') AS salesUnit,
+        COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
+        COALESCE(NULLIF(TRIM(cnl.standaloneTaxRule), ''), il.taxRule, '') AS taxRule,
+        COALESCE(NULLIF(TRIM(cnl.standaloneLot), ''), il.lotNumber, '') AS lotNumber,
+        COALESCE(NULLIF(TRIM(cnl.standaloneWarehouse), ''), il.warehouse, '') AS warehouse,
+        COALESCE(NULLIF(TRIM(cnl.standaloneCce0), ''), il.cce0, '') AS cce0,
+        $stockStatusExpr AS stockStatus,
+        $returnConditionCol
+        $expiryDateCol
+        $locationExpr AS location,
+        $vatRateCol
+        $discountCol
+        cnl.originInvoiceId,
+        cnl.originLineNo
+      FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
+      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
+        ON cnl.originInvoiceId = il.invoiceId AND CAST(cnl.originLineNo AS INTEGER) = il.lineId
+      WHERE cnl.creditNoteId = ?
+      ORDER BY cnl.lineNo ASC
+    ''';
+    return db.rawQuery(query, [creditNoteId]);
+  }
+
   Future<List<Map<String, dynamic>>> getTransactionLines(String invoiceId) async {
     final db = await _database;
-    if (invoiceId.startsWith('CN-')) {
-      final query = '''
-        SELECT 
-          cnl.lineId,
-          cnl.creditNoteId,
-          cnl.lineNo,
-          cnl.quantity,
-          COALESCE(cnl.standaloneSku, il.sku) AS sku,
-          COALESCE(cnl.standaloneName, il.name) AS name,
-          COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
-          COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
-          COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
-          COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
-          COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
-          COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
-        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
-        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
-          ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
-        WHERE cnl.creditNoteId = ?
-        ORDER BY cnl.lineNo ASC
-      ''';
-      final cnLines = await db.rawQuery(query, [invoiceId]);
+    if (invoiceId.startsWith('CN-') ||
+        invoiceId.startsWith('CRN-') ||
+        invoiceId.startsWith('RTN-') ||
+        invoiceId.startsWith('HC') ||
+        invoiceId.startsWith('HR')) {
+      final cnLines = await _getCreditNoteTransactionLines(db, invoiceId);
       if (cnLines.isNotEmpty) return cnLines;
     }
     final lines = await db.rawQuery('''
@@ -307,28 +380,11 @@ class TransactionHistoryRepository {
       GROUP BY il.lineId
     ''', [invoiceId]);
     if (lines.isEmpty) {
-      final query = '''
-        SELECT 
-          cnl.lineId,
-          cnl.creditNoteId,
-          cnl.lineNo,
-          cnl.quantity,
-          0.0 AS reversedQty,
-          COALESCE(cnl.standaloneSku, il.sku) AS sku,
-          COALESCE(cnl.standaloneName, il.name) AS name,
-          COALESCE(cnl.standaloneSalesUnit, il.salesUnit, 'EA') AS salesUnit,
-          COALESCE(cnl.standalonePrice, il.basePrice, 0.0) AS basePrice,
-          COALESCE(cnl.standaloneTaxRule, il.taxRule, '') AS taxRule,
-          COALESCE(cnl.standaloneLot, il.lotNumber, '') AS lotNumber,
-          COALESCE(cnl.standaloneWarehouse, il.warehouse, '') AS warehouse,
-          COALESCE(cnl.standaloneCce0, il.cce0, '') AS cce0
-        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} cnl
-        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
-          ON cnl.originInvoiceId = il.invoiceId AND cnl.originLineNo = il.lineId
-        WHERE cnl.creditNoteId = ?
-        ORDER BY cnl.lineNo ASC
-      ''';
-      final cnLines = await db.rawQuery(query, [invoiceId]);
+      final cnLines = await _getCreditNoteTransactionLines(
+        db,
+        invoiceId,
+        includeReversedQty: true,
+      );
       if (cnLines.isNotEmpty) return cnLines;
     }
     if (lines.isEmpty) {
@@ -537,7 +593,7 @@ class TransactionHistoryRepository {
   /// Aggregates all End-of-Day data for the given [date] from local SQLite.
   /// Queries verified against confirmed DB schema including tbl_si_open_invoice_payments.
   Future<EodReportModel> getEodReportData(DateTime date) async {
-    final db = await _dbHelper.database;
+    final db = await _database;
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final startDate = '${dateStr}T00:00:00';
     final endDate = '${dateStr}T23:59:59';
@@ -569,13 +625,60 @@ class TransactionHistoryRepository {
     final returnsRows = await db.rawQuery('''
       SELECT COUNT(*) as cnt,
              COALESCE(SUM(grandTotal), 0) as grossTotal
-      FROM ${LocalDatabaseHelper.tableSiInvoices}
-      WHERE transactionType = 'CREDIT_NOTE'
-        AND createdAt >= ? AND createdAt <= ?
+      FROM ${LocalDatabaseHelper.tableSiCreditNotes}
+      WHERE createdAt >= ? AND createdAt <= ?
     ''', [startDate, endDate]);
 
     final int returnsCount = (returnsRows.first['cnt'] as int?) ?? 0;
     final double returnsGross = (returnsRows.first['grossTotal'] as num?)?.toDouble() ?? 0.0;
+
+    final cnlCols = await _getTableColumns(db, LocalDatabaseHelper.tableSiCreditNoteLines);
+    final List<EodReturnStatusBreakdown> returnStatusBreakdowns = [];
+    if (cnlCols.contains('stockStatus')) {
+      final hasStandaloneSku = cnlCols.contains('standaloneSku');
+      final priceExpr = hasStandaloneSku
+          ? 'COALESCE(l.standalonePrice, il.basePrice, 0.0)'
+          : 'COALESCE(l.price, 0.0)';
+      final joinInvoiceLines = hasStandaloneSku
+          ? '''
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il
+          ON l.originInvoiceId = il.invoiceId AND CAST(l.originLineNo AS INTEGER) = il.lineId
+      '''
+          : '';
+      final statusRows = await db.rawQuery('''
+        SELECT UPPER(TRIM(COALESCE(NULLIF(TRIM(l.stockStatus), ''), 'A'))) as rawStatus,
+               COUNT(*) as lineCount,
+               COALESCE(SUM(l.quantity), 0) as totalQty,
+               COALESCE(SUM(l.quantity * $priceExpr), 0) as totalAmount
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} l
+        INNER JOIN ${LocalDatabaseHelper.tableSiCreditNotes} c ON c.creditNoteId = l.creditNoteId
+        $joinInvoiceLines
+        WHERE c.createdAt >= ? AND c.createdAt <= ?
+        GROUP BY UPPER(TRIM(COALESCE(NULLIF(TRIM(l.stockStatus), ''), 'A')))
+      ''', [startDate, endDate]);
+
+      final Map<String, ({int count, double qty, double amt})> grouped = {};
+      for (final row in statusRows) {
+        final code = StockStatus.fromCode(row['rawStatus']?.toString()).code;
+        final prev = grouped[code] ?? (count: 0, qty: 0.0, amt: 0.0);
+        grouped[code] = (
+          count: prev.count + ((row['lineCount'] as int?) ?? 0),
+          qty: prev.qty + ((row['totalQty'] as num?)?.toDouble() ?? 0.0),
+          amt: prev.amt + ((row['totalAmount'] as num?)?.toDouble() ?? 0.0),
+        );
+      }
+      for (final code in ['A', 'R', 'Q']) {
+        final entry = grouped[code];
+        if (entry != null && (entry.count > 0 || entry.qty > 0)) {
+          returnStatusBreakdowns.add(EodReturnStatusBreakdown(
+            stockStatus: code,
+            lineCount: entry.count,
+            totalQty: entry.qty,
+            totalAmount: entry.amt,
+          ));
+        }
+      }
+    }
 
     // ── 3. Cancelled (Fully Reversed & Partially Reversed) Receipts ───────────
     final cancelledRows = await db.rawQuery('''
@@ -753,14 +856,68 @@ class TransactionHistoryRepository {
       ));
     }
 
-    // ── 6. Cash Refunded on Returns / Credit Notes ────────────────────────────
-    final refundRows = await db.rawQuery('''
-      SELECT COALESCE(SUM(amount), 0) as totalCashRefund
-      FROM ${LocalDatabaseHelper.tableSiCreditNoteRefunds}
-      WHERE UPPER(method) = 'CASH'
-        AND createdAt >= ? AND createdAt <= ?
-    ''', [startDate, endDate]);
-    final double cashRefunded = (refundRows.first['totalCashRefund'] as num?)?.toDouble() ?? 0.0;
+    // ── 6. Cash Refunded on Returns / Credit Notes (plus shortfall tracking) ─
+    double cashRefunded = 0.0;
+    final List<EodCashShortfallItem> cashShortfallRefunds = [];
+    try {
+      final refundDetailRows = await db.rawQuery('''
+        SELECT R.creditNoteId,
+               COALESCE(CN.customerName, R.customerCode, '') AS customerName,
+               R.amount,
+               COALESCE(R.cashInHandBefore, 0.0) AS cashInHandBefore,
+               COALESCE(R.cashShortfallAmount, 0.0) AS cashShortfallAmount,
+               COALESCE(R.createdAt, CN.createdAt, '') AS createdAt
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteRefunds} R
+        LEFT JOIN ${LocalDatabaseHelper.tableSiCreditNotes} CN ON R.creditNoteId = CN.creditNoteId
+        WHERE UPPER(R.method) = 'CASH'
+          AND COALESCE(R.createdAt, CN.createdAt) >= ?
+          AND COALESCE(R.createdAt, CN.createdAt) <= ?
+        ORDER BY COALESCE(R.createdAt, CN.createdAt) ASC
+      ''', [startDate, endDate]);
+
+      for (final row in refundDetailRows) {
+        final amt = (row['amount'] as num?)?.toDouble() ?? 0.0;
+        final shortfall = (row['cashShortfallAmount'] as num?)?.toDouble() ?? 0.0;
+        final cashBefore = (row['cashInHandBefore'] as num?)?.toDouble() ?? 0.0;
+        cashRefunded += amt;
+        if (shortfall > 0.005) {
+          cashShortfallRefunds.add(EodCashShortfallItem(
+            creditNoteId: (row['creditNoteId'] as String?) ?? '',
+            customerName: (row['customerName'] as String?) ?? '',
+            refundAmount: amt,
+            cashInHandBefore: cashBefore,
+            shortfallAmount: shortfall,
+            createdAt: (row['createdAt'] as String?) ?? '',
+          ));
+        }
+      }
+    } catch (_) {
+      final refundRows = await db.rawQuery('''
+        SELECT COALESCE(SUM(R.amount), 0) as totalCashRefund
+        FROM ${LocalDatabaseHelper.tableSiCreditNoteRefunds} R
+        LEFT JOIN ${LocalDatabaseHelper.tableSiCreditNotes} CN ON R.creditNoteId = CN.creditNoteId
+        WHERE UPPER(R.method) = 'CASH'
+          AND COALESCE(R.createdAt, CN.createdAt) >= ?
+          AND COALESCE(R.createdAt, CN.createdAt) <= ?
+      ''', [startDate, endDate]);
+      cashRefunded = (refundRows.first['totalCashRefund'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    // Physical cash received from same-day invoices that were later reversed today
+    double physicalCashFromReversedInvoices = 0.0;
+    try {
+      final revCashRows = await db.rawQuery('''
+        SELECT COALESCE(SUM(P.amount), 0) AS totalCash
+        FROM ${LocalDatabaseHelper.tableSiPayments} P
+        INNER JOIN ${LocalDatabaseHelper.tableSiInvoices} I ON P.invoiceId = I.invoiceId
+        WHERE UPPER(P.method) = 'CASH'
+          AND I.transactionType = 'INVOICE'
+          AND I.isReversed = 1
+          AND COALESCE(P.createdAt, I.createdAt) >= ?
+          AND COALESCE(P.createdAt, I.createdAt) <= ?
+      ''', [startDate, endDate]);
+      physicalCashFromReversedInvoices = (revCashRows.first['totalCash'] as num?)?.toDouble() ?? 0.0;
+    } catch (_) {}
 
     // ── 7. Overall Payment Method Summary (Invoices + Open Collections) ────────
     final paymentRows = await db.rawQuery('''
@@ -814,15 +971,15 @@ class TransactionHistoryRepository {
           tax: (row['tax'] as num?)?.toDouble() ?? 0.0,
         )).toList();
 
-    // ── 9. Cash Balance Model ─────────────────────────────────────────────────
-    final totalCashInHand = cashInvoices.fold(0.0, (s, i) => s + i.cashAmount) +
+    // ── 9. Cash Balance Model (unclamped: negative indicates cash shortfall) ─
+    final totalCashReceived = cashInvoices.fold(0.0, (s, i) => s + i.cashAmount) +
         openInvoiceCollections
             .where((c) => c.paymentMethod == 'CASH')
-            .fold(0.0, (s, c) => s + c.amount) -
-        cashRefunded;
+            .fold(0.0, (s, c) => s + c.amount) +
+        physicalCashFromReversedInvoices;
 
     final cashBalance = EodCashBalance(
-      cashGrossSales: totalCashInHand.clamp(0.0, double.infinity),
+      cashGrossSales: totalCashReceived,
       withdrawals: cashRefunded,
     );
 
@@ -846,6 +1003,9 @@ class TransactionHistoryRepository {
       openInvoiceCollections: openInvoiceCollections,
       chequeList: chequeList,
       cashRefundedOnReturns: cashRefunded,
+      physicalCashFromReversedInvoices: physicalCashFromReversedInvoices,
+      cashShortfallRefunds: cashShortfallRefunds,
+      returnStatusBreakdowns: returnStatusBreakdowns,
     );
   }
 
@@ -868,8 +1028,14 @@ class TransactionHistoryRepository {
             'uom': uom,
             'salesQty': 0.0,
             'returnQty': 0.0,
+            'returnQtyA': 0.0,
+            'returnQtyR': 0.0,
+            'returnQtyQ': 0.0,
             'salesValue': 0.0,
             'returnValue': 0.0,
+            'returnValueA': 0.0,
+            'returnValueR': 0.0,
+            'returnValueQ': 0.0,
           });
     }
 
@@ -895,20 +1061,65 @@ class TransactionHistoryRepository {
     }
 
     try {
-      final returns = await db.rawQuery(
-        'SELECT l.sku AS sku, MAX(l.name) AS name, MAX(l.salesUnit) AS uom, '
-        'SUM(l.quantity) AS qty, SUM(l.quantity * l.price) AS value '
-        'FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} l '
-        'JOIN ${LocalDatabaseHelper.tableSiCreditNotes} c ON c.creditNoteId = l.creditNoteId '
-        'WHERE c.createdAt >= ? AND c.createdAt <= ? '
-        'GROUP BY l.sku ORDER BY l.sku',
-        [startDate, endDate],
-      );
+      final cnlCols =
+          await _getTableColumns(db, LocalDatabaseHelper.tableSiCreditNoteLines);
+      final hasStandalone = cnlCols.contains('standaloneSku');
+      final hasStatusCol = cnlCols.contains('stockStatus');
+      final statusExpr = hasStatusCol
+          ? "COALESCE(NULLIF(UPPER(TRIM(l.stockStatus)), ''), 'A')"
+          : "'A'";
+
+      final List<Map<String, dynamic>> returns;
+      if (hasStandalone) {
+        returns = await db.rawQuery(
+          'SELECT '
+          "COALESCE(NULLIF(TRIM(l.standaloneSku), ''), il.sku, '') AS sku, "
+          "MAX(COALESCE(NULLIF(TRIM(l.standaloneName), ''), il.name, '')) AS name, "
+          "MAX(COALESCE(NULLIF(TRIM(l.standaloneSalesUnit), ''), il.salesUnit, 'EA')) AS uom, "
+          '$statusExpr AS stockStatus, '
+          'SUM(l.quantity) AS qty, '
+          'SUM(l.quantity * CASE '
+          "  WHEN l.standaloneSku IS NOT NULL AND TRIM(l.standaloneSku) != '' THEN COALESCE(l.standalonePrice, 0.0) "
+          '  ELSE COALESCE(l.standalonePrice, il.basePrice, 0.0) '
+          'END) AS value '
+          'FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} l '
+          'JOIN ${LocalDatabaseHelper.tableSiCreditNotes} c ON c.creditNoteId = l.creditNoteId '
+          'LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} il '
+          '  ON l.originInvoiceId = il.invoiceId AND CAST(l.originLineNo AS INTEGER) = il.lineId '
+          'WHERE c.createdAt >= ? AND c.createdAt <= ? '
+          "AND COALESCE(NULLIF(TRIM(l.standaloneSku), ''), il.sku, '') != '' "
+          'GROUP BY sku, $statusExpr ORDER BY sku',
+          [startDate, endDate],
+        );
+      } else {
+        returns = await db.rawQuery(
+          'SELECT l.sku AS sku, MAX(l.name) AS name, MAX(l.salesUnit) AS uom, '
+          '$statusExpr AS stockStatus, '
+          'SUM(l.quantity) AS qty, SUM(l.quantity * l.price) AS value '
+          'FROM ${LocalDatabaseHelper.tableSiCreditNoteLines} l '
+          'JOIN ${LocalDatabaseHelper.tableSiCreditNotes} c ON c.creditNoteId = l.creditNoteId '
+          'WHERE c.createdAt >= ? AND c.createdAt <= ? '
+          'GROUP BY l.sku, $statusExpr ORDER BY l.sku',
+          [startDate, endDate],
+        );
+      }
       for (final r in returns) {
-        final b = bucket(r['sku']?.toString() ?? '', r['name']?.toString() ?? '',
-            r['uom']?.toString() ?? '');
-        b['returnQty'] = (r['qty'] as num?)?.toDouble() ?? 0.0;
-        b['returnValue'] = (r['value'] as num?)?.toDouble() ?? 0.0;
+        final sku = r['sku']?.toString() ?? '';
+        if (sku.isEmpty) continue;
+        final b = bucket(
+          sku,
+          r['name']?.toString() ?? '',
+          r['uom']?.toString() ?? '',
+        );
+        final qty = (r['qty'] as num?)?.toDouble() ?? 0.0;
+        final val = (r['value'] as num?)?.toDouble() ?? 0.0;
+        final code = StockStatus.fromCode(r['stockStatus']?.toString()).code;
+        b['returnQty'] = ((b['returnQty'] as num?)?.toDouble() ?? 0.0) + qty;
+        b['returnValue'] = ((b['returnValue'] as num?)?.toDouble() ?? 0.0) + val;
+        b['returnQty$code'] =
+            ((b['returnQty$code'] as num?)?.toDouble() ?? 0.0) + qty;
+        b['returnValue$code'] =
+            ((b['returnValue$code'] as num?)?.toDouble() ?? 0.0) + val;
         if ((b['name'] as String).isEmpty) b['name'] = r['name']?.toString() ?? '';
       }
     } catch (e) {

@@ -140,3 +140,31 @@ class RestoreOriginalInvoice extends SalesInvoiceEvent {
   @override
   List<Object?> get props => [cartItems, transactionType, config, originalDocumentId];
 }
+
+class UpsertProductLotCartItems extends SalesInvoiceEvent {
+  final String sku;
+  final int? editingIndex;
+  final bool replaceAllForSku;
+  final List<CartItem> paidItems;
+  final List<CartItem> focItems;
+  final bool convertToCreditNote;
+
+  const UpsertProductLotCartItems({
+    required this.sku,
+    this.editingIndex,
+    this.replaceAllForSku = false,
+    required this.paidItems,
+    this.focItems = const [],
+    this.convertToCreditNote = false,
+  });
+
+  @override
+  List<Object?> get props => [
+        sku,
+        editingIndex,
+        replaceAllForSku,
+        paidItems,
+        focItems,
+        convertToCreditNote,
+      ];
+}

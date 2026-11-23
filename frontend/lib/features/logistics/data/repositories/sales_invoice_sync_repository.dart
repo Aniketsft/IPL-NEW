@@ -135,6 +135,15 @@ class SyncBatchResult {
   }
 }
 
+List<dynamic> _decodeJsonListPayload(dynamic raw) {
+  if (raw is List) return raw;
+  if (raw is String && raw.trim().isNotEmpty) {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) return decoded;
+  }
+  return const [];
+}
+
 class SalesInvoiceSyncRepository {
   final NetworkService _networkService;
   final SalesInvoiceProductRepository _productRepository;
@@ -195,6 +204,7 @@ class SalesInvoiceSyncRepository {
     String siteCode, {
     bool uploadOnly = false,
     bool downloadOnly = false,
+    void Function(String stepMessage)? onProgress,
   }) async {
     final stopwatch = Stopwatch()..start();
     final List<String> successes = [];
@@ -280,6 +290,7 @@ class SalesInvoiceSyncRepository {
               "lotNumber": l['lotNumber'] ?? '',
               "warehouse": l['warehouse'] ?? '',
               "location": l['location'] ?? '',
+              "stockStatus": l['stockStatus'] ?? 'A',
               "salesUnit": l['salesUnit'] ?? 'EA',
               "cce0": l['cce0'] ?? '',
               "taxRule": l['taxRule'] ?? '',
@@ -824,6 +835,30 @@ class SalesInvoiceSyncRepository {
       } catch (e) {
         debugPrint('Sync: Failed to push open invoice payments: $e');
       }
+      // 4.1 Push Unsynced MaxDiscountPercent Setting (if supervisor edited offline)
+      try {
+        final unsyncedSettings = await LocalDatabaseHelper.instance.getUnsyncedGlobalSettings();
+        final discountRows = unsyncedSettings
+            .where((row) => row[LocalDatabaseHelper.colSettingKey]?.toString() == 'MaxDiscountPercent')
+            .toList();
+        if (discountRows.isNotEmpty) {
+          final latestVal = double.tryParse(
+            discountRows.last[LocalDatabaseHelper.colSettingValue]?.toString() ?? '',
+          );
+          if (latestVal != null && latestVal >= 0.0 && latestVal <= 100.0) {
+            final resp = await _dio.put(
+              'Sync/global-settings/discount-limit',
+              data: {'maxDiscountPercent': latestVal},
+            );
+            if (resp.statusCode == 200) {
+              await LocalDatabaseHelper.instance.markSettingsAsSynced(['MaxDiscountPercent']);
+              debugPrint('Sync: Pushed offline MaxDiscountPercent ($latestVal%) to MSSQL.');
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Sync: Failed to push global settings update: $e');
+      }
       } // end if (!downloadOnly)
 
       if (!uploadOnly) {
@@ -832,6 +867,7 @@ class SalesInvoiceSyncRepository {
       final openInvEtagKey = 'etag_open_invoices_$effectiveSiteKey';
       final x3HistoryEtagKey = 'etag_x3_history_$effectiveSiteKey';
       final priceListEtagKey = 'etag_price_lists';
+      final customersEtagKey = 'etag_customers_$effectiveSiteKey';
 
       // Helper to safely execute a network request with optional ETag 304 caching
       Future<Response?> safeGet(
@@ -933,6 +969,8 @@ class SalesInvoiceSyncRepository {
         debugPrint('⚠️ WARNING: Fetching price lists from INLDRYRUN schema. Ensure the correct schema is configured in app settings. Prices may not reflect production rules.');
       }
 
+      // Step 1/7: Facilities & site context
+      onProgress?.call('Step 1/7: Loading facilities & site configuration...');
       debugPrint('Sync: Downloading Sage X3 facility mappings first to align financial and shipping sites...');
       final facilitiesResp = await safeGet('SalesInvoice/facilities', label: 'Facilities');
       if (facilitiesResp != null && facilitiesResp.data is List) {
@@ -964,149 +1002,206 @@ class SalesInvoiceSyncRepository {
         x3Params['sitecode'] = siteCtx.financialSiteCode;
       }
 
-      debugPrint('Sync: Initiating parallel download of master data & 6-month X3 history...');
+      // Step 2/7: Lightweight metadata & sales-extras (replaces heavy Sync/refresh)
+      onProgress?.call('Step 2/7: Syncing sales orders, tax & settings...');
+      debugPrint('Sync: Step 2/7 - Downloading lightweight metadata & sales orders...');
+      {
+        final metaResults = await Future.wait([
+          safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
+          safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
+          safeGet('SalesInvoice/salesreps', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Sales Reps'),
+          safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
+          safeGet('SalesInvoice/banks', label: 'Banks'),
+          safeGet('Sync/sales-extras', queryParameters: siteCtx.shippingSiteCode.isNotEmpty ? {'site': siteCtx.shippingSiteCode} : null, label: 'Sales Orders'),
+          safeGet('SalesInvoice/document-sequences', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Document Sequences'),
+        ]);
 
-      final results = await Future.wait([
-        safeGet('SalesInvoice/customers', queryParameters: custParams.isNotEmpty ? custParams : null, label: 'Customers'),
-        safeGet('SalesInvoice/tax-determinations', label: 'Tax Determinations'),
-        safeGet('SalesInvoice/tax-rates', label: 'Tax Rates'),
-        safeGet('SalesInvoice/price-lists', queryParameters: {'schema': schema}, label: 'Price Lists', etagKey: priceListEtagKey),
-        safeGet('SalesInvoice/salesreps', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Sales Reps'),
-        safeGet('SalesInvoice/open-invoices', queryParameters: openInvParams, label: 'Open Invoices', etagKey: openInvEtagKey),
-        safeGet('SalesInvoice/x3-history', queryParameters: x3Params, options: Options(receiveTimeout: const Duration(seconds: 90)), label: 'X3 History', etagKey: x3HistoryEtagKey),
-        safeGet('SalesInvoice/credit-note-reasons', label: 'Credit Note Reasons'),
-        safeGet('SalesInvoice/banks', label: 'Banks'),
-        safeGet('Sync/refresh', queryParameters: siteCtx.shippingSiteCode.isNotEmpty ? {'site': siteCtx.shippingSiteCode} : null, label: 'Sales Orders'),
-        safeGet('SalesInvoice/document-sequences', queryParameters: siteCtx.financialSiteCode.isNotEmpty ? {'siteCode': siteCtx.financialSiteCode} : null, label: 'Document Sequences'),
-        _productRepository.syncSalesInvoiceItemStockDetails(siteCtx.shippingSiteCode).then((_) {
-          entityReports.add(const SyncEntityReport(
-            entityName: 'Stock Details',
-            direction: SyncDirection.download,
-            status: SyncStatus.success,
-          ));
-          return null;
-        }).catchError((e) {
-          debugPrint('Sync: Failed to fetch stock details: $e');
-          final isOffline = e.toString().toLowerCase().contains('offline') || e.toString().toLowerCase().contains('connection');
-          final errCode = isOffline ? 'ERR_AUTH_OFFLINE_SESSION' : 'ERR_STOCK_SYNC';
-          final errUser = isOffline ? 'Stock Details: Operating in offline mode' : 'Stock Details: $e';
-          failures.add(errUser);
-          entityReports.add(SyncEntityReport(
-            entityName: 'Stock Details',
-            direction: SyncDirection.download,
-            status: SyncStatus.failed,
-            errorCode: errCode,
-            userMessage: errUser,
-            technicalDetails: 'syncSalesInvoiceItemStockDetails: $e',
-          ));
-          return null;
-        }),
-      ]);
+        final taxMatrixResp = metaResults[0];
+        final taxRatesResp = metaResults[1];
+        final repsResp = metaResults[2];
+        final reasonsResp = metaResults[3];
+        final banksResp = metaResults[4];
+        final salesExtrasResp = metaResults[5];
+        final docSeqResp = metaResults[6];
 
-      final custResp = results[0];
-      final taxMatrixResp = results[1];
-      final taxRatesResp = results[2];
-      final priceListResp = results[3];
-      final repsResp = results[4];
-      final openInvResp = results[5];
-      final x3Resp = results[6];
-      final reasonsResp = results[7];
-      final banksResp = results[8];
-      final salesOrdersResp = results.length > 9 ? results[9] : null;
-      final docSeqResp = results.length > 10 ? results[10] : null;
-
-      // Ingest Customers
-      if (custResp != null && custResp.data is List) {
-        final siCustomers = custResp.data as List<dynamic>;
-        await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
-        debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
-      }
-
-      // Ingest Tax Matrix & Rates
-      if (taxMatrixResp != null && taxRatesResp != null) {
-        final taxMatrix = taxMatrixResp.data as List<dynamic>? ?? [];
-        final taxRates = taxRatesResp.data as List<dynamic>? ?? [];
-        await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
-        debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
-      }
-
-      // Ingest Price Lists (Direct Sync with ETag 304)
-      if (priceListResp != null && priceListResp.statusCode != 304 && priceListResp.data is List) {
-        final priceLists = priceListResp.data as List<dynamic>;
-        await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
-        debugPrint('Sync: Synced ${priceLists.length} Price Lists directly from Sage X3.');
-      } else if (priceListResp?.statusCode == 304) {
-        debugPrint('Sync: Price Lists unchanged (HTTP 304), preserved local SQLite cache.');
-      }
-
-      // Ingest Sales Reps
-      if (repsResp != null && repsResp.data is List) {
-        final rawReps = repsResp.data as List<dynamic>;
-        final repsList = rawReps.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-        await LocalDatabaseHelper.instance.upsertSalesReps(repsList);
-        debugPrint('Sync: Synced ${repsList.length} Sales Reps.');
-      }
-
-      // Ingest Open Invoices
-      if (openInvResp != null && openInvResp.statusCode != 304 && openInvResp.data is List) {
-        final rawOpenInvoices = openInvResp.data as List<dynamic>;
-        await LocalDatabaseHelper.instance.refreshOpenInvoices(rawOpenInvoices);
-        debugPrint('Sync: Synced ${rawOpenInvoices.length} Open Invoices & Credit Notes (Site: $siteCode, Cutoff: 90d).');
-      } else if (openInvResp?.statusCode == 304) {
-        debugPrint('Sync: Open Invoices unchanged (HTTP 304), preserved local SQLite cache.');
-      }
-
-      // Ingest 6-Month X3 History
-      if (x3Resp != null && x3Resp.statusCode != 304 && x3Resp.data is List) {
-        final rawX3Docs = x3Resp.data as List<dynamic>;
-        if (rawX3Docs.isNotEmpty) {
-          await LocalDatabaseHelper.instance.pruneX3HistoryOlderThan(months: 6);
-          await LocalDatabaseHelper.instance.saveX3HistoryDocuments(rawX3Docs);
-          debugPrint('Sync: Synced ${rawX3Docs.length} X3 History Documents (Site: $siteCode, 6 months).');
+        if (taxMatrixResp != null && taxRatesResp != null) {
+          final taxMatrix = taxMatrixResp.data as List<dynamic>? ?? [];
+          final taxRates = taxRatesResp.data as List<dynamic>? ?? [];
+          await LocalDatabaseHelper.instance.refreshSalesInvoiceTaxData(taxMatrix, taxRates);
+          debugPrint('Sync: Synced ${taxMatrix.length} Tax Determinations and ${taxRates.length} Tax Rates.');
         }
-      } else if (x3Resp?.statusCode == 304) {
-        debugPrint('Sync: X3 History unchanged (HTTP 304), preserved local SQLite cache.');
-      }
 
-      // Ingest Credit Note Reasons (Sage X3 Table 8)
-      if (reasonsResp != null && reasonsResp.data is List) {
-        final rawReasons = reasonsResp.data as List<dynamic>;
-        if (rawReasons.isNotEmpty) {
-          await LocalDatabaseHelper.instance.refreshCreditNoteReasons(rawReasons);
-          debugPrint('Sync: Synced ${rawReasons.length} Sage X3 Credit Note Reasons.');
+        if (repsResp != null && repsResp.data is List) {
+          final rawReps = repsResp.data as List<dynamic>;
+          final repsList = rawReps.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+          await LocalDatabaseHelper.instance.upsertSalesReps(repsList);
+          debugPrint('Sync: Synced ${repsList.length} Sales Reps.');
+        }
+
+        if (reasonsResp != null && reasonsResp.data is List) {
+          final rawReasons = reasonsResp.data as List<dynamic>;
+          if (rawReasons.isNotEmpty) {
+            await LocalDatabaseHelper.instance.refreshCreditNoteReasons(rawReasons);
+            debugPrint('Sync: Synced ${rawReasons.length} Sage X3 Credit Note Reasons.');
+          }
+        }
+
+        if (banksResp != null && banksResp.data is List) {
+          final rawBanks = banksResp.data as List<dynamic>;
+          if (rawBanks.isNotEmpty) {
+            final banksList = rawBanks.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+            await LocalDatabaseHelper.instance.upsertBanks(banksList);
+            debugPrint('Sync: Synced ${banksList.length} Sage X3 Banks.');
+          }
+        }
+
+        if (salesExtrasResp != null && salesExtrasResp.data is Map) {
+          final pkg = salesExtrasResp.data as Map<String, dynamic>;
+          final rawOrders = pkg['orders'] as List<dynamic>? ?? [];
+          final rawDetails = pkg['details'] as List<dynamic>? ?? [];
+          if (rawOrders.isNotEmpty || rawDetails.isNotEmpty) {
+            await LocalDatabaseHelper.instance.refreshSalesOrdersAndDetails(
+              orders: rawOrders,
+              details: rawDetails,
+            );
+            debugPrint('Sync: Synced ${rawOrders.length} Sales Orders and ${rawDetails.length} Line Items for Site $siteCode.');
+          }
+
+          final rawGlobalSettings = pkg['globalSettingsMap'] ?? pkg['GlobalSettingsMap'];
+          if (rawGlobalSettings is Map) {
+            final settingsMap = <String, String>{};
+            rawGlobalSettings.forEach((k, v) {
+              if (k != null && v != null) {
+                settingsMap[k.toString()] = v.toString();
+              }
+            });
+            if (settingsMap.isNotEmpty) {
+              await LocalDatabaseHelper.instance.saveGlobalSettingsMap(settingsMap);
+              debugPrint('Sync: Synced ${settingsMap.length} Global Settings (MaxDiscountPercent=${settingsMap['MaxDiscountPercent'] ?? 'default'}).');
+            }
+          }
+        }
+
+        if (docSeqResp != null && docSeqResp.data is List) {
+          final rawDocSeqs = docSeqResp.data as List<dynamic>;
+          if (rawDocSeqs.isNotEmpty) {
+            await LocalDatabaseHelper.instance.syncDocumentSequencesHighWaterMark(rawDocSeqs);
+            debugPrint('Sync: Synced ${rawDocSeqs.length} Document Sequences high-water marks.');
+          }
         }
       }
+      await Future.delayed(Duration.zero);
 
-      // Ingest Banks (Sage X3 Table BANK)
-      if (banksResp != null && banksResp.data is List) {
-        final rawBanks = banksResp.data as List<dynamic>;
-        if (rawBanks.isNotEmpty) {
-          final banksList = rawBanks.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-          await LocalDatabaseHelper.instance.upsertBanks(banksList);
-          debugPrint('Sync: Synced ${banksList.length} Sage X3 Banks.');
+      // Step 3/7: Customers (ETag 304 + sequential memory-safe isolate decode)
+      onProgress?.call('Step 3/7: Syncing customers...');
+      {
+        final custResp = await safeGet(
+          'SalesInvoice/customers',
+          queryParameters: custParams.isNotEmpty ? custParams : null,
+          options: Options(responseType: ResponseType.plain),
+          label: 'Customers',
+          etagKey: customersEtagKey,
+        );
+        if (custResp != null && custResp.statusCode != 304) {
+          final siCustomers = await compute(_decodeJsonListPayload, custResp.data);
+          if (siCustomers.isNotEmpty) {
+            await LocalDatabaseHelper.instance.refreshSalesInvoiceCustomers(siCustomers);
+            debugPrint('Sync: Synced ${siCustomers.length} Sales Invoice Customers.');
+          }
+        } else if (custResp?.statusCode == 304) {
+          debugPrint('Sync: Customers unchanged (HTTP 304), preserved local SQLite cache.');
         }
       }
+      await Future.delayed(Duration.zero);
 
-      // Ingest Real Sales Orders & Details
-      if (salesOrdersResp != null && salesOrdersResp.data is Map) {
-        final pkg = salesOrdersResp.data as Map<String, dynamic>;
-        final rawOrders = pkg['orders'] as List<dynamic>? ?? [];
-        final rawDetails = pkg['details'] as List<dynamic>? ?? [];
-        if (rawOrders.isNotEmpty || rawDetails.isNotEmpty) {
-          await LocalDatabaseHelper.instance.refreshSalesOrdersAndDetails(
-            orders: rawOrders,
-            details: rawDetails,
-          );
-          debugPrint('Sync: Synced ${rawOrders.length} Sales Orders and ${rawDetails.length} Line Items for Site $siteCode.');
+      // Step 4/7: Van Stock Details (ETag 304 + single-pass isolate parse)
+      onProgress?.call('Step 4/7: Syncing van stock...');
+      try {
+        await _productRepository.syncSalesInvoiceItemStockDetails(siteCtx.shippingSiteCode);
+        entityReports.add(const SyncEntityReport(
+          entityName: 'Stock Details',
+          direction: SyncDirection.download,
+          status: SyncStatus.success,
+        ));
+      } catch (e) {
+        debugPrint('Sync: Failed to fetch stock details: $e');
+        final isOffline = e.toString().toLowerCase().contains('offline') || e.toString().toLowerCase().contains('connection');
+        final errCode = isOffline ? 'ERR_AUTH_OFFLINE_SESSION' : 'ERR_STOCK_SYNC';
+        final errUser = isOffline ? 'Stock Details: Operating in offline mode' : 'Stock Details: $e';
+        failures.add(errUser);
+        entityReports.add(SyncEntityReport(
+          entityName: 'Stock Details',
+          direction: SyncDirection.download,
+          status: SyncStatus.failed,
+          errorCode: errCode,
+          userMessage: errUser,
+          technicalDetails: 'syncSalesInvoiceItemStockDetails: $e',
+        ));
+      }
+      await Future.delayed(Duration.zero);
+
+      // Step 5/7: Price Lists (ETag 304 + sequential memory-safe isolate decode)
+      onProgress?.call('Step 5/7: Syncing price lists...');
+      {
+        final priceListResp = await safeGet(
+          'SalesInvoice/price-lists',
+          queryParameters: {'schema': schema},
+          options: Options(responseType: ResponseType.plain),
+          label: 'Price Lists',
+          etagKey: priceListEtagKey,
+        );
+        if (priceListResp != null && priceListResp.statusCode != 304) {
+          final priceLists = await compute(_decodeJsonListPayload, priceListResp.data);
+          await LocalDatabaseHelper.instance.refreshPriceLists(priceLists);
+          debugPrint('Sync: Synced ${priceLists.length} Price Lists directly from Sage X3.');
+        } else if (priceListResp?.statusCode == 304) {
+          debugPrint('Sync: Price Lists unchanged (HTTP 304), preserved local SQLite cache.');
         }
       }
+      await Future.delayed(Duration.zero);
 
-      // Ingest Document Sequence High-Water Marks
-      if (docSeqResp != null && docSeqResp.data is List) {
-        final rawDocSeqs = docSeqResp.data as List<dynamic>;
-        if (rawDocSeqs.isNotEmpty) {
-          await LocalDatabaseHelper.instance.syncDocumentSequencesHighWaterMark(rawDocSeqs);
-          debugPrint('Sync: Synced ${rawDocSeqs.length} Document Sequences high-water marks.');
+      // Step 6/7: Open Invoices (ETag 304 + sequential memory-safe isolate decode + batched SQLite)
+      onProgress?.call('Step 6/7: Syncing open invoices...');
+      {
+        final openInvResp = await safeGet(
+          'SalesInvoice/open-invoices',
+          queryParameters: openInvParams,
+          options: Options(responseType: ResponseType.plain),
+          label: 'Open Invoices',
+          etagKey: openInvEtagKey,
+        );
+        if (openInvResp != null && openInvResp.statusCode != 304) {
+          final rawOpenInvoices = await compute(_decodeJsonListPayload, openInvResp.data);
+          await LocalDatabaseHelper.instance.refreshOpenInvoices(rawOpenInvoices);
+          debugPrint('Sync: Synced ${rawOpenInvoices.length} Open Invoices & Credit Notes (Site: $siteCode, Cutoff: 90d).');
+        } else if (openInvResp?.statusCode == 304) {
+          debugPrint('Sync: Open Invoices unchanged (HTTP 304), preserved local SQLite cache.');
+        }
+      }
+      await Future.delayed(Duration.zero);
+
+      // Step 7/7: 6-Month X3 History (Kept at 6 months, ETag 304 + sequential memory-safe isolate decode)
+      onProgress?.call('Step 7/7: Syncing 6-month X3 history...');
+      {
+        final x3Resp = await safeGet(
+          'SalesInvoice/x3-history',
+          queryParameters: x3Params,
+          options: Options(
+            receiveTimeout: const Duration(seconds: 90),
+            responseType: ResponseType.plain,
+          ),
+          label: 'X3 History',
+          etagKey: x3HistoryEtagKey,
+        );
+        if (x3Resp != null && x3Resp.statusCode != 304) {
+          final rawX3Docs = await compute(_decodeJsonListPayload, x3Resp.data);
+          if (rawX3Docs.isNotEmpty) {
+            await LocalDatabaseHelper.instance.pruneX3HistoryOlderThan(months: 6);
+            await LocalDatabaseHelper.instance.saveX3HistoryDocuments(rawX3Docs);
+            debugPrint('Sync: Synced ${rawX3Docs.length} X3 History Documents (Site: $siteCode, 6 months).');
+          }
+        } else if (x3Resp?.statusCode == 304) {
+          debugPrint('Sync: X3 History unchanged (HTTP 304), preserved local SQLite cache.');
         }
       }
       } else {

@@ -23,6 +23,7 @@ class CartItem extends Equatable {
   final double discountAmountFlat;
   final String priceListCode;
   final int reasonType;
+  final String stockStatus;
 
   const CartItem({
     required this.product,
@@ -42,6 +43,7 @@ class CartItem extends Equatable {
     this.discountAmountFlat = 0.0,
     this.priceListCode = '',
     this.reasonType = 0,
+    this.stockStatus = 'A',
   });
 
   double get discountAmount => double.parse(((basePrice * quantity * (discountPercent / 100)) + discountAmountFlat).toStringAsFixed(2));
@@ -67,6 +69,7 @@ class CartItem extends Equatable {
     double? discountAmountFlat,
     String? priceListCode,
     int? reasonType,
+    String? stockStatus,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -86,6 +89,7 @@ class CartItem extends Equatable {
       discountAmountFlat: discountAmountFlat ?? this.discountAmountFlat,
       priceListCode: priceListCode ?? this.priceListCode,
       reasonType: reasonType ?? this.reasonType,
+      stockStatus: stockStatus ?? this.stockStatus,
     );
   }
 
@@ -108,6 +112,7 @@ class CartItem extends Equatable {
         discountAmountFlat,
         priceListCode,
         reasonType,
+        stockStatus,
       ];
 }
 

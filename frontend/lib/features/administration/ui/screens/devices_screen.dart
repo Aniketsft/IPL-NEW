@@ -7,6 +7,7 @@ import '../../../../core/secure_storage_service.dart';
 import '../../../../core/services/device_info_service.dart';
 import '../../../../core/widgets/industrial_module_layout.dart';
 import '../../../logistics/data/local/local_database_helper.dart';
+import '../../../logistics/data/repositories/sales_invoice_product_repository.dart';
 
 const Color _emeraldPrimary = Color(0xFF10B981);
 const Color _emeraldAccent = Color(0xFF34D399);
@@ -193,6 +194,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
   List<DeviceItem> _filteredDevices = [];
   List<LorryOption> _availableLorries = [];
   bool _isLoading = true;
+  bool _isLoadingLorries = false;
+  String? _lorrySyncError;
+  final ValueNotifier<int> _lorryListRevision = ValueNotifier<int>(0);
   String _searchQuery = '';
   String _userSiteCode = 'POD';
   String _currentUsername = '';
@@ -235,6 +239,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _hepProfileController.dispose();
     _hepApiKeyController.dispose();
     _deviceNameController.dispose();
+    _lorryListRevision.dispose();
     super.dispose();
   }
 
@@ -300,104 +305,155 @@ class _DevicesScreenState extends State<DevicesScreen> {
     await _syncOnlineWithBackend();
   }
 
+  static const List<String> _nonVehicleKeywords = ['DAM', 'SCRAP', 'RETURN', 'REJ', 'QUAR', 'WASTE'];
+
+  static bool _containsNonVehicleKeyword(String? value) {
+    if (value == null || value.trim().isEmpty) return false;
+    final upper = value.toUpperCase();
+    return _nonVehicleKeywords.any(upper.contains);
+  }
+
+  Future<Map<String, String>> _buildAuthHeaders() async {
+    final token = await _storage.getToken();
+    final schema = await _storage.getSchema() ?? 'INLDRYRUN';
+    return {
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      'X-Device-Id': _currentDeviceId,
+      'X-X3-Schema': schema,
+    };
+  }
+
+  List<LorryOption> _mapLorryRows(List<Map<String, dynamic>> rows, String siteKey) {
+    return rows
+        .where((l) => !_containsNonVehicleKeyword(l['location']?.toString()))
+        .map((l) {
+          final loc = l['location']?.toString().trim() ?? '';
+          final wrh = l['warehouse']?.toString().trim();
+          final wrhName = l['warehouseName']?.toString().trim();
+          final type = l['locationType']?.toString().trim();
+          final typeName = l['locationTypeName']?.toString().trim();
+          final rawPlate = (typeName != null && typeName.isNotEmpty)
+              ? typeName
+              : l['plateNumber']?.toString().trim();
+          final plate = (rawPlate != null && rawPlate.isNotEmpty && !_containsNonVehicleKeyword(rawPlate))
+              ? rawPlate
+              : null;
+          final wrhLabel = (wrhName != null && wrhName.isNotEmpty)
+              ? wrhName
+              : ((wrh != null && wrh.isNotEmpty) ? wrh : siteKey);
+          final desc = plate != null ? '$loc • $plate' : '$loc ($wrhLabel)';
+          return LorryOption(
+            location: loc,
+            plateNumber: plate,
+            warehouse: wrh,
+            warehouseName: wrhName,
+            locationType: type,
+            description: desc,
+          );
+        })
+        .where((l) => l.location.isNotEmpty)
+        .toList();
+  }
+
   Future<void> _loadSiteLorries(String site) async {
     final siteKey = site.trim().toUpperCase();
+    if (mounted) {
+      setState(() {
+        _isLoadingLorries = true;
+        _lorrySyncError = null;
+      });
+    } else {
+      _isLoadingLorries = true;
+      _lorrySyncError = null;
+    }
+    _lorryListRevision.value++;
 
-    // 1. Immediately read from local SQLite tbl_locations (exact Delivery query)
     try {
-      var locs = await _db.getLorryLocations(siteCode: siteKey);
-      if (locs.isEmpty) {
-        // Fallback to broader location query if specific lorry filter returns empty
-        locs = await _db.getLocations(siteCode: siteKey);
+      // 1. Immediately read from local SQLite tbl_locations
+      try {
+        var locs = await _db.getLorryLocations(siteCode: siteKey);
+        if (locs.isEmpty) {
+          locs = await _db.getLocations(siteCode: siteKey);
+        }
+
+        if (locs.isNotEmpty && mounted) {
+          final lorries = _mapLorryRows(locs, siteKey);
+          if (lorries.isNotEmpty && mounted) {
+            setState(() {
+              _availableLorries = lorries;
+            });
+            _lorryListRevision.value++;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error reading lorries from SQLite tbl_locations: $e');
       }
 
-      if (locs.isNotEmpty && mounted) {
-        final lorries = locs
-            .where((l) {
-              final loc = (l['location'] ?? '').toString();
-              return !loc.contains('DAM') && !loc.contains('SCRAP') && !loc.contains('RETURN') && !loc.contains('REJ') && !loc.contains('QUAR');
-            })
-            .map((l) {
-              final loc = l['location']?.toString() ?? '';
-              final wrh = l['warehouse']?.toString();
-              final wrhName = l['warehouseName']?.toString();
-              final type = l['locationType']?.toString();
-              final typeName = l['locationTypeName']?.toString();
-              final plate = (typeName != null && typeName.isNotEmpty && !typeName.contains('DAM') && !typeName.contains('SCRAP') && !typeName.contains('RETURN')) ? typeName : null;
-              final desc = plate != null ? '$loc • $plate' : '$loc (${wrhName ?? wrh ?? siteKey})';
-              return LorryOption(
-                location: loc,
-                plateNumber: plate,
-                warehouse: wrh,
-                warehouseName: wrhName,
-                locationType: type,
-                description: desc,
-              );
-            }).toList();
+      // 2. Online background fetch & SQLite caching: update tbl_locations with fresh ERP fleet
+      try {
+        final headers = await _buildAuthHeaders();
+        final url = Uri.parse('${ApiConfig.baseUrl}Devices/site-lorries?site=${Uri.encodeQueryComponent(siteKey)}');
+        final resp = await http.get(url, headers: headers).timeout(const Duration(seconds: 15));
 
-        if (lorries.isNotEmpty && mounted) {
+        if (resp.statusCode == 200 && resp.body.trim().isNotEmpty) {
+          final List<dynamic> list = jsonDecode(resp.body);
+          if (list.isNotEmpty) {
+            // Persist directly into SQLite tbl_locations for this site
+            await _db.saveLocations(list, siteCode: siteKey, replaceSite: true);
+
+            // Re-query SQLite, falling back to unfiltered site rows or raw API DTOs
+            var freshRows = await _db.getLorryLocations(siteCode: siteKey);
+            if (freshRows.isEmpty) {
+              freshRows = await _db.getLocations(siteCode: siteKey);
+            }
+
+            var freshLorries = _mapLorryRows(freshRows, siteKey);
+            if (freshLorries.isEmpty) {
+              freshLorries = list
+                  .whereType<Map>()
+                  .map((m) => LorryOption.fromJson(Map<String, dynamic>.from(m)))
+                  .where((l) => l.location.isNotEmpty && !_containsNonVehicleKeyword(l.location))
+                  .toList();
+            }
+
+            if (mounted) {
+              setState(() {
+                _availableLorries = freshLorries;
+                _lorrySyncError = freshLorries.isEmpty
+                    ? 'No assignable vehicles returned for site $siteKey.'
+                    : null;
+              });
+            }
+          } else if (mounted) {
+            setState(() {
+              if (_availableLorries.isEmpty) {
+                _lorrySyncError = 'No vehicles configured in ERP for site $siteKey.';
+              }
+            });
+          }
+        } else if (mounted) {
           setState(() {
-            _availableLorries = lorries;
+            _lorrySyncError = 'Vehicle sync failed (HTTP ${resp.statusCode}).';
+          });
+        }
+      } catch (e) {
+        debugPrint('Background live lorry sync skipped: $e');
+        if (mounted) {
+          setState(() {
+            _lorrySyncError = 'Could not reach server to refresh vehicles ($e).';
           });
         }
       }
-    } catch (e) {
-      debugPrint('Error reading lorries from SQLite tbl_locations: $e');
-    }
-
-    // 2. Online background fetch & SQLite caching: update tbl_locations with fresh ERP fleet
-    try {
-      final token = await _storage.getToken();
-      final url = Uri.parse('${ApiConfig.baseUrl}Devices/site-lorries?site=$siteKey');
-      final resp = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-          'X-Device-Id': _currentDeviceId,
-        },
-      ).timeout(const Duration(seconds: 4));
-
-      if (resp.statusCode == 200 && resp.body.trim().isNotEmpty) {
-        final List<dynamic> list = jsonDecode(resp.body);
-        if (list.isNotEmpty) {
-          // Persist directly into SQLite tbl_locations
-          await _db.saveLocations(list, siteCode: siteKey);
-
-          // Re-query SQLite to ensure local database remains the single source of truth
-          final freshRows = await _db.getLorryLocations(siteCode: siteKey);
-          final freshLorries = freshRows
-              .where((l) {
-                final loc = (l['location'] ?? '').toString();
-                return !loc.contains('DAM') && !loc.contains('SCRAP') && !loc.contains('RETURN');
-              })
-              .map((l) {
-                final loc = l['location']?.toString() ?? '';
-                final wrh = l['warehouse']?.toString();
-                final wrhName = l['warehouseName']?.toString();
-                final type = l['locationType']?.toString();
-                final typeName = l['locationTypeName']?.toString();
-                final plate = (typeName != null && typeName.isNotEmpty && !typeName.contains('DAM') && !typeName.contains('SCRAP')) ? typeName : null;
-                final desc = plate != null ? '$loc • $plate' : '$loc (${wrhName ?? wrh ?? siteKey})';
-                return LorryOption(
-                  location: loc,
-                  plateNumber: plate,
-                  warehouse: wrh,
-                  warehouseName: wrhName,
-                  locationType: type,
-                  description: desc,
-                );
-              }).toList();
-
-          if (freshLorries.isNotEmpty && mounted) {
-            setState(() {
-              _availableLorries = freshLorries;
-            });
-          }
-        }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLorries = false;
+        });
+      } else {
+        _isLoadingLorries = false;
       }
-    } catch (e) {
-      debugPrint('Background live lorry sync skipped: $e');
+      _lorryListRevision.value++;
     }
   }
 
@@ -473,18 +529,13 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   Future<void> _syncOnlineWithBackend() async {
     try {
-      final token = await _storage.getToken();
-
       // 1. Trigger Heartbeat for calling device
       try {
         final hbUrl = Uri.parse('${ApiConfig.baseUrl}Devices/heartbeat');
+        final hbHeaders = await _buildAuthHeaders();
         final hbResp = await http.post(
           hbUrl,
-          headers: {
-            'Content-Type': 'application/json',
-            if (token != null) 'Authorization': 'Bearer $token',
-            'X-Device-Id': _currentDeviceId,
-          },
+          headers: hbHeaders,
           body: jsonEncode({
             'deviceId': _currentDeviceId,
             'deviceName': _currentDeviceName,
@@ -492,7 +543,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
             'hardwareIdentifier': DeviceInfoService.instance.hardwareIdentifier,
             'siteCode': _userSiteCode,
           }),
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 6));
 
         if (hbResp.statusCode == 200 && hbResp.body.trim().isNotEmpty) {
           final data = jsonDecode(hbResp.body);
@@ -504,6 +555,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
           }
           if (DeviceInfoService.isValidUuid(updatedItem.deviceId)) {
             final realUuid = updatedItem.deviceId.toLowerCase();
+            final prevAssigned = (_currentDeviceLocation ??
+                    DeviceInfoService.instance.assignedLocation ??
+                    '')
+                .trim()
+                .toUpperCase();
             if (mounted) {
               setState(() {
                 _currentDeviceId = realUuid;
@@ -530,20 +586,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
               licenseStatus: updatedItem.licenseStatus,
               isLocked: updatedItem.isLocked,
             );
+            final newAssigned = updatedItem.locationCode.trim().toUpperCase();
+            if (prevAssigned.isNotEmpty && newAssigned != prevAssigned) {
+              await SalesInvoiceProductRepository.invalidateStockCache(
+                clearLocalRows: true,
+              );
+            }
           }
         }
       } catch (_) {}
 
       // 2. Fetch full Site Fleet
-      final url = Uri.parse('${ApiConfig.baseUrl}Devices?site=$_userSiteCode');
+      final url = Uri.parse('${ApiConfig.baseUrl}Devices?site=${Uri.encodeQueryComponent(_userSiteCode)}');
+      final fleetHeaders = await _buildAuthHeaders();
       final response = await http.get(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-          'X-Device-Id': _currentDeviceId,
-        },
-      ).timeout(const Duration(seconds: 6));
+        headers: fleetHeaders,
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -603,67 +662,89 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   // --- ACTIONS ---
 
-  /// Field Operator / Driver Lorry Switch
-  Future<void> _updateLorryLocation(String newLocation, String? warehouse) async {
+  /// Field Operator / Admin Lorry Switch (supports current tablet or any site fleet tablet)
+  Future<void> _updateLorryLocation(
+    String newLocation,
+    String? warehouse, {
+    DeviceItem? targetDevice,
+    bool forceReassign = false,
+  }) async {
+    final targetId = (targetDevice?.deviceId ?? _currentDeviceId).trim();
+    if (targetId.isEmpty) {
+      _showErrorSnackBar('Device UUID not resolved yet. Please retry after sync.');
+      return;
+    }
+
+    final isCurrent = targetId.toLowerCase() == _currentDeviceId.toLowerCase();
+    final targetName = (targetDevice != null && targetDevice.deviceName.isNotEmpty)
+        ? targetDevice.deviceName
+        : (_currentDeviceName.isNotEmpty ? _currentDeviceName : 'Tablet');
+
     HapticFeedback.mediumImpact();
     setState(() => _isLoading = true);
 
-    final prevLocation = _currentDeviceLocation ?? _userSiteCode;
-    final prevWarehouse = _currentWarehouse;
-
-    // 1. Immediately update SQLite
     final currentDev = _devices.firstWhere(
-      (d) => d.deviceId == _currentDeviceId,
-      orElse: () => DeviceItem(
-        deviceId: _currentDeviceId,
-        deviceName: _currentDeviceName,
+      (d) => d.deviceId.toLowerCase() == targetId.toLowerCase(),
+      orElse: () => targetDevice ?? DeviceItem(
+        deviceId: targetId,
+        deviceName: targetName,
         siteCode: _userSiteCode,
-        locationCode: newLocation,
-        warehouseCode: warehouse,
+        locationCode: _currentDeviceLocation ?? _userSiteCode,
+        warehouseCode: _currentWarehouse,
       ),
     );
+    final prevLocation = currentDev.locationCode.isNotEmpty ? currentDev.locationCode : _userSiteCode;
+    final prevWarehouse = currentDev.warehouseCode;
 
+    // 1. Optimistically update SQLite & UI
     final updated = currentDev.copyWith(
       locationCode: newLocation,
-      warehouseCode: warehouse,
+      warehouseCode: warehouse ?? newLocation,
       updatedAt: DateTime.now(),
     );
 
     await _db.insertOrUpdateDeviceLocation(updated.toMap());
-    await DeviceInfoService.instance.setAssignedLocation(
-      siteCode: _userSiteCode,
-      warehouseCode: warehouse,
-      locationCode: newLocation,
-    );
-
-    setState(() {
-      _currentDeviceLocation = newLocation;
-      _currentWarehouse = warehouse;
-    });
+    if (isCurrent) {
+      await DeviceInfoService.instance.setAssignedLocation(
+        siteCode: _userSiteCode,
+        warehouseCode: warehouse ?? newLocation,
+        locationCode: newLocation,
+      );
+      if (mounted) {
+        setState(() {
+          _currentDeviceLocation = newLocation;
+          _currentWarehouse = warehouse ?? newLocation;
+        });
+      }
+    }
 
     // 2. Sync to Backend (enforcing Option A: 1 active device per lorry)
+    var conflictHandled = false;
     try {
-      final token = await _storage.getToken();
-      final encodedId = Uri.encodeComponent(_currentDeviceId);
+      final headers = await _buildAuthHeaders();
+      final encodedId = Uri.encodeComponent(targetId);
       final url = Uri.parse('${ApiConfig.baseUrl}Devices/$encodedId/location');
       final resp = await http.put(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-          'X-Device-Id': _currentDeviceId,
-        },
+        headers: headers,
         body: jsonEncode({
           'locationCode': newLocation,
-          'warehouseCode': warehouse,
+          'warehouseCode': warehouse ?? newLocation,
+          'forceReassign': forceReassign,
         }),
-      ).timeout(const Duration(seconds: 6));
+      ).timeout(const Duration(seconds: 10));
 
       if (resp.statusCode == 200 && resp.body.trim().isNotEmpty) {
         final saved = DeviceItem.fromJson(jsonDecode(resp.body));
         await _db.insertOrUpdateDeviceLocation(saved.toMap());
-        _syncCurrentDeviceFromList([saved]);
+        if (isCurrent) {
+          _syncCurrentDeviceFromList([saved]);
+        }
+        if (forceReassign) {
+          await _syncOnlineWithBackend();
+        }
       } else if (resp.statusCode == 409) {
+        conflictHandled = true;
         // Backend rejected due to lorry conflict with another active device — revert local change
         final reverted = currentDev.copyWith(
           locationCode: prevLocation,
@@ -671,17 +752,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
           updatedAt: DateTime.now(),
         );
         await _db.insertOrUpdateDeviceLocation(reverted.toMap());
-        await DeviceInfoService.instance.setAssignedLocation(
-          siteCode: _userSiteCode,
-          warehouseCode: prevWarehouse,
-          locationCode: prevLocation,
-        );
-        if (mounted) {
-          setState(() {
-            _currentDeviceLocation = prevLocation;
-            _currentWarehouse = prevWarehouse;
-            _isLoading = false;
-          });
+        if (isCurrent) {
+          await DeviceInfoService.instance.setAssignedLocation(
+            siteCode: _userSiteCode,
+            warehouseCode: prevWarehouse,
+            locationCode: prevLocation,
+          );
+          if (mounted) {
+            setState(() {
+              _currentDeviceLocation = prevLocation;
+              _currentWarehouse = prevWarehouse;
+            });
+          }
         }
         String errMsg = 'Lorry $newLocation is already assigned to another active device.';
         try {
@@ -691,13 +773,76 @@ class _DevicesScreenState extends State<DevicesScreen> {
           }
         } catch (_) {}
         await _loadFromLocalDb();
-        _showErrorSnackBar(errMsg);
+
+        if (_isAdminUser && !forceReassign && mounted) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dCtx) => AlertDialog(
+              title: const Text('Lorry Already Assigned'),
+              content: Text('$errMsg\n\nReassign Lorry $newLocation to $targetName and release it from the other tablet?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dCtx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dCtx, true),
+                  child: const Text('Force Reassign'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await _updateLorryLocation(
+              newLocation,
+              warehouse,
+              targetDevice: targetDevice,
+              forceReassign: true,
+            );
+          }
+        } else {
+          _showErrorSnackBar(errMsg);
+        }
+        return;
+      } else if (resp.statusCode >= 400) {
+        conflictHandled = true;
+        final reverted = currentDev.copyWith(
+          locationCode: prevLocation,
+          warehouseCode: prevWarehouse,
+          updatedAt: DateTime.now(),
+        );
+        await _db.insertOrUpdateDeviceLocation(reverted.toMap());
+        if (isCurrent) {
+          await DeviceInfoService.instance.setAssignedLocation(
+            siteCode: _userSiteCode,
+            warehouseCode: prevWarehouse,
+            locationCode: prevLocation,
+          );
+          if (mounted) {
+            setState(() {
+              _currentDeviceLocation = prevLocation;
+              _currentWarehouse = prevWarehouse;
+            });
+          }
+        }
+        await _loadFromLocalDb();
+        _showErrorSnackBar('Failed to update lorry (HTTP ${resp.statusCode}).');
         return;
       }
     } catch (e) {
       debugPrint('Lorry location online sync deferred (saved offline in SQLite): $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
 
+    if (conflictHandled) return;
+    final lorryChanged =
+        isCurrent && prevLocation.trim().toUpperCase() != newLocation.trim().toUpperCase();
+    if (lorryChanged) {
+      await SalesInvoiceProductRepository.invalidateStockCache(
+        clearLocalRows: true,
+      );
+    }
     await _loadFromLocalDb();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -706,7 +851,13 @@ class _DevicesScreenState extends State<DevicesScreen> {
             children: [
               const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 8),
-              Expanded(child: Text('Lorry assigned to: $newLocation (${warehouse ?? _userSiteCode})')),
+              Expanded(
+                child: Text(
+                  lorryChanged
+                      ? '$targetName assigned to Lorry $newLocation (${warehouse ?? _userSiteCode}). Sync while online to download lorry stock.'
+                      : '$targetName assigned to Lorry $newLocation (${warehouse ?? _userSiteCode})',
+                ),
+              ),
             ],
           ),
           backgroundColor: Colors.teal.shade700,
@@ -928,6 +1079,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
         }
       }).catchError((_) {});
     });
+    if (_availableLorries.isEmpty && !_isLoadingLorries) {
+      _loadSiteLorries(_userSiteCode);
+    }
     String? selectedLorry = _availableLorries.isNotEmpty ? _availableLorries.first.location : null;
     String? selectedWarehouse = _availableLorries.isNotEmpty ? _availableLorries.first.warehouse : null;
     final hepProfileCtrl = TextEditingController();
@@ -1012,24 +1166,62 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   // Lorry Selection
                   Text('ASSIGN LORRY LOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isDark ? Colors.white60 : Colors.black54)),
                   const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedLorry,
-                    decoration: const InputDecoration(
-                      labelText: 'Lorry / Location *',
-                      prefixIcon: Icon(Icons.local_shipping_outlined),
-                    ),
-                    items: _availableLorries.map((lorry) {
-                      return DropdownMenuItem<String>(
-                        value: lorry.location,
-                        child: Text(lorry.description, style: const TextStyle(fontSize: 14)),
+                  ValueListenableBuilder<int>(
+                    valueListenable: _lorryListRevision,
+                    builder: (_, __, ___) {
+                      if (selectedLorry == null && _availableLorries.isNotEmpty) {
+                        selectedLorry = _availableLorries.first.location;
+                        selectedWarehouse = _availableLorries.first.warehouse;
+                      }
+                      final dropdownValue = _availableLorries.any((l) => l.location == selectedLorry)
+                          ? selectedLorry
+                          : null;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DropdownButtonFormField<String>(
+                            value: dropdownValue,
+                            decoration: InputDecoration(
+                              labelText: _isLoadingLorries && _availableLorries.isEmpty
+                                  ? 'Loading Lorries...'
+                                  : 'Lorry / Location *',
+                              prefixIcon: const Icon(Icons.local_shipping_outlined),
+                            ),
+                            items: _availableLorries.map((lorry) {
+                              return DropdownMenuItem<String>(
+                                value: lorry.location,
+                                child: Text(lorry.description, style: const TextStyle(fontSize: 14)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setModalState(() {
+                                selectedLorry = val;
+                                final match = _availableLorries.firstWhere((l) => l.location == val, orElse: () => _availableLorries.first);
+                                selectedWarehouse = match.warehouse;
+                              });
+                            },
+                          ),
+                          if (_availableLorries.isEmpty && !_isLoadingLorries)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _lorrySyncError ?? 'No vehicles loaded for $_userSiteCode.',
+                                      style: const TextStyle(fontSize: 11, color: Colors.amber),
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => _loadSiteLorries(_userSiteCode),
+                                    icon: const Icon(Icons.refresh_rounded, size: 14),
+                                    label: const Text('Retry', style: TextStyle(fontSize: 11)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       );
-                    }).toList(),
-                    onChanged: (val) {
-                      setModalState(() {
-                        selectedLorry = val;
-                        final match = _availableLorries.firstWhere((l) => l.location == val, orElse: () => _availableLorries.first);
-                        selectedWarehouse = match.warehouse;
-                      });
                     },
                   ),
                   const SizedBox(height: 16),
@@ -1899,10 +2091,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
-  void _showLorryPickerModal(BuildContext context) {
-    if (_availableLorries.isEmpty) {
+  void _showLorryPickerModal(BuildContext context, {DeviceItem? targetDevice}) {
+    if (_availableLorries.isEmpty && !_isLoadingLorries) {
       _loadSiteLorries(_userSiteCode);
     }
+
+    final targetId = targetDevice?.deviceId ?? _currentDeviceId;
+    final isCurrentTarget = targetId.toLowerCase() == _currentDeviceId.toLowerCase();
+    final targetLocation = targetDevice?.locationCode ?? _currentDeviceLocation ?? '';
+    final targetName = (targetDevice != null && targetDevice.deviceName.isNotEmpty)
+        ? targetDevice.deviceName
+        : (_currentDeviceName.isNotEmpty ? _currentDeviceName : 'This Tablet');
 
     showModalBottomSheet(
       context: context,
@@ -1912,236 +2111,296 @@ class _DevicesScreenState extends State<DevicesScreen> {
         String filter = '';
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            final theme = Theme.of(context);
-            final isDark = theme.brightness == Brightness.dark;
-            final primary = theme.primaryColor;
-            final q = filter.trim().toLowerCase();
-            final filtered = q.isEmpty
-                ? _availableLorries
-                : _availableLorries.where((l) {
-                    final loc = l.location.toLowerCase();
-                    final desc = l.description.toLowerCase();
-                    final plate = (l.plateNumber ?? '').toLowerCase();
-                    return loc.contains(q) || desc.contains(q) || plate.contains(q);
-                  }).toList();
+            return ValueListenableBuilder<int>(
+              valueListenable: _lorryListRevision,
+              builder: (_, __, ___) {
+                final theme = Theme.of(context);
+                final isDark = theme.brightness == Brightness.dark;
+                final primary = theme.primaryColor;
+                final q = filter.trim().toLowerCase();
+                final filtered = q.isEmpty
+                    ? _availableLorries
+                    : _availableLorries.where((l) {
+                        final loc = l.location.toLowerCase();
+                        final desc = l.description.toLowerCase();
+                        final plate = (l.plateNumber ?? '').toLowerCase();
+                        return loc.contains(q) || desc.contains(q) || plate.contains(q);
+                      }).toList();
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.72,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                border: Border.all(
-                  color: isDark ? Colors.white12 : Colors.black12,
-                  width: 1.0,
-                ),
-              ),
-              child: Column(
-                children: [
-                  // Top Drag Handle
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white24 : Colors.black12,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                return Container(
+                  height: MediaQuery.of(context).size.height * 0.72,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      width: 1.0,
                     ),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: primary.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(Icons.local_shipping_rounded, color: primary, size: 20),
+                      // Top Drag Handle
+                      Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Select Site Vehicle (${_availableLorries.length})',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.refresh_rounded, size: 20),
-                            tooltip: 'Reload from Server',
-                            onPressed: () async {
-                              await _loadSiteLorries(_userSiteCode);
-                              setModalState(() {});
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 20),
-                            onPressed: () => Navigator.pop(pCtx),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search lorry code or plate number...',
-                      prefixIcon: Icon(Icons.search, size: 18),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    onChanged: (val) => setModalState(() => filter = val),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                          Expanded(
+                            child: Row(
                               children: [
-                                const Icon(Icons.local_shipping_outlined, size: 36, color: Colors.grey),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'No matching vehicles found',
-                                  style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: primary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.local_shipping_rounded, color: primary, size: 20),
                                 ),
-                                const SizedBox(height: 12),
-                                TextButton.icon(
-                                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                                  label: const Text('Reset Vehicles'),
-                                  onPressed: () async {
-                                    await _loadSiteLorries(_userSiteCode);
-                                    setModalState(() {
-                                      filter = '';
-                                    });
-                                  },
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    isCurrentTarget
+                                        ? 'Select Site Vehicle (${_availableLorries.length})'
+                                        : 'Assign Lorry • $targetName (${_availableLorries.length})',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                          )
-                        : ListView.separated(
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) => Divider(
-                              height: 1,
-                              color: isDark ? Colors.white12 : Colors.black12,
-                            ),
-                            itemBuilder: (_, i) {
-                              final item = filtered[i];
-                              final isSelected =
-                                  item.location.trim().toUpperCase() == (_currentDeviceLocation ?? '').trim().toUpperCase();
-                              return ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                leading: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? primary.withOpacity(0.15)
-                                        : (isDark ? Colors.white10 : Colors.black.withOpacity(0.04)),
-                                    borderRadius: BorderRadius.circular(8),
+                          ),
+                          Row(
+                            children: [
+                              if (_isLoadingLorries)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 10),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
-                                  child: Icon(
-                                    Icons.local_shipping_rounded,
-                                    color: isSelected ? primary : (isDark ? Colors.white60 : Colors.black54),
-                                    size: 20,
-                                  ),
+                                )
+                              else
+                                IconButton(
+                                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                                  tooltip: 'Reload from Server',
+                                  onPressed: () async {
+                                    await _loadSiteLorries(_userSiteCode);
+                                  },
                                 ),
-                                title: Row(
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 20),
+                                onPressed: () => Navigator.pop(pCtx),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search lorry code or plate number...',
+                          prefixIcon: Icon(Icons.search, size: 18),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+                        onChanged: (val) => setModalState(() => filter = val),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: _isLoadingLorries && filtered.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Flexible(
-                                      child: Text(
-                                        'Lorry ${item.location}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: isSelected
-                                              ? primary
-                                              : (isDark ? Colors.white : Colors.black87),
-                                        ),
-                                      ),
+                                    const CircularProgressIndicator(strokeWidth: 2.5),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Fetching site vehicles for $_userSiteCode...',
+                                      style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
                                     ),
-                                    if (item.plateNumber != null && item.plateNumber!.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? Colors.white10 : Colors.grey.shade200,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            item.plateNumber!,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontFamily: 'monospace',
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: primary,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
-                                subtitle: Text(
-                                  'Warehouse: ${item.warehouse ?? _userSiteCode}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark ? Colors.white54 : Colors.black54,
-                                  ),
-                                ),
-                                trailing: isSelected
-                                  ? Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: primary.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.check_circle_rounded, size: 14, color: primary),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'ACTIVE',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: primary,
+                              )
+                            : filtered.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.local_shipping_outlined, size: 36, color: Colors.grey),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'No matching vehicles found',
+                                          style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                                        ),
+                                        if (_lorrySyncError != null) ...[
+                                          const SizedBox(height: 6),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                                            child: Text(
+                                              _lorrySyncError!,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 11, color: Colors.amber),
                                             ),
                                           ),
                                         ],
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 18,
-                                      color: isDark ? Colors.white38 : Colors.black38,
+                                        const SizedBox(height: 12),
+                                        TextButton.icon(
+                                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                                          label: const Text('Reset Vehicles'),
+                                          onPressed: () async {
+                                            setModalState(() => filter = '');
+                                            await _loadSiteLorries(_userSiteCode);
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                onTap: () {
-                                  Navigator.pop(pCtx);
-                                  _updateLorryLocation(item.location, item.warehouse);
-                                },
-                              );
-                            },
-                          ),
+                                  )
+                                : ListView.separated(
+                                    itemCount: filtered.length,
+                                    separatorBuilder: (_, __) => Divider(
+                                      height: 1,
+                                      color: isDark ? Colors.white12 : Colors.black12,
+                                    ),
+                                    itemBuilder: (_, i) {
+                                      final item = filtered[i];
+                                      final itemLocUpper = item.location.trim().toUpperCase();
+                                      final isSelected = itemLocUpper == targetLocation.trim().toUpperCase();
+                                      final heldByOther = _devices
+                                          .where((d) =>
+                                              d.isActive &&
+                                              d.deviceId.toLowerCase() != targetId.toLowerCase() &&
+                                              itemLocUpper != _userSiteCode.trim().toUpperCase() &&
+                                              d.locationCode.trim().toUpperCase() == itemLocUpper)
+                                          .firstOrNull;
+                                      return ListTile(
+                                        dense: true,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        leading: Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? primary.withOpacity(0.15)
+                                                : (isDark ? Colors.white10 : Colors.black.withOpacity(0.04)),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(
+                                            Icons.local_shipping_rounded,
+                                            color: isSelected ? primary : (isDark ? Colors.white60 : Colors.black54),
+                                            size: 20,
+                                          ),
+                                        ),
+                                        title: Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                'Lorry ${item.location}',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: isSelected
+                                                      ? primary
+                                                      : (isDark ? Colors.white : Colors.black87),
+                                                ),
+                                              ),
+                                            ),
+                                            if (item.plateNumber != null && item.plateNumber!.isNotEmpty) ...[
+                                              const SizedBox(width: 8),
+                                              Flexible(
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: isDark ? Colors.white10 : Colors.grey.shade200,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    item.plateNumber!,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontFamily: 'monospace',
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: primary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        subtitle: Text(
+                                          heldByOther != null
+                                              ? 'Warehouse: ${item.warehouse ?? _userSiteCode} • Assigned to ${heldByOther.deviceName}'
+                                              : 'Warehouse: ${item.warehouse ?? _userSiteCode}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: heldByOther != null
+                                                ? Colors.amber.shade400
+                                                : (isDark ? Colors.white54 : Colors.black54),
+                                          ),
+                                        ),
+                                        trailing: isSelected
+                                            ? Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: primary.withOpacity(0.15),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.check_circle_rounded, size: 14, color: primary),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'ACTIVE',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: primary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            : Icon(
+                                                Icons.chevron_right_rounded,
+                                                size: 18,
+                                                color: isDark ? Colors.white38 : Colors.black38,
+                                              ),
+                                        onTap: () {
+                                          Navigator.pop(pCtx);
+                                          _updateLorryLocation(
+                                            item.location,
+                                            item.warehouse,
+                                            targetDevice: targetDevice,
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -2684,61 +2943,104 @@ class _DevicesScreenState extends State<DevicesScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Metadata Row: Lorry and UUID
+          // Metadata Row: Lorry (interactive assign for admins / current tablet) and UUID
           Row(
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF161616) : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: isDark ? Colors.white12 : Colors.black12,
+                child: InkWell(
+                  onTap: (_isAdminUser || isCurrent)
+                      ? () => _showLorryPickerModal(context, targetDevice: d)
+                      : null,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF161616) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: (_isAdminUser || isCurrent)
+                            ? primary.withOpacity(0.35)
+                            : (isDark ? Colors.white12 : Colors.black12),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.local_shipping_outlined,
-                        size: 13,
-                        color: hasLocation ? primary : Colors.amber,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          hasLocation ? 'Lorry ${d.locationCode}' : 'Pending Lorry',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: hasLocation
-                                ? (isDark ? Colors.white : Colors.black87)
-                                : Colors.amber,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.local_shipping_outlined,
+                          size: 13,
+                          color: hasLocation ? primary : Colors.amber,
                         ),
-                      ),
-                      if (hasFleetPlate) ...[
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: primary.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(3),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  hasLocation ? 'Lorry ${d.locationCode}' : 'Pending Lorry',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: hasLocation
+                                        ? (isDark ? Colors.white : Colors.black87)
+                                        : Colors.amber,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (hasFleetPlate) ...[
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: primary.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      fleetLorry.plateNumber!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: primary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          child: Text(
-                            fleetLorry!.plateNumber!,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: primary,
+                        ),
+                        if (_isAdminUser || isCurrent) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.swap_horiz_rounded, size: 12, color: primary),
+                                const SizedBox(width: 3),
+                                Text(
+                                  hasLocation ? 'Change' : 'Assign',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: primary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

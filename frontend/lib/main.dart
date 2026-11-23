@@ -26,12 +26,15 @@ import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchr
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/set_preparation_status_use_case.dart';
 import 'package:enterprise_auth_mobile/core/network_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sync_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_sync_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/usecases/synchronize_sales_invoice_use_case.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_bloc.dart';
+import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_sync_state.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_bloc.dart';
+import 'package:enterprise_auth_mobile/features/manufacturing/bloc/manufacturing_state.dart';
 import 'package:enterprise_auth_mobile/core/utils/audio/audio_service.dart';
 import 'package:enterprise_auth_mobile/core/services/printer_service.dart';
 import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
@@ -64,8 +67,19 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
+class _SyncBlockingBackButtonDispatcher extends RootBackButtonDispatcher {
+  @override
+  Future<bool> didPopRoute() {
+    if (HardwareScannerService().isLocked) {
+      return Future.value(true);
+    }
+    return super.didPopRoute();
+  }
+}
+
 class _MyAppState extends State<MyApp> {
   AppRouter? _appRouter;
+  final RootBackButtonDispatcher _backButtonDispatcher = _SyncBlockingBackButtonDispatcher();
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +235,10 @@ class _MyAppState extends State<MyApp> {
               child: _appRouter == null 
                   ? const SizedBox.shrink() 
                   : MaterialApp.router(
-                      routerConfig: _appRouter!.router,
+                      routeInformationParser: _appRouter!.router.routeInformationParser,
+                      routerDelegate: _appRouter!.router.routerDelegate,
+                      routeInformationProvider: _appRouter!.router.routeInformationProvider,
+                      backButtonDispatcher: _backButtonDispatcher,
                       title: 'Enterprise Auth',
                       theme: AppTheme.lightTheme,
                       darkTheme: AppTheme.darkTheme,
@@ -237,12 +254,37 @@ class _MyAppState extends State<MyApp> {
                                 ? const TextScaler.linear(0.85)
                                 : TextScaler.noScaling,
                           ),
-                          child: Stack(
-                            children: [
-                              child!,
-                              const SyncOverlay(),
-                              const SalesInvoiceSyncOverlay(),
-                            ],
+                          child: BlocBuilder<SyncBloc, SyncState>(
+                            builder: (context, syncState) {
+                              return BlocBuilder<ManufacturingBloc, ManufacturingState>(
+                                builder: (context, mfgState) {
+                                  return BlocBuilder<SalesInvoiceSyncBloc, SalesInvoiceSyncState>(
+                                    builder: (context, salesSyncState) {
+                                      final bool isAnySyncLocked =
+                                          syncState is SyncInProgress ||
+                                          (mfgState is ManufacturingSyncProgress &&
+                                              (mfgState.phase == SyncPhase.pushing ||
+                                                  mfgState.phase == SyncPhase.pulling)) ||
+                                          salesSyncState is SalesInvoiceSyncInProgress ||
+                                          salesSyncState is SalesInvoiceCustomerSyncInProgress;
+
+                                      HardwareScannerService().isLocked = isAnySyncLocked;
+
+                                      return Stack(
+                                        children: [
+                                          AbsorbPointer(
+                                            absorbing: isAnySyncLocked,
+                                            child: child!,
+                                          ),
+                                          const SyncOverlay(),
+                                          const SalesInvoiceSyncOverlay(),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
                           ),
                         );
                       },

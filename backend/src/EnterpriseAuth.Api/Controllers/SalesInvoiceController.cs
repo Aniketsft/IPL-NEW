@@ -1,15 +1,20 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using EnterpriseAuth.Api.Core.Application.Interfaces;
-using EnterpriseAuth.Api.Core.Application.Common;
-using EnterpriseAuth.Api.Infrastructure.Persistence;
-using EnterpriseAuth.Api.Core.Domain.Entities;
-using EnterpriseAuth.Api.Core.Application.DTOs;
-using Microsoft.EntityFrameworkCore;
 using System;
-using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+using EnterpriseAuth.Api.Core.Application.Common;
+using EnterpriseAuth.Api.Core.Application.DTOs;
+using EnterpriseAuth.Api.Core.Application.Interfaces;
+using EnterpriseAuth.Api.Core.Domain.Entities;
+using EnterpriseAuth.Api.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -148,6 +153,68 @@ namespace EnterpriseAuth.Api.Controllers
                 payload.DeviceId,
                 payload.UserName ?? payload.CreatedBy ?? User.Identity?.Name);
 
+            var targetShippingSite = !string.IsNullOrWhiteSpace(payload.ShippingSite)
+                ? payload.ShippingSite.Trim()
+                : (!string.IsNullOrWhiteSpace(payload.SalesSite) ? payload.SalesSite.Trim() : "POD");
+            var lorryScope = await ResolveCallerLorryScopeAsync(targetShippingSite, payload.DeviceId);
+            if (lorryScope.HasDeviceContext)
+            {
+                if (string.IsNullOrEmpty(lorryScope.AssignedLorry))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error = "No lorry is assigned to this tablet. Assign a lorry before syncing sales invoices."
+                    });
+                }
+
+                foreach (var l in payload.Lines)
+                {
+                    if (!string.IsNullOrWhiteSpace(l.StockStatus) &&
+                        !l.StockStatus.Trim().StartsWith("A", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return BadRequest(new
+                        {
+                            success = false,
+                            error = $"Line '{l.Sku}' has stock status '{l.StockStatus}'. Only status 'A' (Approved) stock can be sold."
+                        });
+                    }
+
+                    if (!IsLineAllowedForLorry(l, lorryScope))
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            success = false,
+                            error = $"Line '{l.Sku}' references '{l.Location}/{l.Warehouse}', which does not match this tablet's assigned lorry '{lorryScope.AssignedLorry}'."
+                        });
+                    }
+
+                    if (string.IsNullOrWhiteSpace(l.Warehouse))
+                    {
+                        l.Warehouse = lorryScope.AssignedWarehouse ?? lorryScope.AssignedLorry;
+                    }
+                    if (string.IsNullOrWhiteSpace(l.Location))
+                    {
+                        l.Location = lorryScope.AssignedLorry;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var l in payload.Lines)
+                {
+                    if (!string.IsNullOrWhiteSpace(l.StockStatus) &&
+                        !l.StockStatus.Trim().StartsWith("A", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return BadRequest(new
+                        {
+                            success = false,
+                            error = $"Line '{l.Sku}' has stock status '{l.StockStatus}'. Only status 'A' (Approved) stock can be sold."
+                        });
+                    }
+                }
+            }
+
             // Process one invoice at a time, transactionally
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
@@ -175,8 +242,19 @@ namespace EnterpriseAuth.Api.Controllers
                         TabletSource = resolvedTabletSource
                     };
 
+                    var usedLineNos = new HashSet<int>();
+                    int nextLineNo = 1;
                     foreach (var l in payload.Lines)
                     {
+                        var resolvedLineNo = (l.LineNo > 0 && usedLineNos.Add(l.LineNo))
+                            ? l.LineNo
+                            : nextLineNo;
+                        while (!usedLineNos.Add(resolvedLineNo))
+                        {
+                            resolvedLineNo++;
+                        }
+                        if (resolvedLineNo >= nextLineNo) nextLineNo = resolvedLineNo + 1;
+
                         var lineTotal = l.Total > 0 ? l.Total : ((l.Quantity * l.BasePrice) - l.DiscountAmount + l.VatAmount);
                         var disc2 = l.Discount2 > 0 ? l.Discount2 : l.DiscountAmountFlat;
                         existingHeader.Lines.Add(new StagingSalesInvoiceLine
@@ -184,7 +262,7 @@ namespace EnterpriseAuth.Api.Controllers
                             InvoiceId = payload.InvoiceId,
                             Sku = l.Sku,
                             Name = l.Name,
-                            LineNo = l.LineNo,
+                            LineNo = resolvedLineNo,
                             Quantity = (double)l.Quantity,
                             BasePrice = (double)l.BasePrice,
                             DiscountAmount = (double)l.DiscountAmount,
@@ -209,18 +287,28 @@ namespace EnterpriseAuth.Api.Controllers
                 }
                 else
                 {
-                    // Repopulate [NotMapped] properties (Location, IsFoc, MainItemSku, Discount3) from incoming payload when retrying
+                    // Repopulate [NotMapped] properties (Location, IsFoc, MainItemSku, Discount3, DiscountAmountFlat) from incoming payload when retrying
                     foreach (var line in existingHeader.Lines)
                     {
-                        var matched = payload.Lines.FirstOrDefault(p => p.LineNo == line.LineNo || (p.Sku == line.Sku && !string.IsNullOrEmpty(p.Sku)));
+                        var matched = payload.Lines.FirstOrDefault(p => p.LineNo > 0 && p.LineNo == line.LineNo)
+                            ?? payload.Lines.FirstOrDefault(p =>
+                                !string.IsNullOrEmpty(p.Sku) &&
+                                string.Equals(p.Sku, line.Sku, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(p.LotNumber ?? "", line.LotNumber ?? "", StringComparison.OrdinalIgnoreCase) &&
+                                p.IsFoc == line.IsFoc);
                         if (matched != null)
                         {
                             line.IsFoc = matched.IsFoc;
                             line.MainItemSku = matched.MainItemSku;
                             line.Discount3 = matched.Discount3;
+                            line.DiscountAmountFlat = matched.DiscountAmountFlat;
                             if (!string.IsNullOrEmpty(matched.Location))
                             {
                                 line.Location = matched.Location;
+                            }
+                            if (string.IsNullOrWhiteSpace(line.LotNumber) && !string.IsNullOrWhiteSpace(matched.LotNumber))
+                            {
+                                line.LotNumber = matched.LotNumber;
                             }
                         }
                     }
@@ -996,6 +1084,17 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
+                if (_snapshotService != null)
+                {
+                    var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
+                        string.IsNullOrWhiteSpace(siteCtx!.FinancialSiteCode) ? "GLOBAL" : siteCtx.FinancialSiteCode,
+                        "Customers",
+                        () => _repository.GetCustomersWatermarkAsync(),
+                        () => _repository.GetCustomersAsync(siteCtx.FinancialSiteCode, bypassCache: true));
+
+                    return ServeSnapshotResult(snapshot);
+                }
+
                 var customers = await _repository.GetCustomersAsync(siteCtx!.FinancialSiteCode);
                 return Ok(customers);
             }
@@ -1016,7 +1115,22 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var products = await _repository.GetProductsAsync(siteCtx!.ShippingSiteCode);
+                var targetSite = siteCtx!.ShippingSiteCode;
+                var lorryScope = await ResolveCallerLorryScopeAsync(targetSite);
+                if (lorryScope.HasDeviceContext)
+                {
+                    if (string.IsNullOrEmpty(lorryScope.AssignedLorry))
+                    {
+                        Response.Headers["X-Lorry-Required"] = "true";
+                        return Ok(Array.Empty<SalesInvoiceProductDto>());
+                    }
+
+                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry;
+                    var lorryProducts = await _repository.GetProductsAsync(targetSite, lorryScope.AssignedLorry);
+                    return Ok(lorryProducts);
+                }
+
+                var products = await _repository.GetProductsAsync(targetSite);
                 return Ok(products);
             }
             catch (System.Exception)
@@ -1034,25 +1148,69 @@ namespace EnterpriseAuth.Api.Controllers
                 return error;
             }
 
+            var targetSite = siteCtx!.ShippingSiteCode;
             try
             {
+                var lorryScope = await ResolveCallerLorryScopeAsync(targetSite);
+                if (lorryScope.HasDeviceContext && string.IsNullOrEmpty(lorryScope.AssignedLorry))
+                {
+                    Response.Headers["X-Lorry-Required"] = "true";
+                    return Ok(Array.Empty<SalesInvoiceItemStockDto>());
+                }
+
                 if (_snapshotService != null)
                 {
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
-                        siteCtx!.ShippingSiteCode,
+                        targetSite,
                         "StockDetails",
-                        () => _repository.GetStockWatermarkAsync(siteCtx.ShippingSiteCode),
-                        () => _repository.GetItemStockDetailsAsync(siteCtx.ShippingSiteCode));
+                        () => _repository.GetStockWatermarkAsync(targetSite),
+                        () => _repository.GetItemStockDetailsAsync(targetSite));
 
-                    return ServeSnapshotResult(snapshot);
+                    if (!lorryScope.HasDeviceContext)
+                    {
+                        return ServeSnapshotResult(snapshot);
+                    }
+
+                    var baseEtag = snapshot.ETag.Trim('"');
+                    var lorryEtag = $"\"{baseEtag}_{lorryScope.AssignedLorry!.ToUpperInvariant()}\"";
+                    var requestETag = Request.Headers.IfNoneMatch.ToString();
+                    if (!string.IsNullOrEmpty(requestETag) && requestETag.Equals(lorryEtag, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return StatusCode(304);
+                    }
+
+                    List<SalesInvoiceItemStockDto>? allItems;
+                    await using (var fs = new FileStream(snapshot.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true))
+                    await using (var gzip = new GZipStream(fs, CompressionMode.Decompress))
+                    {
+                        allItems = await JsonSerializer.DeserializeAsync<List<SalesInvoiceItemStockDto>>(gzip, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                    }
+
+                    var filtered = (allItems ?? new List<SalesInvoiceItemStockDto>())
+                        .Where(d => MatchesLorryScope(d, lorryScope, targetSite))
+                        .ToList();
+
+                    Response.Headers.ETag = lorryEtag;
+                    Response.Headers.LastModified = snapshot.LastModifiedUtc.ToString("R");
+                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry;
+                    return Ok(filtered);
                 }
 
-                var details = await _repository.GetItemStockDetailsAsync(siteCtx!.ShippingSiteCode);
+                var details = await _repository.GetItemStockDetailsAsync(targetSite);
+                if (lorryScope.HasDeviceContext)
+                {
+                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry!;
+                    details = details.Where(d => MatchesLorryScope(d, lorryScope, targetSite)).ToList();
+                }
+
                 return Ok(details);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving stock details for site {Site}", siteCtx!.ShippingSiteCode);
+                _logger.LogError(ex, "Error retrieving stock details for site {Site}", targetSite);
                 return StatusCode(500, new { error = "An internal error occurred while retrieving stock details." });
             }
         }
@@ -1177,7 +1335,29 @@ namespace EnterpriseAuth.Api.Controllers
 
             try
             {
-                var liveStock = await _repository.GetProductLiveStockAsync(productCode, siteCtx!.ShippingSiteCode);
+                var targetSite = siteCtx!.ShippingSiteCode;
+                var lorryScope = await ResolveCallerLorryScopeAsync(targetSite);
+                if (lorryScope.HasDeviceContext)
+                {
+                    if (string.IsNullOrEmpty(lorryScope.AssignedLorry))
+                    {
+                        Response.Headers["X-Lorry-Required"] = "true";
+                        return Ok(new ProductLiveStockDto
+                        {
+                            ProductCode = productCode,
+                            SiteCode = targetSite,
+                            PhysicalStock = 0,
+                            AllocatedStock = 0,
+                            LiveAvailableStock = 0
+                        });
+                    }
+
+                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry;
+                    var lorryLiveStock = await _repository.GetProductLiveStockAsync(productCode, targetSite, lorryScope.AssignedLorry);
+                    return Ok(lorryLiveStock);
+                }
+
+                var liveStock = await _repository.GetProductLiveStockAsync(productCode, targetSite);
                 return Ok(liveStock);
             }
             catch (System.Exception ex)
@@ -1567,6 +1747,123 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             return "HM1";
+        }
+
+        private sealed record LorryScope(
+            bool HasDeviceContext,
+            string? AssignedLorry,
+            string? AssignedWarehouse,
+            string? SiteCode);
+
+        private async Task<LorryScope> ResolveCallerLorryScopeAsync(string effectiveSiteCode, string? payloadDeviceId = null)
+        {
+            var headerDeviceId = Request?.Headers.TryGetValue("X-Device-Id", out var hDev) == true
+                ? hDev.ToString().Trim()
+                : null;
+            var queryDeviceId = Request?.Query.TryGetValue("deviceId", out var qDev) == true
+                ? qDev.ToString().Trim()
+                : null;
+            var claimDeviceId = User?.FindFirst("DeviceId")?.Value?.Trim();
+
+            var requestedDeviceId = !string.IsNullOrWhiteSpace(headerDeviceId)
+                ? headerDeviceId
+                : (!string.IsNullOrWhiteSpace(payloadDeviceId)
+                    ? payloadDeviceId.Trim()
+                    : (!string.IsNullOrWhiteSpace(queryDeviceId) ? queryDeviceId : claimDeviceId));
+
+            var cleanSite = (effectiveSiteCode ?? string.Empty).Trim().ToUpperInvariant();
+            var username = User?.Claims.FirstOrDefault(c => c.Type == "username")?.Value
+                           ?? User?.Identity?.Name
+                           ?? string.Empty;
+
+            DeviceLocation? device = null;
+            if (!string.IsNullOrWhiteSpace(requestedDeviceId))
+            {
+                var cleanDev = requestedDeviceId.Trim();
+                device = await _dbContext.DeviceLocations.AsNoTracking().FirstOrDefaultAsync(d =>
+                    d.IsActive &&
+                    (d.DeviceId == cleanDev || d.DeviceName == cleanDev || d.HardwareIdentifier == cleanDev));
+
+                if (device == null)
+                {
+                    return new LorryScope(true, null, null, cleanSite);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(username))
+            {
+                var cleanUser = username.Trim();
+                device = await _dbContext.DeviceLocations.AsNoTracking()
+                    .Where(d => d.IsActive &&
+                                d.AssignedUserName != null &&
+                                d.AssignedUserName == cleanUser &&
+                                (cleanSite == string.Empty || cleanSite == "ALL" || d.SiteCode == cleanSite))
+                    .OrderByDescending(d => d.UpdatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (device == null)
+                {
+                    return new LorryScope(false, null, null, cleanSite);
+                }
+            }
+            else
+            {
+                return new LorryScope(false, null, null, cleanSite);
+            }
+
+            var devSite = (device.SiteCode ?? cleanSite).Trim().ToUpperInvariant();
+            var loc = (device.LocationCode ?? string.Empty).Trim().ToUpperInvariant();
+            var wrh = (device.WarehouseCode ?? string.Empty).Trim().ToUpperInvariant();
+
+            bool hasConcreteLoc = !string.IsNullOrEmpty(loc) && loc != devSite && loc != "ALL";
+            bool hasConcreteWrh = !string.IsNullOrEmpty(wrh) && wrh != devSite && wrh != "ALL";
+
+            if (!hasConcreteLoc && !hasConcreteWrh)
+            {
+                return new LorryScope(true, null, null, devSite);
+            }
+
+            var assignedLorry = hasConcreteLoc ? loc : wrh;
+            var assignedWrh = hasConcreteWrh ? wrh : assignedLorry;
+            return new LorryScope(true, assignedLorry, assignedWrh, devSite);
+        }
+
+        private static bool MatchesLorryCode(string? value, LorryScope scope)
+        {
+            if (string.IsNullOrWhiteSpace(value) || string.IsNullOrEmpty(scope.AssignedLorry))
+            {
+                return false;
+            }
+
+            var clean = value.Trim().ToUpperInvariant();
+            return string.Equals(clean, scope.AssignedLorry, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrEmpty(scope.AssignedWarehouse) &&
+                    string.Equals(clean, scope.AssignedWarehouse, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool MatchesLorryScope(SalesInvoiceItemStockDto d, LorryScope scope, string targetSite)
+        {
+            if (!string.IsNullOrWhiteSpace(targetSite) &&
+                !string.Equals(targetSite, "ALL", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(d.SiteCode) &&
+                !string.Equals(d.SiteCode.Trim(), targetSite.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return MatchesLorryCode(d.Location, scope) || MatchesLorryCode(d.Warehouse, scope);
+        }
+
+        private static bool IsLineAllowedForLorry(SalesInvoiceLineDto line, LorryScope scope)
+        {
+            if (!string.IsNullOrWhiteSpace(line.Location) && !MatchesLorryCode(line.Location, scope))
+            {
+                return false;
+            }
+            if (!string.IsNullOrWhiteSpace(line.Warehouse) && !MatchesLorryCode(line.Warehouse, scope))
+            {
+                return false;
+            }
+            return true;
         }
     }
 }

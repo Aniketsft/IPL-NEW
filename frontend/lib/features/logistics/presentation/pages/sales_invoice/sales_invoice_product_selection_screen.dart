@@ -8,7 +8,7 @@ import '../../../data/repositories/sales_invoice_product_repository.dart';
 import '../../../../../core/network_service.dart';
 import '../../../../../core/widgets/filter_input_widgets.dart';
 import '../../../../../core/widgets/standard_filter.dart';
-import '../../../../../core/widgets/search_picker_sheet.dart';
+import '../../../domain/models/stock_status.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sales_invoice_cart_cubit.dart';
 import '../../bloc/sales_invoice_bloc.dart';
@@ -40,8 +40,9 @@ class _SalesInvoiceProductSelectionScreenState
   bool _useSystemKeyboard = false;
   bool _allowProgrammaticPop = false;
   String _stockFilter = 'all'; // Default to all as requested
+  String _statusFilter = 'ALL'; // ALL, A, Q, R
   String? _selectedWarehouse;
-  List<String> _warehouses = [];
+  AssignedLorryScope? _lorryScope;
   bool _isInit = false;
   SharedPreferences? _prefs;
 
@@ -68,21 +69,54 @@ class _SalesInvoiceProductSelectionScreenState
         _showErrorDialog('Product Not Found', 'The scanned barcode could not be identified.');
         return;
       }
-      
-      final product = await _repository.getProductByItemCode(scanResult.itemCode);
-      
-      if (product == null) {
-        _showErrorDialog('Product Not Found', 'The product is not available in the sales invoice catalog.');
+
+      final scope = _lorryScope ??
+          await _repository.resolveAssignedLorryScope(siteCode: widget.siteCode);
+      if (!scope.isAssigned) {
+        _showErrorDialog(
+          'Lorry Not Assigned',
+          'Assign a lorry to this tablet for site ${scope.siteCode} and sync stock before scanning.',
+        );
         return;
       }
 
-      // Check if product is already in the cart
+      if (!mounted) return;
       final state = context.read<SalesInvoiceBloc>().state;
+      final isReturnMode =
+          state is SalesInvoiceLoaded && state.config.isReturnOrCreditNote;
+
+      final product = await _repository.getProductByItemCode(
+        scanResult.itemCode,
+        siteCode: widget.siteCode,
+        stockStatus: 'ALL',
+      );
+      
+      if (product == null) {
+        _showErrorDialog(
+          'Not In Lorry Stock',
+          '${scanResult.itemCode} is not in assigned lorry ${scope.lorryCode} (${scope.siteCode}). Sync if stock changed.',
+        );
+        return;
+      }
+
+      final parsedStatus = StockStatus.fromCode(product.stockStatus);
+      if (!isReturnMode && !parsedStatus.isSellable) {
+        _showErrorDialog(
+          'Non-Sellable Stock (${parsedStatus.code})',
+          '${product.sku} in lorry ${scope.lorryCode} only has ${parsedStatus.shortLabel}. Only Status A stock can be sold.',
+        );
+        return;
+      }
+
+      // Check if product with matching status is already in the cart
       final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
+      final targetStatus = parsedStatus.code;
       CartItem? existingItem;
       int? editingIndex;
       for (int i = 0; i < cartItems.length; i++) {
-        if (cartItems[i].product.sku == product.sku && !cartItems[i].isFoc) {
+        if (cartItems[i].product.sku == product.sku &&
+            StockStatus.fromCode(cartItems[i].stockStatus).code == targetStatus &&
+            !cartItems[i].isFoc) {
           existingItem = cartItems[i];
           editingIndex = i;
           break;
@@ -224,23 +258,21 @@ class _SalesInvoiceProductSelectionScreenState
   Future<void> _initData() async {
     final prefs = await SharedPreferences.getInstance();
     _prefs = prefs;
+    final scope = await _repository.resolveAssignedLorryScope(
+      siteCode: widget.siteCode,
+    );
+    await prefs.remove('si_product_warehouse');
     if (mounted) {
       final state = context.read<SalesInvoiceBloc>().state;
       final isSalesOrder = state is SalesInvoiceLoaded && state.transactionType == 'SI_SALES_ORDER';
       setState(() {
+        _lorryScope = scope;
         _searchController.text = '';
         _stockFilter = isSalesOrder ? 'all' : (prefs.getString('si_product_stock_filter') ?? 'all');
-        _selectedWarehouse = prefs.getString('si_product_warehouse');
+        _statusFilter = 'ALL';
+        _selectedWarehouse = scope.isAssigned ? scope.lorryCode : null;
       });
     }
-    _loadWarehouses();
-  }
-
-  Future<void> _loadWarehouses() async {
-    final whs = await _repository.getDistinctWarehouses(widget.siteCode);
-    setState(() {
-      _warehouses = whs;
-    });
     _resetAndFetch();
   }
 
@@ -248,11 +280,7 @@ class _SalesInvoiceProductSelectionScreenState
     if (_prefs != null) {
       _prefs!.setString('si_product_search', _searchController.text);
       _prefs!.setString('si_product_stock_filter', _stockFilter);
-      if (_selectedWarehouse != null) {
-        _prefs!.setString('si_product_warehouse', _selectedWarehouse!);
-      } else {
-        _prefs!.remove('si_product_warehouse');
-      }
+      _prefs!.remove('si_product_warehouse');
     }
   }
 
@@ -278,6 +306,7 @@ class _SalesInvoiceProductSelectionScreenState
         siteCode: widget.siteCode,
         query: _searchController.text.trim().toLowerCase(),
         stockFilter: _stockFilter,
+        stockStatus: _statusFilter,
         limit: _limit,
         offset: _offset,
       );
@@ -402,41 +431,85 @@ class _SalesInvoiceProductSelectionScreenState
               searchController: _searchController,
               onSearchChanged: (val) => _resetAndFetch(),
             hasActiveFilters:
-                _selectedWarehouse != null || _stockFilter != 'all',
+                _statusFilter != 'ALL' || _stockFilter != 'all',
             onReset: () {
               setState(() {
                 _searchController.clear();
-                _selectedWarehouse = null;
                 _stockFilter = 'all';
+                _statusFilter = 'ALL';
               });
               _resetAndFetch();
             },
             filterBuilder: (context, setModalState) {
+              final scope = _lorryScope;
+              final lorryLabel = scope != null && scope.isAssigned
+                  ? '${scope.lorryCode} (${scope.siteCode})'
+                  : 'Unassigned (${scope?.siteCode ?? widget.siteCode})';
               return Column(
                 children: [
-                  Row(
-                    children: [
-                      FilterPickerTile(
-                        label: 'Warehouse',
-                        value: _selectedWarehouse,
-                        icon: Icons.location_on_outlined,
-                        onTap: () => SearchPickerSheet.show(
-                          context: context,
-                          title: 'Warehouse',
-                          items: _warehouses
-                              .map((w) => {'code': w, 'name': 'Warehouse $w'})
-                              .toList(),
-                          onSelected: (code) {
-                            setState(() => _selectedWarehouse = code);
-                            setModalState(() {});
-                          },
-                        ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (scope != null && scope.isAssigned
+                                ? theme.primaryColor
+                                : Colors.orange)
+                            .withValues(alpha: 0.4),
                       ),
-                    ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: scope != null && scope.isAssigned
+                              ? theme.primaryColor
+                              : Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ASSIGNED LORRY (LOCKED)',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                  color: isDark ? Colors.white54 : Colors.black54,
+                                ),
+                              ),
+                              Text(
+                                lorryLabel,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   FilterSegmentedToggle(
-                    label: 'Stock Status',
+                    label: 'Item Status (Sell Status A Only)',
+                    value: _statusFilter,
+                    options: const ['ALL', 'A', 'Q', 'R'],
+                    onChanged: (value) {
+                      setState(() => _statusFilter = value);
+                      setModalState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  FilterSegmentedToggle(
+                    label: 'Stock Availability',
                     value: _stockFilter,
                     options: const ['in stock', 'out of stock', 'all'],
                     onChanged: (value) {
@@ -448,6 +521,49 @@ class _SalesInvoiceProductSelectionScreenState
               );
             },
           ),
+          if (_lorryScope != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _lorryScope!.isAssigned
+                    ? (isDark ? const Color(0xFF1E222B) : Colors.amber.shade50)
+                    : Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _lorryScope!.isAssigned
+                      ? theme.primaryColor.withValues(alpha: 0.35)
+                      : Colors.red.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _lorryScope!.isAssigned
+                        ? Icons.local_shipping_outlined
+                        : Icons.warning_amber_rounded,
+                    size: 16,
+                    color: _lorryScope!.isAssigned ? theme.primaryColor : Colors.red[700],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _lorryScope!.isAssigned
+                          ? 'Lorry: ${_lorryScope!.lorryCode}  •  Site: ${_lorryScope!.siteCode}  •  Synced stock (sell Status A only)'
+                          : 'No lorry assigned for site ${_lorryScope!.siteCode}. Assign a vehicle in Tablet Fleet & sync.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: _lorryScope!.isAssigned
+                            ? (isDark ? Colors.white70 : Colors.black87)
+                            : Colors.red[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // View Order Bar
           BlocBuilder<SalesInvoiceBloc, SalesInvoiceState>(
             builder: (context, state) {
@@ -550,7 +666,17 @@ class _SalesInvoiceProductSelectionScreenState
             child: _products.isEmpty && _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _products.isEmpty
-                ? const Center(child: Text('No products found.'))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _lorryScope != null && !_lorryScope!.isAssigned
+                            ? 'This tablet is not assigned to a lorry.\nAssign a lorry in Tablet Fleet and sync online stock.'
+                            : 'No products found in lorry ${_lorryScope?.lorryCode ?? ''}.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
                 : ListView.separated(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(8),
@@ -619,26 +745,40 @@ class _SalesInvoiceProductSelectionScreenState
   ) {
     final state = context.watch<SalesInvoiceBloc>().state;
     final cartItems = state is SalesInvoiceLoaded ? state.cartItems : <CartItem>[];
+    final isReturnMode =
+        state is SalesInvoiceLoaded && state.config.isReturnOrCreditNote;
+    final parsedStatus = StockStatus.fromCode(product.stockStatus);
+    final productStatusCode = parsedStatus.code;
+    final isSellable = parsedStatus.isSellable || isReturnMode;
+
     double cartQty = 0;
     CartItem? existingItem;
     int? editingIndex;
     for (int i = 0; i < cartItems.length; i++) {
-      var item = cartItems[i];
-      if (item.product.sku == product.sku) {
+      final item = cartItems[i];
+      if (item.product.sku == product.sku &&
+          StockStatus.fromCode(item.stockStatus).code == productStatusCode) {
         cartQty += item.quantity;
         if (!item.isFoc) {
           existingItem = item;
           editingIndex = i;
         }
-
       }
     }
 
     final actualStock = product.stockQty - cartQty;
     final isInStock = actualStock > 0;
+    final statusColor = parsedStatus.badgeColor(isDark: isDark);
 
     return InkWell(
       onTap: () async {
+        if (!isSellable) {
+          _showErrorDialog(
+            'Non-Sellable Stock (${parsedStatus.code})',
+            '${product.sku} (${product.name}) in lorry ${_lorryScope?.lorryCode ?? product.warehouse} has ${parsedStatus.shortLabel}.\n\nOnly Status A stock can be sold.',
+          );
+          return;
+        }
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -661,7 +801,11 @@ class _SalesInvoiceProductSelectionScreenState
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: isSellable
+                ? Colors.grey.withValues(alpha: 0.2)
+                : statusColor.withValues(alpha: 0.45),
+          ),
           boxShadow: isDark
               ? []
               : [
@@ -726,8 +870,10 @@ class _SalesInvoiceProductSelectionScreenState
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -761,6 +907,40 @@ class _SalesInvoiceProductSelectionScreenState
                           color: isInStock
                               ? Theme.of(context).primaryColor
                               : Colors.red[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.45)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        parsedStatus.isSellable
+                            ? Icons.verified_outlined
+                            : Icons.block_outlined,
+                        size: 13,
+                        color: statusColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        parsedStatus.isSellable
+                            ? parsedStatus.shortLabel
+                            : '${parsedStatus.shortLabel} • Blocked',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
                         ),
                       ),
                     ],

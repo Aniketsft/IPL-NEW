@@ -31,4 +31,26 @@ class SalesInvoiceProductModel {
       stockStatus: (json['stockStatus'] ?? 'A').toString().trim().toUpperCase(),
     );
   }
+
+  SalesInvoiceProductModel copyWith({
+    String? sku,
+    String? name,
+    double? stockQty,
+    String? warehouse,
+    String? salesUnit,
+    String? cce0,
+    String? barcode,
+    String? stockStatus,
+  }) {
+    return SalesInvoiceProductModel(
+      sku: sku ?? this.sku,
+      name: name ?? this.name,
+      stockQty: stockQty ?? this.stockQty,
+      warehouse: warehouse ?? this.warehouse,
+      salesUnit: salesUnit ?? this.salesUnit,
+      cce0: cce0 ?? this.cce0,
+      barcode: barcode ?? this.barcode,
+      stockStatus: stockStatus ?? this.stockStatus,
+    );
+  }
 }

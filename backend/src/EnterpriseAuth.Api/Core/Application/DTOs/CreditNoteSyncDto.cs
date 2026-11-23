@@ -52,7 +52,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? LotNumber { get; set; }
         public string? Warehouse { get; set; }
         public string? Cce0 { get; set; }
-        public string? StockStatus { get; set; } = "A"; // "A" = Active/Salable, "Q" = Quarantine/Damaged/Expired
+        public string? StockStatus { get; set; } = "A"; // "A" = Normal/Sellable, "R" = Damaged/Rejected, "Q" = Expired/Quarantine
         public string? ReturnCondition { get; set; }
         public string? ExpiryDate { get; set; }
         public string? Location { get; set; }

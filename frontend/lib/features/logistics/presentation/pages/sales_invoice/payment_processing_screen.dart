@@ -492,10 +492,25 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         final stockTransaction = isReturnTransaction ? 1 : 0;
 
         final condition = ReturnCondition.fromId(cartState.returnCondition);
-        final stockStatus = cartState.returnStockStatus ?? condition.stockStatus;
         final resolvedReason = _reasonController.text.trim().isNotEmpty
             ? _reasonController.text.trim()
             : condition.reasonCode;
+        final hasExplicitReturnCondition = cartState.returnCondition != null ||
+            (cartState.returnStockStatus != null &&
+                cartState.returnStockStatus!.trim().isNotEmpty);
+        final stockStatus = hasExplicitReturnCondition
+            ? StockStatus.fromCode(
+                cartState.returnStockStatus ?? condition.stockStatus,
+              ).code
+            : StockStatus.fromReturnReason(resolvedReason).code;
+
+        String lineStatusForItem(CartItem item) {
+          final itemCode = StockStatus.fromCode(item.stockStatus).code;
+          if (itemCode != StockStatus.codeApproved) return itemCode;
+          final prodCode = StockStatus.fromCode(item.product.stockStatus).code;
+          if (prodCode != StockStatus.codeApproved) return prodCode;
+          return stockStatus;
+        }
 
         // Resolve original sales site from X3 history header if this is a linked reversal/return
         String effectiveSiteCode = userSiteCode;
@@ -541,6 +556,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           stockStatus: stockStatus,
           items: cartState.cartItems.asMap().entries.map((entry) {
             final item = entry.value;
+            final lineStatus = lineStatusForItem(item);
             final itemWarehouse = item.warehouse.isNotEmpty ? item.warehouse : effectiveSiteCode;
             final rawItemLoc = item.location.trim();
             final bool hasValidItemLoc = rawItemLoc.isNotEmpty &&
@@ -563,7 +579,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               standaloneLot: item.lotNumber,
               standaloneWarehouse: itemWarehouse,
               standaloneCce0: item.product.cce0,
-              stockStatus: stockStatus,
+              stockStatus: lineStatus,
               returnCondition: resolvedReason,
               location: itemLocation,
             );
@@ -572,7 +588,13 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
         if (!mounted) return;
 
-        final cartItems = List<CartItem>.from(cartState.cartItems);
+        final cartItems = cartState.cartItems.map((item) {
+          final resolved = lineStatusForItem(item);
+          return item.copyWith(
+            stockStatus: resolved,
+            product: item.product.copyWith(stockStatus: resolved),
+          );
+        }).toList();
         final subtotal = cartState.subtotal;
         final totalDiscount = cartState.totalDiscount;
         final totalVat = cartState.totalVat;
@@ -1324,14 +1346,28 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           deviceId: '',
         );
 
+        final resolvedStatusFallback = (cartState.returnStockStatus != null &&
+                cartState.returnStockStatus!.trim().isNotEmpty)
+            ? StockStatus.fromCode(cartState.returnStockStatus).code
+            : StockStatus.codeApproved;
         final pdfBytes = await CreditNotePdfService().generateCreditNotePdf(
           pageFormat: PdfPageFormat.roll80,
           creditNote: creditNote,
-          resolvedLines: cartState.cartItems.map((i) => {
-            'sku': i.product.sku,
-            'name': i.product.name,
-            'quantity': i.quantity,
-            'basePrice': i.basePrice,
+          resolvedLines: cartState.cartItems.map((i) {
+            final lineStatus = StockStatus.fromCode(i.stockStatus).code != StockStatus.codeApproved
+                ? StockStatus.fromCode(i.stockStatus).code
+                : (StockStatus.fromCode(i.product.stockStatus).code != StockStatus.codeApproved
+                    ? StockStatus.fromCode(i.product.stockStatus).code
+                    : resolvedStatusFallback);
+            return {
+              'sku': i.product.sku,
+              'name': i.product.name,
+              'quantity': i.quantity,
+              'basePrice': i.basePrice,
+              'salesUnit': i.product.salesUnit,
+              'discountAmount': i.discountAmount,
+              'stockStatus': lineStatus,
+            };
           }).toList(),
         );
 
