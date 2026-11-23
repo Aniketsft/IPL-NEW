@@ -214,6 +214,9 @@ class SanitizedLogInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
       debugPrint('<-- ERROR [${err.response?.statusCode ?? 'N/A'}] ${err.requestOptions.uri.path}: ${err.message}');
+      if (err.response?.data != null) {
+        debugPrint('Response Data: ${err.response?.data}');
+      }
     }
     handler.next(err);
   }

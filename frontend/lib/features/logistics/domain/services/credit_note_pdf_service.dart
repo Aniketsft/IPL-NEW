@@ -73,7 +73,7 @@ class CreditNotePdfService {
                 })
             .toList();
 
-    final rows = effectiveLines.map((l) {
+    final rawRows = effectiveLines.map((l) {
       final qty = (l['quantity'] as num?)?.toDouble() ?? 0.0;
       final price = (l['basePrice'] as num?)?.toDouble() ?? (l['price'] as num?)?.toDouble() ?? 0.0;
       final disc = (l['discountAmount'] as num?)?.toDouble() ?? 0.0;
@@ -90,6 +90,8 @@ class CreditNotePdfService {
         status: status,
       );
     }).toList();
+
+    final rows = _consolidateRows(rawRows);
 
     final net = _rowsNet(rows);
     final knownVat = rows.fold<double>(0.0, (s, r) => s + (r.vat ?? 0));
@@ -159,6 +161,47 @@ class CreditNotePdfService {
         salesman: salesman,
         storeCode: storeCode,
       ).build();
+
+  List<_Row> _consolidateRows(List<_Row> rows) {
+    if (rows.length <= 1) return rows;
+    final Map<String, List<_Row>> buckets = {};
+    final List<String> order = [];
+    for (final r in rows) {
+      final key = [
+        r.code.trim().toUpperCase(),
+        r.price.toStringAsFixed(4),
+        r.uom.trim().toUpperCase(),
+        r.status.trim().toUpperCase(),
+      ].join('|');
+      final list = buckets[key];
+      if (list == null) {
+        order.add(key);
+        buckets[key] = [r];
+      } else {
+        list.add(r);
+      }
+    }
+    return order.map((key) {
+      final list = buckets[key]!;
+      if (list.length == 1) return list.first;
+      final first = list.first;
+      final sumQty = list.fold<double>(0.0, (s, r) => s + r.qty);
+      final sumDisc = list.fold<double>(0.0, (s, r) => s + r.discount);
+      final double? sumVat = list.every((r) => r.vat != null)
+          ? list.fold<double>(0.0, (s, r) => s + r.vat!)
+          : null;
+      return _Row(
+        code: first.code,
+        name: first.name,
+        qty: sumQty,
+        uom: first.uom,
+        price: first.price,
+        discount: sumDisc,
+        vat: sumVat,
+        status: first.status,
+      );
+    }).toList();
+  }
 
   double _rowsNet(List<_Row> rows) =>
       rows.fold<double>(0.0, (s, r) => s + (r.qty * r.price - r.discount));

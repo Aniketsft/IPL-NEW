@@ -397,5 +397,115 @@ namespace EnterpriseAuth.UnitTests
             Assert.Equal("R", capturedLines.Single(l => l.Sku == "SKU-DMG").StockStatus);
             Assert.Equal("Q", capturedLines.Single(l => l.Sku == "SKU-EXP").StockStatus);
         }
+
+        [Fact]
+        public void BuildSalesInvoiceDetailRecords_WithSFields_ConsolidatesMultiLotSameSkuIntoSingleDWithMultipleS()
+        {
+            var header = new EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceHeader
+            {
+                InvoiceId = "HICGD08112600026",
+                SalesSite = "CGD",
+                CustomerCode = "SSM658",
+                Lines = new List<EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceLine>
+                {
+                    new()
+                    {
+                        LineNo = 1, Sku = "8101", Name = "Barilla Macaroni 500g",
+                        Quantity = 32, BasePrice = 72.29, DiscountAmount = 0,
+                        TaxRule = "TC01", LotNumber = "LOT26092038",
+                        Warehouse = "N8", Location = "N8", SalesUnit = "EA", IsFoc = false
+                    },
+                    new()
+                    {
+                        LineNo = 2, Sku = "8101", Name = "Barilla Macaroni 500g",
+                        Quantity = 17, BasePrice = 72.29, DiscountAmount = 0,
+                        TaxRule = "TC01", LotNumber = "LOT26092039",
+                        Warehouse = "N8", Location = "N8", SalesUnit = "EA", IsFoc = false
+                    },
+                    new()
+                    {
+                        LineNo = 3, Sku = "8101", Name = "Barilla Macaroni 500g FOC",
+                        Quantity = 1, BasePrice = 0, DiscountAmount = 0,
+                        TaxRule = "VAT0", LotNumber = "LOT26092039",
+                        Warehouse = "N8", Location = "N8", SalesUnit = "EA", IsFoc = true, MainItemSku = "8101"
+                    }
+                }
+            };
+
+            var sFields = new List<string> { "/", "PCU", "QTYSTU", "LOT", "LOC", "WRH", "STA" };
+            var meta = new Dictionary<string, (string SalesUnit, string TaxLevel)>(StringComparer.OrdinalIgnoreCase);
+
+            var records = SageX3SoapService.BuildSalesInvoiceDetailRecords(
+                header,
+                fallbackWarehouse: "N8",
+                primarySalesRep: "22",
+                secondarySalesRep: "22",
+                itemMetadata: meta,
+                isWarehouseManaged: false,
+                validSiteWrhs: null,
+                dFields: null,
+                sFields: sFields);
+
+            var parts = records.Split('|', StringSplitOptions.RemoveEmptyEntries);
+            var dRecords = parts.Where(p => p.StartsWith("D;")).ToList();
+            var sRecords = parts.Where(p => p.StartsWith("S;")).ToList();
+
+            Assert.Equal(2, dRecords.Count); // 1 consolidated paid D line (49) + 1 FOC D line (1)
+            Assert.Contains(";8101;Barilla Macaroni 500g;EA;49;72.29;", dRecords[0]);
+            Assert.EndsWith(";2;", dRecords[0]); // FOCFLG = 2 source
+            Assert.Contains(";8101;Barilla Macaroni 500g FOC;EA;1;0;", dRecords[1]);
+            Assert.EndsWith(";3;", dRecords[1]); // FOCFLG = 3 free
+
+            Assert.Equal(3, sRecords.Count); // 2 lots for paid + 1 lot for FOC
+            Assert.Contains(";32;LOT26092038;N8;N8;A;", sRecords[0]);
+            Assert.Contains(";17;LOT26092039;N8;N8;A;", sRecords[1]);
+            Assert.Contains(";1;LOT26092039;N8;N8;A;", sRecords[2]);
+        }
+
+        [Fact]
+        public void BuildSalesInvoiceDetailRecords_WithoutSFields_PreservesPerLotDRecords()
+        {
+            var header = new EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceHeader
+            {
+                InvoiceId = "HICGD08112600027",
+                SalesSite = "CGD",
+                CustomerCode = "SSM658",
+                Lines = new List<EnterpriseAuth.Api.Core.Domain.Entities.StagingSalesInvoiceLine>
+                {
+                    new()
+                    {
+                        LineNo = 1, Sku = "8101", Name = "Barilla Macaroni 500g",
+                        Quantity = 32, BasePrice = 72.29, DiscountAmount = 0,
+                        TaxRule = "TC01", LotNumber = "LOT26092038",
+                        Warehouse = "N8", Location = "N8", SalesUnit = "EA"
+                    },
+                    new()
+                    {
+                        LineNo = 2, Sku = "8101", Name = "Barilla Macaroni 500g",
+                        Quantity = 17, BasePrice = 72.29, DiscountAmount = 0,
+                        TaxRule = "TC01", LotNumber = "LOT26092039",
+                        Warehouse = "N8", Location = "N8", SalesUnit = "EA"
+                    }
+                }
+            };
+
+            var records = SageX3SoapService.BuildSalesInvoiceDetailRecords(
+                header,
+                fallbackWarehouse: "N8",
+                primarySalesRep: "22",
+                secondarySalesRep: "22",
+                itemMetadata: new Dictionary<string, (string, string)>(),
+                isWarehouseManaged: false,
+                validSiteWrhs: null,
+                dFields: null,
+                sFields: null);
+
+            var dRecords = records.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                .Where(p => p.StartsWith("D;"))
+                .ToList();
+            Assert.Equal(2, dRecords.Count);
+            Assert.Contains(";EA;32;72.29;", dRecords[0]);
+            Assert.Contains(";EA;17;72.29;", dRecords[1]);
+        }
     }
 }

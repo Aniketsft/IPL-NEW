@@ -6327,8 +6327,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\SageX3SoapService.cs": {
-    "mtime": 1795004857.247257,
-    "ast_hash": "d3bac83f0c0962c929fe31d119fb7bed",
+    "mtime": 1795412191.3087683,
+    "ast_hash": "3ada38955d82d9361d73b50f82b0a85c",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.Api\\Core\\Application\\Services\\StagingService.cs": {
@@ -6967,8 +6967,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\SalesInvoiceControllerTests.cs": {
-    "mtime": 1795004536.2668831,
-    "ast_hash": "7bbd99e74d0f0f5a41174359e83d4e14",
+    "mtime": 1795412060.179649,
+    "ast_hash": "7226a50a784c016a33c2e208985f8f82",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\backend\\src\\EnterpriseAuth.UnitTests\\SyncCalculatedDataTests.cs": {
@@ -7092,8 +7092,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\network_service.dart": {
-    "mtime": 1794125390.5643682,
-    "ast_hash": "ad569d29c36256d99b1cc828ed4f39bf",
+    "mtime": 1795411785.10276,
+    "ast_hash": "ee84351ef875774676241619688b540e",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\core\\secure_storage_service.dart": {
@@ -7482,8 +7482,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\credit_note_pdf_service.dart": {
-    "mtime": 1795004860.6120222,
-    "ast_hash": "a2ce959d90d878bb168046625e960d4e",
+    "mtime": 1795411950.9950488,
+    "ast_hash": "62b7fb86bf713a1617046d7d4a86ec1a",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\credit_note_service.dart": {
@@ -7502,8 +7502,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\sales_invoice_pdf_service.dart": {
-    "mtime": 1795004861.9374974,
-    "ast_hash": "488e026ebf67b58e7bed8afd054717e1",
+    "mtime": 1795411909.057855,
+    "ast_hash": "404e8b0041298f594b75d54e05185e17",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\domain\\services\\sales_report_pdf_service.dart": {
@@ -7587,18 +7587,18 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_bloc.dart": {
-    "mtime": 1795004862.458708,
-    "ast_hash": "6d294af040e1e94d9610b5927f3b9ca2",
+    "mtime": 1795411957.6166966,
+    "ast_hash": "ad27ff60613c37a1f9569f44ddabf6af",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_cart_cubit.dart": {
-    "mtime": 1794984361.8831704,
-    "ast_hash": "2d01f3b7f1eac2247d979a6e7c0c7714",
+    "mtime": 1795411880.6416938,
+    "ast_hash": "a3cfed8488a26b51f1dea59ecb196a21",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_event.dart": {
-    "mtime": 1794987334.339368,
-    "ast_hash": "220867b4cb559d4dc20f420a7db8e459",
+    "mtime": 1795411953.1281192,
+    "ast_hash": "bd9c6556cd3fa6091398392c0fffa192",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\bloc\\sales_invoice_state.dart": {
@@ -7702,13 +7702,13 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\invoice_item_reversal_screen.dart": {
-    "mtime": 1795409844.5015604,
+    "mtime": 1795409928.2238698,
     "ast_hash": "4496764d22b2f87c405796caf7fb0277",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\invoice_preview_screen.dart": {
-    "mtime": 1795004863.639018,
-    "ast_hash": "cdd5e0393686841ddf56e8ace6b97782",
+    "mtime": 1795412004.0891485,
+    "ast_hash": "82fbeef0741e81a59ef609f24d5daa8d",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\lot_selection_screen.dart": {
@@ -7722,8 +7722,8 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\order_summary_screen.dart": {
-    "mtime": 1795004863.9991503,
-    "ast_hash": "8637b4b7a6c1c48eca3a67226d5576e8",
+    "mtime": 1795412753.0997021,
+    "ast_hash": "852568e27cab72747375010299c71ae5",
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\otp_generation_screen.dart": {
@@ -7772,7 +7772,7 @@
     "semantic_hash": ""
   },
   "D:\\enterprise_auth_system\\frontend\\lib\\features\\logistics\\presentation\\pages\\sales_invoice\\transaction_history_screen.dart": {
-    "mtime": 1795409842.2181334,
+    "mtime": 1795409928.3564758,
     "ast_hash": "f40af069a7367611db72b1eeeb3a3554",
     "semantic_hash": ""
   },
@@ -9004,6 +9004,11 @@
   "D:\\enterprise_auth_system\\frontend\\test\\features\\logistics\\return_stock_status_test.dart": {
     "mtime": 1795058379.555294,
     "ast_hash": "2e48b42623745428cb8ad90bfecb6ad5",
+    "semantic_hash": ""
+  },
+  "D:\\enterprise_auth_system\\frontend\\test\\features\\logistics\\multi_lot_consolidation_test.dart": {
+    "mtime": 1795412062.7086537,
+    "ast_hash": "e2c6fe0f3259b40777586e03e88bbdd7",
     "semantic_hash": ""
   }
 }

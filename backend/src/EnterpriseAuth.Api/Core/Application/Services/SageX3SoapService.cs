@@ -1744,6 +1744,259 @@ namespace EnterpriseAuth.Api.Core.Application.Services
             return null;
         }
 
+        public static string BuildSalesInvoiceDetailRecords(
+            StagingSalesInvoiceHeader invoice,
+            string fallbackWarehouse,
+            string primarySalesRep,
+            string secondarySalesRep,
+            Dictionary<string, (string SalesUnit, string TaxLevel)> itemMetadata,
+            bool isWarehouseManaged,
+            List<string>? validSiteWrhs,
+            List<string>? dFields,
+            List<string>? sFields)
+        {
+            var sb = new StringBuilder();
+            var linesList = (invoice.Lines ?? new List<StagingSalesInvoiceLine>()).ToList();
+
+            // Pre-identify Source lines (FOCFLG = 2) and Free lines (FOCFLG = 3)
+            var freeLines = linesList
+                .Where(l => l.IsFoc || (l.BasePrice == 0 && l.Quantity > 0))
+                .ToList();
+
+            var sourceLineNos = new HashSet<int>();
+            if (freeLines.Any())
+            {
+                foreach (var fl in freeLines)
+                {
+                    if (fl.OriginLineNo.HasValue && fl.OriginLineNo.Value > 0)
+                    {
+                        sourceLineNos.Add(fl.OriginLineNo.Value);
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(fl.MainItemSku))
+                    {
+                        var matchedPaid = linesList.Where(l =>
+                            !l.IsFoc && l.BasePrice > 0 &&
+                            string.Equals(l.Sku, fl.MainItemSku, StringComparison.OrdinalIgnoreCase)).ToList();
+                        if (matchedPaid.Any())
+                        {
+                            foreach (var mp in matchedPaid)
+                            {
+                                sourceLineNos.Add(mp.LineNo);
+                            }
+                            continue;
+                        }
+                    }
+
+                    int idx = linesList.IndexOf(fl);
+                    if (idx > 0)
+                    {
+                        for (int p = idx - 1; p >= 0; p--)
+                        {
+                            if (!linesList[p].IsFoc && linesList[p].BasePrice > 0)
+                            {
+                                sourceLineNos.Add(linesList[p].LineNo);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            bool hasSRecord = sFields != null &&
+                              sFields.Count > 1 &&
+                              linesList.Any(l => !string.IsNullOrWhiteSpace(l.LotNumber));
+
+            bool dTemplateHasLot = dFields != null &&
+                dFields.Any(f =>
+                {
+                    var k = NormalizeTemplateFieldKey(f);
+                    return k == "LOT" || k == "LOTNUM";
+                });
+
+            string ResolveWarehouse(StagingSalesInvoiceLine l)
+            {
+                string inputWrh = IsPlaceholderStockToken(l.Warehouse) ? "" : (l.Warehouse ?? "").Trim();
+                string wrh = !string.IsNullOrWhiteSpace(inputWrh) ? inputWrh : fallbackWarehouse;
+                if (isWarehouseManaged && validSiteWrhs != null && validSiteWrhs.Any() &&
+                    !validSiteWrhs.Contains(wrh, StringComparer.OrdinalIgnoreCase))
+                {
+                    return validSiteWrhs.First();
+                }
+                return wrh;
+            }
+
+            (string unit, string taxRule) ResolveItemMeta(StagingSalesInvoiceLine l)
+            {
+                string sku = (l.Sku ?? "").Trim();
+                string unit = l.SalesUnit ?? "";
+                string taxRule = l.TaxRule ?? "";
+                if (itemMetadata.TryGetValue(sku, out var meta))
+                {
+                    if (string.IsNullOrWhiteSpace(unit) || string.Equals(unit, "EA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        unit = meta.SalesUnit;
+                    }
+                    if (string.IsNullOrWhiteSpace(taxRule) || taxRule == "0.00" || taxRule == "0")
+                    {
+                        taxRule = meta.TaxLevel;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
+                if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
+                return (unit, taxRule);
+            }
+
+            // When S stock sub-records are active on ZSIHWEBA, consolidate multiple lots of the same
+            // commercial product into 1 D invoice line with N S lot allocation sub-records underneath it.
+            var groups = new List<List<StagingSalesInvoiceLine>>();
+            if (hasSRecord)
+            {
+                var groupMap = new Dictionary<string, List<StagingSalesInvoiceLine>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var l in linesList)
+                {
+                    var (unit, taxRule) = ResolveItemMeta(l);
+                    bool isFree = l.IsFoc || (l.BasePrice == 0 && l.Quantity > 0);
+                    string wrh = ResolveWarehouse(l);
+                    string skuKey = (l.Sku ?? "").Trim().ToUpperInvariant();
+                    string mainKey = (l.MainItemSku ?? "").Trim().ToUpperInvariant();
+                    string key = $"{skuKey}|{isFree}|{Math.Round(l.BasePrice, 4)}|{taxRule.ToUpperInvariant()}|{unit.ToUpperInvariant()}|{wrh.ToUpperInvariant()}|{mainKey}";
+                    if (!groupMap.TryGetValue(key, out var list))
+                    {
+                        list = new List<StagingSalesInvoiceLine>();
+                        groupMap[key] = list;
+                        groups.Add(list);
+                    }
+                    list.Add(l);
+                }
+            }
+            else
+            {
+                foreach (var l in linesList)
+                {
+                    groups.Add(new List<StagingSalesInvoiceLine> { l });
+                }
+            }
+
+            int lineMultiplier = 1000;
+            foreach (var group in groups)
+            {
+                var primary = group[0];
+                string sku = (primary.Sku ?? "").Trim();
+                string safeLineName = (primary.Name ?? "").Replace(";", " ").Replace("|", " ").Replace("\r", " ").Replace("\n", " ").Trim();
+                var (unit, taxRule) = ResolveItemMeta(primary);
+
+                double totalQty = group.Sum(l => l.Quantity);
+                double totalDiscAmt = group.Sum(l =>
+                    l.DiscountAmount > 0
+                        ? l.DiscountAmount
+                        : (l.Discount3 > 0 ? l.Discount3 : (l.DiscountAmountFlat > 0 ? l.DiscountAmountFlat : 0.0)));
+
+                string qty = FormatClean2Dp(totalQty);
+                string basePrice = FormatClean2Dp(primary.BasePrice);
+                string disc1 = "0";
+                string disc2 = "0";
+                string disc3 = FormatClean2Dp(totalDiscAmt);
+
+                string locationInput = IsPlaceholderStockToken(primary.Location) ? "" : (primary.Location ?? "").Trim();
+                string warehouse = ResolveWarehouse(primary);
+
+                string location = "";
+                if (!string.IsNullOrWhiteSpace(locationInput) && !string.Equals(locationInput, warehouse, StringComparison.OrdinalIgnoreCase))
+                {
+                    location = locationInput;
+                }
+
+                string lineRep1 = !string.IsNullOrWhiteSpace(primarySalesRep) ? primarySalesRep : "";
+                string lineRep2 = !string.IsNullOrWhiteSpace(secondarySalesRep) ? secondarySalesRep : lineRep1;
+
+                bool isFreeLine = primary.IsFoc || (primary.BasePrice == 0 && totalQty > 0);
+                string focFlg = isFreeLine
+                    ? "3"
+                    : (group.Any(l => sourceLineNos.Contains(l.LineNo)) ? "2" : "1");
+
+                string firstLotNum = (primary.LotNumber ?? string.Empty).Trim();
+                string fallbackD = $"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;0;{lineRep1};{lineRep2};{warehouse};{location};{focFlg};|";
+                if (dTemplateHasLot && dFields != null)
+                {
+                    string dLot = group.Count == 1 ? firstLotNum : "";
+                    var dValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "SIDLIN", lineMultiplier.ToString() },
+                        { "NUMLIG", lineMultiplier.ToString() },
+                        { "ITMREF", sku },
+                        { "ITMDES", safeLineName },
+                        { "ITMDES1", safeLineName },
+                        { "SAU", unit },
+                        { "PCU", unit },
+                        { "QTY", qty },
+                        { "QTYSTU", qty },
+                        { "QTYPCU", qty },
+                        { "GROPRI", basePrice },
+                        { "NETPRI", basePrice },
+                        { "DISCRGVAL1", disc1 },
+                        { "DISC1", disc1 },
+                        { "DISCRGVAL2", disc2 },
+                        { "DISC2", disc2 },
+                        { "DISCRGVAL3", disc3 },
+                        { "DISC3", disc3 },
+                        { "VACITM", taxRule },
+                        { "ZPRIUOM", "" },
+                        { "ZPRIQTY", "0" },
+                        { "REP", lineRep1 },
+                        { "REP1", lineRep1 },
+                        { "REP_1", lineRep2 },
+                        { "REP2", lineRep2 },
+                        { "WRH", warehouse },
+                        { "LOC", location },
+                        { "FOCFLG", focFlg },
+                        { "LOT", dLot },
+                        { "LOTNUM", dLot },
+                        { "STA", "A" },
+                    };
+                    sb.Append(ConstructDynamicRecord("D", dFields, dValues, fallbackD));
+                }
+                else
+                {
+                    sb.Append(fallbackD);
+                }
+
+                if (sFields != null && sFields.Count > 1)
+                {
+                    foreach (var lotLine in group)
+                    {
+                        string lotNum = (lotLine.LotNumber ?? string.Empty).Trim();
+                        if (string.IsNullOrWhiteSpace(lotNum)) continue;
+                        string lotLocInput = IsPlaceholderStockToken(lotLine.Location) ? "" : (lotLine.Location ?? "").Trim();
+                        string lotWrh = ResolveWarehouse(lotLine);
+                        string sLoc = !string.IsNullOrWhiteSpace(lotLocInput) ? lotLocInput : lotWrh;
+                        string lotQty = FormatClean2Dp(lotLine.Quantity);
+                        var sValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            { "PCU", unit },
+                            { "SAU", unit },
+                            { "STU", unit },
+                            { "QTYPCU", lotQty },
+                            { "QTYSTU", lotQty },
+                            { "QTY", lotQty },
+                            { "PCUSTUCOE", "1" },
+                            { "LOT", lotNum },
+                            { "LOTNUM", lotNum },
+                            { "LOC", sLoc },
+                            { "WRH", lotWrh },
+                            { "STA", "A" },
+                        };
+                        sb.Append(ConstructDynamicRecord("S", sFields, sValues, string.Empty));
+                    }
+                }
+
+                lineMultiplier += 1000;
+            }
+
+            return sb.ToString();
+        }
+
         public async Task<X3ImportResult> ImportSalesInvoiceAsync(StagingSalesInvoiceHeader invoice)
         {
             var result = new X3ImportResult { Identifier = invoice.InvoiceId };
@@ -1851,225 +2104,43 @@ namespace EnterpriseAuth.Api.Core.Application.Services
                 await GetTemplateHeaderFieldsAsync("ZSIHWEBA", schema);
                 _templateDetailLayoutCache.TryGetValue($"{schema}_ZSIHWEBA".ToUpperInvariant(), out var templateDetailLayout);
 
-                // Pre-identify Source lines (FOCFLG = 2) and Free lines (FOCFLG = 3)
-                var freeLines = invoice.Lines
-                    .Where(l => l.IsFoc || (l.BasePrice == 0 && l.Quantity > 0))
-                    .ToList();
-
-                var sourceLineNos = new HashSet<int>();
-                if (freeLines.Any())
+                string fallbackWarehouse = !string.IsNullOrWhiteSpace(assignedWarehouse)
+                    ? assignedWarehouse
+                    : (!string.IsNullOrWhiteSpace(assignedLocation) ? assignedLocation : "N3");
+                if (isWarehouseManaged && validSiteWrhs != null && validSiteWrhs.Any() &&
+                    !validSiteWrhs.Contains(fallbackWarehouse, StringComparer.OrdinalIgnoreCase))
                 {
-                    var linesList = invoice.Lines.ToList();
-                    foreach (var fl in freeLines)
+                    if (!string.IsNullOrWhiteSpace(assignedLocation) && validSiteWrhs.Contains(assignedLocation.Trim(), StringComparer.OrdinalIgnoreCase))
                     {
-                        // 1. Check by explicit OriginLineNo
-                        if (fl.OriginLineNo.HasValue && fl.OriginLineNo.Value > 0)
-                        {
-                            sourceLineNos.Add(fl.OriginLineNo.Value);
-                            continue;
-                        }
-
-                        // 2. Check by explicit MainItemSku (mark ALL split paid lot lines for that SKU)
-                        if (!string.IsNullOrWhiteSpace(fl.MainItemSku))
-                        {
-                            var matchedPaid = linesList.Where(l =>
-                                !l.IsFoc && l.BasePrice > 0 &&
-                                string.Equals(l.Sku, fl.MainItemSku, StringComparison.OrdinalIgnoreCase)).ToList();
-                            if (matchedPaid.Any())
-                            {
-                                foreach (var mp in matchedPaid)
-                                {
-                                    sourceLineNos.Add(mp.LineNo);
-                                }
-                                continue;
-                            }
-                        }
-
-                        // 3. Positional fallback: Preceding promotional paid line(s) in cart
-                        int idx = linesList.IndexOf(fl);
-                        if (idx > 0)
-                        {
-                            for (int p = idx - 1; p >= 0; p--)
-                            {
-                                if (!linesList[p].IsFoc && linesList[p].BasePrice > 0)
-                                {
-                                    sourceLineNos.Add(linesList[p].LineNo);
-                                    break;
-                                }
-                            }
-                        }
+                        fallbackWarehouse = assignedLocation.Trim();
                     }
-                }
-
-                int lineMultiplier = 1000;
-                foreach (var line in invoice.Lines)
-                {
-                    string sku = (line.Sku ?? "").Trim();
-                    string safeLineName = (line.Name ?? "").Replace(";", " ").Replace("|", " ").Replace("\r", " ").Replace("\n", " ").Trim();
-                    string unit = line.SalesUnit ?? "";
-                    string taxRule = line.TaxRule ?? "";
-
-                    if (itemMetadata.TryGetValue(sku, out var meta))
+                    else if (!string.IsNullOrWhiteSpace(assignedWarehouse) && validSiteWrhs.Contains(assignedWarehouse.Trim(), StringComparer.OrdinalIgnoreCase))
                     {
-                        if (string.IsNullOrWhiteSpace(unit) || string.Equals(unit, "EA", StringComparison.OrdinalIgnoreCase))
-                        {
-                            unit = meta.SalesUnit;
-                        }
-                        if (string.IsNullOrWhiteSpace(taxRule) || taxRule == "0.00" || taxRule == "0")
-                        {
-                            taxRule = meta.TaxLevel;
-                        }
-                    }
-
-                    if (string.IsNullOrWhiteSpace(unit)) unit = "UN";
-                    if (string.IsNullOrWhiteSpace(taxRule)) taxRule = "VAT0";
-
-                    // Clean 2-dp formatting: Keep integers clean (72, 185, 0) and decimals to 2-dp (1270.88, 29.03)
-                    string qty = FormatClean2Dp(line.Quantity);
-                    string basePrice = FormatClean2Dp(line.BasePrice);
-
-                    // Discount routing: User confirmed "populate disc amt keep others blank"
-                    // DISCRGVAL3 (Position 10) is "Disc - Amt". It receives the discount amount in Rs (e.g. 0.91 or 29.03).
-                    // DISCRGVAL1 (Position 8, "Disc1 - %") and DISCRGVAL2 (Position 9, "Disc2 - %") remain 0.
-                    double discAmt = line.DiscountAmount > 0 
-                        ? line.DiscountAmount 
-                        : (line.Discount3 > 0 ? line.Discount3 : (line.DiscountAmountFlat > 0 ? line.DiscountAmountFlat : 0.0));
-
-                    string disc1 = "0";
-                    string disc2 = "0";
-                    string disc3 = FormatClean2Dp(discAmt);
-
-                    // Authoritative User Selection & Warehouse resolution
-                    string locationInput = IsPlaceholderStockToken(line.Location) ? "" : (line.Location ?? "").Trim();
-                    string inputWarehouse = IsPlaceholderStockToken(line.Warehouse) ? "" : (line.Warehouse ?? "").Trim();
-
-                    string warehouse = !string.IsNullOrWhiteSpace(inputWarehouse)
-                        ? inputWarehouse
-                        : (!string.IsNullOrWhiteSpace(assignedWarehouse)
-                            ? assignedWarehouse
-                            : (!string.IsNullOrWhiteSpace(assignedLocation) ? assignedLocation : "N3"));
-
-                    if (isWarehouseManaged && validSiteWrhs != null && validSiteWrhs.Any())
-                    {
-                        if (!validSiteWrhs.Contains(warehouse, StringComparer.OrdinalIgnoreCase))
-                        {
-                            if (!string.IsNullOrWhiteSpace(assignedLocation) && validSiteWrhs.Contains(assignedLocation.Trim(), StringComparer.OrdinalIgnoreCase))
-                            {
-                                warehouse = assignedLocation.Trim();
-                            }
-                            else if (!string.IsNullOrWhiteSpace(assignedWarehouse) && validSiteWrhs.Contains(assignedWarehouse.Trim(), StringComparer.OrdinalIgnoreCase))
-                            {
-                                warehouse = assignedWarehouse.Trim();
-                            }
-                            else
-                            {
-                                warehouse = validSiteWrhs.First();
-                            }
-                        }
-                    }
-
-                    string location = "";
-                    if (!string.IsNullOrWhiteSpace(locationInput) && !string.Equals(locationInput, warehouse, StringComparison.OrdinalIgnoreCase))
-                    {
-                        location = locationInput;
-                    }
-
-                    // Line Sales Reps: REP1 (Line 32) and REP2 (Line 33)
-                    string lineRep1 = !string.IsNullOrWhiteSpace(primarySalesRep) ? primarySalesRep : "";
-                    string lineRep2 = !string.IsNullOrWhiteSpace(secondarySalesRep) ? secondarySalesRep : lineRep1;
-
-                    // Sage X3 Local Menu for FOCFLG: 1 = No, 2 = Source (Qualifying Item), 3 = Yes (Free Gift Item)
-                    string focFlg;
-                    if (line.IsFoc || (line.BasePrice == 0 && line.Quantity > 0))
-                    {
-                        focFlg = "3"; // Free item (Yes in Sage X3)
-                    }
-                    else if (sourceLineNos.Contains(line.LineNo))
-                    {
-                        focFlg = "2"; // Source item (Source in Sage X3)
+                        fallbackWarehouse = assignedWarehouse.Trim();
                     }
                     else
                     {
-                        focFlg = "1"; // Regular paid item (No in Sage X3)
+                        fallbackWarehouse = validSiteWrhs.First();
                     }
-
-                    string lotNum = (line.LotNumber ?? string.Empty).Trim();
-
-                    // Proven 18-position D-Record layout matching Syracuse ZSIHWEBA (lines 19-36), extended safely when AOED declares D.LOT or an S sub-record
-                    string fallbackD = $"D;{lineMultiplier};{sku};{safeLineName};{unit};{qty};{basePrice};{disc1};{disc2};{disc3};{taxRule};;0;{lineRep1};{lineRep2};{warehouse};{location};{focFlg};|";
-                    if (templateDetailLayout?.DFields != null &&
-                        templateDetailLayout.DFields.Any(f =>
-                        {
-                            var k = NormalizeTemplateFieldKey(f);
-                            return k == "LOT" || k == "LOTNUM";
-                        }))
-                    {
-                        var dValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            { "SIDLIN", lineMultiplier.ToString() },
-                            { "NUMLIG", lineMultiplier.ToString() },
-                            { "ITMREF", sku },
-                            { "ITMDES", safeLineName },
-                            { "ITMDES1", safeLineName },
-                            { "SAU", unit },
-                            { "PCU", unit },
-                            { "QTY", qty },
-                            { "QTYSTU", qty },
-                            { "QTYPCU", qty },
-                            { "GROPRI", basePrice },
-                            { "NETPRI", basePrice },
-                            { "DISCRGVAL1", disc1 },
-                            { "DISC1", disc1 },
-                            { "DISCRGVAL2", disc2 },
-                            { "DISC2", disc2 },
-                            { "DISCRGVAL3", disc3 },
-                            { "DISC3", disc3 },
-                            { "VACITM", taxRule },
-                            { "ZPRIUOM", "" },
-                            { "ZPRIQTY", "0" },
-                            { "REP", lineRep1 },
-                            { "REP1", lineRep1 },
-                            { "REP_1", lineRep2 },
-                            { "REP2", lineRep2 },
-                            { "WRH", warehouse },
-                            { "LOC", location },
-                            { "FOCFLG", focFlg },
-                            { "LOT", lotNum },
-                            { "LOTNUM", lotNum },
-                            { "STA", "A" },
-                        };
-                        fileBuilder.Append(ConstructDynamicRecord("D", templateDetailLayout.DFields, dValues, fallbackD));
-                    }
-                    else
-                    {
-                        fileBuilder.Append(fallbackD);
-                    }
-
-                    if (templateDetailLayout?.SFields != null &&
-                        templateDetailLayout.SFields.Count > 1 &&
-                        !string.IsNullOrWhiteSpace(lotNum))
-                    {
-                        string sLoc = !string.IsNullOrWhiteSpace(locationInput) ? locationInput : warehouse;
-                        var sValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            { "PCU", unit },
-                            { "SAU", unit },
-                            { "STU", unit },
-                            { "QTYPCU", qty },
-                            { "QTYSTU", qty },
-                            { "QTY", qty },
-                            { "PCUSTUCOE", "1" },
-                            { "LOT", lotNum },
-                            { "LOTNUM", lotNum },
-                            { "LOC", sLoc },
-                            { "WRH", warehouse },
-                            { "STA", "A" },
-                        };
-                        fileBuilder.Append(ConstructDynamicRecord("S", templateDetailLayout.SFields, sValues, string.Empty));
-                    }
-
-                    lineMultiplier += 1000;
                 }
+
+                if ((templateDetailLayout?.SFields == null || templateDetailLayout.SFields.Count <= 1) &&
+                    invoice.Lines.Any(l => !string.IsNullOrWhiteSpace(l.LotNumber)))
+                {
+                    Console.WriteLine($"[SageX3SoapService] Notice: ZSIHWEBA S-record fields unavailable for {schema} (SFields={templateDetailLayout?.SFields?.Count ?? 0}); emitting per-lot D records.");
+                }
+
+                fileBuilder.Append(
+                    BuildSalesInvoiceDetailRecords(
+                        invoice,
+                        fallbackWarehouse,
+                        primarySalesRep,
+                        secondarySalesRep,
+                        itemMetadata,
+                        isWarehouseManaged,
+                        validSiteWrhs,
+                        templateDetailLayout?.DFields,
+                        templateDetailLayout?.SFields));
 
                 fileBuilder.Append("END");
 

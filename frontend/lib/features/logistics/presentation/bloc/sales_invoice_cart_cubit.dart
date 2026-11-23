@@ -116,6 +116,106 @@ class CartItem extends Equatable {
       ];
 }
 
+/// Consolidated product projection across multiple lots for Order Summary,
+/// PDF Preview, and Thermal Print while keeping underlying per-lot [CartItem]s intact.
+class ConsolidatedCartGroup {
+  final CartItem displayItem;
+  final List<int> sourceIndices;
+  final double totalDiscountAmount;
+  final double totalVatAmount;
+  final double totalAmount;
+
+  const ConsolidatedCartGroup({
+    required this.displayItem,
+    required this.sourceIndices,
+    required this.totalDiscountAmount,
+    required this.totalVatAmount,
+    required this.totalAmount,
+  });
+
+  int get primaryIndex => sourceIndices.first;
+  bool get hasMultipleLots => sourceIndices.length > 1;
+}
+
+/// Consolidates multiple lot lines belonging to the same product into one
+/// display/print row without modifying raw per-lot cart items.
+List<ConsolidatedCartGroup> consolidateCartItemsForDisplay(List<CartItem> items) {
+  if (items.isEmpty) return const [];
+
+  final Map<String, List<({int index, CartItem item})>> buckets = {};
+  final List<String> order = [];
+
+  for (int i = 0; i < items.length; i++) {
+    final item = items[i];
+    final key = [
+      item.product.sku.trim().toUpperCase(),
+      item.isFoc ? '1' : '0',
+      item.basePrice.toStringAsFixed(4),
+      item.taxRule.trim().toUpperCase(),
+      item.stockStatus.trim().toUpperCase(),
+      (item.mainItemSku ?? '').trim().toUpperCase(),
+    ].join('|');
+
+    final list = buckets[key];
+    if (list == null) {
+      order.add(key);
+      buckets[key] = [(index: i, item: item)];
+    } else {
+      list.add((index: i, item: item));
+    }
+  }
+
+  return order.map((key) {
+    final entries = buckets[key]!;
+    final first = entries.first.item;
+    final indices = entries.map((e) => e.index).toList();
+
+    final sumQty = entries.fold<double>(0.0, (s, e) => s + e.item.quantity);
+    final sumDisc = double.parse(
+      entries.fold<double>(0.0, (s, e) => s + e.item.discountAmount).toStringAsFixed(2),
+    );
+    final sumVat = double.parse(
+      entries.fold<double>(0.0, (s, e) => s + e.item.vatAmount).toStringAsFixed(2),
+    );
+    final sumTotal = double.parse(
+      entries.fold<double>(0.0, (s, e) => s + e.item.total).toStringAsFixed(2),
+    );
+    final sumFlatDisc = double.parse(
+      entries.fold<double>(0.0, (s, e) => s + e.item.discountAmountFlat).toStringAsFixed(2),
+    );
+    final gross = first.basePrice * sumQty;
+    final double effectivePct;
+    final double effectiveFlat;
+    if (entries.every(
+      (e) => (e.item.discountPercent - first.discountPercent).abs() < 0.0001,
+    )) {
+      effectivePct = first.discountPercent;
+      effectiveFlat = sumFlatDisc;
+    } else if (gross > 0.0001 && sumFlatDisc <= 0.0001) {
+      effectivePct = (sumDisc / gross) * 100.0;
+      effectiveFlat = 0.0;
+    } else {
+      effectivePct = 0.0;
+      effectiveFlat = sumDisc;
+    }
+
+    final display = first.copyWith(
+      quantity: sumQty,
+      lotNumber: '',
+      discountPercent: effectivePct,
+      discountAmountFlat: effectiveFlat,
+    );
+
+    return ConsolidatedCartGroup(
+      displayItem: display,
+      sourceIndices: indices,
+      totalDiscountAmount: sumDisc,
+      totalVatAmount: sumVat,
+      totalAmount: sumTotal,
+    );
+  }).toList();
+}
+
 // --- STATE ---
 
 class SalesInvoiceCartState extends Equatable {

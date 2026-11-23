@@ -57,7 +57,8 @@ class SalesInvoicePdfService {
     d.meta('Print Date Time', ThermalDoc.printStamp(printedAt));
     thermalItemHeader(d);
 
-    for (final item in items) {
+    for (final group in consolidateCartItemsForDisplay(items)) {
+      final item = group.displayItem;
       thermalItemRow(
         d,
         code: item.product.sku,
@@ -65,9 +66,9 @@ class SalesInvoicePdfService {
         qty: item.quantity,
         uom: item.product.salesUnit,
         unitPrice: item.basePrice,
-        discount: item.discountAmount,
-        vat: item.vatAmount,
-        total: item.total,
+        discount: group.totalDiscountAmount,
+        vat: group.totalVatAmount,
+        total: group.totalAmount,
       );
     }
     d.rule();
@@ -174,8 +175,38 @@ class SalesInvoicePdfService {
       d.rule();
       d.line(' $title', bold: true);
       thermalItemHeader(d);
+
+      final Map<String, CreditNoteLineModel> grouped = {};
+      final List<String> order = [];
+      for (final line in lines) {
+        final key = [
+          line.sku.trim().toUpperCase(),
+          line.price.toStringAsFixed(4),
+          line.salesUnit.trim().toUpperCase(),
+          (line.returnCondition ?? '').trim().toUpperCase(),
+        ].join('|');
+        final existing = grouped[key];
+        if (existing == null) {
+          order.add(key);
+          grouped[key] = line;
+        } else {
+          grouped[key] = CreditNoteLineModel(
+            creditNoteId: existing.creditNoteId,
+            lineNo: existing.lineNo,
+            quantity: existing.quantity + line.quantity,
+            standaloneSku: existing.sku,
+            standaloneName: existing.name.isNotEmpty ? existing.name : line.name,
+            standaloneSalesUnit: existing.salesUnit,
+            standalonePrice: existing.price,
+            stockStatus: existing.stockStatus,
+            returnCondition: existing.returnCondition,
+          );
+        }
+      }
+
       double sum = 0;
-      for (final i in lines) {
+      for (final key in order) {
+        final i = grouped[key]!;
         final total = i.quantity * i.price;
         sum += total;
         thermalItemRow(
@@ -192,7 +223,6 @@ class SalesInvoicePdfService {
         if (showReason && i.returnCondition != null && i.returnCondition!.isNotEmpty) {
           d.line('   >> Reason: ${i.returnCondition}');
         }
-        if (i.lot.isNotEmpty) d.line('   Lot: ${i.lot}');
       }
       d.total('SUBTOTAL ($statusCode)      :', ThermalDoc.money(sum), bold: true);
     }

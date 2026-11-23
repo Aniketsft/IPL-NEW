@@ -16,6 +16,7 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
     on<SetCustomer>(_onSetCustomer);
     on<AddCartItem>(_onAddCartItem);
     on<RemoveCartItem>(_onRemoveCartItem);
+    on<RemoveCartItems>(_onRemoveCartItems);
     on<RemoveLinkedFocItem>(_onRemoveLinkedFocItem);
     on<UpdateCartItem>(_onUpdateCartItem);
     on<UpsertProductLotCartItems>(_onUpsertProductLotCartItems);
@@ -146,6 +147,40 @@ class SalesInvoiceBloc extends Bloc<SalesInvoiceEvent, SalesInvoiceState> {
 
       emit(currentState.copyWith(cartItems: updatedCart));
     }
+  }
+
+  void _onRemoveCartItems(RemoveCartItems event, Emitter<SalesInvoiceState> emit) {
+    final currentState = state;
+    if (currentState is! SalesInvoiceLoaded || event.indices.isEmpty) return;
+
+    final removeSet = event.indices
+        .where((i) => i >= 0 && i < currentState.cartItems.length && !currentState.cartItems[i].isFoc)
+        .toSet();
+    if (removeSet.isEmpty) return;
+
+    final removedSkus = removeSet
+        .map((i) => currentState.cartItems[i].product.sku.trim().toUpperCase())
+        .toSet();
+
+    final updatedCart = <CartItem>[];
+    final remainingPaidSkus = <String>{};
+    for (int i = 0; i < currentState.cartItems.length; i++) {
+      if (removeSet.contains(i)) continue;
+      final item = currentState.cartItems[i];
+      if (!item.isFoc) {
+        remainingPaidSkus.add(item.product.sku.trim().toUpperCase());
+      }
+      updatedCart.add(item);
+    }
+
+    // Cascade remove linked FOC items only when no paid lines remain for that main SKU.
+    updatedCart.removeWhere((item) {
+      if (!item.isFoc) return false;
+      final mainSku = (item.mainItemSku ?? '').trim().toUpperCase();
+      return removedSkus.contains(mainSku) && !remainingPaidSkus.contains(mainSku);
+    });
+
+    emit(currentState.copyWith(cartItems: updatedCart));
   }
 
   void _onRemoveLinkedFocItem(RemoveLinkedFocItem event, Emitter<SalesInvoiceState> emit) {

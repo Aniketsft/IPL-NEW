@@ -99,18 +99,17 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
       );
 
   List<Map<String, dynamic>> _buildCreditNoteResolvedLines() =>
-      widget.items.asMap().entries.map((entry) {
-        final idx = entry.key;
-        final i = entry.value;
+      consolidateCartItemsForDisplay(widget.items).map((group) {
+        final i = group.displayItem;
         return {
           'sku': i.product.sku,
           'name': i.product.name,
           'quantity': i.quantity,
           'basePrice': i.basePrice,
-          'discountAmount': i.discountAmount,
-          'vatAmount': i.vatAmount,
+          'discountAmount': group.totalDiscountAmount,
+          'vatAmount': group.totalVatAmount,
           'salesUnit': i.product.salesUnit,
-          'stockStatus': _resolveItemStockStatus(idx, i).code,
+          'stockStatus': _resolveItemStockStatus(group.primaryIndex, i).code,
         };
       }).toList();
 
@@ -508,11 +507,13 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  children: items.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final item = entry.value;
-                    final itemStatus = _resolveItemStockStatus(index, item);
+                  children: consolidateCartItemsForDisplay(items).map((group) {
+                    final item = group.displayItem;
+                    final itemStatus = _resolveItemStockStatus(group.primaryIndex, item);
                     final statusColor = itemStatus.badgeColor(isDark: isDark);
+                    final qtyDisplay = item.quantity % 1 == 0
+                        ? item.quantity.toInt().toString()
+                        : item.quantity.toStringAsFixed(2);
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6.0),
                       child: Row(
@@ -559,7 +560,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${item.quantity} x ${currencyFormat.format(item.basePrice)}',
+                                  '$qtyDisplay x ${currencyFormat.format(item.basePrice)}',
                                   style: TextStyle(
                                     color: Colors.grey[600],
                                     fontSize: 12,
@@ -571,7 +572,7 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                           Expanded(
                             flex: 2,
                             child: Text(
-                              currencyFormat.format(item.total),
+                              currencyFormat.format(group.totalAmount),
                               textAlign: TextAlign.right,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,

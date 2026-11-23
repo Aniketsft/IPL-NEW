@@ -260,10 +260,49 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
     }
   }
 
-  void _showQtyInputDialog(BuildContext context, int index, double maxQty) {
-    final currentQty = _selectedReversalQuantities[index] ?? maxQty;
+  int _countSelectedGroups(List<CartItem> cartItems) {
+    return consolidateCartItemsForDisplay(cartItems)
+        .where((g) => g.displayItem.quantity > 0 &&
+            g.sourceIndices.any((i) => (_selectedReversalQuantities[i] ?? 0) > 0))
+        .length;
+  }
+
+  void _setGroupReversalQuantity(
+    ConsolidatedCartGroup group,
+    List<CartItem> cartItems,
+    double targetQty,
+  ) {
+    for (final idx in group.sourceIndices) {
+      _selectedReversalQuantities.remove(idx);
+    }
+    if (targetQty <= 0.0001) return;
+
+    double remaining = targetQty;
+    for (final idx in group.sourceIndices) {
+      if (remaining <= 0.0001 || idx < 0 || idx >= cartItems.length) break;
+      final lotMax = cartItems[idx].quantity;
+      if (lotMax <= 0.0001) continue;
+      final take = remaining < lotMax ? remaining : lotMax;
+      _selectedReversalQuantities[idx] = double.parse(take.toStringAsFixed(4));
+      remaining = double.parse((remaining - take).toStringAsFixed(4));
+    }
+  }
+
+  void _showGroupQtyInputDialog(
+    BuildContext context,
+    ConsolidatedCartGroup group,
+    List<CartItem> cartItems,
+  ) {
+    final maxQty = group.displayItem.quantity;
+    final currentQty = group.sourceIndices.fold<double>(
+      0.0,
+      (sum, idx) => sum + (_selectedReversalQuantities[idx] ?? 0.0),
+    );
+    final effectiveInit = currentQty > 0 ? currentQty : maxQty;
     final controller = TextEditingController(
-      text: currentQty % 1 == 0 ? currentQty.toInt().toString() : currentQty.toStringAsFixed(2),
+      text: effectiveInit % 1 == 0
+          ? effectiveInit.toInt().toString()
+          : effectiveInit.toStringAsFixed(2),
     );
 
     showDialog(
@@ -306,7 +345,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 return;
               }
               setState(() {
-                _selectedReversalQuantities[index] = parsed;
+                _setGroupReversalQuantity(group, cartItems, parsed);
               });
               Navigator.pop(ctx);
             },
@@ -400,6 +439,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               product: product,
               existingItem: existingItem,
               editingIndex: editingIndex,
+              fromProductSelection: existingItem != null,
             ),
           ),
         );
@@ -748,77 +788,86 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                         _buildReversalTypeSelector(theme, isDark),
                         _buildSelectAllBar(theme, isDark, cartState),
                       ],
-                      Text(
-                        'Line Items (${cartState.cartItems.length})',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      if (cartState.transactionType == 'CREDIT_NOTE' &&
-                          cartState.originalDocumentId != null &&
-                          cartState.originalDocumentId!.isNotEmpty)
-                        FutureBuilder<bool>(
-                          future: _isPartialReversal(cartState.originalDocumentId!, cartState.cartItems),
-                          builder: (context, snapshot) {
-                            final isPartial = snapshot.data ?? false;
-                            if (!isPartial) return const SizedBox.shrink();
-
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.orange),
+                      Builder(
+                        builder: (context) {
+                          final groupedItems = consolidateCartItemsForDisplay(cartState.cartItems);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Line Items (${groupedItems.length})',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
                               ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Converting to Partial Credit Note',
-                                    style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                              const SizedBox(height: 12),
+
+                              if (cartState.transactionType == 'CREDIT_NOTE' &&
+                                  cartState.originalDocumentId != null &&
+                                  cartState.originalDocumentId!.isNotEmpty)
+                                FutureBuilder<bool>(
+                                  future: _isPartialReversal(cartState.originalDocumentId!, cartState.cartItems),
+                                  builder: (context, snapshot) {
+                                    final isPartial = snapshot.data ?? false;
+                                    if (!isPartial) return const SizedBox.shrink();
+
+                                    return Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.orange),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Converting to Partial Credit Note',
+                                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                              // Line Items List (consolidated per product across lots)
+                              if (groupedItems.isEmpty)
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Text(
+                                      'No items added yet.',
+                                      style: TextStyle(color: Colors.grey[500]),
+                                    ),
                                   ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-
-                      // Line Items List
-                      if (cartState.cartItems.isEmpty)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32.0),
-                            child: Text(
-                              'No items added yet.',
-                              style: TextStyle(color: Colors.grey[500]),
-                            ),
-                          ),
-                        )
-                      else
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: cartState.cartItems.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final item = cartState.cartItems[index];
-                            return _buildLineItemCard(
-                              context,
-                              item,
-                              index,
-                              isDark,
-                              cartState,
-                            );
-                          },
-                        ),
+                                )
+                              else
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: groupedItems.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final group = groupedItems[index];
+                                    return _buildLineItemCard(
+                                      context,
+                                      group,
+                                      isDark,
+                                      cartState,
+                                    );
+                                  },
+                                ),
+                            ],
+                          );
+                        },
+                      ),
 
                       if (cartState.config.allowCatalogProductAddition) ...[
                         const SizedBox(height: 16),
@@ -1238,7 +1287,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                       size: 18,
                                     ),
                                     label: Text(
-                                      _getConfirmText(cartState.config, _selectedReversalQuantities.length),
+                                      _getConfirmText(cartState.config, _countSelectedGroups(cartState.cartItems)),
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -2123,19 +2172,27 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
 
   Widget _buildLineItemCard(
     BuildContext context,
-    CartItem item,
-    int index,
+    ConsolidatedCartGroup group,
     bool isDark,
     SalesInvoiceLoaded cartState,
   ) {
     final theme = Theme.of(context);
     final config = cartState.config;
-    final isFocMissingLot = item.isFoc && item.lotNumber.isEmpty && cartState.transactionType == 'INVOICE';
-    final isSelected = _selectedReversalQuantities.containsKey(index);
-    final selectedQty = _selectedReversalQuantities[index] ?? item.quantity;
+    final item = group.displayItem;
+    final rawPrimaryItem = cartState.cartItems[group.primaryIndex];
+    final isFocMissingLot = item.isFoc &&
+        group.sourceIndices.any((i) => cartState.cartItems[i].lotNumber.isEmpty) &&
+        cartState.transactionType == 'INVOICE';
+    final isSelected = group.sourceIndices.any((i) => _selectedReversalQuantities.containsKey(i));
+    final selectedQty = isSelected
+        ? group.sourceIndices.fold<double>(
+            0.0,
+            (sum, i) => sum + (_selectedReversalQuantities[i] ?? 0.0),
+          )
+        : item.quantity;
     final isViewOnly = !config.canRemoveItems;
     final double lineGross = item.basePrice * item.quantity;
-    final double lineDiscount = item.discountAmount;
+    final double lineDiscount = group.totalDiscountAmount;
     final bool hasDiscount = !config.isSalesOrder && lineDiscount > 0.004;
     final String discountPctStr = item.discountPercent > 0
         ? '${item.discountPercent.toStringAsFixed(item.discountPercent % 1 == 0 ? 0 : 2)}%'
@@ -2158,10 +2215,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         onTap: config.requireItemSelectionForAction
             ? () {
                 if (isSelected) {
-                  _showQtyInputDialog(context, index, item.quantity);
+                  _showGroupQtyInputDialog(context, group, cartState.cartItems);
                 } else {
                   setState(() {
-                    _selectedReversalQuantities[index] = item.quantity;
+                    _setGroupReversalQuantity(group, cartState.cartItems, item.quantity);
                   });
                 }
               }
@@ -2172,9 +2229,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                       context,
                       MaterialPageRoute(
                         builder: (context) => AddItemDetailScreen(
-                          product: item.product,
-                          existingItem: item,
-                          editingIndex: index,
+                          product: rawPrimaryItem.product,
+                          existingItem: rawPrimaryItem,
+                          editingIndex: group.primaryIndex,
+                          fromProductSelection: !item.isFoc,
                         ),
                       ),
                     );
@@ -2182,10 +2240,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         onLongPress: config.requireItemSelectionForAction
             ? () {
                 setState(() {
-                  if (_selectedReversalQuantities.containsKey(index)) {
-                    _selectedReversalQuantities.remove(index);
+                  if (isSelected) {
+                    _setGroupReversalQuantity(group, cartState.cartItems, 0.0);
                   } else {
-                    _selectedReversalQuantities[index] = item.quantity;
+                    _setGroupReversalQuantity(group, cartState.cartItems, item.quantity);
                   }
                 });
               }
@@ -2232,7 +2290,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                           ),
                           TextButton(
                             onPressed: () {
-                              context.read<SalesInvoiceBloc>().add(RemoveCartItem(index));
+                              context.read<SalesInvoiceBloc>().add(RemoveCartItems(group.sourceIndices));
                               Navigator.pop(ctx);
                             },
                             child: const Text(
@@ -2498,14 +2556,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                               onPressed: selectedQty > 1
                                   ? () {
                                       setState(() {
-                                        _selectedReversalQuantities[index] = selectedQty - 1;
+                                        _setGroupReversalQuantity(group, cartState.cartItems, selectedQty - 1);
                                       });
                                     }
                                   : null,
                             ),
                             const SizedBox(width: 4),
                             InkWell(
-                              onTap: () => _showQtyInputDialog(context, index, item.quantity),
+                              onTap: () => _showGroupQtyInputDialog(context, group, cartState.cartItems),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
@@ -2532,7 +2590,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                               onPressed: selectedQty < item.quantity
                                   ? () {
                                       setState(() {
-                                        _selectedReversalQuantities[index] = selectedQty + 1;
+                                        _setGroupReversalQuantity(group, cartState.cartItems, selectedQty + 1);
                                       });
                                     }
                                   : null,
@@ -2585,7 +2643,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                             ),
                           ),
                           TextSpan(
-                            text: '${item.quantity}${config.isSalesOrder && item.product.salesUnit.isNotEmpty ? " ${item.product.salesUnit}" : ""}',
+                            text: '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}${config.isSalesOrder && item.product.salesUnit.isNotEmpty ? " ${item.product.salesUnit}" : ""}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -2619,7 +2677,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                                 ),
                               ),
                               TextSpan(
-                                text: config.isSalesOrder ? '' : _currencyFormat.format(item.total),
+                                text: config.isSalesOrder ? '' : _currencyFormat.format(group.totalAmount),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -2651,7 +2709,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }) {
     if (cart.config.isSalesOrder) {
       final totalUnits = cart.cartItems.fold<double>(0.0, (sum, item) => sum + item.quantity);
-      final totalLines = cart.cartItems.length;
+      final totalLines = consolidateCartItemsForDisplay(cart.cartItems).length;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -2743,6 +2801,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
         }
       }
       final revGrandTotal = revSubtotal - revDiscount + revVat;
+      final selectedGroupCount = _countSelectedGroups(cart.cartItems);
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2772,7 +2831,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Reversal Summary (${_selectedReversalQuantities.length} selected) • ${_isReturnTransaction ? "Return [RTN]" : "Credit Note [CRN]"}',
+                  'Reversal Summary ($selectedGroupCount selected) • ${_isReturnTransaction ? "Return [RTN]" : "Credit Note [CRN]"}',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -2943,8 +3002,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
   }
 
   Widget _buildSelectAllBar(ThemeData theme, bool isDark, SalesInvoiceLoaded cartState) {
-    final selectableCount = cartState.cartItems.where((i) => i.quantity > 0).length;
-    final bool isAllSelected = selectableCount > 0 && _selectedReversalQuantities.length >= selectableCount;
+    final allGroups = consolidateCartItemsForDisplay(cartState.cartItems)
+        .where((g) => g.displayItem.quantity > 0)
+        .toList();
+    final selectableCount = allGroups.length;
+    final selectedGroupCount = allGroups
+        .where((g) => g.sourceIndices.any((i) => (_selectedReversalQuantities[i] ?? 0) > 0))
+        .length;
+    final bool isAllSelected = selectableCount > 0 && selectedGroupCount >= selectableCount;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -2969,9 +3034,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> with HardwareSc
               ),
               const SizedBox(width: 8),
               Text(
-                _selectedReversalQuantities.isEmpty
+                selectedGroupCount == 0
                     ? 'No products selected'
-                    : '${_selectedReversalQuantities.length} of $selectableCount selected',
+                    : '$selectedGroupCount of $selectableCount selected',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
