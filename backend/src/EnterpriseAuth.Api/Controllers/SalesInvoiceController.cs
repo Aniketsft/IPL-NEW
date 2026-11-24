@@ -30,6 +30,7 @@ namespace EnterpriseAuth.Api.Controllers
         private readonly ILogger<SalesInvoiceController> _logger;
         private readonly ISiteContextResolver _siteResolver;
         private readonly EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? _snapshotService;
+        private readonly IX3SchemaProvider? _schemaProvider;
 
         public SalesInvoiceController(
             ISalesInvoiceRepository repository,
@@ -37,7 +38,8 @@ namespace EnterpriseAuth.Api.Controllers
             ISageX3SoapService soapService,
             ILogger<SalesInvoiceController> logger,
             ISiteContextResolver siteResolver,
-            EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? snapshotService = null)
+            EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? snapshotService = null,
+            IX3SchemaProvider? schemaProvider = null)
         {
             _repository = repository;
             _dbContext = dbContext;
@@ -45,6 +47,30 @@ namespace EnterpriseAuth.Api.Controllers
             _logger = logger;
             _siteResolver = siteResolver;
             _snapshotService = snapshotService;
+            _schemaProvider = schemaProvider;
+        }
+
+        private string ResolveSchemaName()
+        {
+            if (_schemaProvider != null)
+            {
+                var provided = _schemaProvider.GetSchemaName();
+                if (!string.IsNullOrWhiteSpace(provided))
+                {
+                    return provided.Trim().ToUpperInvariant();
+                }
+            }
+
+            var headerSchema = Request?.Headers.TryGetValue("X-X3-Schema", out var hSchema) == true
+                ? hSchema.ToString().Trim().ToUpperInvariant()
+                : null;
+            if (!string.IsNullOrEmpty(headerSchema) &&
+                System.Text.RegularExpressions.Regex.IsMatch(headerSchema, "^[A-Z0-9_]{1,30}$"))
+            {
+                return headerSchema;
+            }
+
+            return "INLDRYRUN";
         }
 
         private IActionResult ServeSnapshotResult(EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.SnapshotFileResult snapshot)
@@ -1160,9 +1186,10 @@ namespace EnterpriseAuth.Api.Controllers
 
                 if (_snapshotService != null)
                 {
+                    var schemaName = ResolveSchemaName();
                     var snapshot = await _snapshotService.GetOrUpdateSnapshotAsync(
                         targetSite,
-                        "StockDetails",
+                        $"StockDetails_{schemaName}",
                         () => _repository.GetStockWatermarkAsync(targetSite),
                         () => _repository.GetItemStockDetailsAsync(targetSite));
 
@@ -1171,8 +1198,14 @@ namespace EnterpriseAuth.Api.Controllers
                         return ServeSnapshotResult(snapshot);
                     }
 
+                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry!;
+                    if (!string.IsNullOrEmpty(lorryScope.AssignedWarehouse))
+                    {
+                        Response.Headers["X-Assigned-Warehouse"] = lorryScope.AssignedWarehouse;
+                    }
+
                     var baseEtag = snapshot.ETag.Trim('"');
-                    var lorryEtag = $"\"{baseEtag}_{lorryScope.AssignedLorry!.ToUpperInvariant()}\"";
+                    var lorryEtag = $"\"{baseEtag}_{schemaName}_{lorryScope.AssignedLorry!.ToUpperInvariant()}\"";
                     var requestETag = Request.Headers.IfNoneMatch.ToString();
                     if (!string.IsNullOrEmpty(requestETag) && requestETag.Equals(lorryEtag, StringComparison.OrdinalIgnoreCase))
                     {
@@ -1195,7 +1228,6 @@ namespace EnterpriseAuth.Api.Controllers
 
                     Response.Headers.ETag = lorryEtag;
                     Response.Headers.LastModified = snapshot.LastModifiedUtc.ToString("R");
-                    Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry;
                     return Ok(filtered);
                 }
 
@@ -1203,6 +1235,10 @@ namespace EnterpriseAuth.Api.Controllers
                 if (lorryScope.HasDeviceContext)
                 {
                     Response.Headers["X-Assigned-Lorry"] = lorryScope.AssignedLorry!;
+                    if (!string.IsNullOrEmpty(lorryScope.AssignedWarehouse))
+                    {
+                        Response.Headers["X-Assigned-Warehouse"] = lorryScope.AssignedWarehouse;
+                    }
                     details = details.Where(d => MatchesLorryScope(d, lorryScope, targetSite)).ToList();
                 }
 
@@ -1760,6 +1796,9 @@ namespace EnterpriseAuth.Api.Controllers
             var headerDeviceId = Request?.Headers.TryGetValue("X-Device-Id", out var hDev) == true
                 ? hDev.ToString().Trim()
                 : null;
+            var headerHardwareId = Request?.Headers.TryGetValue("X-Device-Hardware-Id", out var hHw) == true
+                ? hHw.ToString().Trim()
+                : null;
             var queryDeviceId = Request?.Query.TryGetValue("deviceId", out var qDev) == true
                 ? qDev.ToString().Trim()
                 : null;
@@ -1775,6 +1814,7 @@ namespace EnterpriseAuth.Api.Controllers
             var username = User?.Claims.FirstOrDefault(c => c.Type == "username")?.Value
                            ?? User?.Identity?.Name
                            ?? string.Empty;
+            var hasAnyDeviceHint = !string.IsNullOrWhiteSpace(requestedDeviceId) || !string.IsNullOrWhiteSpace(headerHardwareId);
 
             DeviceLocation? device = null;
             if (!string.IsNullOrWhiteSpace(requestedDeviceId))
@@ -1783,13 +1823,31 @@ namespace EnterpriseAuth.Api.Controllers
                 device = await _dbContext.DeviceLocations.AsNoTracking().FirstOrDefaultAsync(d =>
                     d.IsActive &&
                     (d.DeviceId == cleanDev || d.DeviceName == cleanDev || d.HardwareIdentifier == cleanDev));
-
-                if (device == null)
-                {
-                    return new LorryScope(true, null, null, cleanSite);
-                }
             }
-            else if (!string.IsNullOrWhiteSpace(username))
+
+            if (device == null && !string.IsNullOrWhiteSpace(headerHardwareId))
+            {
+                var cleanHw = headerHardwareId.Trim();
+                device = await _dbContext.DeviceLocations.AsNoTracking()
+                    .Where(d => d.IsActive && d.HardwareIdentifier == cleanHw)
+                    .OrderByDescending(d => (cleanSite == string.Empty || cleanSite == "ALL" || d.SiteCode == cleanSite) ? 1 : 0)
+                    .ThenByDescending(d => d.UpdatedAt)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (device == null && !string.IsNullOrWhiteSpace(requestedDeviceId))
+            {
+                var cleanModel = requestedDeviceId.Trim();
+                device = await _dbContext.DeviceLocations.AsNoTracking()
+                    .Where(d => d.IsActive &&
+                                d.HardwareModel != null &&
+                                d.HardwareModel == cleanModel &&
+                                (cleanSite == string.Empty || cleanSite == "ALL" || d.SiteCode == cleanSite))
+                    .OrderByDescending(d => d.UpdatedAt)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (device == null && !string.IsNullOrWhiteSpace(username))
             {
                 var cleanUser = username.Trim();
                 device = await _dbContext.DeviceLocations.AsNoTracking()
@@ -1799,15 +1857,11 @@ namespace EnterpriseAuth.Api.Controllers
                                 (cleanSite == string.Empty || cleanSite == "ALL" || d.SiteCode == cleanSite))
                     .OrderByDescending(d => d.UpdatedAt)
                     .FirstOrDefaultAsync();
-
-                if (device == null)
-                {
-                    return new LorryScope(false, null, null, cleanSite);
-                }
             }
-            else
+
+            if (device == null)
             {
-                return new LorryScope(false, null, null, cleanSite);
+                return new LorryScope(hasAnyDeviceHint, null, null, cleanSite);
             }
 
             var devSite = (device.SiteCode ?? cleanSite).Trim().ToUpperInvariant();

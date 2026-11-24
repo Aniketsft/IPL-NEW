@@ -94,9 +94,24 @@ class _SalesInvoiceSyncOverlayState extends State<SalesInvoiceSyncOverlay> {
               title = "Sync Complete";
               message = "All records updated successfully";
               reportList = [];
+            } else if (syncState is SalesInvoiceSyncSuccess && !syncState.isUploadOnly) {
+              showOverlay = true;
+              currentBatchResult = syncState.batchResult;
+              isPartial = true;
+              reportList = syncState.batchResult.failedReports;
+              title = "Sync Completed with Warnings";
+              message = reportList.isNotEmpty
+                  ? (reportList.first.userMessage ?? '${reportList.first.entityName} failed')
+                  : (syncState.batchResult.errorMessage ?? 'Some sync items could not be updated.');
+            } else if (syncState is SalesInvoiceSyncFailure && !syncState.isUploadOnly) {
+              showOverlay = true;
+              currentBatchResult = syncState.batchResult;
+              isError = true;
+              reportList = syncState.batchResult?.failedReports ?? [];
+              title = "Data Sync Failed";
+              message = syncState.error;
             } else {
-              // Errors and partial failures are suppressed from the global overlay so they do not pop up across other screens.
-              // Detailed SOAP diagnostics are presented via SyncSoapErrorModal exclusively when global sync is run from the Home Screen.
+              // Upload/SOAP errors are suppressed from the global overlay so HomeScreen's SyncSoapErrorModal handles them exclusively.
               showOverlay = false;
             }
           }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enterprise_auth_mobile/core/navigation/app_routes.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 
 // Import screens (adjust paths as necessary for actual integration)
 import 'package:enterprise_auth_mobile/features/auth/presentation/pages/login_screen.dart';
@@ -95,7 +96,16 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.productSelection,
         builder: (context, state) {
-          final siteCode = state.uri.queryParameters['siteCode'] ?? 'ALL';
+          final authState = authBloc.state;
+          final fallbackSite = DeviceInfoService.instance.resolveEffectiveSiteCode(
+            authState is Authenticated ? authState.siteCode : null,
+          );
+          final rawSite = state.uri.queryParameters['siteCode'];
+          final siteCode = (rawSite != null &&
+                  rawSite.trim().isNotEmpty &&
+                  rawSite.trim().toUpperCase() != 'ALL')
+              ? rawSite.trim().toUpperCase()
+              : fallbackSite;
           return SalesInvoiceProductSelectionScreen(siteCode: siteCode);
         },
       ),

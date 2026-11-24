@@ -22,6 +22,7 @@ import '../../bloc/sales_invoice_sync_state.dart';
 import '../../widgets/sales_invoice_sync_overlay.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:enterprise_auth_mobile/features/auth/presentation/bloc/auth_state.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 
 class CustomerSelectionScreen extends StatefulWidget {
@@ -268,12 +269,10 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
                         tooltip: 'Sync Mobile Sales Data',
                         onPressed: () {
                           final authState = context.read<AuthBloc>().state;
-                          final siteCode = (authState is Authenticated &&
-                                  authState.siteCode != null &&
-                                  authState.siteCode!.isNotEmpty &&
-                                  authState.siteCode != 'ALL')
-                              ? authState.siteCode!
-                              : 'IPL';
+                          final resolvedSite = DeviceInfoService.instance.resolveEffectiveSiteCode(
+                            authState is Authenticated ? authState.siteCode : null,
+                          );
+                          final siteCode = resolvedSite.isNotEmpty ? resolvedSite : 'IPL';
                           context.read<SalesInvoiceSyncBloc>().add(
                                 StartSalesInvoiceSyncRequested(siteCode: siteCode, downloadOnly: true),
                               );
@@ -286,12 +285,10 @@ class _CustomerSelectionScreenState extends State<CustomerSelectionScreen> {
               tooltip: 'Route Dispatch Tools',
               onSelected: (value) async {
                 final authState = context.read<AuthBloc>().state;
-                final siteCode = (authState is Authenticated &&
-                        authState.siteCode != null &&
-                        authState.siteCode!.isNotEmpty &&
-                        authState.siteCode != 'ALL')
-                    ? authState.siteCode!
-                    : 'IPL';
+                final resolvedSite = DeviceInfoService.instance.resolveEffectiveSiteCode(
+                  authState is Authenticated ? authState.siteCode : null,
+                );
+                final siteCode = resolvedSite.isNotEmpty ? resolvedSite : 'IPL';
                 final permissions = (authState is Authenticated) ? authState.permissions : <String>[];
                 final username = (authState is Authenticated) ? authState.username : null;
 

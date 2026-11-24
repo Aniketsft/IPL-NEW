@@ -48,10 +48,15 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
         emit(SalesInvoiceSyncFailure(
           batchResult.errorMessage ?? 'Synchronization failed. Could not communicate with server.',
           batchResult: batchResult,
+          isUploadOnly: event.uploadOnly,
         ));
       } else {
         final lastSync = DateTime.now().toString().substring(0, 16);
-        emit(SalesInvoiceSyncSuccess(lastSync, batchResult));
+        emit(SalesInvoiceSyncSuccess(
+          lastSync,
+          batchResult,
+          isUploadOnly: event.uploadOnly,
+        ));
       }
     } catch (e) {
       final errStr = e.toString();
@@ -61,7 +66,7 @@ class SalesInvoiceSyncBloc extends Bloc<SalesInvoiceSyncEvent, SalesInvoiceSyncS
       final msg = isOffline
           ? 'Cannot sync while offline. All records are safely saved locally.'
           : errStr;
-      emit(SalesInvoiceSyncFailure(msg));
+      emit(SalesInvoiceSyncFailure(msg, isUploadOnly: event.uploadOnly));
     }
   }
 

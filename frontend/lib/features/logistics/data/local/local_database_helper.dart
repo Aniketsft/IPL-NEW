@@ -5717,6 +5717,41 @@ class LocalDatabaseHelper {
     await db.delete(tableSalesInvoiceItemStockDetails);
   }
 
+  Future<int> getSalesInvoiceItemStockCount({
+    String? siteCode,
+    String? lorryCode,
+    String? warehouseCode,
+  }) async {
+    final db = await database;
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    final cleanSite = (siteCode ?? '').trim().toUpperCase();
+    if (cleanSite.isNotEmpty && cleanSite != 'ALL') {
+      conditions.add("(UPPER(TRIM(siteCode)) = ? OR TRIM(COALESCE(siteCode, '')) = '')");
+      args.add(cleanSite);
+    }
+
+    final cleanLorry = (lorryCode ?? '').trim().toUpperCase();
+    final cleanWrh = (warehouseCode ?? '').trim().toUpperCase();
+    if (cleanLorry.isNotEmpty || cleanWrh.isNotEmpty) {
+      final locA = cleanLorry.isNotEmpty ? cleanLorry : cleanWrh;
+      final locB = cleanWrh.isNotEmpty ? cleanWrh : locA;
+      conditions.add('(UPPER(TRIM(location)) IN (?, ?) OR UPPER(TRIM(warehouse)) IN (?, ?))');
+      args.addAll([locA, locB, locA, locB]);
+    }
+
+    final whereClause = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS cnt FROM $tableSalesInvoiceItemStockDetails $whereClause',
+      args,
+    );
+    if (result.isNotEmpty && result.first['cnt'] != null) {
+      return (result.first['cnt'] as num).toInt();
+    }
+    return 0;
+  }
+
   // --- Credit Note Reasons (Sage X3 Miscellaneous Table 8) ---
 
   Future<void> refreshCreditNoteReasons(List<dynamic> rawReasons) async {

@@ -25,7 +25,12 @@ class SalesInvoiceCustomerSyncInProgress extends SalesInvoiceSyncState {
 class SalesInvoiceSyncSuccess extends SalesInvoiceSyncState {
   final String lastSyncTime;
   final SyncBatchResult batchResult;
-  const SalesInvoiceSyncSuccess(this.lastSyncTime, this.batchResult);
+  final bool isUploadOnly;
+  const SalesInvoiceSyncSuccess(
+    this.lastSyncTime,
+    this.batchResult, {
+    this.isUploadOnly = false,
+  });
 }
 
 class SalesInvoiceCustomerSyncSuccess extends SalesInvoiceSyncState {
@@ -44,7 +49,12 @@ class SalesInvoiceCustomerSyncSuccess extends SalesInvoiceSyncState {
 class SalesInvoiceSyncFailure extends SalesInvoiceSyncState {
   final String error;
   final SyncBatchResult? batchResult;
-  const SalesInvoiceSyncFailure(this.error, {this.batchResult});
+  final bool isUploadOnly;
+  const SalesInvoiceSyncFailure(
+    this.error, {
+    this.batchResult,
+    this.isUploadOnly = false,
+  });
 }
 
 class SalesInvoiceCustomerSyncFailure extends SalesInvoiceSyncState {

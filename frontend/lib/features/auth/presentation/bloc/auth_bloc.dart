@@ -8,12 +8,8 @@ import 'package:enterprise_auth_mobile/features/auth/domain/usecases/login_use_c
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/register_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/usecases/forgot_password_use_case.dart';
 import 'package:enterprise_auth_mobile/features/auth/domain/repositories/iauth_repository.dart';
-import 'package:enterprise_auth_mobile/core/config/api_config.dart';
-import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
-import 'package:enterprise_auth_mobile/features/logistics/data/repositories/sales_invoice_product_repository.dart';
+import 'package:enterprise_auth_mobile/features/auth/data/repositories/auth_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/thermal_template.dart';
-import 'package:http/http.dart' as http;
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -86,6 +82,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       _startTimers();
       await _updateAuthTimer();
 
+      // Reconcile device identity & assigned lorry before navigating to HomeScreen
+      // so an immediate Data Sync sends the registered X-Device-Id UUID.
+      await _syncDeviceLocationOnLogin(user.siteCode ?? 'POD');
+
       emit(
         Authenticated(
           username: user.username,
@@ -93,9 +93,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           siteCode: user.siteCode,
         ),
       );
-
-      // On Login: Resolve and map device location from SQLite & Backend Heartbeat
-      unawaited(_syncDeviceLocationOnLogin(user.siteCode ?? 'POD'));
     } catch (e) {
       emit(AuthFailure(e.toString()));
     }
@@ -340,105 +337,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _syncDeviceLocationOnLogin(String siteCode) async {
     try {
-      final deviceService = DeviceInfoService.instance;
-      final devId = deviceService.deviceId;
-      final db = LocalDatabaseHelper.instance;
-
-      // 1. Immediately read local SQLite mapping if available
-      var localMapping = await db.getDeviceLocation(devId);
-      if (localMapping != null && localMapping['locationCode'] != null) {
-        await deviceService.setAssignedLocation(
-          siteCode: localMapping['siteCode'] ?? siteCode,
-          warehouseCode: localMapping['warehouseCode'],
-          locationCode: localMapping['locationCode'],
+      final repo = _authRepository;
+      if (repo is AuthRepository) {
+        await repo.syncDeviceLocation(
+          siteCode: siteCode,
+          includeDocSequences: true,
         );
-      }
-
-      // 2. Online Heartbeat: reconcile assigned lorry, identity, and licensing
-      final token = await _storageService.getToken();
-      final url = Uri.parse('${ApiConfig.baseUrl}Devices/heartbeat');
-      final resp = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-          'X-Device-Id': devId,
-        },
-        body: jsonEncode({
-          'deviceId': devId,
-          'deviceName': deviceService.deviceName,
-          'hardwareModel': deviceService.hardwareModel,
-          'hardwareIdentifier': deviceService.hardwareIdentifier,
-          'siteCode': siteCode,
-        }),
-      ).timeout(const Duration(seconds: 5));
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        if (data != null && data['deviceId'] != null) {
-          final prevAssigned =
-              (localMapping?['locationCode'] ?? deviceService.assignedLocation)
-                  ?.toString()
-                  .trim()
-                  .toUpperCase() ??
-              '';
-          final loc = data['locationCode']?.toString() ?? '';
-          final wrh = data['warehouseCode']?.toString();
-          final site = data['siteCode']?.toString() ?? siteCode;
-          final uuid = data['deviceId']?.toString() ?? '';
-          final name = data['deviceName']?.toString() ?? deviceService.deviceName;
-          final isLicensed = data['isLicensed'] == true;
-          final licenseStatus = data['licenseStatus']?.toString() ?? 'VALID';
-          final isLocked = data['isLocked'] == true;
-          final hepProfile = data['hepProfileId']?.toString();
-
-          if (DeviceInfoService.isValidUuid(uuid)) {
-            await deviceService.setDeviceIdentity(
-              uuid: uuid,
-              name: name,
-              hardwareIdentifier: data['hardwareIdentifier']?.toString() ?? deviceService.hardwareIdentifier,
-              siteCode: site,
-              warehouseCode: wrh,
-              locationCode: loc,
-              isLicensed: isLicensed,
-              licenseStatus: licenseStatus,
-              isLocked: isLocked,
-              hepProfileId: hepProfile,
-              hepApiKey: data['hepApiKey']?.toString(),
-            );
-          }
-          await db.insertOrUpdateDeviceLocation(Map<String, dynamic>.from(data));
-          final newAssigned = loc.trim().toUpperCase();
-          if (prevAssigned.isNotEmpty && newAssigned != prevAssigned) {
-            await SalesInvoiceProductRepository.invalidateStockCache(
-              clearLocalRows: true,
-            );
-          }
-
-          // Immediately pull authoritative document sequence high-water marks (Sage X3 + HIPO)
-          // so a deleted/reinstalled app immediately resumes above existing numbers even before manual sync.
-          try {
-            final seqUri = Uri.parse('${ApiConfig.baseUrl}SalesInvoice/document-sequences')
-                .replace(queryParameters: {'siteCode': site});
-            final seqResp = await http.get(
-              seqUri,
-              headers: {
-                'Content-Type': 'application/json',
-                if (token != null) 'Authorization': 'Bearer $token',
-                'X-Device-Id': DeviceInfoService.isValidUuid(uuid) ? uuid : devId,
-              },
-            ).timeout(const Duration(seconds: 6));
-
-            if (seqResp.statusCode == 200 && seqResp.body.trim().isNotEmpty) {
-              final decoded = jsonDecode(seqResp.body);
-              if (decoded is List && decoded.isNotEmpty) {
-                await db.syncDocumentSequencesHighWaterMark(decoded);
-              }
-            }
-          } catch (seqErr) {
-            print('AuthBloc: Document sequence login sync skipped: $seqErr');
-          }
-        }
       }
     } catch (e) {
       print('AuthBloc: Device location sync error (offline fallback used): $e');

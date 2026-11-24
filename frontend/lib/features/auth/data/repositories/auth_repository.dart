@@ -10,16 +10,32 @@ import 'package:sqflite/sqflite.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:enterprise_auth_mobile/core/config/auth_config.dart';
+import 'package:enterprise_auth_mobile/core/services/device_heartbeat_service.dart';
 
 class AuthRepository implements IAuthRepository {
+  final NetworkService _networkService;
   final Dio _dio;
   final SecureStorageService _storageService;
 
   AuthRepository({
     required NetworkService networkService,
     required SecureStorageService storageService,
-  }) : _storageService = storageService,
+  }) : _networkService = networkService,
+       _storageService = storageService,
        _dio = networkService.dio;
+
+  Future<bool> syncDeviceLocation({
+    String? siteCode,
+    bool includeDocSequences = true,
+  }) {
+    return DeviceHeartbeatService(
+      networkService: _networkService,
+      storageService: _storageService,
+    ).syncDeviceLocation(
+      siteCode: siteCode,
+      includeDocSequences: includeDocSequences,
+    );
+  }
 
   @override
   Future<User> login(String username, String password) async {

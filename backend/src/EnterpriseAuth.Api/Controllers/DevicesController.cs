@@ -372,19 +372,26 @@ namespace EnterpriseAuth.Api.Controllers
         [HttpPost("heartbeat")]
         public async Task<ActionResult<DeviceLocationDto>> Heartbeat(
             [FromBody] DeviceHeartbeatRequestDto request,
-            [FromHeader(Name = "X-Device-Id")] string? headerDeviceId = null)
+            [FromHeader(Name = "X-Device-Id")] string? headerDeviceId = null,
+            [FromHeader(Name = "X-Device-Hardware-Id")] string? headerHardwareId = null)
         {
             var targetId = !string.IsNullOrEmpty(request.DeviceId) ? request.DeviceId.Trim() : headerDeviceId?.Trim();
+            var incomingHwId = !string.IsNullOrWhiteSpace(request.HardwareIdentifier)
+                ? request.HardwareIdentifier.Trim()
+                : headerHardwareId?.Trim();
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
             var usernameClaim = User.Claims.FirstOrDefault(c => c.Type == "username")?.Value 
                                ?? User.Identity?.Name 
                                ?? "SYSTEM";
 
-            // Determine effective site from incoming request or user's login claim
-            var effectiveSite = !string.IsNullOrWhiteSpace(request.SiteCode) && request.SiteCode != "ALL"
-                ? request.SiteCode.Trim()
-                : (!string.IsNullOrWhiteSpace(userSiteCode) && userSiteCode != "ALL" ? userSiteCode.Trim() : "POD");
+            // Concrete explicit site from incoming request or user's login claim (null when 'ALL' / unspecified)
+            string? requestedSite = !string.IsNullOrWhiteSpace(request.SiteCode) && !string.Equals(request.SiteCode.Trim(), "ALL", StringComparison.OrdinalIgnoreCase)
+                ? request.SiteCode.Trim().ToUpperInvariant()
+                : (!string.IsNullOrWhiteSpace(userSiteCode) && !string.Equals(userSiteCode.Trim(), "ALL", StringComparison.OrdinalIgnoreCase)
+                    ? userSiteCode.Trim().ToUpperInvariant()
+                    : null);
+            var effectiveSite = requestedSite ?? "POD";
 
             DeviceLocation? device = null;
 
@@ -395,11 +402,10 @@ namespace EnterpriseAuth.Api.Controllers
             }
 
             // 2. Secondary lookup by unique physical HardwareIdentifier (e.g. ANDROID_ID) - survives app delete & reinstall
-            if (device == null && !string.IsNullOrWhiteSpace(request.HardwareIdentifier))
+            if (device == null && !string.IsNullOrWhiteSpace(incomingHwId))
             {
-                var cleanHwId = request.HardwareIdentifier.Trim();
                 device = await _context.DeviceLocations
-                    .Where(d => d.HardwareIdentifier == cleanHwId && d.IsActive)
+                    .Where(d => d.HardwareIdentifier == incomingHwId && d.IsActive)
                     .OrderByDescending(d => d.UpdatedAt)
                     .FirstOrDefaultAsync();
             }
@@ -425,7 +431,7 @@ namespace EnterpriseAuth.Api.Controllers
                     DeviceId = newUuid,
                     DeviceName = standardDeviceName,
                     HardwareModel = hwModel,
-                    HardwareIdentifier = !string.IsNullOrWhiteSpace(request.HardwareIdentifier) ? request.HardwareIdentifier.Trim() : null,
+                    HardwareIdentifier = !string.IsNullOrWhiteSpace(incomingHwId) ? incomingHwId : null,
                     SiteCode = effectiveSite,
                     WarehouseCode = effectiveSite,
                     LocationCode = effectiveSite,
@@ -473,9 +479,9 @@ namespace EnterpriseAuth.Api.Controllers
                 }
 
                 // 3. Update HardwareIdentifier if missing on server
-                if (!string.IsNullOrWhiteSpace(request.HardwareIdentifier) && string.IsNullOrWhiteSpace(device.HardwareIdentifier))
+                if (!string.IsNullOrWhiteSpace(incomingHwId) && string.IsNullOrWhiteSpace(device.HardwareIdentifier))
                 {
-                    device.HardwareIdentifier = request.HardwareIdentifier.Trim();
+                    device.HardwareIdentifier = incomingHwId;
                 }
 
                 // 4. Update HardwareModel if incoming is detailed
@@ -484,8 +490,12 @@ namespace EnterpriseAuth.Api.Controllers
                     device.HardwareModel = request.HardwareModel.Trim();
                 }
 
-                // 5. Dynamic Site Code Synchronization on User Login
-                if (!string.IsNullOrEmpty(effectiveSite) && device.SiteCode != effectiveSite)
+                // 5. Dynamic Site Code Synchronization on User Login (preserve existing site when admin/caller sends ALL or empty)
+                if (!string.IsNullOrEmpty(requestedSite) && !string.Equals(device.SiteCode, requestedSite, StringComparison.OrdinalIgnoreCase))
+                {
+                    device.SiteCode = requestedSite;
+                }
+                else if (string.IsNullOrWhiteSpace(device.SiteCode) || string.Equals(device.SiteCode, "ALL", StringComparison.OrdinalIgnoreCase))
                 {
                     device.SiteCode = effectiveSite;
                 }

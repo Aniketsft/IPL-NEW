@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../core/network_service.dart';
 import '../../../../../core/secure_storage_service.dart';
+import '../../../../../core/services/device_heartbeat_service.dart';
 import '../../../../../core/services/device_info_service.dart';
 import '../local/local_database_helper.dart';
 import '../models/sales_rep_model.dart';
@@ -862,8 +863,19 @@ class SalesInvoiceSyncRepository {
       } // end if (!downloadOnly)
 
       if (!uploadOnly) {
+      onProgress?.call('Checking device & lorry assignment...');
+      await DeviceHeartbeatService(
+        networkService: _networkService,
+        storageService: SecureStorageService(),
+      ).syncDeviceLocation(siteCode: siteCode);
+
+      final resolvedInputSite = DeviceInfoService.instance.resolveEffectiveSiteCode(siteCode);
+      final effectiveSyncSite = resolvedInputSite.isNotEmpty ? resolvedInputSite : siteCode;
+
       final prefs = await SharedPreferences.getInstance();
-      final effectiveSiteKey = siteCode.isNotEmpty ? siteCode : 'default';
+      final effectiveSiteKey = effectiveSyncSite.isNotEmpty && effectiveSyncSite.toUpperCase() != 'ALL'
+          ? effectiveSyncSite.toUpperCase()
+          : 'default';
       final openInvEtagKey = 'etag_open_invoices_$effectiveSiteKey';
       final x3HistoryEtagKey = 'etag_x3_history_$effectiveSiteKey';
       final priceListEtagKey = 'etag_price_lists';
@@ -982,7 +994,7 @@ class SalesInvoiceSyncRepository {
       }
 
       // Resolve centralized SiteContext (Shipping vs Financial facilities)
-      final siteCtx = await LocalDatabaseHelper.instance.getSiteContext(siteCode);
+      final siteCtx = await LocalDatabaseHelper.instance.getSiteContext(effectiveSyncSite);
       debugPrint('Sync: Resolved $siteCtx');
 
       final custParams = <String, dynamic>{};
@@ -1117,12 +1129,30 @@ class SalesInvoiceSyncRepository {
       // Step 4/7: Van Stock Details (ETag 304 + single-pass isolate parse)
       onProgress?.call('Step 4/7: Syncing van stock...');
       try {
-        await _productRepository.syncSalesInvoiceItemStockDetails(siteCtx.shippingSiteCode);
-        entityReports.add(const SyncEntityReport(
-          entityName: 'Stock Details',
-          direction: SyncDirection.download,
-          status: SyncStatus.success,
-        ));
+        final stockResult = await _productRepository.syncSalesInvoiceItemStockDetails(siteCtx.shippingSiteCode);
+        if (stockResult.lorryRequired) {
+          const lorryMsg = 'No lorry assigned to this tablet. Assign a lorry in Devices / Tablet Fleet and sync again to load products.';
+          failures.add('Stock Details: $lorryMsg');
+          entityReports.add(const SyncEntityReport(
+            entityName: 'Stock Details',
+            direction: SyncDirection.download,
+            status: SyncStatus.failed,
+            count: 0,
+            errorCode: 'ERR_LORRY_REQUIRED',
+            userMessage: lorryMsg,
+            technicalDetails: 'Server returned X-Lorry-Required: true (no concrete LocationCode assigned to device).',
+          ));
+        } else {
+          entityReports.add(SyncEntityReport(
+            entityName: 'Stock Details',
+            direction: SyncDirection.download,
+            status: stockResult.fromCache304 ? SyncStatus.cached304 : SyncStatus.success,
+            count: stockResult.syncedCount,
+            messages: stockResult.assignedLorry != null && stockResult.assignedLorry!.isNotEmpty
+                ? ['Lorry ${stockResult.assignedLorry}: ${stockResult.syncedCount} rows']
+                : const [],
+          ));
+        }
       } catch (e) {
         debugPrint('Sync: Failed to fetch stock details: $e');
         final isOffline = e.toString().toLowerCase().contains('offline') || e.toString().toLowerCase().contains('connection');

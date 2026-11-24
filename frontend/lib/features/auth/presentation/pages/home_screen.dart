@@ -233,12 +233,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _lastSyncWasExportOnly = false;
     _lastSyncWasDownloadOnly = true;
     final authState = context.read<AuthBloc>().state;
-    final siteCode = (authState is Authenticated &&
-            authState.siteCode != null &&
-            authState.siteCode!.isNotEmpty &&
-            authState.siteCode != 'ALL')
-        ? authState.siteCode
-        : null;
+    final resolvedSite = DeviceInfoService.instance.resolveEffectiveSiteCode(
+      authState is Authenticated ? authState.siteCode : null,
+    );
+    final siteCode = resolvedSite.isNotEmpty ? resolvedSite : null;
 
     if (siteCode == null || siteCode.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -318,24 +316,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (_isManualHomeSyncTriggered) {
             _isManualHomeSyncTriggered = false;
             if (_lastSyncWasDownloadOnly) {
-              _syncJustSucceeded = true;
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: const [
-                        Icon(Icons.check_circle_rounded, color: Colors.white),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text('Data Sync Complete: Catalog, stock & pricing updated from Sage X3.'),
-                        ),
-                      ],
+              if (salesSyncState.batchResult.isCleanSuccess) {
+                _syncJustSucceeded = true;
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: const [
+                          Icon(Icons.check_circle_rounded, color: Colors.white),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text('Data Sync Complete: Catalog, stock & pricing updated from Sage X3.'),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF10B981),
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.floating,
                     ),
-                    backgroundColor: const Color(0xFF10B981),
-                    duration: const Duration(seconds: 3),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                  );
+                }
               }
             } else if (_lastSyncWasExportOnly) {
               if (salesSyncState.batchResult.hasUploadItems || salesSyncState.batchResult.hasFailures) {

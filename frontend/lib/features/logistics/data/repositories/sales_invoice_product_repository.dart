@@ -24,6 +24,22 @@ class AssignedLorryScope {
   });
 }
 
+class StockDetailsSyncResult {
+  final int syncedCount;
+  final bool lorryRequired;
+  final String? assignedLorry;
+  final String? assignedWarehouse;
+  final bool fromCache304;
+
+  const StockDetailsSyncResult({
+    this.syncedCount = 0,
+    this.lorryRequired = false,
+    this.assignedLorry,
+    this.assignedWarehouse,
+    this.fromCache304 = false,
+  });
+}
+
 class FocLorryStockMatch {
   final String itemName;
   final String salesUnit;
@@ -112,22 +128,25 @@ class SalesInvoiceProductRepository {
 
   Future<AssignedLorryScope> resolveAssignedLorryScope({String? siteCode}) async {
     final dev = DeviceInfoService.instance;
-    var cleanSite = (siteCode ?? '').trim().toUpperCase();
+    var cleanSite = dev.resolveEffectiveSiteCode(siteCode);
     if (cleanSite.isEmpty) {
-      cleanSite = (dev.assignedSite ?? '').trim().toUpperCase();
-    }
-    if (cleanSite.isEmpty) {
-      cleanSite = (await SecureStorageService().getSiteCode() ?? '').trim().toUpperCase();
+      final storedSite = (await SecureStorageService().getSiteCode() ?? '').trim().toUpperCase();
+      if (storedSite.isNotEmpty && storedSite != 'ALL') {
+        cleanSite = storedSite;
+      }
     }
 
     var loc = (dev.assignedLocation ?? '').trim().toUpperCase();
     var wrh = (dev.assignedWarehouse ?? '').trim().toUpperCase();
 
-    if ((loc.isEmpty || wrh.isEmpty) && dev.deviceId.isNotEmpty) {
+    if ((loc.isEmpty || wrh.isEmpty || cleanSite.isEmpty) && dev.deviceId.isNotEmpty) {
       final row = await LocalDatabaseHelper.instance.getDeviceLocation(dev.deviceId);
       if (row != null) {
         if (cleanSite.isEmpty) {
-          cleanSite = (row['siteCode']?.toString() ?? '').trim().toUpperCase();
+          final rowSite = (row['siteCode']?.toString() ?? '').trim().toUpperCase();
+          if (rowSite.isNotEmpty && rowSite != 'ALL') {
+            cleanSite = rowSite;
+          }
         }
         if (loc.isEmpty) {
           loc = (row['locationCode']?.toString() ?? '').trim().toUpperCase();
@@ -358,15 +377,80 @@ class SalesInvoiceProductRepository {
     return result.map((e) => e['code'] as String).toList();
   }
 
-  Future<void> syncSalesInvoiceItemStockDetails([String? siteCode, bool forceFullRefresh = false]) async {
+  Future<void> _reconcileServerAssignedLorry({
+    required String siteCode,
+    required String serverLorry,
+    String? serverWarehouse,
+  }) async {
+    final cleanLorry = serverLorry.trim().toUpperCase();
+    if (cleanLorry.isEmpty) return;
+    final cleanWrh = (serverWarehouse ?? '').trim().toUpperCase();
+    final effectiveWrh = cleanWrh.isNotEmpty ? cleanWrh : cleanLorry;
+    final dev = DeviceInfoService.instance;
+    final effectiveSite = siteCode.trim().isNotEmpty
+        ? siteCode.trim().toUpperCase()
+        : dev.resolveEffectiveSiteCode();
+
+    final currentLoc = (dev.assignedLocation ?? '').trim().toUpperCase();
+    final currentWrh = (dev.assignedWarehouse ?? '').trim().toUpperCase();
+    if (currentLoc == cleanLorry && (cleanWrh.isEmpty || currentWrh == effectiveWrh)) {
+      return;
+    }
+
+    await dev.setAssignedLocation(
+      siteCode: effectiveSite.isNotEmpty ? effectiveSite : cleanLorry,
+      warehouseCode: effectiveWrh,
+      locationCode: cleanLorry,
+    );
+
+    if (dev.deviceId.isNotEmpty) {
+      final existing = await LocalDatabaseHelper.instance.getDeviceLocation(dev.deviceId);
+      if (existing != null) {
+        final updated = Map<String, dynamic>.from(existing)
+          ..['locationCode'] = cleanLorry
+          ..['warehouseCode'] = effectiveWrh;
+        if (effectiveSite.isNotEmpty) {
+          updated['siteCode'] = effectiveSite;
+        }
+        await LocalDatabaseHelper.instance.insertOrUpdateDeviceLocation(updated);
+      }
+    }
+  }
+
+  Future<StockDetailsSyncResult> syncSalesInvoiceItemStockDetails([
+    String? siteCode,
+    bool forceFullRefresh = false,
+  ]) async {
     try {
-      final cleanSite = siteCode?.trim().toUpperCase();
+      final storage = SecureStorageService();
+      var cleanSite = DeviceInfoService.instance.resolveEffectiveSiteCode(siteCode);
+      if (cleanSite.isEmpty) {
+        final storedSite = (await storage.getSiteCode() ?? '').trim().toUpperCase();
+        if (storedSite.isNotEmpty && storedSite != 'ALL') {
+          cleanSite = storedSite;
+        }
+      }
+
+      final rawSchema = (await storage.getSchema() ?? 'INLDRYRUN').trim().toUpperCase();
+      final schema = rawSchema.isNotEmpty ? rawSchema : 'INLDRYRUN';
+
+      final scope = await resolveAssignedLorryScope(siteCode: cleanSite);
+      final lorryKey = scope.isAssigned ? scope.lorryCode : 'UNASSIGNED';
+      final siteKey = cleanSite.isNotEmpty ? cleanSite : 'DEFAULT';
+
       final prefs = await SharedPreferences.getInstance();
-      final etagKey = 'etag_stock_${cleanSite?.isNotEmpty == true ? cleanSite : "default"}';
+      final etagKey = 'etag_stock_${schema}_${siteKey}_$lorryKey';
       if (forceFullRefresh) {
         await prefs.remove(etagKey);
       }
-      final cachedEtag = forceFullRefresh ? null : prefs.getString(etagKey);
+
+      final localCount = await LocalDatabaseHelper.instance.getSalesInvoiceItemStockCount(
+        siteCode: cleanSite,
+        lorryCode: scope.isAssigned ? scope.lorryCode : null,
+        warehouseCode: scope.isAssigned ? scope.warehouseCode : null,
+      );
+
+      final cachedEtag = (forceFullRefresh || localCount == 0) ? null : prefs.getString(etagKey);
       final headers = <String, dynamic>{};
       if (cachedEtag != null && cachedEtag.isNotEmpty) {
         headers['If-None-Match'] = cachedEtag;
@@ -374,9 +458,7 @@ class SalesInvoiceProductRepository {
 
       final response = await _dio.get(
         'SalesInvoice/itemstockdetails',
-        queryParameters: (cleanSite != null && cleanSite.isNotEmpty)
-            ? {'sitecode': cleanSite}
-            : null,
+        queryParameters: cleanSite.isNotEmpty ? {'sitecode': cleanSite} : null,
         options: Options(
           headers: headers.isNotEmpty ? headers : null,
           responseType: ResponseType.plain,
@@ -384,23 +466,52 @@ class SalesInvoiceProductRepository {
         ),
       );
 
-      if (response.statusCode == 304) {
-        debugPrint('Sync: Stock details up-to-date (HTTP 304 Not Modified). Bypassing re-index.');
-        return;
-      }
-
       final lorryRequiredHeader = (response.headers.value('x-lorry-required') ?? '').trim().toLowerCase();
       if (lorryRequiredHeader == 'true') {
         debugPrint('Sync: Server indicates tablet has no assigned lorry (X-Lorry-Required). Clearing stale stock.');
         await LocalDatabaseHelper.instance.clearSalesInvoiceItemStockDetails();
         await prefs.remove(etagKey);
-        return;
+        return const StockDetailsSyncResult(
+          syncedCount: 0,
+          lorryRequired: true,
+        );
+      }
+
+      final serverLorry = (response.headers.value('x-assigned-lorry') ?? '').trim().toUpperCase();
+      final serverWarehouse = (response.headers.value('x-assigned-warehouse') ?? '').trim().toUpperCase();
+      if (serverLorry.isNotEmpty) {
+        await _reconcileServerAssignedLorry(
+          siteCode: cleanSite,
+          serverLorry: serverLorry,
+          serverWarehouse: serverWarehouse,
+        );
+      }
+
+      final resolvedLorry = serverLorry.isNotEmpty
+          ? serverLorry
+          : (scope.isAssigned ? scope.lorryCode : null);
+      final resolvedWarehouse = serverWarehouse.isNotEmpty
+          ? serverWarehouse
+          : (scope.isAssigned ? scope.warehouseCode : null);
+
+      if (response.statusCode == 304) {
+        debugPrint('Sync: Stock details up-to-date (HTTP 304 Not Modified). Bypassing re-index.');
+        return StockDetailsSyncResult(
+          syncedCount: localCount,
+          assignedLorry: resolvedLorry,
+          assignedWarehouse: resolvedWarehouse,
+          fromCache304: true,
+        );
       }
 
       final dynamic respData = response.data;
       if (respData == null || (respData is! List && respData is! String)) {
         debugPrint('Sync: Stock details response is empty or invalid.');
-        return;
+        return StockDetailsSyncResult(
+          syncedCount: 0,
+          assignedLorry: resolvedLorry,
+          assignedWarehouse: resolvedWarehouse,
+        );
       }
 
       final dynamic rawData = respData;
@@ -434,14 +545,21 @@ class SalesInvoiceProductRepository {
         await _applyUnsyncedLedgerToStock(txn);
       });
 
-      // Update stored ETag on successful ingestion
+      // Update stored ETag on successful ingestion using the reconciled lorry key
+      final finalLorryKey = (resolvedLorry != null && resolvedLorry.isNotEmpty) ? resolvedLorry : lorryKey;
+      final finalEtagKey = 'etag_stock_${schema}_${siteKey}_$finalLorryKey';
       final newEtag = response.headers.value('etag');
       if (newEtag != null && newEtag.isNotEmpty) {
-        await prefs.setString(etagKey, newEtag);
+        await prefs.setString(finalEtagKey, newEtag);
       }
 
       debugPrint(
-        'Successfully synced ${parsedData.length} sales invoice item stock details.',
+        'Successfully synced ${parsedData.length} sales invoice item stock details (Lorry: ${resolvedLorry ?? "NONE"}).',
+      );
+      return StockDetailsSyncResult(
+        syncedCount: parsedData.length,
+        assignedLorry: resolvedLorry,
+        assignedWarehouse: resolvedWarehouse,
       );
     } catch (e) {
       debugPrint('Error syncing sales invoice item stock details: $e');
@@ -538,6 +656,17 @@ class SalesInvoiceProductRepository {
       END
     ''';
 
+    final cnOriginExpr = cnCols.contains('originalInvoiceId')
+        ? "COALESCE(NULLIF(TRIM(CN.originalInvoiceId), ''), CNL.originInvoiceId)"
+        : (cnCols.contains('originInvoiceId')
+            ? "COALESCE(NULLIF(TRIM(CN.originInvoiceId), ''), CNL.originInvoiceId)"
+            : 'CNL.originInvoiceId');
+    final cn2OriginExpr = cnCols.contains('originalInvoiceId')
+        ? "COALESCE(NULLIF(TRIM(CN2.originalInvoiceId), ''), CNL2.originInvoiceId)"
+        : (cnCols.contains('originInvoiceId')
+            ? "COALESCE(NULLIF(TRIM(CN2.originInvoiceId), ''), CNL2.originInvoiceId)"
+            : 'CNL2.originInvoiceId');
+
     await txn.rawInsert('''
       INSERT OR IGNORE INTO ${LocalDatabaseHelper.tableSalesInvoiceItemStockDetails}
         (itemCode, itemName, lotNumber, warehouse, warehouseName, location, locationType, totalQty, taxLevel, cce0, salesUnit, barcode, siteCode, stockStatus, isSynced, createdAt, updatedAt, deviceId)
@@ -564,7 +693,7 @@ class SalesInvoiceProductRepository {
       JOIN ${LocalDatabaseHelper.tableSiCreditNotes} CN ON CNL.creditNoteId = CN.creditNoteId
       LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} OL
         ON CNL.originInvoiceId = OL.invoiceId AND CAST(CNL.originLineNo AS INTEGER) = OL.lineId
-      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P ON CN.originInvoiceId = P.invoiceId
+      LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P ON $cnOriginExpr = P.invoiceId
       WHERE (CN.isSynced = 0 OR CN.isSynced IS NULL)
         AND CN.stockTransaction = 1
         AND (P.invoiceId IS NULL OR P.isSynced = 1 OR COALESCE(P.isReversed, 0) = 0)
@@ -579,7 +708,7 @@ class SalesInvoiceProductRepository {
         JOIN ${LocalDatabaseHelper.tableSiCreditNotes} CN ON CNL.creditNoteId = CN.creditNoteId
         LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} OL
           ON CNL.originInvoiceId = OL.invoiceId AND CAST(CNL.originLineNo AS INTEGER) = OL.lineId
-        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P ON CN.originInvoiceId = P.invoiceId
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P ON $cnOriginExpr = P.invoiceId
         WHERE (CN.isSynced = 0 OR CN.isSynced IS NULL)
           AND CN.stockTransaction = 1
           AND (P.invoiceId IS NULL OR P.isSynced = 1 OR COALESCE(P.isReversed, 0) = 0)
@@ -594,7 +723,7 @@ class SalesInvoiceProductRepository {
         JOIN ${LocalDatabaseHelper.tableSiCreditNotes} CN2 ON CNL2.creditNoteId = CN2.creditNoteId
         LEFT JOIN ${LocalDatabaseHelper.tableSiInvoiceLines} OL2
           ON CNL2.originInvoiceId = OL2.invoiceId AND CAST(CNL2.originLineNo AS INTEGER) = OL2.lineId
-        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P2 ON CN2.originInvoiceId = P2.invoiceId
+        LEFT JOIN ${LocalDatabaseHelper.tableSiInvoices} P2 ON $cn2OriginExpr = P2.invoiceId
         WHERE (CN2.isSynced = 0 OR CN2.isSynced IS NULL)
           AND CN2.stockTransaction = 1
           AND (P2.invoiceId IS NULL OR P2.isSynced = 1 OR COALESCE(P2.isReversed, 0) = 0)

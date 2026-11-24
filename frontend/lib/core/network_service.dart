@@ -98,6 +98,10 @@ class NetworkService {
           
           final devUuid = DeviceInfoService.instance.deviceId;
           options.headers['X-Device-Id'] = devUuid.isNotEmpty ? devUuid : DeviceInfoService.instance.deviceInfo;
+          final hwId = DeviceInfoService.instance.hardwareIdentifier.trim();
+          if (hwId.isNotEmpty) {
+            options.headers['X-Device-Hardware-Id'] = hwId;
+          }
           
           return handler.next(options);
         },

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/widgets/industrial_module_layout.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import '../../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../../auth/presentation/bloc/auth_state.dart';
 import '../../bloc/sales_invoice_sync_bloc.dart';
@@ -56,12 +57,10 @@ class SelectTransactionScreen extends StatelessWidget {
                   tooltip: 'Sync Mobile Sales Data',
                   onPressed: () {
                     final authState = context.read<AuthBloc>().state;
-                    final siteCode = (authState is Authenticated &&
-                            authState.siteCode != null &&
-                            authState.siteCode!.isNotEmpty &&
-                            authState.siteCode != 'ALL')
-                        ? authState.siteCode
-                        : null;
+                    final resolvedSite = DeviceInfoService.instance.resolveEffectiveSiteCode(
+                      authState is Authenticated ? authState.siteCode : null,
+                    );
+                    final siteCode = resolvedSite.isNotEmpty ? resolvedSite : null;
 
                     if (siteCode == null) {
                       ScaffoldMessenger.of(context).showSnackBar(

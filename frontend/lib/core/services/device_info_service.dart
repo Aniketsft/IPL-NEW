@@ -214,4 +214,18 @@ class DeviceInfoService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('device_is_locked', isLocked);
   }
+
+  /// Resolves a concrete operational site code from [preferredSiteCode] or cached
+  /// device assignment, treating null/empty/`ALL` as unspecified.
+  String resolveEffectiveSiteCode([String? preferredSiteCode]) {
+    final cleanPreferred = (preferredSiteCode ?? '').trim().toUpperCase();
+    if (cleanPreferred.isNotEmpty && cleanPreferred != 'ALL') {
+      return cleanPreferred;
+    }
+    final cleanAssigned = (_assignedSite ?? '').trim().toUpperCase();
+    if (cleanAssigned.isNotEmpty && cleanAssigned != 'ALL') {
+      return cleanAssigned;
+    }
+    return '';
+  }
 }
