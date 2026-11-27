@@ -829,14 +829,32 @@ class PrinterService {
       if (cleanQr.isNotEmpty) {
         try {
           final qrPngBytes = base64Decode(cleanQr);
-          var qrImg = img.decodeImage(qrPngBytes);
-          if (qrImg != null) {
-            final whiteBg = img.Image(width: qrImg.width, height: qrImg.height)
-              ..clear(img.ColorRgba8(255, 255, 255, 255));
-            img.compositeImage(whiteBg, qrImg);
-            qrImg = whiteBg;
+          final decodedQr = img.decodeImage(qrPngBytes);
+          if (decodedQr != null) {
+            // Convert any PNG bit depth / color type (MRA returns 1-bit grayscale PNGs
+            // where white=1 rather than 255) into an opaque 8-bit RGB canvas (0 or 255)
+            // so esc_pos_utils_plus luminance (<128) does not render white pixels black.
+            var qrImg = img.Image(
+              width: decodedQr.width,
+              height: decodedQr.height,
+              numChannels: 3,
+              format: img.Format.uint8,
+            );
+            for (final pixel in decodedQr) {
+              final double rN = pixel.rNormalized.toDouble();
+              final double gN = decodedQr.numChannels >= 2 ? pixel.gNormalized.toDouble() : rN;
+              final double bN = decodedQr.numChannels >= 3 ? pixel.bNormalized.toDouble() : rN;
+              final double alpha = decodedQr.hasAlpha ? pixel.aNormalized.toDouble() : 1.0;
+              final double lum = (decodedQr.numChannels <= 2 && !decodedQr.hasPalette)
+                  ? rN
+                  : (0.299 * rN) + (0.587 * gN) + (0.114 * bN);
+              final double blended = (lum * alpha) + (1.0 - alpha);
+              final int c = blended >= 0.5 ? 255 : 0;
+              qrImg.setPixelRgb(pixel.x, pixel.y, c, c, c);
+            }
+
             const int targetWidth = 240; // multiple of 8, ~30mm at 203 DPI
-            if (qrImg.width != targetWidth) {
+            if (qrImg.width != targetWidth || qrImg.height != targetWidth) {
               qrImg = img.copyResize(
                 qrImg,
                 width: targetWidth,
@@ -844,12 +862,22 @@ class PrinterService {
                 interpolation: img.Interpolation.nearest,
               );
             }
+
+            debugPrint(
+              'PrinterService: QR ${decodedQr.width}x${decodedQr.height} (fmt=${decodedQr.format}, ch=${decodedQr.numChannels}, alpha=${decodedQr.hasAlpha}, palette=${decodedQr.hasPalette}) -> ${qrImg.width}x${qrImg.height} RGB8',
+            );
+
             bytes.addAll(const <int>[0x1B, 0x61, 0x01, 0x1B, 0x45, 0x01]);
             bytes.addAll('MRA E-INVOICE FISCAL QR\r\n'.codeUnits);
             bytes.addAll(const <int>[0x1B, 0x45, 0x00]);
             final profile = await CapabilityProfile.load();
             final generator = Generator(PaperSize.mm80, profile);
-            bytes.addAll(generator.imageRaster(qrImg, align: PosAlign.center));
+            const int sliceHeight = 128;
+            for (int y = 0; y < qrImg.height; y += sliceHeight) {
+              final int h = (y + sliceHeight <= qrImg.height) ? sliceHeight : (qrImg.height - y);
+              final slice = img.copyCrop(qrImg, x: 0, y: y, width: qrImg.width, height: h);
+              bytes.addAll(generator.imageRaster(slice, align: PosAlign.center));
+            }
             if (cleanIrn.isNotEmpty) {
               bytes.addAll(const <int>[0x1B, 0x61, 0x01]);
               for (final ch in 'IRN: $cleanIrn'.codeUnits) {
