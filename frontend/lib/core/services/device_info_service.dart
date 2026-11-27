@@ -21,6 +21,7 @@ class DeviceInfoService {
   String? _assignedSite;
   String? _hepProfileId;
   String? _hepApiKey;
+  String? _ebsCounterNo;
   bool _isLicensed = true;
   String _licenseStatus = 'VALID';
   bool _isLocked = true;
@@ -54,6 +55,7 @@ class DeviceInfoService {
   String? get assignedSite => _assignedSite;
   String? get hepProfileId => _hepProfileId;
   String? get hepApiKey => _hepApiKey;
+  String get ebsCounterNo => (_ebsCounterNo != null && _ebsCounterNo!.trim().isNotEmpty) ? _ebsCounterNo!.trim() : '1';
   bool get isLicensed => _isLicensed;
   String get licenseStatus => _licenseStatus;
   bool get isLocked => _isLocked;
@@ -128,6 +130,7 @@ class DeviceInfoService {
       _assignedLocation = prefs.getString('device_assigned_location');
       _hepProfileId = prefs.getString('device_hep_profile_id');
       _hepApiKey = prefs.getString('device_hep_api_key');
+      _ebsCounterNo = prefs.getString('device_ebs_counter_no');
       _isLicensed = prefs.getBool('device_is_licensed') ?? true;
       _licenseStatus = prefs.getString('device_license_status') ?? 'VALID';
       _isLocked = prefs.getBool('device_is_locked') ?? true;
@@ -145,6 +148,7 @@ class DeviceInfoService {
     String? locationCode,
     String? hepProfileId,
     String? hepApiKey,
+    String? ebsCounterNo,
     bool? isLicensed,
     String? licenseStatus,
     bool? isLocked,
@@ -161,6 +165,7 @@ class DeviceInfoService {
     if (locationCode != null) _assignedLocation = locationCode;
     if (hepProfileId != null) _hepProfileId = hepProfileId;
     if (hepApiKey != null) _hepApiKey = hepApiKey;
+    if (ebsCounterNo != null && ebsCounterNo.trim().isNotEmpty) _ebsCounterNo = ebsCounterNo.trim();
     if (isLicensed != null) _isLicensed = isLicensed;
     if (licenseStatus != null) _licenseStatus = licenseStatus;
     if (isLocked != null) _isLocked = isLocked;
@@ -180,6 +185,7 @@ class DeviceInfoService {
     if (locationCode != null) await prefs.setString('device_assigned_location', locationCode);
     if (hepProfileId != null) await prefs.setString('device_hep_profile_id', hepProfileId);
     if (hepApiKey != null) await prefs.setString('device_hep_api_key', hepApiKey);
+    if (ebsCounterNo != null && ebsCounterNo.trim().isNotEmpty) await prefs.setString('device_ebs_counter_no', ebsCounterNo.trim());
     if (isLicensed != null) await prefs.setBool('device_is_licensed', isLicensed);
     if (licenseStatus != null) await prefs.setString('device_license_status', licenseStatus);
     if (isLocked != null) await prefs.setBool('device_is_locked', isLocked);

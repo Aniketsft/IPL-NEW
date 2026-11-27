@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -31,6 +32,8 @@ class InvoicePreviewScreen extends StatefulWidget {
   final bool isPartiallyReversed;
   final double totalCreditedAmount;
   final double netBalanceDue;
+  final String? qrCodeBase64;
+  final String? fiscalIrn;
 
   const InvoicePreviewScreen({
     super.key,
@@ -49,6 +52,8 @@ class InvoicePreviewScreen extends StatefulWidget {
     this.isPartiallyReversed = false,
     this.totalCreditedAmount = 0.0,
     this.netBalanceDue = 0.0,
+    this.qrCodeBase64,
+    this.fiscalIrn,
   });
 
   @override
@@ -58,6 +63,38 @@ class InvoicePreviewScreen extends StatefulWidget {
 class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
   bool _isPrinting = false;
   bool _isGeneratingPreview = false;
+  String? _qrCodeBase64;
+  String? _fiscalIrn;
+
+  @override
+  void initState() {
+    super.initState();
+    _qrCodeBase64 = widget.qrCodeBase64 ?? widget.creditNoteModel?.fiscalQrBase64;
+    _fiscalIrn = widget.fiscalIrn ?? widget.creditNoteModel?.fiscalIrn;
+    if (_qrCodeBase64 == null || _qrCodeBase64!.trim().isEmpty) {
+      _loadFiscalDataFromDb();
+    }
+  }
+
+  Future<void> _loadFiscalDataFromDb() async {
+    try {
+      final row = widget.isCreditNote
+          ? await LocalDatabaseHelper.instance.getCreditNoteById(widget.invoiceId)
+          : await LocalDatabaseHelper.instance.getSalesInvoiceById(widget.invoiceId);
+      if (row != null && mounted) {
+        final qr = row['fiscalQrBase64']?.toString().trim();
+        final irn = row['fiscalIrn']?.toString().trim();
+        if ((qr != null && qr.isNotEmpty) || (irn != null && irn.isNotEmpty)) {
+          setState(() {
+            if (qr != null && qr.isNotEmpty) _qrCodeBase64 = qr;
+            if (irn != null && irn.isNotEmpty) _fiscalIrn = irn;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('InvoicePreviewScreen: failed to load fiscal QR from SQLite: $e');
+    }
+  }
 
   StockStatus _resolveItemStockStatus(int index, CartItem item) {
     final itemCode = StockStatus.fromCode(item.stockStatus).code;
@@ -80,23 +117,60 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
     return StockStatus.approved;
   }
 
-  CreditNoteModel _resolveCreditNoteModel() =>
-      widget.creditNoteModel ??
-      CreditNoteModel(
-        creditNoteId: widget.invoiceId,
-        creditNoteType: CreditNoteType.reversal,
-        x3CreditNoteType: 'CRN',
-        salesSite: 'IPL',
-        customerCode: widget.customer['code']?.toString() ?? '',
-        customerName: widget.customer['name']?.toString() ?? '',
-        currency: 'MUR',
-        grandTotal: widget.grandTotal,
-        settlementType: 'REFUND',
-        reference: '',
-        reason: widget.creditNoteReason,
-        createdAt: DateTime.now().toIso8601String(),
-        createdBy: 'USER',
+  CreditNoteModel _resolveCreditNoteModel() {
+    final base = widget.creditNoteModel;
+    if (base != null) {
+      return CreditNoteModel(
+        creditNoteId: base.creditNoteId,
+        creditNoteType: base.creditNoteType,
+        x3CreditNoteType: base.x3CreditNoteType,
+        salesSite: base.salesSite,
+        customerCode: base.customerCode,
+        customerName: base.customerName,
+        currency: base.currency,
+        grandTotal: base.grandTotal,
+        originalInvoiceId: base.originalInvoiceId,
+        linkedInvoiceIds: base.linkedInvoiceIds,
+        settlementType: base.settlementType,
+        reference: base.reference,
+        isSynced: base.isSynced,
+        x3DocumentId: base.x3DocumentId,
+        createdAt: base.createdAt,
+        createdBy: base.createdBy,
+        deviceId: base.deviceId,
+        reason: base.reason,
+        salesRep: base.salesRep,
+        transactionMode: base.transactionMode,
+        stockTransaction: base.stockTransaction,
+        x3StockReceiptId: base.x3StockReceiptId,
+        x3RefundPaymentId: base.x3RefundPaymentId,
+        isFiscalised: base.isFiscalised,
+        fiscalQrBase64: base.fiscalQrBase64 ?? _qrCodeBase64,
+        fiscalIrn: base.fiscalIrn ?? _fiscalIrn,
+        fiscalAt: base.fiscalAt,
+        fiscalHepId: base.fiscalHepId,
+        lines: base.lines,
       );
+    }
+    return CreditNoteModel(
+      creditNoteId: widget.invoiceId,
+      creditNoteType: CreditNoteType.reversal,
+      x3CreditNoteType: 'CRN',
+      salesSite: 'IPL',
+      customerCode: widget.customer['code']?.toString() ?? '',
+      customerName: widget.customer['name']?.toString() ?? '',
+      currency: 'MUR',
+      grandTotal: widget.grandTotal,
+      settlementType: 'REFUND',
+      reference: '',
+      reason: widget.creditNoteReason,
+      createdAt: DateTime.now().toIso8601String(),
+      createdBy: 'USER',
+      isFiscalised: (_qrCodeBase64 != null && _qrCodeBase64!.isNotEmpty) ? 1 : 0,
+      fiscalQrBase64: _qrCodeBase64,
+      fiscalIrn: _fiscalIrn,
+    );
+  }
 
   List<Map<String, dynamic>> _buildCreditNoteResolvedLines() =>
       consolidateCartItemsForDisplay(widget.items).map((group) {
@@ -136,6 +210,8 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
         isPartiallyReversed: widget.isPartiallyReversed,
         creditedAmount: widget.totalCreditedAmount,
         netBalanceDue: widget.netBalanceDue,
+        qrCodeBase64: _qrCodeBase64,
+        fiscalIrn: _fiscalIrn,
       );
     }
   }
@@ -199,6 +275,8 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
               isPartiallyReversed: widget.isPartiallyReversed,
               creditedAmount: widget.totalCreditedAmount,
               netBalanceDue: widget.netBalanceDue,
+              qrCodeBase64: _qrCodeBase64,
+              fiscalIrn: _fiscalIrn,
             );
 
       if (mounted) {
@@ -213,6 +291,8 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
       await PrinterService.instance.printThermalLinesViaBluetooth(
         lines: doc.toPrintLines(),
         documentName: docName,
+        qrBase64: doc.qrCodeBase64,
+        fiscalIrn: doc.fiscalIrn,
       );
 
       if (mounted) {
@@ -736,6 +816,66 @@ class _InvoicePreviewScreenState extends State<InvoicePreviewScreen> {
                 ),
               ),
             ),
+            if ((_qrCodeBase64 != null && _qrCodeBase64!.trim().isNotEmpty) ||
+                (_fiscalIrn != null && _fiscalIrn!.trim().isNotEmpty)) ...[
+              const SizedBox(height: 16),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.teal.withOpacity(0.4)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.verified_outlined, size: 16, color: Colors.teal.shade600),
+                          const SizedBox(width: 6),
+                          Text(
+                            'MRA E-INVOICE FISCAL QR',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal.shade700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_qrCodeBase64 != null && _qrCodeBase64!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(6),
+                          child: Image.memory(
+                            base64Decode(_qrCodeBase64!.trim()),
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ],
+                      if (_fiscalIrn != null && _fiscalIrn!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'IRN: ${_fiscalIrn!}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

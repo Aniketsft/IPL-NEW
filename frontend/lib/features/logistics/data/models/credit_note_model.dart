@@ -37,6 +37,11 @@ class CreditNoteModel {
   final String? salesRep;
   final String? transactionMode; // "1" = Direct Credit Note, "4" = Linked Credit Note with Origin Invoice
   final int stockTransaction; // 0 = Credit Note (Financial only), 1 = Customer Return (Financial + Physical Stock Receipt)
+  final int isFiscalised;
+  final String? fiscalQrBase64;
+  final String? fiscalIrn;
+  final String? fiscalAt;
+  final String? fiscalHepId;
   final List<CreditNoteLineModel> lines;
   final List<CreditNoteRefundModel> refunds;
 
@@ -64,6 +69,11 @@ class CreditNoteModel {
     this.salesRep,
     this.transactionMode,
     this.stockTransaction = 0,
+    this.isFiscalised = 0,
+    this.fiscalQrBase64,
+    this.fiscalIrn,
+    this.fiscalAt,
+    this.fiscalHepId,
     this.lines = const [],
     this.refunds = const [],
   });
@@ -97,6 +107,11 @@ class CreditNoteModel {
       'salesRep': salesRep,
       'transactionMode': resolvedTransactionMode,
       'stockTransaction': stockTransaction,
+      'isFiscalised': isFiscalised,
+      'fiscalQrBase64': fiscalQrBase64,
+      'fiscalIrn': fiscalIrn,
+      'fiscalAt': fiscalAt,
+      'fiscalHepId': fiscalHepId,
     };
   }
 
@@ -141,6 +156,11 @@ class CreditNoteModel {
       salesRep: map['salesRep'],
       transactionMode: map['transactionMode'] as String?,
       stockTransaction: (map['stockTransaction'] as num?)?.toInt() ?? 0,
+      isFiscalised: (map['isFiscalised'] as num?)?.toInt() ?? 0,
+      fiscalQrBase64: map['fiscalQrBase64']?.toString(),
+      fiscalIrn: map['fiscalIrn']?.toString(),
+      fiscalAt: map['fiscalAt']?.toString(),
+      fiscalHepId: map['fiscalHepId']?.toString(),
       lines: lines,
       refunds: refunds,
     );

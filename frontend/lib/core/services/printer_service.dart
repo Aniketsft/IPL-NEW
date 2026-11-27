@@ -602,7 +602,13 @@ class PrinterService {
     }
   }
 
-  static final Map<int, List<({String text, bool bold})>> _pdfThermalLineCache = {};
+  static final Map<
+      int,
+      ({
+        List<({String text, bool bold})> lines,
+        String? qrBase64,
+        String? fiscalIrn,
+      })> _pdfThermalLineCache = {};
 
   static int _fingerprintPdf(Uint8List bytes) {
     int hash = 0x811c9dc5;
@@ -614,20 +620,33 @@ class PrinterService {
     return (hash ^ bytes.length) & 0x7fffffff;
   }
 
-  /// Registers the 68-column native ESC/POS lines that produced [pdfBytes] so
-  /// any caller passing [pdfBytes] to [printPdfViaBluetooth] automatically
-  /// prints crisp hardware-font ESC/POS text instead of slow raster bitmaps.
+  /// Registers the 68-column native ESC/POS lines (and optional fiscal QR/IRN)
+  /// that produced [pdfBytes] so any caller passing [pdfBytes] to
+  /// [printPdfViaBluetooth] prints crisp hardware-font ESC/POS text.
   static void registerPdfThermalLines(
     Uint8List pdfBytes,
-    List<({String text, bool bold})> lines,
-  ) {
+    List<({String text, bool bold})> lines, {
+    String? qrBase64,
+    String? fiscalIrn,
+  }) {
     if (_pdfThermalLineCache.length >= 32) {
       _pdfThermalLineCache.remove(_pdfThermalLineCache.keys.first);
     }
-    _pdfThermalLineCache[_fingerprintPdf(pdfBytes)] = List.unmodifiable(lines);
+    _pdfThermalLineCache[_fingerprintPdf(pdfBytes)] = (
+      lines: List.unmodifiable(lines),
+      qrBase64: qrBase64,
+      fiscalIrn: fiscalIrn,
+    );
   }
 
   static List<({String text, bool bold})>? lookupPdfThermalLines(Uint8List pdfBytes) =>
+      _pdfThermalLineCache[_fingerprintPdf(pdfBytes)]?.lines;
+
+  static ({
+    List<({String text, bool bold})> lines,
+    String? qrBase64,
+    String? fiscalIrn,
+  })? lookupPdfThermalEntry(Uint8List pdfBytes) =>
       _pdfThermalLineCache[_fingerprintPdf(pdfBytes)];
 
   Future<bool> _writeBytesInChunks(List<int> bytes, {int chunkSize = 512}) async {
@@ -748,6 +767,8 @@ class PrinterService {
   Future<bool> printThermalLinesViaBluetooth({
     required List<({String text, bool bold})> lines,
     required String documentName,
+    String? qrBase64,
+    String? fiscalIrn,
   }) async {
     final printer = defaultBluetoothPrinter;
     if (printer == null || printer.macAddress == null || printer.macAddress!.isEmpty) {
@@ -802,6 +823,53 @@ class PrinterService {
         bytes.addAll(const <int>[0x1B, 0x45, 0x00]);
       }
 
+      // Append MRA Fiscal QR raster + IRN when fiscalised
+      final cleanQr = qrBase64?.trim() ?? '';
+      final cleanIrn = fiscalIrn?.trim() ?? '';
+      if (cleanQr.isNotEmpty) {
+        try {
+          final qrPngBytes = base64Decode(cleanQr);
+          var qrImg = img.decodeImage(qrPngBytes);
+          if (qrImg != null) {
+            final whiteBg = img.Image(width: qrImg.width, height: qrImg.height)
+              ..clear(img.ColorRgba8(255, 255, 255, 255));
+            img.compositeImage(whiteBg, qrImg);
+            qrImg = whiteBg;
+            const int targetWidth = 240; // multiple of 8, ~30mm at 203 DPI
+            if (qrImg.width != targetWidth) {
+              qrImg = img.copyResize(
+                qrImg,
+                width: targetWidth,
+                height: targetWidth,
+                interpolation: img.Interpolation.nearest,
+              );
+            }
+            bytes.addAll(const <int>[0x1B, 0x61, 0x01, 0x1B, 0x45, 0x01]);
+            bytes.addAll('MRA E-INVOICE FISCAL QR\r\n'.codeUnits);
+            bytes.addAll(const <int>[0x1B, 0x45, 0x00]);
+            final profile = await CapabilityProfile.load();
+            final generator = Generator(PaperSize.mm80, profile);
+            bytes.addAll(generator.imageRaster(qrImg, align: PosAlign.center));
+            if (cleanIrn.isNotEmpty) {
+              bytes.addAll(const <int>[0x1B, 0x61, 0x01]);
+              for (final ch in 'IRN: $cleanIrn'.codeUnits) {
+                bytes.add((ch >= 0x20 && ch <= 0x7E) ? ch : 0x20);
+              }
+              bytes.addAll(const <int>[0x0D, 0x0A]);
+            }
+            bytes.addAll(const <int>[0x1B, 0x61, 0x00]);
+          }
+        } catch (qrErr) {
+          debugPrint('PrinterService: skipping invalid fiscal QR bitmap: $qrErr');
+        }
+      } else if (cleanIrn.isNotEmpty) {
+        bytes.addAll(const <int>[0x1B, 0x61, 0x01]);
+        for (final ch in 'IRN: $cleanIrn'.codeUnits) {
+          bytes.add((ch >= 0x20 && ch <= 0x7E) ? ch : 0x20);
+        }
+        bytes.addAll(const <int>[0x0D, 0x0A, 0x1B, 0x61, 0x00]);
+      }
+
       // Feed 4 blank lines for clean manual tear-off past the cutter bar
       for (int i = 0; i < 4; i++) {
         bytes.add(0x0D);
@@ -824,14 +892,16 @@ class PrinterService {
   }) async {
     // Fast path: if these PDF bytes were produced by ThermalDoc.build(),
     // route directly to native ESC/POS text printing instead of slow rasterization.
-    final cachedLines = lookupPdfThermalLines(pdfBytes);
-    if (cachedLines != null && cachedLines.isNotEmpty) {
+    final cachedEntry = lookupPdfThermalEntry(pdfBytes);
+    if (cachedEntry != null && cachedEntry.lines.isNotEmpty) {
       debugPrint(
-        'PrinterService.printPdfViaBluetooth: routing $documentName (${cachedLines.length} lines) to native ESC/POS text',
+        'PrinterService.printPdfViaBluetooth: routing $documentName (${cachedEntry.lines.length} lines) to native ESC/POS text',
       );
       return printThermalLinesViaBluetooth(
-        lines: cachedLines,
+        lines: cachedEntry.lines,
         documentName: documentName,
+        qrBase64: cachedEntry.qrBase64,
+        fiscalIrn: cachedEntry.fiscalIrn,
       );
     }
 

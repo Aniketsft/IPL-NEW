@@ -13,5 +13,10 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? Tsccod { get; set; }
         public string? Bpcsho { get; set; }
         public byte? FacilityFlag { get; set; }
+        public string? TransactionType { get; set; }
+        public string? Tan { get; set; }
+        public string? Brn { get; set; }
+        public string? Nic { get; set; }
+        public string? Address { get; set; }
     }
 }

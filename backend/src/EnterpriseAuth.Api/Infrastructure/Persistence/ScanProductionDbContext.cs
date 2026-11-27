@@ -29,6 +29,8 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         public DbSet<X3SoapAudit> X3SoapAudits { get; set; }
         public DbSet<EodProcessAudit> EodProcessAudits { get; set; }
         public DbSet<DeviceLocation> DeviceLocations { get; set; }
+        public DbSet<HepFiscalInvoice> HepFiscalInvoices { get; set; }
+        public DbSet<HepFiscalFailureLog> HepFiscalFailureLogs { get; set; }
 
         // --- SALES INVOICE STAGING ---
         public DbSet<StagingSalesInvoiceHeader> StagingSalesInvoiceHeaders { get; set; }
@@ -219,6 +221,31 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             modelBuilder.Entity<StagingCreditNoteRefund>(entity =>
             {
                 entity.HasKey(e => e.RefundId);
+            });
+
+            // HepFiscalInvoices (Success-only fiscalisation table)
+            modelBuilder.Entity<HepFiscalInvoice>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.DocumentNo)
+                    .IsUnique()
+                    .HasDatabaseName("UQ_HepFiscalInvoices_DocumentNo");
+                entity.HasIndex(e => new { e.IsFiscalised, e.X3Synced })
+                    .HasDatabaseName("IX_HepFiscalInvoices_Gate_X3Sync");
+                entity.Property(e => e.TotalAmtWoVatCur).HasPrecision(18, 4);
+                entity.Property(e => e.TotalAmtWoVatMur).HasPrecision(18, 4);
+                entity.Property(e => e.TotalVatAmount).HasPrecision(18, 4);
+                entity.Property(e => e.InvoiceTotal).HasPrecision(18, 4);
+                entity.Property(e => e.DiscountTotal).HasPrecision(18, 4);
+                entity.Property(e => e.TotalAmountPaid).HasPrecision(18, 4);
+            });
+
+            // HepFiscalFailureLogs (Failure troubleshooting table)
+            modelBuilder.Entity<HepFiscalFailureLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.DocumentNo, e.CreatedAt })
+                    .HasDatabaseName("IX_HepFiscalFailureLogs_Doc_Created");
             });
         }
     }

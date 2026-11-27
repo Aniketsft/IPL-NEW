@@ -1352,5 +1352,122 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                 Console.WriteLine($"[DbInitializer] ERROR ensuring DeviceId columns: {ex.Message}");
             }
         }
+
+        public static async Task MigrateFiscalisationAsync(ScanProductionDbContext context)
+        {
+            try
+            {
+                var sql = @"
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeviceLocations]') AND type in (N'U'))
+                    BEGIN
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'EbsCounterNo')
+                        BEGIN
+                            ALTER TABLE [dbo].[DeviceLocations] ADD [EbsCounterNo] NVARCHAR(20) NULL CONSTRAINT [DF_DeviceLocations_EbsCounterNo] DEFAULT '1';
+                        END
+
+                        IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DeviceLocations' AND COLUMN_NAME = 'HepApiKey' AND CHARACTER_MAXIMUM_LENGTH > 0 AND CHARACTER_MAXIMUM_LENGTH < 1000)
+                        BEGIN
+                            ALTER TABLE [dbo].[DeviceLocations] ALTER COLUMN [HepApiKey] NVARCHAR(1000) NULL;
+                        END
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[HepFiscalInvoices]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[HepFiscalInvoices] (
+                            [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            [DocumentNo] NVARCHAR(100) NOT NULL,
+                            [DocumentType] NVARCHAR(10) NOT NULL DEFAULT 'STD',
+                            [DocumentCategory] NVARCHAR(30) NOT NULL DEFAULT 'INVOICE',
+                            [RefDocumentNo] NVARCHAR(100) NULL,
+                            [Reason] NVARCHAR(255) NULL,
+                            [IsFiscalised] BIT NOT NULL DEFAULT 1,
+                            [FiscalisedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                            [DeviceId] NVARCHAR(64) NULL,
+                            [ProfileId] NVARCHAR(100) NULL,
+                            [EbsCounterNo] NVARCHAR(20) NULL,
+                            [SiteCode] NVARCHAR(20) NULL,
+                            [UserName] NVARCHAR(100) NULL,
+                            [CustomerCode] NVARCHAR(100) NULL,
+                            [CustomerName] NVARCHAR(255) NULL,
+                            [BuyerTan] NVARCHAR(50) NULL,
+                            [BuyerBrn] NVARCHAR(50) NULL,
+                            [BuyerNic] NVARCHAR(50) NULL,
+                            [BuyerType] NVARCHAR(50) NULL,
+                            [PersonType] NVARCHAR(50) NULL,
+                            [BuyerAddress] NVARCHAR(500) NULL,
+                            [TransactionType] NVARCHAR(10) NULL,
+                            [SalesTransactions] NVARCHAR(20) NULL,
+                            [Currency] NVARCHAR(10) NULL,
+                            [InvoiceDate] NVARCHAR(30) NULL,
+                            [TotalAmtWoVatCur] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [TotalAmtWoVatMur] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [TotalVatAmount] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [InvoiceTotal] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [DiscountTotal] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [TotalAmountPaid] DECIMAL(18, 4) NOT NULL DEFAULT 0,
+                            [LineCount] INT NOT NULL DEFAULT 0,
+                            [RequestUrl] NVARCHAR(500) NULL,
+                            [RequestPayload] NVARCHAR(MAX) NULL,
+                            [ResponsePayload] NVARCHAR(MAX) NULL,
+                            [HttpStatus] INT NULL,
+                            [HepId] NVARCHAR(100) NULL,
+                            [HepStatus] NVARCHAR(50) NULL,
+                            [HepStatusMessage] NVARCHAR(500) NULL,
+                            [MraStatus] NVARCHAR(50) NULL,
+                            [MraRequestId] NVARCHAR(100) NULL,
+                            [MraResponseId] NVARCHAR(100) NULL,
+                            [MraEnvironment] NVARCHAR(30) NULL,
+                            [MraResponseDateTime] NVARCHAR(50) NULL,
+                            [Irn] NVARCHAR(200) NULL,
+                            [QrBase64] NVARCHAR(MAX) NULL,
+                            [X3Synced] BIT NOT NULL DEFAULT 0,
+                            [X3DocumentId] NVARCHAR(100) NULL,
+                            [X3SyncedAt] DATETIME2 NULL
+                        );
+                        CREATE UNIQUE INDEX [UQ_HepFiscalInvoices_DocumentNo] ON [dbo].[HepFiscalInvoices] ([DocumentNo]);
+                        CREATE INDEX [IX_HepFiscalInvoices_Gate_X3Sync] ON [dbo].[HepFiscalInvoices] ([IsFiscalised], [X3Synced]);
+                        PRINT 'Created HepFiscalInvoices table';
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[HepFiscalFailureLogs]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[HepFiscalFailureLogs] (
+                            [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            [DocumentNo] NVARCHAR(100) NOT NULL,
+                            [DocumentType] NVARCHAR(10) NOT NULL DEFAULT 'STD',
+                            [DocumentCategory] NVARCHAR(30) NOT NULL DEFAULT 'INVOICE',
+                            [DeviceId] NVARCHAR(64) NULL,
+                            [ProfileId] NVARCHAR(100) NULL,
+                            [SiteCode] NVARCHAR(20) NULL,
+                            [UserName] NVARCHAR(100) NULL,
+                            [CustomerCode] NVARCHAR(100) NULL,
+                            [RequestUrl] NVARCHAR(500) NULL,
+                            [RequestPayload] NVARCHAR(MAX) NULL,
+                            [HttpStatus] INT NULL,
+                            [ResponsePayload] NVARCHAR(MAX) NULL,
+                            [HepId] NVARCHAR(100) NULL,
+                            [HepStatus] NVARCHAR(50) NULL,
+                            [HepStatusMessage] NVARCHAR(500) NULL,
+                            [MraStatus] NVARCHAR(50) NULL,
+                            [MraRequestId] NVARCHAR(100) NULL,
+                            [MraResponseId] NVARCHAR(100) NULL,
+                            [ErrorCodes] NVARCHAR(500) NULL,
+                            [ErrorMessages] NVARCHAR(2000) NULL,
+                            [ExceptionText] NVARCHAR(2000) NULL,
+                            [DurationMs] INT NOT NULL DEFAULT 0,
+                            [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                        );
+                        CREATE INDEX [IX_HepFiscalFailureLogs_Doc_Created] ON [dbo].[HepFiscalFailureLogs] ([DocumentNo], [CreatedAt] DESC);
+                        PRINT 'Created HepFiscalFailureLogs table';
+                    END
+                ";
+                await context.Database.ExecuteSqlRawAsync(sql);
+                Console.WriteLine("[DbInitializer] MigrateFiscalisation completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] ERROR in MigrateFiscalisation: {ex.Message}");
+            }
+        }
     }
 }

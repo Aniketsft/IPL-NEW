@@ -10,6 +10,7 @@ using EnterpriseAuth.Api.Core.Application.DTOs;
 using EnterpriseAuth.Api.Core.Domain.Entities;
 using EnterpriseAuth.Api.Core.Domain.Interfaces;
 using EnterpriseAuth.Api.Infrastructure.Persistence;
+using EnterpriseAuth.Api.Infrastructure.Security;
 
 namespace EnterpriseAuth.Api.Controllers
 {
@@ -20,11 +21,16 @@ namespace EnterpriseAuth.Api.Controllers
     {
         private readonly ScanProductionDbContext _context;
         private readonly ISyncRepository _syncRepository;
+        private readonly IHepSecretProtector _secretProtector;
 
-        public DevicesController(ScanProductionDbContext context, ISyncRepository syncRepository)
+        public DevicesController(
+            ScanProductionDbContext context,
+            ISyncRepository syncRepository,
+            IHepSecretProtector? secretProtector = null)
         {
             _context = context;
             _syncRepository = syncRepository;
+            _secretProtector = secretProtector ?? new HepSecretProtector();
         }
 
         private bool IsAdminUser(string username)
@@ -37,9 +43,34 @@ namespace EnterpriseAuth.Api.Controllers
 
         private string MaskApiKey(string? apiKey)
         {
-            if (string.IsNullOrEmpty(apiKey)) return string.Empty;
-            if (apiKey.Length <= 4) return new string('•', apiKey.Length);
-            return new string('•', Math.Min(12, apiKey.Length - 4)) + apiKey.Substring(apiKey.Length - 4);
+            return _secretProtector.MaskApiKey(apiKey);
+        }
+
+        private DeviceLocationDto MapDeviceDto(DeviceLocation d)
+        {
+            return new DeviceLocationDto
+            {
+                DeviceId = d.DeviceId,
+                DeviceName = d.DeviceName,
+                HardwareModel = d.HardwareModel,
+                HardwareIdentifier = d.HardwareIdentifier,
+                SiteCode = d.SiteCode,
+                WarehouseCode = d.WarehouseCode,
+                LocationCode = d.LocationCode,
+                HepProfileId = d.HepProfileId,
+                HepApiKey = string.IsNullOrWhiteSpace(d.HepApiKey) ? null : MaskApiKey(d.HepApiKey),
+                EbsCounterNo = string.IsNullOrWhiteSpace(d.EbsCounterNo) ? "1" : d.EbsCounterNo,
+                IsLocked = d.IsLocked,
+                IsLicensed = d.IsLicensed,
+                LicenseStatus = d.LicenseStatus,
+                LicenseUpdatedAt = d.LicenseUpdatedAt,
+                LicenseUpdatedBy = d.LicenseUpdatedBy,
+                AssignedUserId = d.AssignedUserId,
+                AssignedUserName = d.AssignedUserName,
+                IsActive = d.IsActive,
+                UpdatedAt = d.UpdatedAt,
+                UpdatedBy = d.UpdatedBy
+            };
         }
 
         private async Task<string> GenerateNextDeviceNameAsync()
@@ -121,31 +152,11 @@ namespace EnterpriseAuth.Api.Controllers
                 query = query.Where(d => d.SiteCode == site);
             }
 
-            var devices = await query
+            var deviceEntities = await query
                 .OrderByDescending(d => d.UpdatedAt)
-                .Select(d => new DeviceLocationDto
-                {
-                    DeviceId = d.DeviceId,
-                    DeviceName = d.DeviceName,
-                    HardwareModel = d.HardwareModel,
-                    HardwareIdentifier = d.HardwareIdentifier,
-                    SiteCode = d.SiteCode,
-                    WarehouseCode = d.WarehouseCode,
-                    LocationCode = d.LocationCode,
-                    HepProfileId = d.HepProfileId,
-                    HepApiKey = isAdmin ? d.HepApiKey : (d.HepApiKey != null ? "••••••••" : null),
-                    IsLocked = d.IsLocked,
-                    IsLicensed = d.IsLicensed,
-                    LicenseStatus = d.LicenseStatus,
-                    LicenseUpdatedAt = d.LicenseUpdatedAt,
-                    LicenseUpdatedBy = d.LicenseUpdatedBy,
-                    AssignedUserId = d.AssignedUserId,
-                    AssignedUserName = d.AssignedUserName,
-                    IsActive = d.IsActive,
-                    UpdatedAt = d.UpdatedAt,
-                    UpdatedBy = d.UpdatedBy
-                })
                 .ToListAsync();
+
+            var devices = deviceEntities.Select(MapDeviceDto).ToList();
 
             return Ok(devices);
         }
@@ -227,28 +238,7 @@ namespace EnterpriseAuth.Api.Controllers
                 return Forbid();
             }
 
-            return Ok(new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = isAdmin ? device.HepApiKey : MaskApiKey(device.HepApiKey),
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return Ok(MapDeviceDto(device));
         }
 
         /// <summary>
@@ -323,8 +313,9 @@ namespace EnterpriseAuth.Api.Controllers
                 SiteCode = effectiveSite,
                 WarehouseCode = !string.IsNullOrEmpty(request.WarehouseCode) ? request.WarehouseCode : request.LocationCode,
                 LocationCode = request.LocationCode,
-                HepProfileId = request.HepProfileId,
-                HepApiKey = request.HepApiKey,
+                HepProfileId = request.HepProfileId?.Trim(),
+                HepApiKey = _secretProtector.Protect(request.HepApiKey),
+                EbsCounterNo = !string.IsNullOrWhiteSpace(request.EbsCounterNo) ? request.EbsCounterNo.Trim() : "1",
                 IsLocked = true,
                 IsLicensed = true,
                 LicenseStatus = "VALID",
@@ -341,28 +332,7 @@ namespace EnterpriseAuth.Api.Controllers
             _context.DeviceLocations.Add(device);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetMyDevice), new { deviceId = device.DeviceId }, new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = MaskApiKey(device.HepApiKey),
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return CreatedAtAction(nameof(GetMyDevice), new { deviceId = device.DeviceId }, MapDeviceDto(device));
         }
 
         /// <summary>
@@ -511,28 +481,7 @@ namespace EnterpriseAuth.Api.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            return Ok(new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = MaskApiKey(device.HepApiKey),
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return Ok(MapDeviceDto(device));
         }
 
         /// <summary>
@@ -598,28 +547,7 @@ namespace EnterpriseAuth.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = MaskApiKey(device.HepApiKey),
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return Ok(MapDeviceDto(device));
         }
 
         /// <summary>
@@ -700,8 +628,20 @@ namespace EnterpriseAuth.Api.Controllers
                 device.WarehouseCode = dto.WarehouseCode.Trim();
             }
 
-            if (dto.HepProfileId != null) device.HepProfileId = dto.HepProfileId.Trim();
-            if (dto.HepApiKey != null) device.HepApiKey = dto.HepApiKey.Trim();
+            if (dto.HepProfileId != null)
+            {
+                device.HepProfileId = new string(dto.HepProfileId.Where(c => !char.IsWhiteSpace(c)).ToArray());
+            }
+            if (dto.HepApiKey != null && !_secretProtector.IsMaskedPlaceholder(dto.HepApiKey))
+            {
+                device.HepApiKey = string.IsNullOrWhiteSpace(dto.HepApiKey)
+                    ? null
+                    : _secretProtector.Protect(dto.HepApiKey.Trim());
+            }
+            if (!string.IsNullOrWhiteSpace(dto.EbsCounterNo))
+            {
+                device.EbsCounterNo = dto.EbsCounterNo.Trim();
+            }
             if (dto.IsLocked.HasValue) device.IsLocked = dto.IsLocked.Value;
 
             device.UpdatedAt = DateTime.UtcNow;
@@ -709,28 +649,7 @@ namespace EnterpriseAuth.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = device.HepApiKey,
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return Ok(MapDeviceDto(device));
         }
 
         /// <summary>
@@ -770,28 +689,7 @@ namespace EnterpriseAuth.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new DeviceLocationDto
-            {
-                DeviceId = device.DeviceId,
-                DeviceName = device.DeviceName,
-                HardwareModel = device.HardwareModel,
-                HardwareIdentifier = device.HardwareIdentifier,
-                SiteCode = device.SiteCode,
-                WarehouseCode = device.WarehouseCode,
-                LocationCode = device.LocationCode,
-                HepProfileId = device.HepProfileId,
-                HepApiKey = MaskApiKey(device.HepApiKey),
-                IsLocked = device.IsLocked,
-                IsLicensed = device.IsLicensed,
-                LicenseStatus = device.LicenseStatus,
-                LicenseUpdatedAt = device.LicenseUpdatedAt,
-                LicenseUpdatedBy = device.LicenseUpdatedBy,
-                AssignedUserId = device.AssignedUserId,
-                AssignedUserName = device.AssignedUserName,
-                IsActive = device.IsActive,
-                UpdatedAt = device.UpdatedAt,
-                UpdatedBy = device.UpdatedBy
-            });
+            return Ok(MapDeviceDto(device));
         }
 
         /// <summary>

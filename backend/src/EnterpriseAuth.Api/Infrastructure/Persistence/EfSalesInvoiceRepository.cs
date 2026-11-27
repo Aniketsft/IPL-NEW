@@ -44,17 +44,36 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
             _logger = logger;
         }
 
-        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode = "", bool bypassCache = false)
+        private async Task<string> BuildCustomerSelectColumnsAsync(IDbConnection db, string schema)
         {
-            var cacheKey = $"Customers_{_schemaProvider.GetSchemaName()}_{sitecode ?? "ALL"}";
-            if (!bypassCache && _memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesInvoiceCustomerDto>? cached) && cached != null)
+            var dbName = _syncSettings.X3DatabaseName;
+            string ztranExpr = "''";
+            string nafExpr = "''";
+            string crnExpr = "''";
+            string regnumExpr = "''";
+
+            try
             {
-                return cached;
+                var cols = await db.QueryFirstOrDefaultAsync(
+                    $@"SELECT
+                        COL_LENGTH('{dbName}.{schema}.BPCUSTOMER', 'ZTRANTYPE_0') AS HasZtran,
+                        COL_LENGTH('{dbName}.{schema}.BPARTNER', 'NAF_0') AS HasNaf,
+                        COL_LENGTH('{dbName}.{schema}.BPARTNER', 'CRN_0') AS HasCrn,
+                        COL_LENGTH('{dbName}.{schema}.BPARTNER', 'REGNUM_0') AS HasRegnum");
+                if (cols != null)
+                {
+                    if (cols.HasZtran != null) ztranExpr = "LTRIM(RTRIM(COALESCE(CAST(c.ZTRANTYPE_0 AS NVARCHAR(20)), '')))";
+                    if (cols.HasNaf != null) nafExpr = "LTRIM(RTRIM(COALESCE(b.NAF_0, '')))";
+                    if (cols.HasCrn != null) crnExpr = "LTRIM(RTRIM(COALESCE(b.CRN_0, '')))";
+                    if (cols.HasRegnum != null) regnumExpr = "LTRIM(RTRIM(COALESCE(b.REGNUM_0, '')))";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Could not inspect optional X3 customer fiscal columns in {Schema}", schema);
             }
 
-            using IDbConnection db = new SqlConnection(_connectionString);
-            string sql = $@"
-                SELECT 
+            return $@"
                     LTRIM(RTRIM(c.BPCNUM_0)) as Code,
                     LTRIM(RTRIM(c.BPCNAM_0)) as Name,
                     LTRIM(RTRIM(c.PTE_0)) as PaymentTerm,
@@ -65,14 +84,44 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
                     LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
                     LTRIM(RTRIM(c.BPCSHO_0)) as Bpcsho,
                     COALESCE(b.BETFCY_0, 1) as FacilityFlag,
-                    COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
+                    COALESCE(g.OutstandingBalance, 0) as OutstandingBalance,
+                    {ztranExpr} as TransactionType,
+                    {nafExpr} as Tan,
+                    {crnExpr} as Brn,
+                    {regnumExpr} as Nic,
+                    LTRIM(RTRIM(COALESCE(
+                        NULLIF(CONCAT_WS(', ', NULLIF(LTRIM(RTRIM(addr.BPAADDLIG_0)), ''), NULLIF(LTRIM(RTRIM(addr.BPAADDLIG_1)), ''), NULLIF(LTRIM(RTRIM(addr.CTY_0)), '')), ''),
+                        ''
+                    ))) as Address";
+        }
+
+        public async Task<IEnumerable<SalesInvoiceCustomerDto>> GetCustomersAsync(string sitecode = "", bool bypassCache = false)
+        {
+            var schema = _schemaProvider.GetSchemaName();
+            var cacheKey = $"Customers_{schema}_{sitecode ?? "ALL"}";
+            if (!bypassCache && _memoryCache != null && _memoryCache.TryGetValue(cacheKey, out IEnumerable<SalesInvoiceCustomerDto>? cached) && cached != null)
+            {
+                return cached;
+            }
+
+            using IDbConnection db = new SqlConnection(_connectionString);
+            var selectCols = await BuildCustomerSelectColumnsAsync(db, schema);
+            string sql = $@"
+                SELECT 
+                    {selectCols}
+                FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
+                OUTER APPLY (
+                    SELECT TOP 1 a.BPAADDLIG_0, a.BPAADDLIG_1, a.CTY_0
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.BPADDRESS a WITH (NOLOCK)
+                    WHERE a.BPATYP_0 = 1 AND a.BPANUM_0 = c.BPCNUM_0
+                    ORDER BY CASE WHEN a.BPAADD_0 = COALESCE(NULLIF(c.BPAADD_0, ''), b.BPAADD_0) THEN 0 ELSE 1 END, a.BPAADD_0
+                ) addr
                 LEFT JOIN (
                     SELECT 
                         BPR_0, 
                         SUM(AMTCUR_0 - PAYCUR_0) as OutstandingBalance 
-                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.GACCDUDATE 
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.GACCDUDATE 
                     WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0
@@ -88,27 +137,25 @@ namespace EnterpriseAuth.Api.Infrastructure.Persistence
         {
             if (string.IsNullOrWhiteSpace(customerCode)) return null;
 
+            var schema = _schemaProvider.GetSchemaName();
             using IDbConnection db = new SqlConnection(_connectionString);
+            var selectCols = await BuildCustomerSelectColumnsAsync(db, schema);
             string sql = $@"
                 SELECT 
-                    LTRIM(RTRIM(c.BPCNUM_0)) as Code,
-                    LTRIM(RTRIM(c.BPCNAM_0)) as Name,
-                    LTRIM(RTRIM(c.PTE_0)) as PaymentTerm,
-                    c.OSTAUZ_0 as CreditLimit,
-                    LTRIM(RTRIM(c.OSTCTL_0)) as StatusFlag,
-                    LTRIM(RTRIM(c.VACBPR_0)) as TaxRule,
-                    LTRIM(RTRIM(c.BCGCOD_0)) as Bcgcod,
-                    LTRIM(RTRIM(c.TSCCOD_0)) as Tsccod,
-                    LTRIM(RTRIM(c.BPCSHO_0)) as Bpcsho,
-                    COALESCE(b.BETFCY_0, 1) as FacilityFlag,
-                    COALESCE(g.OutstandingBalance, 0) as OutstandingBalance
-                FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPCUSTOMER c
-                LEFT JOIN {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
+                    {selectCols}
+                FROM {_syncSettings.X3DatabaseName}.{schema}.BPCUSTOMER c
+                LEFT JOIN {_syncSettings.X3DatabaseName}.{schema}.BPARTNER b ON c.BPCNUM_0 = b.BPRNUM_0
+                OUTER APPLY (
+                    SELECT TOP 1 a.BPAADDLIG_0, a.BPAADDLIG_1, a.CTY_0
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.BPADDRESS a WITH (NOLOCK)
+                    WHERE a.BPATYP_0 = 1 AND a.BPANUM_0 = c.BPCNUM_0
+                    ORDER BY CASE WHEN a.BPAADD_0 = COALESCE(NULLIF(c.BPAADD_0, ''), b.BPAADD_0) THEN 0 ELSE 1 END, a.BPAADD_0
+                ) addr
                 LEFT JOIN (
                     SELECT 
                         BPR_0, 
                         SUM(AMTCUR_0 - PAYCUR_0) as OutstandingBalance 
-                    FROM {_syncSettings.X3DatabaseName}.{_schemaProvider.GetSchemaName()}.GACCDUDATE 
+                    FROM {_syncSettings.X3DatabaseName}.{schema}.GACCDUDATE 
                     WHERE (AMTCUR_0 - PAYCUR_0) > 0 AND BPRTYP_0 = 1
                     GROUP BY BPR_0
                 ) g ON c.BPCNUM_0 = g.BPR_0

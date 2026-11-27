@@ -33,6 +33,8 @@ class SalesInvoicePdfService {
     bool isPartiallyReversed = false,
     double creditedAmount = 0.0,
     double netBalanceDue = 0.0,
+    String? qrCodeBase64,
+    String? fiscalIrn,
     String? salesman,
     String? storeCode,
     DateTime? printedAt,
@@ -94,6 +96,7 @@ class SalesInvoicePdfService {
     d.line(' CUSTOMER Sig:..........................');
     d.blank();
     thermalTerms(d);
+    d.setFiscalQr(qrCodeBase64: qrCodeBase64, fiscalIrn: fiscalIrn);
     d.blank(2);
 
     return d;
@@ -113,7 +116,8 @@ class SalesInvoicePdfService {
     bool isPartiallyReversed = false,
     double creditedAmount = 0.0,
     double netBalanceDue = 0.0,
-    String? qrCodeBase64, // legacy, not printed on the template
+    String? qrCodeBase64,
+    String? fiscalIrn,
     String? salesman,
     String? storeCode,
     DateTime? printedAt,
@@ -131,6 +135,8 @@ class SalesInvoicePdfService {
         isPartiallyReversed: isPartiallyReversed,
         creditedAmount: creditedAmount,
         netBalanceDue: netBalanceDue,
+        qrCodeBase64: qrCodeBase64,
+        fiscalIrn: fiscalIrn,
         salesman: salesman,
         storeCode: storeCode,
         printedAt: printedAt,
@@ -245,6 +251,7 @@ class SalesInvoicePdfService {
     d.line(' Sig:.........................');
     d.blank();
     d.line(' CUSTOMER Sig:..........................');
+    d.setFiscalQr(qrCodeBase64: returnModel.fiscalQrBase64, fiscalIrn: returnModel.fiscalIrn);
     d.blank(2);
 
     return d.build();

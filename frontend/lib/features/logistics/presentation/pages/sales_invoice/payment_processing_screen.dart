@@ -15,6 +15,7 @@ import 'invoice_preview_screen.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_cart_cubit.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/fiscalisation_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/credit_note_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/stock_status.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/models/transaction_config.dart';
@@ -99,6 +100,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
   final currencyFormat = CurrencyFormatter.currencyFormat;
   bool _isProcessing = false;
+  String? _pendingFiscalDocId;
 
   List<PaymentEntry> _payments = [];
 
@@ -540,6 +542,51 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           } catch (_) {}
         }
 
+        final String creditNoteId = (_pendingFiscalDocId != null && _pendingFiscalDocId!.isNotEmpty)
+            ? _pendingFiscalDocId!
+            : await DocumentSequenceService().generateDocumentNumber(
+                docType: stockTransaction == 1 ? 'RTN' : 'CRN',
+                salesSite: effectiveSiteCode,
+                lorryCode: deviceLorry.isNotEmpty ? deviceLorry : DeviceInfoService.instance.assignedLocation,
+                deviceId: deviceId,
+              );
+        _pendingFiscalDocId = creditNoteId;
+
+        final fiscalRefundLines = cartState.cartItems.asMap().entries.map((entry) {
+          final item = entry.value;
+          final amtWoVat = (item.basePrice * item.quantity) - item.discountAmount;
+          return {
+            'lineNo': entry.key + 1,
+            'sku': item.product.sku,
+            'name': item.product.name,
+            'quantity': item.quantity,
+            'unitPrice': item.basePrice,
+            'discountAmount': item.discountAmount,
+            'vatAmount': item.vatAmount,
+            'amtWoVat': amtWoVat,
+            'total': item.total,
+            'taxRule': item.taxRule,
+          };
+        }).toList();
+
+        final fiscalResult = await _fiscaliseWithRetry(
+          documentNo: creditNoteId,
+          documentCategory: isReturnTransaction ? 'RETURN' : 'CREDIT_NOTE',
+          invoiceType: stockTransaction == 1 ? 'RTN' : 'CRN',
+          salesSite: effectiveSiteCode,
+          customerCode: (customer['code'] ?? '').toString(),
+          customerName: (customer['name'] ?? '').toString(),
+          originalInvoiceId: cartState.originalDocumentId,
+          reason: resolvedReason,
+          deviceId: deviceId,
+          settlementType: refundMethod,
+          totalPaid: refundMethod.toUpperCase() == 'CREDIT' ? 0.0 : grandTotal,
+          lines: fiscalRefundLines,
+        );
+        if (fiscalResult == null || !mounted) {
+          return;
+        }
+
         final creditNote = await CreditNoteService().createStandaloneCreditNote(
           salesSite: effectiveSiteCode,
           customerCode: customer['code'],
@@ -554,6 +601,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           originInvoiceId: cartState.originalDocumentId,
           stockTransaction: stockTransaction,
           stockStatus: stockStatus,
+          preAllocatedCreditNoteId: creditNoteId,
+          isFiscalised: fiscalResult.isFiscalised ? 1 : 0,
+          fiscalQrBase64: fiscalResult.qrCodeBase64,
+          fiscalIrn: fiscalResult.irn,
+          fiscalAt: fiscalResult.fiscalisedAt,
+          fiscalHepId: fiscalResult.hepId,
           items: cartState.cartItems.asMap().entries.map((entry) {
             final item = entry.value;
             final lineStatus = lineStatusForItem(item);
@@ -585,6 +638,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             );
           }).toList(),
         );
+        _pendingFiscalDocId = null;
 
         if (!mounted) return;
 
@@ -622,23 +676,72 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               isCreditNote: true,
               creditNoteReason: reasonDisplay,
               creditNoteModel: creditNote,
+              qrCodeBase64: fiscalResult.qrCodeBase64,
+              fiscalIrn: fiscalResult.irn,
             ),
           ),
         );
         return;
       }
 
-      // Pre-allocate invoice sequence number strictly for standard invoices (never for refunds/returns)
-      final invoiceId = await DocumentSequenceService().generateDocumentNumber(
-        docType: 'INV',
-        salesSite: userSiteCode,
-        lorryCode: DeviceInfoService.instance.assignedLocation,
-        deviceId: deviceId,
-      );
+      // Pre-allocate invoice sequence number strictly for standard invoices (reused across fiscalisation retries)
+      final invoiceId = (_pendingFiscalDocId != null && _pendingFiscalDocId!.isNotEmpty)
+          ? _pendingFiscalDocId!
+          : await DocumentSequenceService().generateDocumentNumber(
+              docType: 'INV',
+              salesSite: userSiteCode,
+              lorryCode: DeviceInfoService.instance.assignedLocation,
+              deviceId: deviceId,
+            );
+      _pendingFiscalDocId = invoiceId;
 
       // Determine main invoice status
       bool hasCredit = _payments.any((p) => p.method == 'CREDIT');
       String mainStatus = hasCredit ? 'CREDIT' : 'PAID';
+
+      // Fiscalise on HEP/MRA BEFORE writing invoice/stock to local SQLite
+      final nonCreditPaid = _payments
+          .where((p) => p.method.toUpperCase() != 'CREDIT')
+          .fold(0.0, (s, p) => s + p.amount);
+      final fiscalLines = cartState.cartItems.asMap().entries.map((entry) {
+        final item = entry.value;
+        final amtWoVat = (item.basePrice * item.quantity) - item.discountAmount;
+        return {
+          'lineNo': entry.key + 1,
+          'sku': item.product.sku,
+          'name': item.product.name,
+          'quantity': item.quantity,
+          'unitPrice': item.basePrice,
+          'discountAmount': item.discountAmount,
+          'vatAmount': item.vatAmount,
+          'amtWoVat': amtWoVat,
+          'total': item.total,
+          'taxRule': item.taxRule,
+        };
+      }).toList();
+      final fiscalPayments = _payments
+          .map((p) => {
+                'method': p.method,
+                'amount': p.amount,
+              })
+          .toList();
+
+      final fiscalResult = await _fiscaliseWithRetry(
+        documentNo: invoiceId,
+        documentCategory: 'INVOICE',
+        invoiceType: 'STD',
+        salesSite: userSiteCode,
+        customerCode: (cartState.customer!['code'] ?? '').toString(),
+        customerName: (cartState.customer!['name'] ?? '').toString(),
+        deviceId: deviceId,
+        settlementType: hasCredit ? 'CREDIT' : (_payments.isNotEmpty ? _payments.first.method : 'CASH'),
+        totalPaid: double.parse(nonCreditPaid.toStringAsFixed(2)),
+        lines: fiscalLines,
+        payments: fiscalPayments,
+      );
+      if (fiscalResult == null || !mounted) {
+        return;
+      }
 
         // Resolve the pricing rule: use the first matched pricelist code from any cart item.
         // Falls back to empty string if all items were manually priced.
@@ -650,6 +753,21 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       // Safe defensive schema verification for paymentTerm and line promotion fields before inserting
       try {
         await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN paymentTerm TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN isFiscalised INTEGER DEFAULT 0');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN fiscalQrBase64 TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN fiscalIrn TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN fiscalAt TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoices} ADD COLUMN fiscalHepId TEXT');
       } catch (_) {}
       try {
         await db.execute('ALTER TABLE ${LocalDatabaseHelper.tableSiInvoiceLines} ADD COLUMN mainItemSku TEXT');
@@ -687,6 +805,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         'userName': username,
         'createdBy': username,
         'transactionalId': invoiceId,
+        'isFiscalised': fiscalResult.isFiscalised ? 1 : 0,
+        'fiscalQrBase64': fiscalResult.qrCodeBase64,
+        'fiscalIrn': fiscalResult.irn,
+        'fiscalAt': fiscalResult.fiscalisedAt,
+        'fiscalHepId': fiscalResult.hepId,
       });
 
       // 2. Insert Lines & Deduct Stock
@@ -753,6 +876,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
       }
 
       await batch.commit(noResult: true);
+      _pendingFiscalDocId = null;
 
       if (cartState.originalDocumentId != null) {
         final service = SISalesOrderService();
@@ -781,15 +905,114 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             paymentMethod: distinctMethods,
             paymentStatus: mainStatus,
             items: cartState.cartItems,
+            qrCodeBase64: fiscalResult.qrCodeBase64,
+            fiscalIrn: fiscalResult.irn,
           ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<FiscalisationResult?> _fiscaliseWithRetry({
+    required String documentNo,
+    required String documentCategory,
+    required String invoiceType,
+    required String salesSite,
+    required String customerCode,
+    required String customerName,
+    String? originalInvoiceId,
+    String? reason,
+    String? deviceId,
+    String? settlementType,
+    double? totalPaid,
+    required List<Map<String, dynamic>> lines,
+    List<Map<String, dynamic>> payments = const [],
+  }) async {
+    final fiscalService = FiscalisationService();
+    while (true) {
+      try {
+        return await fiscalService.fiscaliseDocument(
+          documentNo: documentNo,
+          documentCategory: documentCategory,
+          invoiceType: invoiceType,
+          salesSite: salesSite,
+          customerCode: customerCode,
+          customerName: customerName,
+          originalInvoiceId: originalInvoiceId,
+          reason: reason,
+          deviceId: deviceId,
+          settlementType: settlementType,
+          totalPaid: totalPaid,
+          lines: lines,
+          payments: payments,
+        );
+      } on FiscalisationException catch (fe) {
+        if (!mounted) return null;
+        final retry = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (errCtx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  fe.isOfflineOrNetwork ? Icons.cloud_off : Icons.error_outline,
+                  color: Colors.red,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    fe.isOfflineOrNetwork
+                        ? 'Online Fiscalisation Required'
+                        : 'MRA Fiscalisation Rejected',
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Document: $documentNo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Text(fe.message),
+                  if (fe.errors.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ...fe.errors.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '• $e',
+                          style: const TextStyle(fontSize: 12, color: Colors.red),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(errCtx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(errCtx).pop(true),
+                child: const Text('Retry Fiscalisation'),
+              ),
+            ],
+          ),
+        );
+        if (retry != true) return null;
+      }
     }
   }
 

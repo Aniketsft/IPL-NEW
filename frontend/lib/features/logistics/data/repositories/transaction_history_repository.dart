@@ -577,6 +577,12 @@ class TransactionHistoryRepository {
     String? reason,
     String? salesRep,
     String? refundMethod,
+    String? preAllocatedCreditNoteId,
+    int isFiscalised = 0,
+    String? fiscalQrBase64,
+    String? fiscalIrn,
+    String? fiscalAt,
+    String? fiscalHepId,
   }) async {
     final creditNoteService = CreditNoteService(dbProvider: () => _database);
     return await creditNoteService.createPartialReversalCreditNote(
@@ -587,6 +593,12 @@ class TransactionHistoryRepository {
       salesRep: salesRep,
       deviceId: transaction.auditMetadata.deviceId,
       refundMethod: refundMethod,
+      preAllocatedCreditNoteId: preAllocatedCreditNoteId,
+      isFiscalised: isFiscalised,
+      fiscalQrBase64: fiscalQrBase64,
+      fiscalIrn: fiscalIrn,
+      fiscalAt: fiscalAt,
+      fiscalHepId: fiscalHepId,
     );
   }
 

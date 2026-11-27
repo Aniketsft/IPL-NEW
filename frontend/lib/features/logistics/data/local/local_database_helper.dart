@@ -40,7 +40,7 @@ class UnsyncedSummary {
 
 class LocalDatabaseHelper {
   static const _databaseName = "InnodisApp.db";
-  static const _databaseVersion = 101;
+  static const _databaseVersion = 102;
 
   static const tableScans = 'tbl_scans';
   static const tableOrders = 'tbl_sales_orders';
@@ -403,6 +403,21 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableSiCreditNotes, 'stockTransaction', 'INTEGER DEFAULT 0');
     await _safeAddColumn(_database!, tableSiInvoices, 'x3DocumentId', 'TEXT');
     await _safeAddColumn(_database!, tableSiInvoices, 'isPartiallyReversed', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiInvoices, 'isFiscalised', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiInvoices, 'fiscalQrBase64', 'TEXT');
+    await _safeAddColumn(_database!, tableSiInvoices, 'fiscalIrn', 'TEXT');
+    await _safeAddColumn(_database!, tableSiInvoices, 'fiscalAt', 'TEXT');
+    await _safeAddColumn(_database!, tableSiInvoices, 'fiscalHepId', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'isFiscalised', 'INTEGER DEFAULT 0');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'fiscalQrBase64', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'fiscalIrn', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'fiscalAt', 'TEXT');
+    await _safeAddColumn(_database!, tableSiCreditNotes, 'fiscalHepId', 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceCustomers, 'transactionType', 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceCustomers, 'tan', 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceCustomers, 'brn', 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceCustomers, 'nic', 'TEXT');
+    await _safeAddColumn(_database!, tableSalesInvoiceCustomers, 'address', 'TEXT');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'deliveryDate', 'TEXT');
     await _safeAddColumn(_database!, tableSiSalesOrders, 'orderNumber', 'TEXT');
     await _safeAddColumn(_database!, tableCachedUsers, colUserSiteCode, 'TEXT');
@@ -446,6 +461,7 @@ class LocalDatabaseHelper {
     await _safeAddColumn(_database!, tableDeviceLocations, 'hardwareIdentifier', 'TEXT');
     await _safeAddColumn(_database!, tableDeviceLocations, 'hepProfileId', 'TEXT');
     await _safeAddColumn(_database!, tableDeviceLocations, 'hepApiKey', 'TEXT');
+    await _safeAddColumn(_database!, tableDeviceLocations, 'ebsCounterNo', "TEXT DEFAULT '1'");
     await _safeAddColumn(_database!, tableDeviceLocations, 'isLocked', 'INTEGER DEFAULT 1');
     await _safeAddColumn(_database!, tableDeviceLocations, 'isLicensed', 'INTEGER DEFAULT 1');
     await _safeAddColumn(_database!, tableDeviceLocations, 'licenseStatus', "TEXT DEFAULT 'VALID'");
@@ -582,6 +598,7 @@ class LocalDatabaseHelper {
           locationCode TEXT NOT NULL,
           hepProfileId TEXT,
           hepApiKey TEXT,
+          ebsCounterNo TEXT DEFAULT '1',
           isLocked INTEGER NOT NULL DEFAULT 1,
           isLicensed INTEGER NOT NULL DEFAULT 1,
           licenseStatus TEXT NOT NULL DEFAULT 'VALID',
@@ -2332,6 +2349,26 @@ class LocalDatabaseHelper {
         debugPrint('Migration error v101 ($tableSalesInvoiceItemStockDetails index): $e');
       }
     }
+
+    if (oldVersion < 102) {
+      debugPrint('DB Upgrade: Adding MRA/HEP fiscalisation columns (v102)');
+      await _safeAddColumn(db, tableSiInvoices, 'isFiscalised', 'INTEGER DEFAULT 0');
+      await _safeAddColumn(db, tableSiInvoices, 'fiscalQrBase64', 'TEXT');
+      await _safeAddColumn(db, tableSiInvoices, 'fiscalIrn', 'TEXT');
+      await _safeAddColumn(db, tableSiInvoices, 'fiscalAt', 'TEXT');
+      await _safeAddColumn(db, tableSiInvoices, 'fiscalHepId', 'TEXT');
+      await _safeAddColumn(db, tableSiCreditNotes, 'isFiscalised', 'INTEGER DEFAULT 0');
+      await _safeAddColumn(db, tableSiCreditNotes, 'fiscalQrBase64', 'TEXT');
+      await _safeAddColumn(db, tableSiCreditNotes, 'fiscalIrn', 'TEXT');
+      await _safeAddColumn(db, tableSiCreditNotes, 'fiscalAt', 'TEXT');
+      await _safeAddColumn(db, tableSiCreditNotes, 'fiscalHepId', 'TEXT');
+      await _safeAddColumn(db, tableSalesInvoiceCustomers, 'transactionType', 'TEXT');
+      await _safeAddColumn(db, tableSalesInvoiceCustomers, 'tan', 'TEXT');
+      await _safeAddColumn(db, tableSalesInvoiceCustomers, 'brn', 'TEXT');
+      await _safeAddColumn(db, tableSalesInvoiceCustomers, 'nic', 'TEXT');
+      await _safeAddColumn(db, tableSalesInvoiceCustomers, 'address', 'TEXT');
+      await _safeAddColumn(db, tableDeviceLocations, 'ebsCounterNo', "TEXT DEFAULT '1'");
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -2388,6 +2425,11 @@ class LocalDatabaseHelper {
         tsccod TEXT,
         bpcsho TEXT,
         facilityFlag INTEGER,
+        transactionType TEXT,
+        tan TEXT,
+        brn TEXT,
+        nic TEXT,
+        address TEXT,
         $columnIsSynced INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -2435,8 +2477,14 @@ class LocalDatabaseHelper {
         userName TEXT,
         createdBy TEXT,
         isReversed INTEGER DEFAULT 0,
+        isPartiallyReversed INTEGER DEFAULT 0,
         transactionalId TEXT,
-        x3DocumentId TEXT
+        x3DocumentId TEXT,
+        isFiscalised INTEGER DEFAULT 0,
+        fiscalQrBase64 TEXT,
+        fiscalIrn TEXT,
+        fiscalAt TEXT,
+        fiscalHepId TEXT
       )
     ''');
 
@@ -2516,7 +2564,12 @@ class LocalDatabaseHelper {
         transactionMode TEXT DEFAULT '1',
         stockTransaction INTEGER DEFAULT 0,
         x3StockReceiptId TEXT,
-        x3RefundPaymentId TEXT
+        x3RefundPaymentId TEXT,
+        isFiscalised INTEGER DEFAULT 0,
+        fiscalQrBase64 TEXT,
+        fiscalIrn TEXT,
+        fiscalAt TEXT,
+        fiscalHepId TEXT
       )
     ''');
 
@@ -3210,9 +3263,9 @@ class LocalDatabaseHelper {
       }
 
       final results = await Future.wait([
-        countTable(tableSiInvoices, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiInvoices, '(isSynced = 0 OR isSynced IS NULL) AND (isReversed = 0 OR isReversed IS NULL) AND isFiscalised = 1'),
         countTable(tableSiPayments, 'isSynced = 0 OR isSynced IS NULL'),
-        countTable(tableSiCreditNotes, 'isSynced = 0 OR isSynced IS NULL'),
+        countTable(tableSiCreditNotes, '(isSynced = 0 OR isSynced IS NULL) AND isFiscalised = 1'),
         countTable(tableSiCreditNoteRefunds, 'isSynced = 0 OR isSynced IS NULL'),
         countTable(tableSiOpenInvoicePayments, 'isSynced = 0 OR isSynced IS NULL'),
         countTable(tableScans, '$columnIsSynced = 0'),
@@ -4243,6 +4296,11 @@ class LocalDatabaseHelper {
       'tsccod': (customer['tsccod'] ?? customer['Tsccod'])?.toString().trim() ?? '',
       'bpcsho': (customer['bpcsho'] ?? customer['Bpcsho'])?.toString().trim() ?? '',
       'facilityFlag': customer['facilityFlag'] ?? customer['FacilityFlag'],
+      'transactionType': (customer['transactionType'] ?? customer['TransactionType'])?.toString().trim(),
+      'tan': (customer['tan'] ?? customer['Tan'])?.toString().trim(),
+      'brn': (customer['brn'] ?? customer['Brn'])?.toString().trim(),
+      'nic': (customer['nic'] ?? customer['Nic'])?.toString().trim(),
+      'address': (customer['address'] ?? customer['Address'])?.toString().trim(),
       'isSynced': 1, // hardcoded from columnIsSynced
     }).toList();
   }
@@ -4367,8 +4425,8 @@ class LocalDatabaseHelper {
     final db = await database;
     return await db.query(
       tableSiInvoices,
-      where: '(isSynced = ? OR isSynced IS NULL) AND (isReversed = ? OR isReversed IS NULL)',
-      whereArgs: [0, 0],
+      where: '(isSynced = ? OR isSynced IS NULL) AND (isReversed = ? OR isReversed IS NULL) AND isFiscalised = ?',
+      whereArgs: [0, 0, 1],
     );
   }
 
@@ -4467,8 +4525,8 @@ class LocalDatabaseHelper {
     final db = await database;
     return await db.query(
       tableSiCreditNotes,
-      where: 'isSynced = ? OR isSynced IS NULL',
-      whereArgs: [0],
+      where: '(isSynced = ? OR isSynced IS NULL) AND isFiscalised = ?',
+      whereArgs: [0, 1],
       orderBy: 'createdAt DESC',
     );
   }
@@ -5462,6 +5520,7 @@ class LocalDatabaseHelper {
       'hardwareIdentifier': 'TEXT',
       'hepProfileId': 'TEXT',
       'hepApiKey': 'TEXT',
+      'ebsCounterNo': "TEXT DEFAULT '1'",
       'isLocked': 'INTEGER DEFAULT 1',
       'isLicensed': 'INTEGER DEFAULT 1',
       'licenseStatus': "TEXT DEFAULT 'VALID'",
@@ -5498,6 +5557,7 @@ class LocalDatabaseHelper {
             locationCode TEXT NOT NULL,
             hepProfileId TEXT,
             hepApiKey TEXT,
+            ebsCounterNo TEXT DEFAULT '1',
             isLocked INTEGER NOT NULL DEFAULT 1,
             isLicensed INTEGER NOT NULL DEFAULT 1,
             licenseStatus TEXT NOT NULL DEFAULT 'VALID',

@@ -13,6 +13,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string LocationCode { get; set; } = string.Empty;
         public string? HepProfileId { get; set; }
         public string? HepApiKey { get; set; }
+        public string? EbsCounterNo { get; set; }
         public bool IsLocked { get; set; } = true;
         public bool IsLicensed { get; set; } = true;
         public string LicenseStatus { get; set; } = "VALID";
@@ -44,6 +45,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? WarehouseCode { get; set; }
         public string? HepProfileId { get; set; }
         public string? HepApiKey { get; set; }
+        public string? EbsCounterNo { get; set; }
     }
 
     public class DeviceLocationUpdateRequestDto
@@ -61,6 +63,7 @@ namespace EnterpriseAuth.Api.Core.Application.DTOs
         public string? WarehouseCode { get; set; }
         public string? HepProfileId { get; set; }
         public string? HepApiKey { get; set; }
+        public string? EbsCounterNo { get; set; }
         public bool? IsLocked { get; set; }
         public bool ForceReassign { get; set; } = false;
     }

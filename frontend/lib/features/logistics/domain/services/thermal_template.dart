@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -47,6 +48,17 @@ class ThermalDoc {
   static final NumberFormat _money = NumberFormat('#,##0.00', 'en_US');
 
   final List<_ThermalLine> _lines = [];
+  String? qrCodeBase64;
+  String? fiscalIrn;
+
+  void setFiscalQr({String? qrCodeBase64, String? fiscalIrn}) {
+    if (qrCodeBase64 != null && qrCodeBase64.trim().isNotEmpty) {
+      this.qrCodeBase64 = qrCodeBase64.trim();
+    }
+    if (fiscalIrn != null && fiscalIrn.trim().isNotEmpty) {
+      this.fiscalIrn = fiscalIrn.trim();
+    }
+  }
 
   // ── Formatting helpers ──────────────────────────────────────────────────
 
@@ -206,6 +218,15 @@ class ThermalDoc {
     final regularStyle = pw.TextStyle(font: regular, fontSize: _fontSize, height: 1.0);
     final boldStyle = pw.TextStyle(font: bold, fontSize: _fontSize, height: 1.0);
 
+    Uint8List? qrBytes;
+    final cleanQr = qrCodeBase64?.trim() ?? '';
+    if (cleanQr.isNotEmpty) {
+      try {
+        qrBytes = base64Decode(cleanQr);
+      } catch (_) {}
+    }
+    final cleanIrn = fiscalIrn?.trim() ?? '';
+
     pdf.addPage(
       pw.Page(
         pageTheme: pw.PageTheme(
@@ -225,25 +246,52 @@ class ThermalDoc {
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: _lines.map((ln) {
-              final trimmed = ln.text.trimLeft();
-              final lead = ln.text.length - trimmed.length;
-              final style = ln.bold ? boldStyle : regularStyle;
-              if (trimmed.isEmpty) {
-                return pw.SizedBox(height: _fontSize * 1.25);
-              }
-              return pw.Padding(
-                padding: pw.EdgeInsets.only(left: lead * _charWidth),
-                child: pw.Text(trimmed, style: style, softWrap: false),
-              );
-            }).toList(),
+            children: [
+              ..._lines.map((ln) {
+                final trimmed = ln.text.trimLeft();
+                final lead = ln.text.length - trimmed.length;
+                final style = ln.bold ? boldStyle : regularStyle;
+                if (trimmed.isEmpty) {
+                  return pw.SizedBox(height: _fontSize * 1.25);
+                }
+                return pw.Padding(
+                  padding: pw.EdgeInsets.only(left: lead * _charWidth),
+                  child: pw.Text(trimmed, style: style, softWrap: false),
+                );
+              }),
+              if (qrBytes != null || cleanIrn.isNotEmpty)
+                pw.SizedBox(
+                  width: double.infinity,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.SizedBox(height: 6),
+                      pw.Text('MRA E-INVOICE FISCAL QR', style: boldStyle),
+                      if (qrBytes != null) ...[
+                        pw.SizedBox(height: 4),
+                        pw.Image(pw.MemoryImage(qrBytes), width: 105, height: 105),
+                      ],
+                      if (cleanIrn.isNotEmpty) ...[
+                        pw.SizedBox(height: 3),
+                        pw.Text('IRN: $cleanIrn', style: regularStyle),
+                      ],
+                      pw.SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+            ],
           );
         },
       ),
     );
 
     final bytes = await pdf.save();
-    PrinterService.registerPdfThermalLines(bytes, toPrintLines());
+    PrinterService.registerPdfThermalLines(
+      bytes,
+      toPrintLines(),
+      qrBase64: qrCodeBase64,
+      fiscalIrn: fiscalIrn,
+    );
     return bytes;
   }
 }

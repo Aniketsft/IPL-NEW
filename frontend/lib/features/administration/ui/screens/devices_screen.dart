@@ -23,6 +23,7 @@ class DeviceItem {
   final String locationCode;
   final String? hepProfileId;
   final String? hepApiKey;
+  final String? ebsCounterNo;
   final bool isLocked;
   final bool isLicensed;
   final String licenseStatus;
@@ -43,6 +44,7 @@ class DeviceItem {
     required this.locationCode,
     this.hepProfileId,
     this.hepApiKey,
+    this.ebsCounterNo,
     this.isLocked = true,
     this.isLicensed = true,
     this.licenseStatus = 'VALID',
@@ -65,6 +67,7 @@ class DeviceItem {
       locationCode: json['locationCode']?.toString() ?? '',
       hepProfileId: json['hepProfileId']?.toString(),
       hepApiKey: json['hepApiKey']?.toString(),
+      ebsCounterNo: json['ebsCounterNo']?.toString(),
       isLocked: json['isLocked'] == null ? true : (json['isLocked'] is bool ? json['isLocked'] : json['isLocked'] == 1),
       isLicensed: json['isLicensed'] == null ? true : (json['isLicensed'] is bool ? json['isLicensed'] : json['isLicensed'] == 1),
       licenseStatus: json['licenseStatus']?.toString() ?? 'VALID',
@@ -88,6 +91,7 @@ class DeviceItem {
       'locationCode': locationCode,
       'hepProfileId': hepProfileId,
       'hepApiKey': hepApiKey,
+      'ebsCounterNo': ebsCounterNo ?? '1',
       'isLocked': isLocked ? 1 : 0,
       'isLicensed': isLicensed ? 1 : 0,
       'licenseStatus': licenseStatus,
@@ -110,6 +114,7 @@ class DeviceItem {
     String? locationCode,
     String? hepProfileId,
     String? hepApiKey,
+    String? ebsCounterNo,
     bool? isLocked,
     bool? isLicensed,
     String? licenseStatus,
@@ -130,6 +135,7 @@ class DeviceItem {
       locationCode: locationCode ?? this.locationCode,
       hepProfileId: hepProfileId ?? this.hepProfileId,
       hepApiKey: hepApiKey ?? this.hepApiKey,
+      ebsCounterNo: ebsCounterNo ?? this.ebsCounterNo,
       isLocked: isLocked ?? this.isLocked,
       isLicensed: isLicensed ?? this.isLicensed,
       licenseStatus: licenseStatus ?? this.licenseStatus,
@@ -210,6 +216,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   String? _currentWarehouse;
   String? _currentHepProfileId;
   String? _currentHepApiKey;
+  String? _currentEbsCounterNo;
   bool _currentIsLicensed = true;
   String _currentLicenseStatus = 'VALID';
   bool _currentIsLocked = true;
@@ -219,6 +226,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   bool _showApiKey = false;
   late TextEditingController _hepProfileController;
   late TextEditingController _hepApiKeyController;
+  late TextEditingController _ebsCounterController;
   late TextEditingController _deviceNameController;
 
   // Fleet Filter: 'ALL', 'LICENSED', 'UNLICENSED'
@@ -230,6 +238,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _initDeviceIdentity();
     _hepProfileController = TextEditingController(text: _currentHepProfileId ?? '');
     _hepApiKeyController = TextEditingController(text: _currentHepApiKey ?? '');
+    _ebsCounterController = TextEditingController(text: _currentEbsCounterNo ?? '1');
     _deviceNameController = TextEditingController(text: _currentDeviceName);
     _loadInitialData();
   }
@@ -238,6 +247,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   void dispose() {
     _hepProfileController.dispose();
     _hepApiKeyController.dispose();
+    _ebsCounterController.dispose();
     _deviceNameController.dispose();
     _lorryListRevision.dispose();
     super.dispose();
@@ -252,6 +262,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _currentWarehouse = devService.assignedWarehouse;
     _currentHepProfileId = devService.hepProfileId;
     _currentHepApiKey = devService.hepApiKey;
+    _currentEbsCounterNo = devService.ebsCounterNo;
     _currentIsLicensed = devService.isLicensed;
     _currentLicenseStatus = devService.licenseStatus;
     _currentIsLocked = devService.isLocked;
@@ -500,12 +511,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
         _currentWarehouse = match.warehouseCode;
         _currentHepProfileId = match.hepProfileId;
         _currentHepApiKey = match.hepApiKey;
+        _currentEbsCounterNo = match.ebsCounterNo ?? '1';
         _currentIsLicensed = match.isLicensed;
         _currentLicenseStatus = match.licenseStatus;
         _currentIsLocked = match.isLocked;
 
         _hepProfileController.text = match.hepProfileId ?? '';
         _hepApiKeyController.text = match.hepApiKey ?? '';
+        _ebsCounterController.text = match.ebsCounterNo ?? '1';
         _deviceNameController.text = match.deviceName;
       });
 
@@ -519,6 +532,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           locationCode: match.locationCode,
           hepProfileId: match.hepProfileId,
           hepApiKey: match.hepApiKey,
+          ebsCounterNo: match.ebsCounterNo,
           isLicensed: match.isLicensed,
           licenseStatus: match.licenseStatus,
           isLocked: match.isLocked,
@@ -568,9 +582,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 _currentWarehouse = updatedItem.warehouseCode;
                 _currentHepProfileId = updatedItem.hepProfileId;
                 _currentHepApiKey = updatedItem.hepApiKey;
+                _currentEbsCounterNo = updatedItem.ebsCounterNo ?? '1';
                 _currentIsLicensed = updatedItem.isLicensed;
                 _currentLicenseStatus = updatedItem.licenseStatus;
                 _currentIsLocked = updatedItem.isLocked;
+                _ebsCounterController.text = updatedItem.ebsCounterNo ?? '1';
               });
             }
             await DeviceInfoService.instance.setDeviceIdentity(
@@ -582,6 +598,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               locationCode: updatedItem.locationCode,
               hepProfileId: updatedItem.hepProfileId,
               hepApiKey: updatedItem.hepApiKey,
+              ebsCounterNo: updatedItem.ebsCounterNo,
               isLicensed: updatedItem.isLicensed,
               licenseStatus: updatedItem.licenseStatus,
               isLocked: updatedItem.isLocked,
@@ -969,8 +986,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
   /// Save Admin Configuration (DeviceName, HEP credentials, Lock State)
   Future<void> _saveAdminConfig() async {
     final newName = _deviceNameController.text.trim();
-    final newHepId = _hepProfileController.text.trim();
+    final newHepId = _hepProfileController.text.replaceAll(RegExp(r'\s+'), '');
     final newHepKey = _hepApiKeyController.text.trim();
+    final newEbsCounter = _ebsCounterController.text.trim();
 
     if (newName.isEmpty) {
       _showErrorSnackBar('Device Name cannot be empty.');
@@ -995,6 +1013,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           'siteCode': _userSiteCode,
           'hepProfileId': newHepId.isNotEmpty ? newHepId : null,
           'hepApiKey': newHepKey.isNotEmpty ? newHepKey : null,
+          'ebsCounterNo': newEbsCounter.isNotEmpty ? newEbsCounter : '1',
           'isLocked': true, // Auto re-lock after saving
         }),
       ).timeout(const Duration(seconds: 6));
@@ -1011,6 +1030,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           locationCode: saved.locationCode,
           hepProfileId: saved.hepProfileId,
           hepApiKey: saved.hepApiKey,
+          ebsCounterNo: saved.ebsCounterNo,
           isLicensed: saved.isLicensed,
           licenseStatus: saved.licenseStatus,
           isLocked: saved.isLocked,
@@ -1020,6 +1040,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
           _currentDeviceName = saved.deviceName;
           _currentHepProfileId = saved.hepProfileId;
           _currentHepApiKey = saved.hepApiKey;
+          _currentEbsCounterNo = saved.ebsCounterNo ?? '1';
+          _hepApiKeyController.text = saved.hepApiKey ?? '';
+          _ebsCounterController.text = saved.ebsCounterNo ?? '1';
           _currentIsLocked = true;
           _isAdminUnlocked = false;
         });
@@ -1086,6 +1109,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     String? selectedWarehouse = _availableLorries.isNotEmpty ? _availableLorries.first.warehouse : null;
     final hepProfileCtrl = TextEditingController();
     final hepKeyCtrl = TextEditingController();
+    final ebsCounterCtrl = TextEditingController(text: '1');
 
     showModalBottomSheet(
       context: context,
@@ -1265,6 +1289,15 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             isDense: true,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: ebsCounterCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'EBS Counter No',
+                            hintText: 'e.g. 1',
+                            isDense: true,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1302,6 +1335,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           warehouse: selectedWarehouse,
                           hepProfileId: hepProfileCtrl.text.trim().isNotEmpty ? hepProfileCtrl.text.trim() : null,
                           hepApiKey: hepKeyCtrl.text.trim().isNotEmpty ? hepKeyCtrl.text.trim() : null,
+                          ebsCounterNo: ebsCounterCtrl.text.trim().isNotEmpty ? ebsCounterCtrl.text.trim() : '1',
                         );
                       },
                     ),
@@ -1321,6 +1355,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     String? warehouse,
     String? hepProfileId,
     String? hepApiKey,
+    String? ebsCounterNo,
   }) async {
     setState(() => _isLoading = true);
 
@@ -1343,6 +1378,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           'warehouseCode': warehouse ?? lorryLocation,
           'hepProfileId': hepProfileId,
           'hepApiKey': hepApiKey,
+          'ebsCounterNo': ebsCounterNo ?? '1',
         }),
       ).timeout(const Duration(seconds: 8));
 
@@ -1360,6 +1396,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           locationCode: newDevice.locationCode,
           hepProfileId: newDevice.hepProfileId,
           hepApiKey: newDevice.hepApiKey,
+          ebsCounterNo: newDevice.ebsCounterNo,
           isLicensed: newDevice.isLicensed,
           licenseStatus: newDevice.licenseStatus,
           isLocked: newDevice.isLocked,
@@ -1372,6 +1409,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           _currentWarehouse = newDevice.warehouseCode;
           _currentHepProfileId = newDevice.hepProfileId;
           _currentHepApiKey = newDevice.hepApiKey;
+          _currentEbsCounterNo = newDevice.ebsCounterNo ?? '1';
           _currentIsLicensed = newDevice.isLicensed;
           _currentLicenseStatus = newDevice.licenseStatus;
           _currentIsLocked = true;
@@ -1380,6 +1418,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           _deviceNameController.text = newDevice.deviceName;
           _hepProfileController.text = newDevice.hepProfileId ?? '';
           _hepApiKeyController.text = newDevice.hepApiKey ?? '';
+          _ebsCounterController.text = newDevice.ebsCounterNo ?? '1';
         });
 
         await _syncOnlineWithBackend();
@@ -2524,14 +2563,34 @@ class _DevicesScreenState extends State<DevicesScreen> {
           ),
           const SizedBox(height: 12),
 
+          // EBS Counter No
+          TextField(
+            controller: _ebsCounterController,
+            enabled: _isAdminUnlocked,
+            decoration: const InputDecoration(
+              labelText: 'EBS Counter No',
+              hintText: 'e.g. 1',
+              prefixIcon: Icon(Icons.tag_rounded, size: 20),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+
           // HEP API Key
           TextField(
             controller: _hepApiKeyController,
             enabled: _isAdminUnlocked,
-            obscureText: !_showApiKey && !_isAdminUnlocked,
+            obscureText: !_showApiKey,
             decoration: InputDecoration(
               labelText: 'HEP API Key',
-              hintText: _isAdminUnlocked ? 'Enter API Key' : '••••••••••••••••',
+              hintText: _isAdminUnlocked
+                  ? ((_currentHepApiKey != null && _currentHepApiKey!.isNotEmpty)
+                      ? 'Leave blank to keep (${_currentHepApiKey!}) or paste new key'
+                      : 'Paste full HEP API Key')
+                  : '••••••••••••••••',
+              helperText: _isAdminUnlocked && (_currentHepApiKey != null && _currentHepApiKey!.isNotEmpty)
+                  ? 'Current key stored (${_currentHepApiKey!}) — leave empty to keep it'
+                  : null,
               prefixIcon: const Icon(Icons.key_rounded, size: 20),
               suffixIcon: IconButton(
                 icon: Icon(_showApiKey ? Icons.visibility_off : Icons.visibility, size: 18),
@@ -2559,13 +2618,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.5),
                 ),
                 onPressed: () {
+                  void unlock() {
+                    setState(() {
+                      _isAdminUnlocked = true;
+                      if (_hepApiKeyController.text.contains('•')) {
+                        _hepApiKeyController.clear();
+                      }
+                    });
+                  }
+
                   if (_isAdminUser) {
-                    setState(() => _isAdminUnlocked = true);
+                    unlock();
                   } else {
                     _showAdminAuthPrompt(
                       title: 'Unlock Configuration',
                       message: 'Enter administrator credentials to edit Device Name and HEP Software keys.',
-                      onSuccess: () => setState(() => _isAdminUnlocked = true),
+                      onSuccess: unlock,
                     );
                   }
                 },
@@ -2579,7 +2647,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  onPressed: () => setState(() => _isAdminUnlocked = false),
+                  onPressed: () => setState(() {
+                    _isAdminUnlocked = false;
+                    _hepApiKeyController.text = _currentHepApiKey ?? '';
+                  }),
                   child: const Text('Cancel'),
                 ),
                 const SizedBox(width: 10),

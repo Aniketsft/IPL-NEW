@@ -6,6 +6,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/models/transaction_model.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/repositories/transaction_history_repository.dart';
 import 'package:enterprise_auth_mobile/features/logistics/domain/services/credit_note_pdf_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/document_sequence_service.dart';
+import 'package:enterprise_auth_mobile/features/logistics/domain/services/fiscalisation_service.dart';
+import 'package:enterprise_auth_mobile/core/services/device_info_service.dart';
 import 'package:enterprise_auth_mobile/features/logistics/data/local/local_database_helper.dart';
 import 'package:enterprise_auth_mobile/core/widgets/industrial_module_layout.dart';
 import 'package:enterprise_auth_mobile/features/logistics/presentation/bloc/sales_invoice_bloc.dart';
@@ -344,11 +347,153 @@ class _InvoiceItemReversalScreenState extends State<InvoiceItemReversalScreen> {
 
     setState(() => _isProcessing = true);
     try {
+      final dbHelper = LocalDatabaseHelper.instance;
+      final invRow = await dbHelper.getSalesInvoiceById(widget.transaction.id);
+      final salesSite = (invRow?['salesSite']?.toString().trim().isNotEmpty == true)
+          ? invRow!['salesSite'].toString().trim()
+          : (DeviceInfoService.instance.resolveEffectiveSiteCode().isNotEmpty
+              ? DeviceInfoService.instance.resolveEffectiveSiteCode()
+              : 'POD');
+      final deviceId = DeviceInfoService.instance.deviceId.isNotEmpty
+          ? DeviceInfoService.instance.deviceId
+          : widget.transaction.auditMetadata.deviceId;
+      final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
+        docType: 'CRN',
+        salesSite: salesSite,
+        lorryCode: DeviceInfoService.instance.assignedLocation,
+        deviceId: deviceId,
+      );
+
+      final allLinesMap = {
+        for (final l in _lines) (l['lineId']?.toString() ?? l['id']?.toString() ?? ''): l,
+      };
+      final fiscalLines = <Map<String, dynamic>>[];
+      double reversalTotal = 0.0;
+      int fiscalLineIdx = 1;
+      for (final sel in selectedLines) {
+        final lid = sel['lineId'].toString();
+        final revQty = (sel['reversedQty'] as num).toDouble();
+        final orig = allLinesMap[lid];
+        if (orig == null) continue;
+        final origQty = (orig['quantity'] as num?)?.toDouble() ?? 1.0;
+        final ratio = origQty > 0 ? (revQty / origQty) : 1.0;
+        final basePrice = (orig['basePrice'] as num?)?.toDouble() ?? 0.0;
+        final disc = ((orig['discountAmountFlat'] ?? orig['discountAmount']) as num?)?.toDouble() ?? 0.0;
+        final vat = (orig['vatAmount'] as num?)?.toDouble() ?? 0.0;
+        final lineDisc = disc * ratio;
+        final lineVat = vat * ratio;
+        final lineAmtWoVat = (basePrice * revQty) - lineDisc;
+        final lineNet = lineAmtWoVat + lineVat;
+        reversalTotal += lineNet;
+        fiscalLines.add({
+          'lineNo': fiscalLineIdx++,
+          'sku': orig['sku'] ?? '',
+          'name': orig['name'] ?? '',
+          'quantity': revQty,
+          'unitPrice': basePrice,
+          'discountAmount': lineDisc,
+          'vatAmount': lineVat,
+          'amtWoVat': lineAmtWoVat,
+          'total': lineNet,
+          'taxCode': orig['taxCode'] ?? '',
+          'taxRule': orig['taxRule'] ?? '',
+        });
+      }
+
+      final originX3 = invRow?['x3DocumentId']?.toString().trim();
+      final originRef = (originX3 != null && originX3.isNotEmpty)
+          ? originX3
+          : widget.transaction.id;
+      final refundMethod = confirmedSelection['refundMethod'] ?? 'CASH';
+
+      FiscalisationResult? fiscalResult;
+      while (true) {
+        try {
+          fiscalResult = await FiscalisationService().fiscaliseDocument(
+            documentNo: creditNoteId,
+            documentCategory: 'CREDIT_NOTE',
+            invoiceType: 'CRN',
+            salesSite: salesSite,
+            customerCode: widget.transaction.customerCode,
+            customerName: widget.transaction.customerName,
+            originalInvoiceId: originRef,
+            reason: confirmedSelection['reason'],
+            deviceId: deviceId,
+            settlementType: refundMethod,
+            totalPaid: refundMethod.toUpperCase() == 'CREDIT' ? 0.0 : reversalTotal,
+            lines: fiscalLines,
+          );
+          break;
+        } on FiscalisationException catch (fe) {
+          if (!mounted) return;
+          final retry = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (errCtx) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    fe.isOfflineOrNetwork ? Icons.cloud_off : Icons.error_outline,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      fe.isOfflineOrNetwork
+                          ? 'Online Fiscalisation Required'
+                          : 'Fiscalisation Rejected',
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(fe.message),
+                    if (fe.errors.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ...fe.errors.map(
+                        (e) => Text(
+                          '• $e',
+                          style: const TextStyle(fontSize: 12, color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(errCtx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(errCtx).pop(true),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+          if (retry != true) {
+            if (mounted) setState(() => _isProcessing = false);
+            return;
+          }
+        }
+      }
+
       final creditNote = await _repository.partialReverseInvoice(
         widget.transaction,
         selectedLines,
         reason: confirmedSelection['reason'],
         refundMethod: confirmedSelection['refundMethod'],
+        preAllocatedCreditNoteId: creditNoteId,
+        isFiscalised: fiscalResult.isFiscalised ? 1 : 0,
+        fiscalQrBase64: fiscalResult.qrCodeBase64,
+        fiscalIrn: fiscalResult.irn,
+        fiscalAt: fiscalResult.fiscalisedAt,
+        fiscalHepId: fiscalResult.hepId,
       );
       if (!mounted) return;
       setState(() => _isProcessing = false);

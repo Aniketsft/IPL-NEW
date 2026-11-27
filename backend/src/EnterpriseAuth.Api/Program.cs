@@ -144,6 +144,10 @@ builder.Services.AddScoped<IStagingService, StagingService>();
 builder.Services.AddScoped<ISageX3SoapService, SageX3SoapService>();
 builder.Services.AddScoped<ISalesInvoiceRepository, EfSalesInvoiceRepository>();
 builder.Services.AddScoped<ISiteContextResolver, SiteContextResolver>();
+builder.Services.AddSingleton<IHepSecretProtector, HepSecretProtector>();
+builder.Services.AddScoped<IFiscalisationService, FiscalisationService>();
+builder.Services.AddHttpClient("HepClient");
+builder.Services.Configure<FiscalSettings>(builder.Configuration.GetSection("Fiscal"));
 builder.Services.AddScoped<DeviceLicenseActionFilter>();
 builder.Services.AddSingleton<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService, EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.SnapshotService>();
 builder.Services.AddHostedService<EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.X3SnapshotBackgroundWorker>();
@@ -230,6 +234,7 @@ using (var scope = app.Services.CreateScope())
     await DbInitializer.MigrateEnterpriseRedesignAsync(scanContext);
     await DbInitializer.MigrateFinalDecommissionAsync(scanContext);
     await DbInitializer.MigrateStagingTableAsync(scanContext);
+    await DbInitializer.MigrateFiscalisationAsync(scanContext);
 }
 
 // Configure the HTTP request pipeline.

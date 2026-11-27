@@ -43,9 +43,13 @@ namespace EnterpriseAuth.Api.Core.Domain.Entities
         [Column("HepProfileId")]
         public string? HepProfileId { get; set; }
 
-        [MaxLength(255)]
+        [MaxLength(1000)]
         [Column("HepApiKey")]
         public string? HepApiKey { get; set; }
+
+        [MaxLength(20)]
+        [Column("EbsCounterNo")]
+        public string? EbsCounterNo { get; set; } = "1";
 
         [Column("IsLocked")]
         public bool IsLocked { get; set; } = true;

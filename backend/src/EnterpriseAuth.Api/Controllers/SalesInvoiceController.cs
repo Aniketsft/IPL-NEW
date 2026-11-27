@@ -31,6 +31,7 @@ namespace EnterpriseAuth.Api.Controllers
         private readonly ISiteContextResolver _siteResolver;
         private readonly EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? _snapshotService;
         private readonly IX3SchemaProvider? _schemaProvider;
+        private readonly FiscalSettings _fiscalSettings;
 
         public SalesInvoiceController(
             ISalesInvoiceRepository repository,
@@ -39,7 +40,8 @@ namespace EnterpriseAuth.Api.Controllers
             ILogger<SalesInvoiceController> logger,
             ISiteContextResolver siteResolver,
             EnterpriseAuth.Api.Infrastructure.Features.SnapshotManagement.ISnapshotService? snapshotService = null,
-            IX3SchemaProvider? schemaProvider = null)
+            IX3SchemaProvider? schemaProvider = null,
+            Microsoft.Extensions.Options.IOptions<FiscalSettings>? fiscalSettings = null)
         {
             _repository = repository;
             _dbContext = dbContext;
@@ -48,6 +50,7 @@ namespace EnterpriseAuth.Api.Controllers
             _siteResolver = siteResolver;
             _snapshotService = snapshotService;
             _schemaProvider = schemaProvider;
+            _fiscalSettings = fiscalSettings?.Value ?? new FiscalSettings();
         }
 
         private string ResolveSchemaName()
@@ -157,6 +160,25 @@ namespace EnterpriseAuth.Api.Controllers
                 var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
                 recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
                 recoveredRawPayload = priorAudit.ResponsePayload;
+            }
+
+            // Hard fiscalisation gate: reject X3 SOAP sync unless document is marked fiscalised in HepFiscalInvoices
+            if (_fiscalSettings.EnforceX3Gate && string.IsNullOrEmpty(recoveredX3DocId))
+            {
+                var isFiscalised = await _dbContext.HepFiscalInvoices
+                    .AsNoTracking()
+                    .AnyAsync(f => f.DocumentNo == payload.InvoiceId && f.IsFiscalised);
+                if (!isFiscalised)
+                {
+                    _logger.LogWarning("X3 Gate rejected un-fiscalised invoice {InvoiceId}", payload.InvoiceId);
+                    return Conflict(new
+                    {
+                        success = false,
+                        invoiceId = payload.InvoiceId,
+                        errorCode = "ERR_NOT_FISCALISED",
+                        error = $"Invoice '{payload.InvoiceId}' cannot be integrated into Sage X3 because it has not been fiscalised in HEP."
+                    });
+                }
             }
 
             var userSiteCode = User.FindFirst("SiteCode")?.Value;
@@ -358,7 +380,7 @@ namespace EnterpriseAuth.Api.Controllers
                             ChequeDate = p.ChequeDate,
                             QrTransactionRef = p.QrTransactionRef,
                             LocalPaymentId = p.LocalPaymentId,
-                            SalesSite = existingHeader.SalesSite,
+                            SalesSite = existingHeader.SalesSite ?? "",
                             CustomerCode = existingHeader.CustomerCode ?? ""
                         });
                     }
@@ -411,6 +433,24 @@ namespace EnterpriseAuth.Api.Controllers
 
                 // 3. Commit invoice transaction IMMEDIATELY so confirmed invoice is never lost in HIPO
                 await transaction.CommitAsync();
+
+                // Update HepFiscalInvoices X3 sync status for troubleshooting tracking
+                try
+                {
+                    var fiscalRow = await _dbContext.HepFiscalInvoices
+                        .FirstOrDefaultAsync(f => f.DocumentNo == payload.InvoiceId);
+                    if (fiscalRow != null)
+                    {
+                        fiscalRow.X3Synced = true;
+                        if (!string.IsNullOrWhiteSpace(x3DocId)) fiscalRow.X3DocumentId = x3DocId;
+                        fiscalRow.X3SyncedAt = DateTime.UtcNow;
+                        await _dbContext.SaveChangesAsync();
+                    }
+                }
+                catch (Exception fEx)
+                {
+                    _logger.LogWarning(fEx, "Failed updating HepFiscalInvoices X3Synced for {InvoiceId}", payload.InvoiceId);
+                }
 
                 // 4. Decoupled Payment Sync Phase: Staging and SOAP invocation outside invoice transaction
                 bool paymentSynced = false;
@@ -576,6 +616,25 @@ namespace EnterpriseAuth.Api.Controllers
                     var endIdx = sub.IndexOfAny(new[] { '<', '"', '\r', '\n', ' ' });
                     recoveredX3DocId = endIdx > 0 ? sub.Substring(0, endIdx).Trim() : sub.Trim();
                     recoveredRawPayload = priorAudit.ResponsePayload;
+                }
+
+                // Hard fiscalisation gate: reject X3 SOAP sync unless credit note / return is fiscalised in HepFiscalInvoices
+                if (_fiscalSettings.EnforceX3Gate && string.IsNullOrEmpty(recoveredX3DocId))
+                {
+                    var isFiscalised = await _dbContext.HepFiscalInvoices
+                        .AsNoTracking()
+                        .AnyAsync(f => f.DocumentNo == payload.CreditNoteId && f.IsFiscalised);
+                    if (!isFiscalised)
+                    {
+                        _logger.LogWarning("X3 Gate rejected un-fiscalised credit note/return {CreditNoteId}", payload.CreditNoteId);
+                        return Conflict(new
+                        {
+                            success = false,
+                            creditNoteId = payload.CreditNoteId,
+                            errorCode = "ERR_NOT_FISCALISED",
+                            error = $"Credit note / return '{payload.CreditNoteId}' cannot be integrated into Sage X3 because it has not been fiscalised in HEP."
+                        });
+                    }
                 }
 
                 var userSiteCode = User.FindFirst("SiteCode")?.Value;
@@ -828,6 +887,24 @@ namespace EnterpriseAuth.Api.Controllers
 
                 // 3. Commit credit note transaction IMMEDIATELY so confirmed credit note is saved in HIPO
                 await transaction.CommitAsync();
+
+                // Update HepFiscalInvoices X3 sync status for troubleshooting tracking
+                try
+                {
+                    var fiscalRow = await _dbContext.HepFiscalInvoices
+                        .FirstOrDefaultAsync(f => f.DocumentNo == payload.CreditNoteId);
+                    if (fiscalRow != null)
+                    {
+                        fiscalRow.X3Synced = true;
+                        if (!string.IsNullOrWhiteSpace(x3DocId)) fiscalRow.X3DocumentId = x3DocId;
+                        fiscalRow.X3SyncedAt = DateTime.UtcNow;
+                        await _dbContext.SaveChangesAsync();
+                    }
+                }
+                catch (Exception fEx)
+                {
+                    _logger.LogWarning(fEx, "Failed updating HepFiscalInvoices X3Synced for {CreditNoteId}", payload.CreditNoteId);
+                }
 
                 // 4. Decoupled Refund Phase: If Credit Note has Cash or Cheque refunds, disburse via ZPAYWEBA (REM, Sign 1, SCRN)
                 bool refundSynced = false;

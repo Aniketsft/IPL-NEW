@@ -141,6 +141,7 @@ class CreditNotePdfService {
     thermalTerms(d);
     d.blank();
     d.line(' 1 of 1');
+    d.setFiscalQr(qrCodeBase64: creditNote.fiscalQrBase64, fiscalIrn: creditNote.fiscalIrn);
     d.blank(2);
 
     return d;

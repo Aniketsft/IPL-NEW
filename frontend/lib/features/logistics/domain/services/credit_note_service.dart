@@ -458,6 +458,12 @@ class CreditNoteService {
     int stockTransaction = 0,
     String? stockStatus,
     String? refundMethod,
+    String? preAllocatedCreditNoteId,
+    int isFiscalised = 0,
+    String? fiscalQrBase64,
+    String? fiscalIrn,
+    String? fiscalAt,
+    String? fiscalHepId,
   }) async {
     if (selectedLines.isEmpty) {
       throw ArgumentError('At least one line must be selected for partial reversal.');
@@ -559,12 +565,14 @@ class CreditNoteService {
     final customerCode = (invoice['customerCode'] as String?) ?? '';
     final customerName = (invoice['customerName'] as String?) ?? '';
     final docType = (stockTransaction == 1) ? 'RTN' : 'CRN';
-    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
-      docType: docType,
-      salesSite: salesSite,
-      lorryCode: DeviceInfoService.instance.assignedLocation,
-      deviceId: deviceId,
-    );
+    final creditNoteId = (preAllocatedCreditNoteId != null && preAllocatedCreditNoteId.trim().isNotEmpty)
+        ? preAllocatedCreditNoteId.trim()
+        : await DocumentSequenceService().generateDocumentNumber(
+            docType: docType,
+            salesSite: salesSite,
+            lorryCode: DeviceInfoService.instance.assignedLocation,
+            deviceId: deviceId,
+          );
     final now = DateTime.now().toIso8601String();
 
     final originX3Id = (invoice['x3DocumentId'] as String?)?.trim();
@@ -592,6 +600,11 @@ class CreditNoteService {
       salesRep: salesRep ?? (invoice['salesRep'] as String?),
       transactionMode: '4',
       stockTransaction: stockTransaction,
+      isFiscalised: isFiscalised,
+      fiscalQrBase64: fiscalQrBase64,
+      fiscalIrn: fiscalIrn,
+      fiscalAt: fiscalAt,
+      fiscalHepId: fiscalHepId,
     );
 
     // Fetch default bank outside transaction to prevent sqflite lock contention
@@ -725,6 +738,12 @@ class CreditNoteService {
     String? originInvoiceId,
     int stockTransaction = 0,
     String? stockStatus,
+    String? preAllocatedCreditNoteId,
+    int isFiscalised = 0,
+    String? fiscalQrBase64,
+    String? fiscalIrn,
+    String? fiscalAt,
+    String? fiscalHepId,
   }) async {
     final methodUpper = refundMethod.toUpperCase();
     if (methodUpper == 'QR' || methodUpper.contains('QR')) {
@@ -741,12 +760,14 @@ class CreditNoteService {
 
     final db = await _dbProvider();
     final docType = (stockTransaction == 1) ? 'RTN' : 'CRN';
-    final creditNoteId = await DocumentSequenceService().generateDocumentNumber(
-      docType: docType,
-      salesSite: salesSite,
-      lorryCode: DeviceInfoService.instance.assignedLocation,
-      deviceId: deviceId,
-    );
+    final creditNoteId = (preAllocatedCreditNoteId != null && preAllocatedCreditNoteId.trim().isNotEmpty)
+        ? preAllocatedCreditNoteId.trim()
+        : await DocumentSequenceService().generateDocumentNumber(
+            docType: docType,
+            salesSite: salesSite,
+            lorryCode: DeviceInfoService.instance.assignedLocation,
+            deviceId: deviceId,
+          );
     final now = DateTime.now().toIso8601String();
 
     final creditNote = CreditNoteModel(
@@ -773,6 +794,11 @@ class CreditNoteService {
       salesRep: salesRep,
       transactionMode: (originInvoiceId != null && originInvoiceId.isNotEmpty) ? '4' : '1',
       stockTransaction: stockTransaction,
+      isFiscalised: isFiscalised,
+      fiscalQrBase64: fiscalQrBase64,
+      fiscalIrn: fiscalIrn,
+      fiscalAt: fiscalAt,
+      fiscalHepId: fiscalHepId,
     );
 
     // Fetch default bank and device lorry location outside transaction to prevent sqflite lock contention
